@@ -1,0 +1,52 @@
+import { commonAr } from "./locales/ar/common";
+import { dashboardAr } from "./locales/ar/dashboard";
+import { loginAr } from "./locales/ar/login";
+import { registerAr } from "./locales/ar/register";
+import { verificationAr } from "./locales/ar/verification";
+import { commonFr } from "./locales/fr/common";
+import { dashboardFr } from "./locales/fr/dashboard";
+import { loginFr } from "./locales/fr/login";
+import { registerFr } from "./locales/fr/register";
+import { verificationFr } from "./locales/fr/verification";
+
+export const locales = ["fr", "ar"] as const;
+export type Locale = (typeof locales)[number];
+
+export const defaultLocale: Locale = "fr";
+
+export const dictionaries = {
+  fr: {
+    common: commonFr,
+    dashboard: dashboardFr,
+    login: loginFr,
+    register: registerFr,
+    verification: verificationFr,
+  },
+  ar: {
+    common: commonAr,
+    dashboard: dashboardAr,
+    login: loginAr,
+    register: registerAr,
+    verification: verificationAr,
+  },
+} as const;
+
+type WidenDictionary<T> = T extends string
+  ? string
+  : T extends readonly unknown[]
+    ? T
+    : T extends object
+      ? { readonly [Key in keyof T]: WidenDictionary<T[Key]> }
+      : T;
+
+export type Dictionary = WidenDictionary<
+  (typeof dictionaries)[typeof defaultLocale]
+>;
+
+export function isLocale(value: string | null): value is Locale {
+  return Boolean(value && locales.includes(value as Locale));
+}
+
+export function getDictionary(locale: Locale): Dictionary {
+  return dictionaries[locale];
+}
