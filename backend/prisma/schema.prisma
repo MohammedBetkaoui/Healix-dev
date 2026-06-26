@@ -36,6 +36,7 @@ enum EstablishmentType {
 
 enum VerificationStatus {
   NOT_STARTED
+  DRAFT
   PENDING_VERIFICATION
   VERIFIED
   REJECTED
@@ -48,6 +49,39 @@ enum SubscriptionStatus {
   ACTIVE
   EXPIRED
   CANCELED
+}
+
+enum VerificationRequestType {
+  ESTABLISHMENT
+  INDEPENDENT_DOCTOR
+}
+
+enum VerificationStep {
+  ESTABLISHMENT_INFO
+  LEGAL_INFO
+  HEALTH_AUTHORIZATION
+  LEGAL_REPRESENTATIVE
+  DOCUMENTS
+  SUBMISSION
+}
+
+enum VerificationDocumentType {
+  COMMERCIAL_REGISTER
+  NIF_DOCUMENT
+  HEALTH_AUTHORIZATION
+  LEGAL_REPRESENTATIVE_ID
+  ADDRESS_PROOF
+  NIS_DOCUMENT
+  COMPANY_STATUTES
+  CNAS_CASNOS
+  MEDICAL_DIRECTOR_DOCUMENT
+  REPRESENTATIVE_NOMINATION
+}
+
+enum VerificationDocumentStatus {
+  READY
+  UPLOADED
+  REJECTED
 }
 
 model User {
@@ -67,6 +101,8 @@ model User {
   doctorProfile DoctorProfile?
   refreshTokens RefreshToken[]
   auditLogs     AuditLog[]
+  verificationRequests VerificationRequest[] @relation("VerificationRequestUser")
+  reviewedVerificationRequests VerificationRequest[] @relation("VerificationReviewedBy")
 
   @@map("users")
 }
@@ -88,6 +124,7 @@ model Establishment {
 
   owner          User            @relation(fields: [ownerId], references: [id], onDelete: Cascade)
   doctorProfiles DoctorProfile[]
+  verificationRequest VerificationRequest?
 
   @@map("establishments")
 }
@@ -144,4 +181,89 @@ model RefreshToken {
   @@index([userId])
   @@index([expiresAt])
   @@map("refresh_tokens")
+}
+
+model VerificationRequest {
+  id              String                  @id @default(cuid())
+  establishmentId String                 @unique @map("establishment_id")
+  userId          String                 @map("user_id")
+  type            VerificationRequestType @default(ESTABLISHMENT)
+  status          VerificationStatus      @default(DRAFT)
+  currentStep     VerificationStep        @default(ESTABLISHMENT_INFO) @map("current_step")
+  submittedAt     DateTime?              @map("submitted_at")
+  reviewedAt      DateTime?              @map("reviewed_at")
+  reviewedById    String?                @map("reviewed_by_id")
+  rejectionReason String?                @map("rejection_reason") @db.Text
+  createdAt       DateTime               @default(now()) @map("created_at")
+  updatedAt       DateTime               @updatedAt @map("updated_at")
+
+  establishment Establishment                  @relation(fields: [establishmentId], references: [id], onDelete: Cascade)
+  user          User                           @relation("VerificationRequestUser", fields: [userId], references: [id], onDelete: Cascade)
+  reviewedBy    User?                          @relation("VerificationReviewedBy", fields: [reviewedById], references: [id], onDelete: SetNull)
+  data          EstablishmentVerificationData?
+  documents     VerificationDocument[]
+
+  @@index([userId])
+  @@index([reviewedById])
+  @@index([status])
+  @@map("verification_requests")
+}
+
+model EstablishmentVerificationData {
+  id                              String            @id @default(cuid())
+  verificationRequestId           String            @unique @map("verification_request_id")
+  name                            String            @db.VarChar(150)
+  type                            EstablishmentType
+  legalForm                       String?           @map("legal_form") @db.VarChar(120)
+  wilaya                          String            @db.VarChar(80)
+  commune                         String?           @db.VarChar(80)
+  address                         String            @db.VarChar(255)
+  phone                           String            @db.VarChar(32)
+  professionalEmail               String            @map("professional_email") @db.VarChar(191)
+  website                         String?           @db.VarChar(191)
+  commercialRegisterNumber        String?           @map("commercial_register_number") @db.VarChar(80)
+  commercialRegisterIssuedAt      DateTime?         @map("commercial_register_issued_at")
+  commercialRegisterWilaya        String?           @map("commercial_register_wilaya") @db.VarChar(80)
+  nif                             String?           @db.VarChar(80)
+  nis                             String?           @db.VarChar(80)
+  taxCenter                       String?           @map("tax_center") @db.VarChar(120)
+  healthAuthorizationNumber       String?           @map("health_authorization_number") @db.VarChar(100)
+  healthAuthorizationIssuedAt     DateTime?         @map("health_authorization_issued_at")
+  healthAuthorizationAuthority    String?           @map("health_authorization_authority") @db.VarChar(160)
+  healthDirectionWilaya           String?           @map("health_direction_wilaya") @db.VarChar(80)
+  authorizedActivityType          String?           @map("authorized_activity_type") @db.VarChar(160)
+  legalRepresentativeFullName     String?           @map("legal_representative_full_name") @db.VarChar(120)
+  legalRepresentativeFunction     String?           @map("legal_representative_function") @db.VarChar(120)
+  legalRepresentativeNinOrId      String?           @map("legal_representative_nin_or_id") @db.VarChar(80)
+  legalRepresentativePhone        String?           @map("legal_representative_phone") @db.VarChar(32)
+  legalRepresentativeEmail        String?           @map("legal_representative_email") @db.VarChar(191)
+  confirmationAccuracy            Boolean           @default(false) @map("confirmation_accuracy")
+  createdAt                       DateTime          @default(now()) @map("created_at")
+  updatedAt                       DateTime          @updatedAt @map("updated_at")
+
+  verificationRequest VerificationRequest @relation(fields: [verificationRequestId], references: [id], onDelete: Cascade)
+
+  @@map("establishment_verification_data")
+}
+
+model VerificationDocument {
+  id                    String                     @id @default(cuid())
+  verificationRequestId  String                    @map("verification_request_id")
+  documentType          VerificationDocumentType    @map("document_type")
+  originalName          String                     @map("original_name") @db.VarChar(255)
+  storedName            String                     @map("stored_name") @db.VarChar(255)
+  mimeType              String                     @map("mime_type") @db.VarChar(100)
+  size                  Int
+  localPath             String                     @map("local_path") @db.VarChar(500)
+  checksum              String?                    @db.VarChar(128)
+  status                VerificationDocumentStatus @default(UPLOADED)
+  uploadedAt            DateTime                   @default(now()) @map("uploaded_at")
+  createdAt             DateTime                   @default(now()) @map("created_at")
+  updatedAt             DateTime                   @updatedAt @map("updated_at")
+
+  verificationRequest VerificationRequest @relation(fields: [verificationRequestId], references: [id], onDelete: Cascade)
+
+  @@unique([verificationRequestId, documentType])
+  @@index([verificationRequestId])
+  @@map("verification_documents")
 }

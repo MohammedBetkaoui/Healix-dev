@@ -16,6 +16,7 @@ export const verificationFr = {
       "Votre demande est en cours d'examen. Vous serez notifie apres validation par l'administration.",
     values: {
       NOT_STARTED: "NOT_STARTED",
+      DRAFT: "DRAFT",
       PENDING_VERIFICATION: "PENDING_VERIFICATION",
       VERIFIED: "VERIFIED",
       REJECTED: "REJECTED",
@@ -28,6 +29,9 @@ export const verificationFr = {
     adminValidation: "Validation admin",
   },
   form: {
+    prefillLoading: "Chargement des informations de l'etablissement...",
+    prefillError:
+      "Impossible de charger les informations enregistrees. Veuillez actualiser la page.",
     establishmentName: "Nom de l'etablissement",
     establishmentType: "Type d'etablissement",
     wilaya: "Wilaya",

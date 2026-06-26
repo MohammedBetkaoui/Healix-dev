@@ -1,8 +1,8 @@
 "use client";
 
 import { zodResolver } from "@hookform/resolvers/zod";
-import { CheckCircle2, ShieldCheck } from "lucide-react";
-import { useMemo, useState } from "react";
+import { CheckCircle2, Loader2, ShieldCheck } from "lucide-react";
+import { useEffect, useMemo, useState } from "react";
 import { useForm, useWatch } from "react-hook-form";
 
 import { establishmentNavSections } from "@/components/dashboard/layout/navigation";
@@ -20,6 +20,7 @@ import {
   type RequiredDocumentType,
   type VerificationStatus,
 } from "@/features/verification/types/verification.types";
+import { useEstablishmentVerificationPrefill } from "@/features/verification/hooks/use-establishment-verification-prefill";
 import { ESTABLISHMENT_TYPE_OPTIONS } from "@/types/auth";
 import { cn } from "@/lib/utils";
 
@@ -64,21 +65,21 @@ const requiredDocuments: RequiredDocumentDefinition[] = [
 ];
 
 const defaultValues: EstablishmentVerificationFormInput = {
-  address: "Rue principale, Alger",
+  address: "",
   addressProofDocument: null,
   commercialRegisterDocument: null,
   commercialRegisterNumber: "",
-  establishmentName: "Clinique El Shifa",
+  establishmentName: "",
   establishmentType: ESTABLISHMENT_TYPE_OPTIONS[0]?.value ?? "CLINIC",
   healthAuthorizationDocument: null,
   healthAuthorizationNumber: "",
-  managerFullName: "Dr Karim Mansouri",
+  managerFullName: "",
   managerIdDocument: null,
   nif: "",
   nifDocument: null,
-  phone: "+213555000000",
-  professionalEmail: "contact@clinique.dz",
-  wilaya: "Alger",
+  phone: "",
+  professionalEmail: "",
+  wilaya: "",
 };
 
 function createInitialDocumentStates(): Record<RequiredDocumentType, DocumentUploadState> {
@@ -94,7 +95,10 @@ function createInitialDocumentStates(): Record<RequiredDocumentType, DocumentUpl
 export function EstablishmentVerificationPage() {
   const { locale } = useStoredLocale();
   const { direction, t } = useTranslation(locale);
-  const [status, setStatus] = useState<VerificationStatus>("NOT_STARTED");
+  const { data: prefillData, isError: isPrefillError, isLoading: isPrefillLoading } =
+    useEstablishmentVerificationPrefill();
+  const [submittedStatus, setSubmittedStatus] =
+    useState<VerificationStatus | null>(null);
   const [isSubmittingRequest, setSubmittingRequest] = useState(false);
   const [toastMessage, setToastMessage] = useState<string | null>(null);
   const [documentStates, setDocumentStates] = useState<Record<
@@ -117,6 +121,7 @@ export function EstablishmentVerificationPage() {
     formState: { errors },
     handleSubmit,
     register,
+    reset,
     setError,
     clearErrors,
     setValue,
@@ -127,6 +132,33 @@ export function EstablishmentVerificationPage() {
     mode: "onBlur",
     resolver: zodResolver(schema),
   });
+  const status =
+    submittedStatus ?? prefillData?.verification.status ?? "NOT_STARTED";
+
+  useEffect(() => {
+    if (!prefillData) {
+      return;
+    }
+
+    const establishment = prefillData.establishment;
+    const draftData = prefillData.draftData;
+
+    reset({
+      ...defaultValues,
+      address: draftData?.address ?? establishment.address,
+      commercialRegisterNumber: draftData?.commercialRegisterNumber ?? "",
+      establishmentName: draftData?.name ?? establishment.name,
+      establishmentType: draftData?.type ?? establishment.type,
+      healthAuthorizationNumber: draftData?.healthAuthorizationNumber ?? "",
+      managerFullName:
+        draftData?.legalRepresentativeFullName ?? establishment.managerFullName,
+      nif: draftData?.nif ?? "",
+      phone: draftData?.phone ?? establishment.phone,
+      professionalEmail:
+        draftData?.professionalEmail ?? establishment.professionalEmail,
+      wilaya: draftData?.wilaya ?? establishment.wilaya,
+    });
+  }, [prefillData, reset]);
 
   const watchedValues = useWatch({ control });
 
@@ -236,7 +268,7 @@ export function EstablishmentVerificationPage() {
     try {
       // Backend validation and secure file scanning remain mandatory.
       await new Promise((resolve) => window.setTimeout(resolve, 800));
-      setStatus("PENDING_VERIFICATION");
+      setSubmittedStatus("PENDING_VERIFICATION");
       setToastMessage(t("verification.submit.success"));
       setDocumentStates((current) =>
         Object.fromEntries(
@@ -322,6 +354,25 @@ export function EstablishmentVerificationPage() {
         />
 
         <div id="verification-info-section" className="space-y-6">
+          {isPrefillLoading ? (
+            <div
+              className="flex items-center gap-2 rounded-2xl border border-cyan-100 bg-cyan-50/70 px-4 py-3 text-sm text-cyan-900"
+              role="status"
+            >
+              <Loader2 className="h-4 w-4 animate-spin" />
+              <span>{t("verification.form.prefillLoading")}</span>
+            </div>
+          ) : null}
+
+          {isPrefillError ? (
+            <div
+              className="rounded-2xl border border-red-100 bg-red-50 px-4 py-3 text-sm text-red-700"
+              role="alert"
+            >
+              {t("verification.form.prefillError")}
+            </div>
+          ) : null}
+
           <EstablishmentInfoForm
             direction={direction}
             errors={errors}

@@ -1,8 +1,17 @@
 export type VerificationStatus =
   | "NOT_STARTED"
+  | "DRAFT"
   | "PENDING_VERIFICATION"
   | "VERIFIED"
   | "REJECTED";
+
+export type VerificationStep =
+  | "ESTABLISHMENT_INFO"
+  | "LEGAL_INFO"
+  | "HEALTH_AUTHORIZATION"
+  | "LEGAL_REPRESENTATIVE"
+  | "DOCUMENTS"
+  | "SUBMISSION";
 
 export type RequiredDocumentType =
   | "COMMERCIAL_REGISTER"
@@ -36,6 +45,36 @@ export type EstablishmentVerificationFormInput = {
   phone: string;
   professionalEmail: string;
   wilaya: string;
+};
+
+export type EstablishmentVerificationPrefillResponse = {
+  establishment: {
+    id: string;
+    name: string;
+    type: string;
+    wilaya: string;
+    address: string;
+    professionalEmail: string;
+    phone: string;
+    managerFullName: string;
+  };
+  verification: {
+    status: VerificationStatus;
+    currentStep: VerificationStep;
+    canSubmit: boolean;
+  };
+  draftData?: Partial<{
+    name: string;
+    type: string;
+    wilaya: string;
+    address: string;
+    professionalEmail: string;
+    phone: string;
+    legalRepresentativeFullName: string;
+    commercialRegisterNumber: string;
+    nif: string;
+    healthAuthorizationNumber: string;
+  }>;
 };
 
 export type VerificationValidationMessages = {

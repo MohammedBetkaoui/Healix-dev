@@ -13,7 +13,7 @@ import {
 import { logout as logoutRequest } from "../api/logout.api";
 import { type LogoutResponse } from "../types/login.types";
 
-export function useLogout(messages: ApiErrorMessages) {
+export function useLogout(messages?: ApiErrorMessages) {
   const router = useRouter();
   const { error, isPending, mutateAsync, reset } = useMutation<
     LogoutResponse,

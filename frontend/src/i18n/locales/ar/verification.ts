@@ -15,6 +15,7 @@ export const verificationAr = {
       "طلبك قيد المراجعة. سيتم إشعارك بعد انتهاء مراجعة الإدارة.",
     values: {
       NOT_STARTED: "NOT_STARTED",
+      DRAFT: "DRAFT",
       PENDING_VERIFICATION: "PENDING_VERIFICATION",
       VERIFIED: "VERIFIED",
       REJECTED: "REJECTED",
@@ -27,6 +28,8 @@ export const verificationAr = {
     adminValidation: "مراجعة الإدارة",
   },
   form: {
+    prefillLoading: "جارٍ تحميل معلومات المؤسسة...",
+    prefillError: "تعذر تحميل المعلومات المسجلة. يرجى تحديث الصفحة.",
     establishmentName: "اسم المؤسسة",
     establishmentType: "نوع المؤسسة",
     wilaya: "الولاية",

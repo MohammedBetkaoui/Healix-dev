@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useSyncExternalStore } from "react";
 
 import {
   defaultLocale,
@@ -66,48 +66,52 @@ export function translate(
   return formatTranslation(value, params);
 }
 
-export function useStoredLocale() {
-  const [locale, setLocaleState] = useState<Locale>(defaultLocale);
+function getStoredLocaleSnapshot(): Locale {
+  if (typeof window === "undefined") {
+    return defaultLocale;
+  }
 
-  useEffect(() => {
-    const storedLocale = window.localStorage.getItem(localeStorageKey);
+  const storedLocale = window.localStorage.getItem(localeStorageKey);
+  return isLocale(storedLocale) ? storedLocale : defaultLocale;
+}
 
-    if (isLocale(storedLocale)) {
-      const timeoutId = window.setTimeout(() => {
-        setLocaleState(storedLocale);
-      }, 0);
+function subscribeToLocaleChanges(onStoreChange: () => void) {
+  if (typeof window === "undefined") {
+    return () => undefined;
+  }
 
-      return () => window.clearTimeout(timeoutId);
+  const handleLocaleChange = () => onStoreChange();
+  const handleStorageChange = (event: StorageEvent) => {
+    if (event.key === localeStorageKey) {
+      onStoreChange();
     }
-  }, []);
+  };
 
-  useEffect(() => {
-    const handleLocaleChange = (event: Event) => {
-      const nextLocale = (event as CustomEvent<Locale>).detail;
+  window.addEventListener(localeChangeEventName, handleLocaleChange);
+  window.addEventListener("storage", handleStorageChange);
 
-      if (isLocale(nextLocale)) {
-        setLocaleState(nextLocale);
-      }
-    };
+  return () => {
+    window.removeEventListener(localeChangeEventName, handleLocaleChange);
+    window.removeEventListener("storage", handleStorageChange);
+  };
+}
 
-    window.addEventListener(localeChangeEventName, handleLocaleChange);
-
-    return () => {
-      window.removeEventListener(localeChangeEventName, handleLocaleChange);
-    };
-  }, []);
+export function useStoredLocale() {
+  const locale = useSyncExternalStore(
+    subscribeToLocaleChanges,
+    getStoredLocaleSnapshot,
+    () => defaultLocale,
+  );
 
   useEffect(() => {
     const direction = getDirection(locale);
 
     document.documentElement.lang = locale;
     document.documentElement.dir = direction;
-    window.localStorage.setItem(localeStorageKey, locale);
   }, [locale]);
 
   const setLocale = useCallback((nextLocale: Locale) => {
     window.localStorage.setItem(localeStorageKey, nextLocale);
-    setLocaleState(nextLocale);
     window.dispatchEvent(
       new CustomEvent<Locale>(localeChangeEventName, { detail: nextLocale }),
     );

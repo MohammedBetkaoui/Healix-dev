@@ -8,6 +8,7 @@ import {
 import Link from "next/link";
 
 import { Button } from "@/components/ui/button";
+import { useLogout } from "@/features/auth/hooks/use-logout";
 import { type Direction, type TranslationFunction } from "@/lib/i18n";
 import { cn } from "@/lib/utils";
 import {
@@ -42,23 +43,29 @@ function badgeClasses(tone: DashboardNavBadgeTone) {
 type NavRowProps = {
   active: boolean;
   direction: Direction;
+  isLogoutLoading: boolean;
   item: DashboardNavItem;
+  onLogout: () => void;
   t: TranslationFunction;
 };
 
-function NavRow({ active, direction, item, t }: NavRowProps) {
+function NavRow({
+  active,
+  direction,
+  isLogoutLoading,
+  item,
+  onLogout,
+  t,
+}: NavRowProps) {
   const Icon = item.icon;
-
-  return (
-    <Link
-      href={item.href}
-      className={cn(
-        "group relative flex min-h-11 items-center gap-3 rounded-xl px-3 text-sm font-medium transition",
-        active
-          ? "bg-blue-50 text-blue-500"
-          : "text-slate-700 hover:bg-slate-50 hover:text-slate-950",
-      )}
-    >
+  const rowClasses = cn(
+    "group relative flex min-h-11 w-full items-center gap-3 rounded-xl px-3 text-sm font-medium transition",
+    active
+      ? "bg-blue-50 text-blue-500"
+      : "text-slate-700 hover:bg-slate-50 hover:text-slate-950",
+  );
+  const rowContent = (
+    <>
       {active ? (
         <span
           className={cn(
@@ -76,7 +83,11 @@ function NavRow({ active, direction, item, t }: NavRowProps) {
           active ? "text-blue-500" : "text-slate-500 group-hover:text-slate-900",
         )}
       />
-      <span className="min-w-0 flex-1 truncate">{t(item.labelKey)}</span>
+      <span className="min-w-0 flex-1 truncate text-start">
+        {isLogoutLoading && item.key === "logout"
+          ? `${t(item.labelKey)}...`
+          : t(item.labelKey)}
+      </span>
       {item.badge ? (
         <span
           className={cn(
@@ -87,6 +98,25 @@ function NavRow({ active, direction, item, t }: NavRowProps) {
           {item.badge.text}
         </span>
       ) : null}
+    </>
+  );
+
+  if (item.key === "logout") {
+    return (
+      <button
+        type="button"
+        className={rowClasses}
+        disabled={isLogoutLoading}
+        onClick={onLogout}
+      >
+        {rowContent}
+      </button>
+    );
+  }
+
+  return (
+    <Link href={item.href} className={rowClasses}>
+      {rowContent}
     </Link>
   );
 }
@@ -100,6 +130,8 @@ export function DashboardSidebar({
   t,
   user,
 }: DashboardSidebarProps) {
+  const { isLoading: isLogoutLoading, logout } = useLogout();
+
   return (
     <>
       <div
@@ -168,7 +200,11 @@ export function DashboardSidebar({
                     key={item.key}
                     active={item.key === activeKey}
                     direction={direction}
+                    isLogoutLoading={isLogoutLoading}
                     item={item}
+                    onLogout={() => {
+                      void logout();
+                    }}
                     t={t}
                   />
                 ))}
