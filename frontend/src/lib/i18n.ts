@@ -20,6 +20,7 @@ export type TranslationFunction = (
 ) => string;
 
 const localeStorageKey = "healixdz.locale";
+const localeChangeEventName = "healixdz:locale-change";
 
 export function getDirection(locale: Locale): Direction {
   return locale === "ar" ? "rtl" : "ltr";
@@ -81,6 +82,22 @@ export function useStoredLocale() {
   }, []);
 
   useEffect(() => {
+    const handleLocaleChange = (event: Event) => {
+      const nextLocale = (event as CustomEvent<Locale>).detail;
+
+      if (isLocale(nextLocale)) {
+        setLocaleState(nextLocale);
+      }
+    };
+
+    window.addEventListener(localeChangeEventName, handleLocaleChange);
+
+    return () => {
+      window.removeEventListener(localeChangeEventName, handleLocaleChange);
+    };
+  }, []);
+
+  useEffect(() => {
     const direction = getDirection(locale);
 
     document.documentElement.lang = locale;
@@ -89,7 +106,11 @@ export function useStoredLocale() {
   }, [locale]);
 
   const setLocale = useCallback((nextLocale: Locale) => {
+    window.localStorage.setItem(localeStorageKey, nextLocale);
     setLocaleState(nextLocale);
+    window.dispatchEvent(
+      new CustomEvent<Locale>(localeChangeEventName, { detail: nextLocale }),
+    );
   }, []);
 
   return { locale, setLocale };

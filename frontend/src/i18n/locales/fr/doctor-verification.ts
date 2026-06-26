@@ -7,6 +7,11 @@ export const doctorVerificationFr = {
     contextNotice:
       "Les informations demandees sont adaptees au contexte administratif algerien. Certains documents peuvent varier selon la wilaya, la specialite et le mode d'exercice du medecin.",
   },
+  profile: {
+    name: "Dr Ahmed Benali",
+    footerSubtitle: "Neurologie",
+    workspaceSubtitle: "Cabinet HealixDZ",
+  },
   status: {
     current: "Statut actuel",
     demoBadge: "Mode demonstration",
@@ -17,10 +22,10 @@ export const doctorVerificationFr = {
     pendingDescription:
       "Votre demande est en cours d'examen. Vous serez notifie apres validation par l'administration.",
     values: {
-      NOT_STARTED: "NOT_STARTED",
-      PENDING_VERIFICATION: "PENDING_VERIFICATION",
-      VERIFIED: "VERIFIED",
-      REJECTED: "REJECTED",
+      NOT_STARTED: "Non commence",
+      PENDING_VERIFICATION: "En attente de verification",
+      VERIFIED: "Verifie",
+      REJECTED: "Refuse",
     },
   },
   steps: {
@@ -222,6 +227,8 @@ export const doctorVerificationFr = {
     documentsAdded: "Documents ajoutes",
     missingDocuments: "Documents manquants",
     noneMissing: "Aucun document obligatoire manquant",
+    completed: "Complete",
+    incomplete: "Incomplet",
     confirm:
       "Je confirme que les informations fournies sont exactes et que les documents transmis sont authentiques.",
     submit: "Soumettre la demande",

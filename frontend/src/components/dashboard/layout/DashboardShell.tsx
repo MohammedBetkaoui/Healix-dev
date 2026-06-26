@@ -37,7 +37,7 @@ export function DashboardShell({
   const [isSidebarOpen, setSidebarOpen] = useState(false);
   const [themeMode, setThemeMode] = useState<DashboardThemeMode>("light");
   const { locale, setLocale } = useStoredLocale();
-  const { direction, isRtl, t } = useTranslation(locale);
+  const { direction, t } = useTranslation(locale);
 
   const shellClasses = useMemo(
     () =>
@@ -53,12 +53,7 @@ export function DashboardShell({
       dir={direction}
       className={cn("min-h-screen", shellClasses)}
     >
-      <div
-        className={cn(
-          "min-h-screen lg:flex",
-          isRtl ? "lg:flex-row-reverse" : "lg:flex-row",
-        )}
-      >
+      <div className="min-h-screen lg:flex lg:flex-row">
         <DashboardSidebar
           activeKey={activeKey}
           direction={direction}

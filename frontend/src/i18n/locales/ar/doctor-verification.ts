@@ -6,6 +6,11 @@ export const doctorVerificationAr = {
     contextNotice:
       "المعلومات المطلوبة مكيّفة مع السياق الإداري الجزائري. قد تختلف بعض الوثائق حسب الولاية والتخصص وطريقة ممارسة الطبيب.",
   },
+  profile: {
+    name: "د. أحمد بن علي",
+    footerSubtitle: "طب الأعصاب",
+    workspaceSubtitle: "عيادة HealixDZ",
+  },
   status: {
     current: "الحالة الحالية",
     demoBadge: "الوضع التجريبي",
@@ -16,10 +21,10 @@ export const doctorVerificationAr = {
     pendingDescription:
       "طلبك قيد المراجعة. سيتم إشعارك بعد المصادقة من طرف الإدارة.",
     values: {
-      NOT_STARTED: "NOT_STARTED",
-      PENDING_VERIFICATION: "PENDING_VERIFICATION",
-      VERIFIED: "VERIFIED",
-      REJECTED: "REJECTED",
+      NOT_STARTED: "لم يبدأ",
+      PENDING_VERIFICATION: "قيد التحقق",
+      VERIFIED: "تم التحقق",
+      REJECTED: "مرفوض",
     },
   },
   steps: {
@@ -220,6 +225,8 @@ export const doctorVerificationAr = {
     documentsAdded: "الوثائق المضافة",
     missingDocuments: "الوثائق الناقصة",
     noneMissing: "لا توجد وثائق إلزامية ناقصة",
+    completed: "مكتمل",
+    incomplete: "غير مكتمل",
     confirm:
       "أؤكد أن المعلومات المقدمة صحيحة وأن الوثائق المرسلة أصلية.",
     submit: "إرسال الطلب",

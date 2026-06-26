@@ -232,15 +232,15 @@ const doctorDocuments: DoctorDocumentDefinition[] = [
 ];
 
 const defaultValues: DoctorVerificationFormInput = {
-  fullName: "Dr Ahmed Benali",
+  fullName: "",
   birthDate: "",
   birthPlace: "",
-  nationality: "Algerienne",
+  nationality: "",
   identityNumber: "",
   identityDocumentType: "",
-  phone: "+213555000111",
-  professionalEmail: "dr.benali@example.com",
-  wilaya: "Alger",
+  phone: "",
+  professionalEmail: "",
+  wilaya: "",
   commune: "",
   personalOrProfessionalAddress: "",
   doctorType: "",
@@ -252,7 +252,7 @@ const defaultValues: DoctorVerificationFormInput = {
   specialityGraduationYear: "",
   ordreRegistrationNumber: "",
   regionalCouncil: "",
-  registrationWilaya: "Alger",
+  registrationWilaya: "",
   registrationDate: "",
   professionalStatus: "",
   practiceAuthorizationNumber: "",
@@ -260,7 +260,7 @@ const defaultValues: DoctorVerificationFormInput = {
   cabinetName: "",
   cabinetType: "",
   cabinetAddress: "",
-  cabinetWilaya: "Alger",
+  cabinetWilaya: "",
   cabinetCommune: "",
   cabinetPhone: "",
   cabinetEmail: "",
@@ -597,11 +597,11 @@ export function DoctorVerificationPage() {
       titleKey="doctorVerification.page.title"
       user={{
         accountType: "INDEPENDENT_DOCTOR",
-        footerSubtitle: "Neurologie",
+        footerSubtitle: t("doctorVerification.profile.footerSubtitle"),
         initials: "AB",
-        name: "Dr Ahmed Benali",
+        name: t("doctorVerification.profile.name"),
         roleKey: "dashboard.common.roles.doctor",
-        workspaceSubtitle: "Cabinet HealixDZ",
+        workspaceSubtitle: t("doctorVerification.profile.workspaceSubtitle"),
       }}
     >
       {toastMessage ? (

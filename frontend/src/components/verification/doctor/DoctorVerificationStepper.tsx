@@ -31,7 +31,7 @@ export function DoctorVerificationStepper({
         <p className="text-sm font-semibold text-slate-950">{progressLabel}</p>
         <p className="text-sm font-semibold text-cyan-700">{progressValue}%</p>
       </div>
-      <div className="h-2 overflow-hidden rounded-full bg-slate-100">
+      <div className="flex h-2 overflow-hidden rounded-full bg-slate-100">
         <div
           className="h-full rounded-full bg-cyan-500 transition-all"
           style={{ width: `${progressValue}%` }}

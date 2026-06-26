@@ -37,10 +37,6 @@ type DoctorSubmissionStepProps = {
   t: TranslationFunction;
 };
 
-function completionLabel(done: boolean) {
-  return done ? "BASIC_ACCOUNT" : "INCOMPLETE";
-}
-
 export function DoctorSubmissionStep({
   documentStates,
   documents,
@@ -98,7 +94,10 @@ export function DoctorSubmissionStep({
             >
               <p className="text-sm text-slate-500">{item.label}</p>
               <p className="mt-2 text-sm font-semibold text-slate-950">
-                {item.value ?? completionLabel(item.done)}
+                {item.value ??
+                  (item.done
+                    ? t("doctorVerification.submission.completed")
+                    : t("doctorVerification.submission.incomplete"))}
               </p>
             </div>
           ))}
