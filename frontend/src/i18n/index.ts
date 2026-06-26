@@ -1,10 +1,12 @@
 import { commonAr } from "./locales/ar/common";
 import { dashboardAr } from "./locales/ar/dashboard";
+import { doctorVerificationAr } from "./locales/ar/doctor-verification";
 import { loginAr } from "./locales/ar/login";
 import { registerAr } from "./locales/ar/register";
 import { verificationAr } from "./locales/ar/verification";
 import { commonFr } from "./locales/fr/common";
 import { dashboardFr } from "./locales/fr/dashboard";
+import { doctorVerificationFr } from "./locales/fr/doctor-verification";
 import { loginFr } from "./locales/fr/login";
 import { registerFr } from "./locales/fr/register";
 import { verificationFr } from "./locales/fr/verification";
@@ -18,6 +20,7 @@ export const dictionaries = {
   fr: {
     common: commonFr,
     dashboard: dashboardFr,
+    doctorVerification: doctorVerificationFr,
     login: loginFr,
     register: registerFr,
     verification: verificationFr,
@@ -25,6 +28,7 @@ export const dictionaries = {
   ar: {
     common: commonAr,
     dashboard: dashboardAr,
+    doctorVerification: doctorVerificationAr,
     login: loginAr,
     register: registerAr,
     verification: verificationAr,
