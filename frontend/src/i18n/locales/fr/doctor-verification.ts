@@ -26,11 +26,16 @@ export const doctorVerificationFr = {
     pendingTitle: "Votre demande est en cours d'examen",
     pendingDescription:
       "Votre demande est en cours d'examen. Vous serez notifie apres validation par l'administration.",
+    editNoticeTitle: "Vérification déjà envoyée",
+    editNoticeDescription:
+      "Votre demande est en attente de validation par l'administration. Pendant cette periode, vous pouvez encore modifier vos informations et remplacer des documents. Les anciens documents seront conserves jusqu'a l'enregistrement final des modifications.",
+    editButton: "Modifier ma demande",
     values: {
       NOT_STARTED: "Non commence",
       PENDING_VERIFICATION: "En attente de verification",
       VERIFIED: "Verifie",
       REJECTED: "Refuse",
+      SUSPENDED: "Suspendu",
     },
   },
   steps: {
@@ -239,6 +244,9 @@ export const doctorVerificationFr = {
     submit: "Soumettre la demande",
     loading: "Envoi en cours...",
     success: "Demande de verification envoyee avec succes",
+    updateSubmit: "Enregistrer les modifications",
+    updateLoading: "Enregistrement en cours...",
+    updateSuccess: "Modifications enregistrees avec succes",
   },
   navigation: {
     previous: "Precedent",

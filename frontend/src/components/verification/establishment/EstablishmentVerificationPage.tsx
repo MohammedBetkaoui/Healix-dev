@@ -1,12 +1,14 @@
 "use client";
 
 import { zodResolver } from "@hookform/resolvers/zod";
+import { useQueryClient } from "@tanstack/react-query";
 import { CheckCircle2, Loader2, ShieldCheck } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 import { useForm, useWatch } from "react-hook-form";
 
 import { establishmentNavSections } from "@/components/dashboard/layout/navigation";
 import { DashboardShell } from "@/components/dashboard/layout/DashboardShell";
+import { PendingVerificationNotice } from "@/components/verification/shared/PendingVerificationNotice";
 import {
   createEstablishmentVerificationSchema,
   isAcceptedDocumentFile,
@@ -17,6 +19,7 @@ import {
   type DocumentUploadState,
   type EstablishmentVerificationDraftPayload,
   type EstablishmentVerificationFormInput,
+  type EstablishmentVerificationPrefillResponse,
   type RequiredDocumentDefinition,
   type RequiredDocumentType,
   type VerificationStatus,
@@ -25,6 +28,7 @@ import { useEstablishmentVerificationPrefill } from "@/features/verification/hoo
 import {
   createEstablishmentVerificationDraft,
   submitEstablishmentVerification,
+  updateEstablishmentVerificationDraft,
   uploadEstablishmentVerificationDocument,
 } from "@/features/verification/api/establishment-verification.api";
 import { ESTABLISHMENT_TYPE_OPTIONS } from "@/types/auth";
@@ -104,6 +108,28 @@ function createInitialDocumentStates(): Record<RequiredDocumentType, DocumentUpl
   };
 }
 
+function createDocumentStatesFromPrefill(
+  documents: EstablishmentVerificationPrefillResponse["documents"],
+): Record<RequiredDocumentType, DocumentUploadState> {
+  const states = createInitialDocumentStates();
+
+  for (const document of documents ?? []) {
+    if (!states[document.documentType]) {
+      continue;
+    }
+
+    states[document.documentType] = {
+      documentId: document.id,
+      fileName: document.originalName,
+      fileSize: document.size,
+      status: document.status === "REJECTED" ? "REJECTED" : "UPLOADED",
+      type: document.documentType,
+    };
+  }
+
+  return states;
+}
+
 const requiredInfoFieldCount = 13;
 
 function getErrorMessage(error: unknown, fallback: string) {
@@ -153,17 +179,18 @@ function toDraftPayload(
 export function EstablishmentVerificationPage() {
   const { locale } = useStoredLocale();
   const { direction, t } = useTranslation(locale);
+  const queryClient = useQueryClient();
   const { data: prefillData, isError: isPrefillError, isLoading: isPrefillLoading } =
     useEstablishmentVerificationPrefill();
   const [submittedStatus, setSubmittedStatus] =
     useState<VerificationStatus | null>(null);
   const [isSubmittingRequest, setSubmittingRequest] = useState(false);
+  const [isModificationOpen, setModificationOpen] = useState(false);
   const [apiErrorMessage, setApiErrorMessage] = useState<string | null>(null);
   const [toastMessage, setToastMessage] = useState<string | null>(null);
-  const [documentStates, setDocumentStates] = useState<Record<
-    RequiredDocumentType,
-    DocumentUploadState
-  >>(createInitialDocumentStates);
+  const [documentStateOverrides, setDocumentStateOverrides] = useState<
+    Partial<Record<RequiredDocumentType, DocumentUploadState>>
+  >({});
 
   const schema = useMemo(
     () =>
@@ -193,6 +220,19 @@ export function EstablishmentVerificationPage() {
   });
   const status =
     submittedStatus ?? prefillData?.verification.status ?? "NOT_STARTED";
+  const isPendingReview = status === "PENDING_VERIFICATION";
+  const showModificationGate = isPendingReview && !isModificationOpen;
+  const prefilledDocumentStates = useMemo(
+    () => createDocumentStatesFromPrefill(prefillData?.documents),
+    [prefillData?.documents],
+  );
+  const documentStates = useMemo(
+    () => ({
+      ...prefilledDocumentStates,
+      ...documentStateOverrides,
+    }),
+    [documentStateOverrides, prefilledDocumentStates],
+  );
 
   useEffect(() => {
     if (!prefillData) {
@@ -254,7 +294,6 @@ export function EstablishmentVerificationPage() {
   );
 
   const isReadyToSubmit =
-    status !== "PENDING_VERIFICATION" &&
     infoCompletedCount >= requiredInfoFieldCount &&
     requiredDocuments.every((document) => {
       const state = documentStates[document.type];
@@ -268,7 +307,7 @@ export function EstablishmentVerificationPage() {
   ) => {
     if (!file) {
       setValue(fieldName, null, { shouldValidate: true });
-      setDocumentStates((current) => ({
+      setDocumentStateOverrides((current) => ({
         ...current,
         [type]: { status: "MISSING", type },
       }));
@@ -280,7 +319,7 @@ export function EstablishmentVerificationPage() {
         message: t("verification.errors.formatNotAccepted"),
         type: "manual",
       });
-      setDocumentStates((current) => ({
+      setDocumentStateOverrides((current) => ({
         ...current,
         [type]: {
           fileName: file.name,
@@ -297,7 +336,7 @@ export function EstablishmentVerificationPage() {
         message: t("verification.errors.fileTooLarge"),
         type: "manual",
       });
-      setDocumentStates((current) => ({
+      setDocumentStateOverrides((current) => ({
         ...current,
         [type]: {
           fileName: file.name,
@@ -311,12 +350,12 @@ export function EstablishmentVerificationPage() {
 
     clearErrors(fieldName);
     setValue(fieldName, file, { shouldValidate: true });
-    setDocumentStates((current) => ({
+    setDocumentStateOverrides((current) => ({
       ...current,
       [type]: {
         fileName: file.name,
         fileSize: file.size,
-        status: status === "PENDING_VERIFICATION" ? "UPLOADED" : "READY",
+        status: "READY",
         type,
       },
     }));
@@ -333,7 +372,13 @@ export function EstablishmentVerificationPage() {
     setApiErrorMessage(null);
 
     try {
-      await createEstablishmentVerificationDraft(toDraftPayload(values));
+      const draftPayload = toDraftPayload(values);
+
+      if (isPendingReview) {
+        await updateEstablishmentVerificationDraft(draftPayload);
+      } else {
+        await createEstablishmentVerificationDraft(draftPayload);
+      }
 
       for (const document of requiredDocuments) {
         const file = values[document.fieldName];
@@ -343,7 +388,7 @@ export function EstablishmentVerificationPage() {
             documentType: document.type,
             file,
           });
-          setDocumentStates((current) => ({
+          setDocumentStateOverrides((current) => ({
             ...current,
             [document.type]: {
               ...current[document.type],
@@ -357,8 +402,18 @@ export function EstablishmentVerificationPage() {
       }
 
       const response = await submitEstablishmentVerification();
+      await queryClient.invalidateQueries({
+        queryKey: ["verification", "establishment", "prefill"],
+      });
       setSubmittedStatus(response.status);
-      setToastMessage(response.message || t("verification.submit.success"));
+      setToastMessage(
+        isPendingReview
+          ? t("verification.submit.updateSuccess")
+          : response.message || t("verification.submit.success"),
+      );
+      if (isPendingReview) {
+        setModificationOpen(false);
+      }
       window.setTimeout(() => setToastMessage(null), 3000);
     } catch (error) {
       setApiErrorMessage(
@@ -413,10 +468,18 @@ export function EstablishmentVerificationPage() {
           }
           isPending={status === "PENDING_VERIFICATION"}
           onStart={() => {
+            if (isPendingReview) {
+              setModificationOpen(true);
+              return;
+            }
             const target = document.getElementById("verification-info-section");
             target?.scrollIntoView({ behavior: "smooth", block: "start" });
           }}
-          startLabel={t("verification.status.start")}
+          startLabel={
+            isPendingReview
+              ? t("verification.status.editButton")
+              : t("verification.status.start")
+          }
           status={status}
           statusLabel={t(`verification.status.values.${status}`)}
           statusTitle={t("verification.status.current")}
@@ -427,18 +490,27 @@ export function EstablishmentVerificationPage() {
           }
         />
 
-        <VerificationStepper
-          activeStep={1}
-          direction={direction}
-          steps={[
-            t("verification.stepper.establishmentInfo"),
-            t("verification.stepper.officialDocuments"),
-            t("verification.stepper.submission"),
-            t("verification.stepper.adminValidation"),
-          ]}
-        />
+        {showModificationGate ? (
+          <PendingVerificationNotice
+            buttonLabel={t("verification.status.editButton")}
+            description={t("verification.status.editNoticeDescription")}
+            onEdit={() => setModificationOpen(true)}
+            title={t("verification.status.editNoticeTitle")}
+          />
+        ) : (
+          <>
+            <VerificationStepper
+              activeStep={1}
+              direction={direction}
+              steps={[
+                t("verification.stepper.establishmentInfo"),
+                t("verification.stepper.officialDocuments"),
+                t("verification.stepper.submission"),
+                t("verification.stepper.adminValidation"),
+              ]}
+            />
 
-        <div id="verification-info-section" className="space-y-6">
+            <div id="verification-info-section" className="space-y-6">
           {isPrefillLoading ? (
             <div
               className="flex items-center gap-2 rounded-2xl border border-cyan-100 bg-cyan-50/70 px-4 py-3 text-sm text-cyan-900"
@@ -499,8 +571,16 @@ export function EstablishmentVerificationPage() {
                 ? t("verification.submit.ready")
                 : t("verification.submit.incomplete")
             }
-            submitLabel={t("verification.submit.button")}
-            submittingLabel={t("verification.submit.loading")}
+            submitLabel={
+              isPendingReview
+                ? t("verification.submit.updateButton")
+                : t("verification.submit.button")
+            }
+            submittingLabel={
+              isPendingReview
+                ? t("verification.submit.updateLoading")
+                : t("verification.submit.loading")
+            }
             title={t("verification.submit.infoCompleted")}
           />
 
@@ -523,7 +603,9 @@ export function EstablishmentVerificationPage() {
               </div>
             </div>
           </section>
-        </div>
+            </div>
+          </>
+        )}
       </section>
     </DashboardShell>
   );

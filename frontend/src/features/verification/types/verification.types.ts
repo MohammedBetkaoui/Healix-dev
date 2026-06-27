@@ -3,7 +3,8 @@ export type VerificationStatus =
   | "DRAFT"
   | "PENDING_VERIFICATION"
   | "VERIFIED"
-  | "REJECTED";
+  | "REJECTED"
+  | "SUSPENDED";
 
 export type VerificationStep =
   | "ESTABLISHMENT_INFO"
@@ -23,10 +24,21 @@ export type RequiredDocumentType =
 export type DocumentUploadStatus = "MISSING" | "READY" | "UPLOADED" | "REJECTED";
 
 export type DocumentUploadState = {
+  documentId?: string;
   fileName?: string;
   fileSize?: number;
   status: DocumentUploadStatus;
   type: RequiredDocumentType;
+};
+
+export type UploadedVerificationDocument = {
+  documentType: RequiredDocumentType;
+  id: string;
+  mimeType: string;
+  originalName: string;
+  size: number;
+  status: "UPLOADED" | "REJECTED" | string;
+  uploadedAt: string;
 };
 
 export type EstablishmentVerificationFormInput = {
@@ -66,6 +78,7 @@ export type EstablishmentVerificationPrefillResponse = {
     currentStep: VerificationStep;
     canSubmit: boolean;
   };
+  documents?: UploadedVerificationDocument[];
   draftData?: Partial<{
     name: string;
     type: string;
@@ -81,6 +94,15 @@ export type EstablishmentVerificationPrefillResponse = {
     nif: string;
     healthAuthorizationNumber: string;
   }>;
+};
+
+export type EstablishmentVerificationRequestResponse = {
+  currentStep: VerificationStep;
+  data?: EstablishmentVerificationPrefillResponse["draftData"] | null;
+  documents: UploadedVerificationDocument[];
+  id: string;
+  missingDocuments?: RequiredDocumentType[];
+  status: VerificationStatus;
 };
 
 export type EstablishmentVerificationDraftPayload = {

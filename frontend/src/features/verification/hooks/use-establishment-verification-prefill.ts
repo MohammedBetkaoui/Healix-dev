@@ -8,7 +8,8 @@ export function useEstablishmentVerificationPrefill() {
   return useQuery({
     queryKey: ["verification", "establishment", "prefill"],
     queryFn: getEstablishmentVerificationPrefill,
+    refetchOnMount: "always",
     retry: false,
-    staleTime: 30_000,
+    staleTime: 0,
   });
 }

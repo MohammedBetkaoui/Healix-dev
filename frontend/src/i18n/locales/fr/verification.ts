@@ -14,12 +14,17 @@ export const verificationFr = {
     pendingTitle: "Votre demande est en cours d'examen",
     pendingDescription:
       "Votre demande est en cours d'examen. Vous serez notifie apres validation par l'administration.",
+    editNoticeTitle: "Vérification déjà envoyée",
+    editNoticeDescription:
+      "Votre demande est en attente de validation par l'administration. Pendant cette periode, vous pouvez encore modifier les informations et remplacer des documents. Les anciens documents seront conserves jusqu'a l'enregistrement final des modifications.",
+    editButton: "Modifier ma demande",
     values: {
       NOT_STARTED: "NOT_STARTED",
       DRAFT: "DRAFT",
       PENDING_VERIFICATION: "PENDING_VERIFICATION",
       VERIFIED: "VERIFIED",
       REJECTED: "REJECTED",
+      SUSPENDED: "SUSPENDED",
     },
   },
   stepper: {
@@ -112,6 +117,9 @@ export const verificationFr = {
     button: "Soumettre la demande de verification",
     loading: "Envoi en cours...",
     success: "Demande de verification envoyee avec succes.",
+    updateButton: "Enregistrer les modifications",
+    updateLoading: "Enregistrement en cours...",
+    updateSuccess: "Modifications enregistrees avec succes.",
   },
   errors: {
     required: "Document obligatoire",

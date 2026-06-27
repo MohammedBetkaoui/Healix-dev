@@ -76,6 +76,10 @@ export class EstablishmentVerificationService {
     return {
       establishment: this.toPrefillEstablishment(establishment),
       verification: this.toVerificationSummary(request),
+      documents:
+        request?.documents.map((document) =>
+          this.documentService.toDocumentSummary(document),
+        ) ?? [],
       draftData: request?.data ? this.toVerificationDataResponse(request.data) : undefined,
     };
   }
@@ -99,7 +103,7 @@ export class EstablishmentVerificationService {
       missingDocuments,
       canSubmit:
         Boolean(request) &&
-        request?.status === VerificationStatus.DRAFT &&
+        this.isRequestSubmittable(request?.status) &&
         missingDocuments.length === 0,
     };
   }
@@ -511,7 +515,6 @@ export class EstablishmentVerificationService {
       where: { id: verificationRequestId },
       data: {
         currentStep: currentStep ?? undefined,
-        status: VerificationStatus.DRAFT,
         data: {
           update: updateData,
         },
@@ -622,10 +625,10 @@ export class EstablishmentVerificationService {
 
   private assertRequestIsMutable(status: string): void {
     if (
-      status === VerificationStatus.PENDING_VERIFICATION ||
-      status === VerificationStatus.VERIFIED
+      status === VerificationStatus.VERIFIED ||
+      status === VerificationStatus.SUSPENDED
     ) {
-      throw new ConflictException('La demande est déjà soumise.');
+      throw new ConflictException('La demande ne peut plus être modifiée.');
     }
   }
 
@@ -711,9 +714,17 @@ export class EstablishmentVerificationService {
       currentStep: request?.currentStep ?? VerificationStep.ESTABLISHMENT_INFO,
       canSubmit:
         Boolean(request) &&
-        request?.status === VerificationStatus.DRAFT &&
+        this.isRequestSubmittable(request?.status) &&
         missingDocuments.length === 0,
     };
+  }
+
+  private isRequestSubmittable(status?: string | null): boolean {
+    return Boolean(
+      status &&
+        status !== VerificationStatus.VERIFIED &&
+        status !== VerificationStatus.SUSPENDED,
+    );
   }
 
   private toRequestResponse(request: VerificationRequestWithDataAndDocuments) {

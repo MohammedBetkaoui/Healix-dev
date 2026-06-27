@@ -1,12 +1,14 @@
 "use client";
 
 import { zodResolver } from "@hookform/resolvers/zod";
+import { useQueryClient } from "@tanstack/react-query";
 import { CheckCircle2, Info, Loader2, ShieldCheck } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 import { useForm, useWatch } from "react-hook-form";
 
 import { doctorNavSections } from "@/components/dashboard/layout/navigation";
 import { DashboardShell } from "@/components/dashboard/layout/DashboardShell";
+import { PendingVerificationNotice } from "@/components/verification/shared/PendingVerificationNotice";
 import { useStoredLocale, useTranslation } from "@/lib/i18n";
 import { cn } from "@/lib/utils";
 import {
@@ -20,12 +22,14 @@ import {
   type DoctorDocumentUploadState,
   type DoctorVerificationDraftPayload,
   type DoctorVerificationFormInput,
+  type DoctorVerificationPrefillResponse,
   type DoctorVerificationStep,
   type VerificationStatus,
 } from "@/features/verification/types/doctor-verification.types";
 import {
   createDoctorVerificationDraft,
   submitDoctorVerification,
+  updateDoctorVerificationDraft,
   uploadDoctorVerificationDocument,
 } from "@/features/verification/api/doctor-verification.api";
 import { useDoctorVerificationPrefill } from "@/features/verification/hooks/use-doctor-verification-prefill";
@@ -304,6 +308,34 @@ function createInitialDocumentStates() {
   );
 }
 
+function getStepIndexFromId(stepId?: string) {
+  const stepIndex = doctorVerificationSteps.findIndex((step) => step.id === stepId);
+
+  return stepIndex >= 0 ? stepIndex : 0;
+}
+
+function createDocumentStatesFromPrefill(
+  documents: DoctorVerificationPrefillResponse["documents"],
+) {
+  const states = createInitialDocumentStates();
+
+  for (const document of documents ?? []) {
+    if (!states[document.documentType]) {
+      continue;
+    }
+
+    states[document.documentType] = {
+      documentId: document.id,
+      fileName: document.originalName,
+      fileSize: document.size,
+      status: document.status === "REJECTED" ? "REJECTED" : "UPLOADED",
+      type: document.documentType,
+    };
+  }
+
+  return states;
+}
+
 function hasText(value: unknown) {
   return typeof value === "string" && value.trim().length > 0;
 }
@@ -480,18 +512,24 @@ function toDraftPayload(
 export function DoctorVerificationPage() {
   const { locale } = useStoredLocale();
   const { direction, t } = useTranslation(locale);
+  const queryClient = useQueryClient();
   const { data: prefillData, isError: isPrefillError, isLoading: isPrefillLoading } =
     useDoctorVerificationPrefill();
   const [submittedStatus, setSubmittedStatus] =
     useState<VerificationStatus | null>(null);
-  const [activeStepIndex, setActiveStepIndex] = useState(0);
+  const [activeStepIndexOverride, setActiveStepIndexOverride] = useState<
+    number | null
+  >(null);
   const [completedStepIds, setCompletedStepIds] = useState<Set<string>>(
     () => new Set(),
   );
   const [isSubmitting, setSubmitting] = useState(false);
+  const [isModificationOpen, setModificationOpen] = useState(false);
   const [apiErrorMessage, setApiErrorMessage] = useState<string | null>(null);
   const [toastMessage, setToastMessage] = useState<string | null>(null);
-  const [documentStates, setDocumentStates] = useState(createInitialDocumentStates);
+  const [documentStateOverrides, setDocumentStateOverrides] = useState<
+    Partial<Record<DoctorDocumentType, DoctorDocumentUploadState>>
+  >({});
 
   const schema = useMemo(
     () =>
@@ -524,6 +562,24 @@ export function DoctorVerificationPage() {
   const status =
     submittedStatus ?? prefillData?.verification.status ?? "NOT_STARTED";
   const displayStatus = status === "DRAFT" ? "NOT_STARTED" : status;
+  const isPendingReview = status === "PENDING_VERIFICATION";
+  const showModificationGate = isPendingReview && !isModificationOpen;
+  const savedStepIndex = useMemo(
+    () => getStepIndexFromId(prefillData?.verification.currentStep),
+    [prefillData?.verification.currentStep],
+  );
+  const activeStepIndex = activeStepIndexOverride ?? savedStepIndex;
+  const prefilledDocumentStates = useMemo(
+    () => createDocumentStatesFromPrefill(prefillData?.documents),
+    [prefillData?.documents],
+  );
+  const documentStates = useMemo(
+    () => ({
+      ...prefilledDocumentStates,
+      ...documentStateOverrides,
+    }),
+    [documentStateOverrides, prefilledDocumentStates],
+  );
 
   useEffect(() => {
     if (!prefillData) {
@@ -573,6 +629,7 @@ export function DoctorVerificationPage() {
       phone: draftData?.phone ?? doctor.phone,
       practiceAuthorizationNumber:
         draftData?.practiceAuthorizationNumber ?? "",
+      primaryDegree: draftData?.mainDegree ?? "",
       professionalEmail: draftData?.professionalEmail ?? doctor.email,
       professionalRib: draftData?.professionalRib ?? "",
       professionalStatus: mapProfessionalStatusFromApi(
@@ -680,24 +737,24 @@ export function DoctorVerificationPage() {
 
   async function handleNext() {
     if (await validateCurrentStep()) {
-      setActiveStepIndex((current) =>
-        Math.min(current + 1, doctorVerificationSteps.length - 1),
+      setActiveStepIndexOverride(
+        Math.min(activeStepIndex + 1, doctorVerificationSteps.length - 1),
       );
     }
   }
 
   function handlePrevious() {
-    setActiveStepIndex((current) => Math.max(current - 1, 0));
+    setActiveStepIndexOverride(Math.max(activeStepIndex - 1, 0));
   }
 
   async function handleStepClick(index: number) {
     if (index <= activeStepIndex) {
-      setActiveStepIndex(index);
+      setActiveStepIndexOverride(index);
       return;
     }
 
     if (index === activeStepIndex + 1 && (await validateCurrentStep())) {
-      setActiveStepIndex(index);
+      setActiveStepIndexOverride(index);
     }
   }
 
@@ -708,7 +765,7 @@ export function DoctorVerificationPage() {
   ) {
     if (!file) {
       setValue(fieldName, null, { shouldValidate: true });
-      setDocumentStates((current) => ({
+      setDocumentStateOverrides((current) => ({
         ...current,
         [type]: { status: "MISSING", type },
       }));
@@ -720,7 +777,7 @@ export function DoctorVerificationPage() {
         message: t("doctorVerification.errors.formatNotAccepted"),
         type: "manual",
       });
-      setDocumentStates((current) => ({
+      setDocumentStateOverrides((current) => ({
         ...current,
         [type]: {
           fileName: file.name,
@@ -737,7 +794,7 @@ export function DoctorVerificationPage() {
         message: t("doctorVerification.errors.fileTooLarge"),
         type: "manual",
       });
-      setDocumentStates((current) => ({
+      setDocumentStateOverrides((current) => ({
         ...current,
         [type]: {
           fileName: file.name,
@@ -751,12 +808,12 @@ export function DoctorVerificationPage() {
 
     clearErrors(fieldName);
     setValue(fieldName, file, { shouldValidate: true });
-    setDocumentStates((current) => ({
+    setDocumentStateOverrides((current) => ({
       ...current,
       [type]: {
         fileName: file.name,
         fileSize: file.size,
-        status: displayStatus === "PENDING_VERIFICATION" ? "UPLOADED" : "READY",
+        status: "READY",
         type,
       },
     }));
@@ -774,7 +831,13 @@ export function DoctorVerificationPage() {
 
     try {
       // Backend validation, secure file storage and malware scanning remain mandatory.
-      await createDoctorVerificationDraft(toDraftPayload(values));
+      const draftPayload = toDraftPayload(values);
+
+      if (isPendingReview) {
+        await updateDoctorVerificationDraft(draftPayload);
+      } else {
+        await createDoctorVerificationDraft(draftPayload);
+      }
 
       for (const document of doctorDocuments) {
         const file = values[document.fieldName];
@@ -784,7 +847,7 @@ export function DoctorVerificationPage() {
             documentType: document.type,
             file,
           });
-          setDocumentStates((current) => ({
+          setDocumentStateOverrides((current) => ({
             ...current,
             [document.type]: {
               ...current[document.type],
@@ -798,12 +861,22 @@ export function DoctorVerificationPage() {
       }
 
       const response = await submitDoctorVerification();
+      await queryClient.invalidateQueries({
+        queryKey: ["verification", "doctor", "prefill"],
+      });
       setCompletedStepIds(new Set(doctorVerificationSteps.map((step) => step.id)));
       setSubmittedStatus(response.status);
-      setToastMessage(response.message || t("doctorVerification.submission.success"));
-      setDocumentStates((current) =>
+      setToastMessage(
+        isPendingReview
+          ? t("doctorVerification.submission.updateSuccess")
+          : response.message || t("doctorVerification.submission.success"),
+      );
+      if (isPendingReview) {
+        setModificationOpen(false);
+      }
+      setDocumentStateOverrides(
         Object.fromEntries(
-          Object.entries(current).map(([key, value]) => [
+          Object.entries(documentStates).map(([key, value]) => [
             key,
             { ...value, status: value.fileName ? "UPLOADED" : value.status },
           ]),
@@ -912,10 +985,18 @@ export function DoctorVerificationPage() {
           }
           isPending={displayStatus === "PENDING_VERIFICATION"}
           onStart={() => {
+            if (isPendingReview) {
+              setModificationOpen(true);
+              return;
+            }
             const target = document.getElementById("doctor-verification-form");
             target?.scrollIntoView({ behavior: "smooth", block: "start" });
           }}
-          startLabel={t("doctorVerification.status.start")}
+          startLabel={
+            isPendingReview
+              ? t("doctorVerification.status.editButton")
+              : t("doctorVerification.status.start")
+          }
           status={displayStatus}
           statusLabel={t(`doctorVerification.status.values.${displayStatus}`)}
           statusTitle={t("doctorVerification.status.current")}
@@ -926,18 +1007,27 @@ export function DoctorVerificationPage() {
           }
         />
 
-        <DoctorVerificationStepper
-          activeStepIndex={activeStepIndex}
-          completedStepIds={completedStepIds}
-          direction={direction}
-          onStepClick={handleStepClick}
-          progressLabel={t("doctorVerification.steps.progress")}
-          progressValue={progressValue}
-          steps={doctorVerificationSteps}
-          t={t}
-        />
+        {showModificationGate ? (
+          <PendingVerificationNotice
+            buttonLabel={t("doctorVerification.status.editButton")}
+            description={t("doctorVerification.status.editNoticeDescription")}
+            onEdit={() => setModificationOpen(true)}
+            title={t("doctorVerification.status.editNoticeTitle")}
+          />
+        ) : (
+          <>
+            <DoctorVerificationStepper
+              activeStepIndex={activeStepIndex}
+              completedStepIds={completedStepIds}
+              direction={direction}
+              onStepClick={handleStepClick}
+              progressLabel={t("doctorVerification.steps.progress")}
+              progressValue={progressValue}
+              steps={doctorVerificationSteps}
+              t={t}
+            />
 
-        <div className="rounded-[24px] border border-cyan-100 bg-cyan-50/50 p-5 text-sm leading-6 text-slate-600 shadow-[0_12px_36px_rgba(15,23,42,0.04)]">
+            <div className="rounded-[24px] border border-cyan-100 bg-cyan-50/50 p-5 text-sm leading-6 text-slate-600 shadow-[0_12px_36px_rgba(15,23,42,0.04)]">
           <div className="flex items-start gap-3">
             <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-white text-cyan-700 shadow-sm">
               <Info className="h-4 w-4" />
@@ -1014,14 +1104,21 @@ export function DoctorVerificationPage() {
             onPrevious={handlePrevious}
             onSubmit={onSubmit}
             previousLabel={t("doctorVerification.navigation.previous")}
-            submitDisabled={
-              displayStatus === "PENDING_VERIFICATION" ||
-              missingRequiredDocuments.length > 0
+            submitDisabled={missingRequiredDocuments.length > 0}
+            submitLabel={
+              isPendingReview
+                ? t("doctorVerification.submission.updateSubmit")
+                : t("doctorVerification.submission.submit")
             }
-            submitLabel={t("doctorVerification.submission.submit")}
-            submittingLabel={t("doctorVerification.submission.loading")}
+            submittingLabel={
+              isPendingReview
+                ? t("doctorVerification.submission.updateLoading")
+                : t("doctorVerification.submission.loading")
+            }
           />
         </form>
+          </>
+        )}
       </section>
     </DashboardShell>
   );

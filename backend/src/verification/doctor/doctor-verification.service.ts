@@ -83,6 +83,10 @@ export class DoctorVerificationService {
     return {
       doctor: this.toPrefillDoctor(doctorProfile),
       verification: this.toVerificationSummary(request),
+      documents:
+        request?.documents.map((document) =>
+          this.documentService.toDocumentSummary(document),
+        ) ?? [],
       draftData: request?.doctorData
         ? this.toDoctorVerificationDataResponse(request.doctorData)
         : undefined,
@@ -119,7 +123,7 @@ export class DoctorVerificationService {
       missingDocuments,
       canSubmit:
         Boolean(request) &&
-        request?.status === VerificationStatus.DRAFT &&
+        this.isRequestSubmittable(request?.status) &&
         missingDocuments.length === 0,
     };
   }
@@ -549,7 +553,6 @@ export class DoctorVerificationService {
       where: { id: verificationRequestId },
       data: {
         doctorCurrentStep: currentStep ?? undefined,
-        status: VerificationStatus.DRAFT,
         doctorData: {
           update: updateData,
         },
@@ -660,10 +663,10 @@ export class DoctorVerificationService {
 
   private assertRequestIsMutable(status: string): void {
     if (
-      status === VerificationStatus.PENDING_VERIFICATION ||
-      status === VerificationStatus.VERIFIED
+      status === VerificationStatus.VERIFIED ||
+      status === VerificationStatus.SUSPENDED
     ) {
-      throw new ConflictException('La demande est déjà soumise.');
+      throw new ConflictException('La demande ne peut plus être modifiée.');
     }
   }
 
@@ -799,9 +802,17 @@ export class DoctorVerificationService {
         request?.doctorCurrentStep ?? DoctorVerificationStep.IDENTITY,
       canSubmit:
         Boolean(request) &&
-        request?.status === VerificationStatus.DRAFT &&
+        this.isRequestSubmittable(request?.status) &&
         missingDocuments.length === 0,
     };
+  }
+
+  private isRequestSubmittable(status?: string | null): boolean {
+    return Boolean(
+      status &&
+        status !== VerificationStatus.VERIFIED &&
+        status !== VerificationStatus.SUSPENDED,
+    );
   }
 
   private toRequestResponse(request: VerificationRequestWithDoctorDataAndDocuments) {

@@ -40,10 +40,6 @@ const documentField = (messages: VerificationValidationMessages) =>
     })
     .superRefine((file, context) => {
       if (!file) {
-        context.addIssue({
-          code: z.ZodIssueCode.custom,
-          message: messages.required,
-        });
         return;
       }
 

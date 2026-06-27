@@ -11,7 +11,8 @@ export type VerificationStatus =
   | "DRAFT"
   | "PENDING_VERIFICATION"
   | "VERIFIED"
-  | "REJECTED";
+  | "REJECTED"
+  | "SUSPENDED";
 
 export type DoctorDocumentType =
   | "IDENTITY_DOCUMENT"
@@ -42,10 +43,21 @@ export type DoctorDocumentRequirement = {
 };
 
 export type DoctorDocumentUploadState = {
+  documentId?: string;
   fileName?: string;
   fileSize?: number;
   status: DoctorDocumentStatus;
   type: DoctorDocumentType;
+};
+
+export type UploadedDoctorVerificationDocument = {
+  documentType: DoctorDocumentType;
+  id: string;
+  mimeType: string;
+  originalName: string;
+  size: number;
+  status: "UPLOADED" | "REJECTED" | string;
+  uploadedAt: string;
 };
 
 export type DoctorVerificationFormInput = {
@@ -155,6 +167,7 @@ export type DoctorVerificationPrefillResponse = {
     currentStep: DoctorVerificationStepId;
     canSubmit: boolean;
   };
+  documents?: UploadedDoctorVerificationDocument[];
   draftData?: Partial<{
     fullName: string;
     birthDate: string;
@@ -197,6 +210,15 @@ export type DoctorVerificationPrefillResponse = {
     professionalRib: string;
     confirmationAccuracy: boolean;
   }>;
+};
+
+export type DoctorVerificationRequestResponse = {
+  currentStep: DoctorVerificationStepId;
+  data?: DoctorVerificationPrefillResponse["draftData"] | null;
+  documents: UploadedDoctorVerificationDocument[];
+  id: string;
+  missingDocuments?: DoctorDocumentType[];
+  status: VerificationStatus;
 };
 
 export type DoctorVerificationDraftPayload = {

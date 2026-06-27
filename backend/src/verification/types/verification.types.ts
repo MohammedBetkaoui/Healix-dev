@@ -24,6 +24,7 @@ export type EstablishmentPrefillResponse = {
     currentStep: VerificationStep;
     canSubmit: boolean;
   };
+  documents: UploadedDocumentSummary[];
 };
 
 export type UploadedDocumentSummary = {

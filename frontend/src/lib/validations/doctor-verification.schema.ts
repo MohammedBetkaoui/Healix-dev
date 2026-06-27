@@ -101,10 +101,7 @@ function optionalPhone() {
     .pipe(z.string().max(24));
 }
 
-function documentField(
-  messages: DoctorVerificationValidationMessages,
-  required: boolean,
-) {
+function documentField(messages: DoctorVerificationValidationMessages) {
   return z
     .custom<File | null>(
       (value) => isFileLike(value) || value === null || value === undefined,
@@ -113,12 +110,6 @@ function documentField(
     .transform((value) => value ?? null)
     .superRefine((file, context) => {
       if (!file) {
-        if (required) {
-          context.addIssue({
-            code: z.ZodIssueCode.custom,
-            message: messages.required,
-          });
-        }
         return;
       }
 
@@ -216,19 +207,19 @@ export function doctorDocumentsSubmissionSchema(
   messages: DoctorVerificationValidationMessages,
 ) {
   return z.object({
-    identityDocument: documentField(messages, true),
-    medicalDegreeDocument: documentField(messages, true),
-    specialityDegreeDocument: documentField(messages, false),
-    ordreRegistrationDocument: documentField(messages, true),
-    practiceAuthorizationDocument: documentField(messages, true),
-    cabinetAddressProofDocument: documentField(messages, true),
-    nifDocument: documentField(messages, true),
-    casnosCertificateDocument: documentField(messages, false),
-    cabinetOpeningAuthorizationDocument: documentField(messages, false),
-    professionalPhotoDocument: documentField(messages, false),
-    stampSignatureDocument: documentField(messages, false),
-    cabinetOwnershipOrRentalDocument: documentField(messages, false),
-    goodStandingCertificateDocument: documentField(messages, false),
+    identityDocument: documentField(messages),
+    medicalDegreeDocument: documentField(messages),
+    specialityDegreeDocument: documentField(messages),
+    ordreRegistrationDocument: documentField(messages),
+    practiceAuthorizationDocument: documentField(messages),
+    cabinetAddressProofDocument: documentField(messages),
+    nifDocument: documentField(messages),
+    casnosCertificateDocument: documentField(messages),
+    cabinetOpeningAuthorizationDocument: documentField(messages),
+    professionalPhotoDocument: documentField(messages),
+    stampSignatureDocument: documentField(messages),
+    cabinetOwnershipOrRentalDocument: documentField(messages),
+    goodStandingCertificateDocument: documentField(messages),
     confirmAuthenticity: z.boolean().refine(Boolean, {
       message: messages.confirmAuthenticity,
     }),
@@ -243,16 +234,7 @@ export function createDoctorVerificationSchema(
     .merge(doctorProfessionalRegistrationSchema(messages))
     .merge(doctorPracticeLocationSchema(messages))
     .merge(doctorFiscalSocialSchema(messages))
-    .merge(doctorDocumentsSubmissionSchema(messages))
-    .superRefine((data, context) => {
-      if (data.doctorType === "SPECIALIST" && !data.specialityDegreeDocument) {
-        context.addIssue({
-          code: z.ZodIssueCode.custom,
-          message: messages.required,
-          path: ["specialityDegreeDocument"],
-        });
-      }
-    }) satisfies z.ZodType<DoctorVerificationFormInput>;
+    .merge(doctorDocumentsSubmissionSchema(messages)) satisfies z.ZodType<DoctorVerificationFormInput>;
 }
 
 export { ACCEPTED_EXTENSIONS, MAX_FILE_SIZE };

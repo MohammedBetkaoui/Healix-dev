@@ -21,6 +21,7 @@ export type DoctorPrefillResponse = {
     currentStep: DoctorVerificationStep;
     canSubmit: boolean;
   };
+  documents: UploadedDocumentSummary[];
 };
 
 export type DoctorVerificationStatusResponse = {

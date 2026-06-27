@@ -3,6 +3,7 @@ import { apiClient } from "@/lib/api/http-client";
 import {
   type EstablishmentVerificationDraftPayload,
   type EstablishmentVerificationPrefillResponse,
+  type EstablishmentVerificationRequestResponse,
   type EstablishmentVerificationSubmitResponse,
   type RequiredDocumentType,
 } from "../types/verification.types";
@@ -13,7 +14,32 @@ export async function getEstablishmentVerificationPrefill(): Promise<Establishme
       "/verification/establishment/prefill",
     );
 
-  return response.data;
+  const prefill = response.data;
+
+  if (prefill.verification.status === "NOT_STARTED") {
+    return prefill;
+  }
+
+  try {
+    const requestResponse =
+      await apiClient.get<EstablishmentVerificationRequestResponse>(
+        "/verification/establishment/request",
+      );
+    const request = requestResponse.data;
+
+    return {
+      ...prefill,
+      documents: request.documents ?? prefill.documents,
+      draftData: request.data ?? prefill.draftData,
+      verification: {
+        ...prefill.verification,
+        currentStep: request.currentStep,
+        status: request.status,
+      },
+    };
+  } catch {
+    return prefill;
+  }
 }
 
 export async function createEstablishmentVerificationDraft(

@@ -13,12 +13,17 @@ export const verificationAr = {
     pendingTitle: "طلبك قيد المراجعة",
     pendingDescription:
       "طلبك قيد المراجعة. سيتم إشعارك بعد انتهاء مراجعة الإدارة.",
+    editNoticeTitle: "تم إرسال طلب التحقق مسبقًا",
+    editNoticeDescription:
+      "طلبك في انتظار مراجعة الإدارة. خلال هذه الفترة يمكنك تعديل المعلومات أو استبدال الوثائق. سيتم الاحتفاظ بالوثائق القديمة إلى غاية حفظ التعديلات النهائية.",
+    editButton: "تعديل الطلب",
     values: {
       NOT_STARTED: "NOT_STARTED",
       DRAFT: "DRAFT",
       PENDING_VERIFICATION: "PENDING_VERIFICATION",
       VERIFIED: "VERIFIED",
       REJECTED: "REJECTED",
+      SUSPENDED: "SUSPENDED",
     },
   },
   stepper: {
@@ -109,6 +114,9 @@ export const verificationAr = {
     button: "إرسال طلب التحقق",
     loading: "جارٍ الإرسال...",
     success: "تم إرسال طلب التحقق بنجاح",
+    updateButton: "حفظ التعديلات",
+    updateLoading: "جارٍ حفظ التعديلات...",
+    updateSuccess: "تم حفظ التعديلات بنجاح",
   },
   errors: {
     required: "وثيقة مطلوبة",

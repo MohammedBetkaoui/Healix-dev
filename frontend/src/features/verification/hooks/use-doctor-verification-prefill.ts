@@ -8,7 +8,8 @@ export function useDoctorVerificationPrefill() {
   return useQuery({
     queryKey: ["verification", "doctor", "prefill"],
     queryFn: getDoctorVerificationPrefill,
+    refetchOnMount: "always",
     retry: false,
-    staleTime: 30_000,
+    staleTime: 0,
   });
 }

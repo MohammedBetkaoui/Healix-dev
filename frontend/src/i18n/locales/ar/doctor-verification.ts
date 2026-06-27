@@ -24,11 +24,16 @@ export const doctorVerificationAr = {
     pendingTitle: "طلبك قيد المراجعة",
     pendingDescription:
       "طلبك قيد المراجعة. سيتم إشعارك بعد المصادقة من طرف الإدارة.",
+    editNoticeTitle: "تم إرسال طلب التحقق مسبقًا",
+    editNoticeDescription:
+      "طلبك في انتظار مراجعة الإدارة. خلال هذه الفترة يمكنك تعديل معلوماتك أو استبدال الوثائق. سيتم الاحتفاظ بالوثائق القديمة إلى غاية حفظ التعديلات النهائية.",
+    editButton: "تعديل الطلب",
     values: {
       NOT_STARTED: "لم يبدأ",
       PENDING_VERIFICATION: "قيد التحقق",
       VERIFIED: "تم التحقق",
       REJECTED: "مرفوض",
+      SUSPENDED: "موقوف",
     },
   },
   steps: {
@@ -236,6 +241,9 @@ export const doctorVerificationAr = {
     submit: "إرسال الطلب",
     loading: "جارٍ الإرسال...",
     success: "تم إرسال طلب التحقق بنجاح",
+    updateSubmit: "حفظ التعديلات",
+    updateLoading: "جارٍ حفظ التعديلات...",
+    updateSuccess: "تم حفظ التعديلات بنجاح",
   },
   navigation: {
     previous: "السابق",
