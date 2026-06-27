@@ -65,6 +65,50 @@ enum VerificationStep {
   SUBMISSION
 }
 
+enum DoctorVerificationStep {
+  IDENTITY
+  QUALIFICATION
+  PROFESSIONAL_REGISTRATION
+  PRACTICE_LOCATION
+  FISCAL_SOCIAL
+  DOCUMENTS_SUBMISSION
+}
+
+enum DoctorType {
+  GENERAL_PRACTITIONER
+  SPECIALIST
+}
+
+enum IdentityDocumentType {
+  NATIONAL_ID_CARD
+  PASSPORT
+  DRIVING_LICENSE
+  OTHER
+}
+
+enum ProfessionalStatus {
+  INDEPENDENT_PRIVATE_DOCTOR
+  PRIVATE_INDIVIDUAL_CABINET
+  PRIVATE_GROUP_CABINET
+  PUBLIC_WITH_COMPLEMENTARY_ACTIVITY
+  OTHER
+}
+
+enum CabinetType {
+  INDIVIDUAL_CABINET
+  GROUP_CABINET
+  PRIVATE_CONSULTATION
+  TELECONSULTATION
+  OTHER
+}
+
+enum FiscalActivityType {
+  MEDICAL_LIBERAL_PROFESSION
+  INDIVIDUAL_MEDICAL_CABINET
+  GROUP_MEDICAL_CABINET
+  OTHER
+}
+
 enum VerificationDocumentType {
   COMMERCIAL_REGISTER
   NIF_DOCUMENT
@@ -76,6 +120,18 @@ enum VerificationDocumentType {
   CNAS_CASNOS
   MEDICAL_DIRECTOR_DOCUMENT
   REPRESENTATIVE_NOMINATION
+  IDENTITY_DOCUMENT
+  MEDICAL_DEGREE
+  SPECIALITY_DEGREE
+  ORDRE_REGISTRATION
+  PRACTICE_AUTHORIZATION
+  CABINET_ADDRESS_PROOF
+  CASNOS_CERTIFICATE
+  CABINET_OPENING_AUTHORIZATION
+  PROFESSIONAL_PHOTO
+  STAMP_SIGNATURE
+  CABINET_OWNERSHIP_OR_RENTAL
+  GOOD_STANDING_CERTIFICATE
 }
 
 enum VerificationDocumentStatus {
@@ -97,11 +153,11 @@ model User {
   createdAt       DateTime      @default(now()) @map("created_at")
   updatedAt       DateTime      @updatedAt @map("updated_at")
 
-  establishment Establishment?
-  doctorProfile DoctorProfile?
-  refreshTokens RefreshToken[]
-  auditLogs     AuditLog[]
-  verificationRequests VerificationRequest[] @relation("VerificationRequestUser")
+  establishment                Establishment?
+  doctorProfile                DoctorProfile?
+  refreshTokens                RefreshToken[]
+  auditLogs                    AuditLog[]
+  verificationRequests         VerificationRequest[] @relation("VerificationRequestUser")
   reviewedVerificationRequests VerificationRequest[] @relation("VerificationReviewedBy")
 
   @@map("users")
@@ -122,8 +178,8 @@ model Establishment {
   createdAt          DateTime           @default(now()) @map("created_at")
   updatedAt          DateTime           @updatedAt @map("updated_at")
 
-  owner          User            @relation(fields: [ownerId], references: [id], onDelete: Cascade)
-  doctorProfiles DoctorProfile[]
+  owner               User                 @relation(fields: [ownerId], references: [id], onDelete: Cascade)
+  doctorProfiles      DoctorProfile[]
   verificationRequest VerificationRequest?
 
   @@map("establishments")
@@ -142,8 +198,9 @@ model DoctorProfile {
   createdAt           DateTime           @default(now()) @map("created_at")
   updatedAt           DateTime           @updatedAt @map("updated_at")
 
-  user          User           @relation(fields: [userId], references: [id], onDelete: Cascade)
-  establishment Establishment? @relation(fields: [establishmentId], references: [id], onDelete: SetNull)
+  user                User                 @relation(fields: [userId], references: [id], onDelete: Cascade)
+  establishment       Establishment?       @relation(fields: [establishmentId], references: [id], onDelete: SetNull)
+  verificationRequest VerificationRequest?
 
   @@index([establishmentId])
   @@map("doctor_profiles")
@@ -167,14 +224,14 @@ model AuditLog {
 }
 
 model RefreshToken {
-  id        String   @id @default(cuid())
-  userId    String   @map("user_id")
-  tokenHash String   @map("token_hash") @db.Text
-  userAgent String?  @map("user_agent") @db.VarChar(255)
-  ipAddress String?  @map("ip_address") @db.VarChar(64)
-  expiresAt DateTime @map("expires_at")
+  id        String    @id @default(cuid())
+  userId    String    @map("user_id")
+  tokenHash String    @map("token_hash") @db.Text
+  userAgent String?   @map("user_agent") @db.VarChar(255)
+  ipAddress String?   @map("ip_address") @db.VarChar(64)
+  expiresAt DateTime  @map("expires_at")
   revokedAt DateTime? @map("revoked_at")
-  createdAt DateTime @default(now()) @map("created_at")
+  createdAt DateTime  @default(now()) @map("created_at")
 
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 
@@ -184,25 +241,30 @@ model RefreshToken {
 }
 
 model VerificationRequest {
-  id              String                  @id @default(cuid())
-  establishmentId String                 @unique @map("establishment_id")
-  userId          String                 @map("user_id")
-  type            VerificationRequestType @default(ESTABLISHMENT)
-  status          VerificationStatus      @default(DRAFT)
-  currentStep     VerificationStep        @default(ESTABLISHMENT_INFO) @map("current_step")
-  submittedAt     DateTime?              @map("submitted_at")
-  reviewedAt      DateTime?              @map("reviewed_at")
-  reviewedById    String?                @map("reviewed_by_id")
-  rejectionReason String?                @map("rejection_reason") @db.Text
-  createdAt       DateTime               @default(now()) @map("created_at")
-  updatedAt       DateTime               @updatedAt @map("updated_at")
+  id                String                  @id @default(cuid())
+  establishmentId   String?                 @unique @map("establishment_id")
+  doctorProfileId   String?                 @unique @map("doctor_profile_id")
+  userId            String                  @map("user_id")
+  type              VerificationRequestType @default(ESTABLISHMENT)
+  status            VerificationStatus      @default(DRAFT)
+  currentStep       VerificationStep        @default(ESTABLISHMENT_INFO) @map("current_step")
+  doctorCurrentStep DoctorVerificationStep? @map("doctor_current_step")
+  submittedAt       DateTime?               @map("submitted_at")
+  reviewedAt        DateTime?               @map("reviewed_at")
+  reviewedById      String?                 @map("reviewed_by_id")
+  rejectionReason   String?                 @map("rejection_reason") @db.Text
+  createdAt         DateTime                @default(now()) @map("created_at")
+  updatedAt         DateTime                @updatedAt @map("updated_at")
 
-  establishment Establishment                  @relation(fields: [establishmentId], references: [id], onDelete: Cascade)
+  establishment Establishment?                 @relation(fields: [establishmentId], references: [id], onDelete: Cascade)
+  doctorProfile DoctorProfile?                 @relation(fields: [doctorProfileId], references: [id], onDelete: Cascade)
   user          User                           @relation("VerificationRequestUser", fields: [userId], references: [id], onDelete: Cascade)
   reviewedBy    User?                          @relation("VerificationReviewedBy", fields: [reviewedById], references: [id], onDelete: SetNull)
   data          EstablishmentVerificationData?
+  doctorData    DoctorVerificationData?
   documents     VerificationDocument[]
 
+  @@index([doctorProfileId])
   @@index([userId])
   @@index([reviewedById])
   @@index([status])
@@ -210,46 +272,97 @@ model VerificationRequest {
 }
 
 model EstablishmentVerificationData {
-  id                              String            @id @default(cuid())
-  verificationRequestId           String            @unique @map("verification_request_id")
-  name                            String            @db.VarChar(150)
-  type                            EstablishmentType
-  legalForm                       String?           @map("legal_form") @db.VarChar(120)
-  wilaya                          String            @db.VarChar(80)
-  commune                         String?           @db.VarChar(80)
-  address                         String            @db.VarChar(255)
-  phone                           String            @db.VarChar(32)
-  professionalEmail               String            @map("professional_email") @db.VarChar(191)
-  website                         String?           @db.VarChar(191)
-  commercialRegisterNumber        String?           @map("commercial_register_number") @db.VarChar(80)
-  commercialRegisterIssuedAt      DateTime?         @map("commercial_register_issued_at")
-  commercialRegisterWilaya        String?           @map("commercial_register_wilaya") @db.VarChar(80)
-  nif                             String?           @db.VarChar(80)
-  nis                             String?           @db.VarChar(80)
-  taxCenter                       String?           @map("tax_center") @db.VarChar(120)
-  healthAuthorizationNumber       String?           @map("health_authorization_number") @db.VarChar(100)
-  healthAuthorizationIssuedAt     DateTime?         @map("health_authorization_issued_at")
-  healthAuthorizationAuthority    String?           @map("health_authorization_authority") @db.VarChar(160)
-  healthDirectionWilaya           String?           @map("health_direction_wilaya") @db.VarChar(80)
-  authorizedActivityType          String?           @map("authorized_activity_type") @db.VarChar(160)
-  legalRepresentativeFullName     String?           @map("legal_representative_full_name") @db.VarChar(120)
-  legalRepresentativeFunction     String?           @map("legal_representative_function") @db.VarChar(120)
-  legalRepresentativeNinOrId      String?           @map("legal_representative_nin_or_id") @db.VarChar(80)
-  legalRepresentativePhone        String?           @map("legal_representative_phone") @db.VarChar(32)
-  legalRepresentativeEmail        String?           @map("legal_representative_email") @db.VarChar(191)
-  confirmationAccuracy            Boolean           @default(false) @map("confirmation_accuracy")
-  createdAt                       DateTime          @default(now()) @map("created_at")
-  updatedAt                       DateTime          @updatedAt @map("updated_at")
+  id                           String            @id @default(cuid())
+  verificationRequestId        String            @unique @map("verification_request_id")
+  name                         String            @db.VarChar(150)
+  type                         EstablishmentType
+  legalForm                    String?           @map("legal_form") @db.VarChar(120)
+  wilaya                       String            @db.VarChar(80)
+  commune                      String?           @db.VarChar(80)
+  address                      String            @db.VarChar(255)
+  phone                        String            @db.VarChar(32)
+  professionalEmail            String            @map("professional_email") @db.VarChar(191)
+  website                      String?           @db.VarChar(191)
+  commercialRegisterNumber     String?           @map("commercial_register_number") @db.VarChar(80)
+  commercialRegisterIssuedAt   DateTime?         @map("commercial_register_issued_at")
+  commercialRegisterWilaya     String?           @map("commercial_register_wilaya") @db.VarChar(80)
+  nif                          String?           @db.VarChar(80)
+  nis                          String?           @db.VarChar(80)
+  taxCenter                    String?           @map("tax_center") @db.VarChar(120)
+  healthAuthorizationNumber    String?           @map("health_authorization_number") @db.VarChar(100)
+  healthAuthorizationIssuedAt  DateTime?         @map("health_authorization_issued_at")
+  healthAuthorizationAuthority String?           @map("health_authorization_authority") @db.VarChar(160)
+  healthDirectionWilaya        String?           @map("health_direction_wilaya") @db.VarChar(80)
+  authorizedActivityType       String?           @map("authorized_activity_type") @db.VarChar(160)
+  legalRepresentativeFullName  String?           @map("legal_representative_full_name") @db.VarChar(120)
+  legalRepresentativeFunction  String?           @map("legal_representative_function") @db.VarChar(120)
+  legalRepresentativeNinOrId   String?           @map("legal_representative_nin_or_id") @db.VarChar(80)
+  legalRepresentativePhone     String?           @map("legal_representative_phone") @db.VarChar(32)
+  legalRepresentativeEmail     String?           @map("legal_representative_email") @db.VarChar(191)
+  confirmationAccuracy         Boolean           @default(false) @map("confirmation_accuracy")
+  createdAt                    DateTime          @default(now()) @map("created_at")
+  updatedAt                    DateTime          @updatedAt @map("updated_at")
 
   verificationRequest VerificationRequest @relation(fields: [verificationRequestId], references: [id], onDelete: Cascade)
 
   @@map("establishment_verification_data")
 }
 
+model DoctorVerificationData {
+  id                          String                @id @default(cuid())
+  verificationRequestId       String                @unique @map("verification_request_id")
+  fullName                    String                @map("full_name") @db.VarChar(120)
+  birthDate                   DateTime?             @map("birth_date")
+  birthPlace                  String?               @map("birth_place") @db.VarChar(120)
+  nationality                 String?               @db.VarChar(80)
+  ninOrIdNumber               String?               @map("nin_or_id_number") @db.VarChar(80)
+  identityDocumentType        IdentityDocumentType? @map("identity_document_type")
+  phone                       String                @db.VarChar(32)
+  professionalEmail           String                @map("professional_email") @db.VarChar(191)
+  wilaya                      String                @db.VarChar(80)
+  commune                     String?               @db.VarChar(80)
+  address                     String?               @db.VarChar(255)
+  doctorType                  DoctorType?           @map("doctor_type")
+  speciality                  String                @db.VarChar(100)
+  mainDegree                  String?               @map("main_degree") @db.VarChar(160)
+  university                  String?               @db.VarChar(160)
+  graduationYear              Int?                  @map("graduation_year")
+  specialityDegree            String?               @map("speciality_degree") @db.VarChar(160)
+  specialityGraduationYear    Int?                  @map("speciality_graduation_year")
+  orderRegistrationNumber     String?               @map("order_registration_number") @db.VarChar(100)
+  regionalCouncil             String?               @map("regional_council") @db.VarChar(160)
+  registrationWilaya          String?               @map("registration_wilaya") @db.VarChar(80)
+  registrationDate            DateTime?             @map("registration_date")
+  professionalStatus          ProfessionalStatus?   @map("professional_status")
+  practiceAuthorizationNumber String?               @map("practice_authorization_number") @db.VarChar(100)
+  authorizationAuthority      String?               @map("authorization_authority") @db.VarChar(160)
+  cabinetName                 String?               @map("cabinet_name") @db.VarChar(160)
+  cabinetType                 CabinetType?          @map("cabinet_type")
+  cabinetAddress              String?               @map("cabinet_address") @db.VarChar(255)
+  cabinetWilaya               String?               @map("cabinet_wilaya") @db.VarChar(80)
+  cabinetCommune              String?               @map("cabinet_commune") @db.VarChar(80)
+  cabinetPhone                String?               @map("cabinet_phone") @db.VarChar(32)
+  cabinetEmail                String?               @map("cabinet_email") @db.VarChar(191)
+  healthDirectionWilaya       String?               @map("health_direction_wilaya") @db.VarChar(80)
+  cabinetOpeningAuthorization String?               @map("cabinet_opening_authorization") @db.VarChar(120)
+  nif                         String?               @db.VarChar(80)
+  taxCenter                   String?               @map("tax_center") @db.VarChar(120)
+  casnosNumber                String?               @map("casnos_number") @db.VarChar(80)
+  fiscalActivityType          FiscalActivityType?   @map("fiscal_activity_type")
+  professionalRib             String?               @map("professional_rib") @db.VarChar(80)
+  confirmationAccuracy        Boolean               @default(false) @map("confirmation_accuracy")
+  createdAt                   DateTime              @default(now()) @map("created_at")
+  updatedAt                   DateTime              @updatedAt @map("updated_at")
+
+  verificationRequest VerificationRequest @relation(fields: [verificationRequestId], references: [id], onDelete: Cascade)
+
+  @@map("doctor_verification_data")
+}
+
 model VerificationDocument {
   id                    String                     @id @default(cuid())
-  verificationRequestId  String                    @map("verification_request_id")
-  documentType          VerificationDocumentType    @map("document_type")
+  verificationRequestId String                     @map("verification_request_id")
+  documentType          VerificationDocumentType   @map("document_type")
   originalName          String                     @map("original_name") @db.VarChar(255)
   storedName            String                     @map("stored_name") @db.VarChar(255)
   mimeType              String                     @map("mime_type") @db.VarChar(100)

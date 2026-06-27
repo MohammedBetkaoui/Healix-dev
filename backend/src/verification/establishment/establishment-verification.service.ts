@@ -14,7 +14,11 @@ import {
 } from '@prisma/client';
 
 import { AuditLogsService } from '../../audit-logs/audit-logs.service';
-import { VerificationDocumentType } from '../../common/enums/verification-document-type.enum';
+import {
+  establishmentVerificationDocumentTypes,
+  requiredEstablishmentDocumentTypes,
+  VerificationDocumentType,
+} from '../../common/enums/verification-document-type.enum';
 import { VerificationDocumentStatus } from '../../common/enums/verification-document-status.enum';
 import { VerificationStatus } from '../../common/enums/verification-status.enum';
 import { VerificationStep } from '../../common/enums/verification-step.enum';
@@ -88,7 +92,7 @@ export class EstablishmentVerificationService {
     return {
       status: request?.status ?? establishment.verificationStatus,
       currentStep: request?.currentStep ?? VerificationStep.ESTABLISHMENT_INFO,
-      requiredDocuments: Object.values(VerificationDocumentType),
+      requiredDocuments: requiredEstablishmentDocumentTypes,
       uploadedDocuments: documents.map((document) =>
         this.documentService.toDocumentSummary(document),
       ),
@@ -174,6 +178,8 @@ export class EstablishmentVerificationService {
       throw new BadRequestException('Document obligatoire manquant.');
     }
 
+    this.assertAllowedDocumentType(input.documentType);
+
     const extension = this.fileValidator.validate(input.file);
     const establishment = await this.getOwnedEstablishment(userId);
     const request = await this.getDraftRequest(establishment.id);
@@ -185,9 +191,10 @@ export class EstablishmentVerificationService {
     // Malware scanning must be added before production.
     const storedFile = await this.fileStorageService.storeVerificationFile({
       documentType: input.documentType,
-      establishmentId: establishment.id,
       extension,
       file: input.file,
+      ownerId: establishment.id,
+      ownerType: 'establishments',
       verificationRequestId: request.id,
     });
 
@@ -619,6 +626,16 @@ export class EstablishmentVerificationService {
       status === VerificationStatus.VERIFIED
     ) {
       throw new ConflictException('La demande est déjà soumise.');
+    }
+  }
+
+  private assertAllowedDocumentType(documentType: VerificationDocumentType): void {
+    if (
+      !establishmentVerificationDocumentTypes.includes(
+        documentType as (typeof establishmentVerificationDocumentTypes)[number],
+      )
+    ) {
+      throw new BadRequestException('Type de document non autorisé.');
     }
   }
 

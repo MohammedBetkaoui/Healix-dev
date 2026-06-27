@@ -5,6 +5,7 @@ import { Button } from "@/components/ui/button";
 type VerificationSubmitPanelProps = {
   completedInfoCount: number;
   documentsAddedCount: number;
+  infoTotalCount: number;
   isLoading: boolean;
   isReady: boolean;
   onSubmit: () => void;
@@ -17,6 +18,7 @@ type VerificationSubmitPanelProps = {
 export function VerificationSubmitPanel({
   completedInfoCount,
   documentsAddedCount,
+  infoTotalCount,
   isLoading,
   isReady,
   onSubmit,
@@ -35,7 +37,7 @@ export function VerificationSubmitPanel({
             </span>
             <p className="mt-4 text-sm text-slate-500">{title}</p>
             <p className="mt-1 text-2xl font-semibold text-slate-950">
-              {completedInfoCount}/8
+              {completedInfoCount}/{infoTotalCount}
             </p>
           </div>
           <div className="rounded-[18px] border border-slate-200 bg-slate-50/70 p-4">

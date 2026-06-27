@@ -12,6 +12,11 @@ export const doctorVerificationFr = {
     footerSubtitle: "Neurologie",
     workspaceSubtitle: "Cabinet HealixDZ",
   },
+  form: {
+    prefillLoading: "Chargement des informations enregistrees...",
+    prefillError:
+      "Impossible de charger les informations enregistrees. Veuillez actualiser la page.",
+  },
   status: {
     current: "Statut actuel",
     demoBadge: "Mode demonstration",
@@ -251,5 +256,7 @@ export const doctorVerificationFr = {
     fileTooLarge: "Fichier trop volumineux",
     documentRequired: "Document obligatoire",
     confirmAuthenticity: "Veuillez confirmer l'exactitude des informations.",
+    submitFailed:
+      "Impossible d'envoyer la demande de verification. Veuillez reessayer.",
   },
 } as const;

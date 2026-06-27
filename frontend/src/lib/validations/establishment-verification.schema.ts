@@ -74,6 +74,7 @@ export function createEstablishmentVerificationSchema(
   return z.object({
     address: requiredText(messages, 255),
     addressProofDocument: documentField(messages),
+    commune: requiredText(messages, 80),
     commercialRegisterDocument: documentField(messages),
     commercialRegisterNumber: requiredText(messages, 120),
     establishmentName: requiredText(messages, 150),
@@ -83,6 +84,8 @@ export function createEstablishmentVerificationSchema(
     ),
     healthAuthorizationDocument: documentField(messages),
     healthAuthorizationNumber: requiredText(messages, 120),
+    legalForm: requiredText(messages, 120),
+    legalRepresentativeNinOrId: requiredText(messages, 80),
     managerFullName: requiredText(messages, 120),
     managerIdDocument: documentField(messages),
     nif: requiredText(messages, 120),

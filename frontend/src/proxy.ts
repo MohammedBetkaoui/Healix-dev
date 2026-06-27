@@ -14,6 +14,7 @@ type ProxyUser = {
 
 type SessionCheck = {
   shouldClearCookies: boolean;
+  setCookieHeaders: string[];
   user: ProxyUser | null;
 };
 
@@ -25,6 +26,10 @@ function getApiUrl() {
 
 function hasAuthCookie(request: NextRequest) {
   return authCookieNames.some((name) => request.cookies.has(name));
+}
+
+function hasRefreshCookie(request: NextRequest) {
+  return request.cookies.has("refresh_token");
 }
 
 function extractProxyUser(data: unknown): ProxyUser | null {
@@ -55,9 +60,126 @@ function clearAuthCookies(response: NextResponse) {
   });
 }
 
+function splitSetCookieHeader(header: string) {
+  return header
+    .split(/,\s(?=[A-Za-z0-9_]+=)/)
+    .map((value) => value.trim())
+    .filter(Boolean);
+}
+
+function getSetCookieHeaders(response: Response) {
+  const headersWithSetCookie = response.headers as Headers & {
+    getSetCookie?: () => string[];
+  };
+  const setCookieHeaders = headersWithSetCookie.getSetCookie?.();
+
+  if (setCookieHeaders?.length) {
+    return setCookieHeaders;
+  }
+
+  const header = response.headers.get("set-cookie");
+  return header ? splitSetCookieHeader(header) : [];
+}
+
+function appendSetCookieHeaders(
+  response: NextResponse,
+  setCookieHeaders: string[],
+) {
+  setCookieHeaders.forEach((cookieHeader) => {
+    response.headers.append("set-cookie", cookieHeader);
+  });
+}
+
+function mergeCookieHeader(
+  currentCookieHeader: string,
+  setCookieHeaders: string[],
+) {
+  const cookieMap = new Map<string, string>();
+
+  currentCookieHeader
+    .split(";")
+    .map((cookie) => cookie.trim())
+    .filter(Boolean)
+    .forEach((cookie) => {
+      const separatorIndex = cookie.indexOf("=");
+
+      if (separatorIndex > 0) {
+        cookieMap.set(cookie.slice(0, separatorIndex), cookie.slice(separatorIndex + 1));
+      }
+    });
+
+  setCookieHeaders.forEach((cookieHeader) => {
+    const firstSegment = cookieHeader.split(";")[0] ?? "";
+    const separatorIndex = firstSegment.indexOf("=");
+
+    if (separatorIndex > 0) {
+      cookieMap.set(
+        firstSegment.slice(0, separatorIndex),
+        firstSegment.slice(separatorIndex + 1),
+      );
+    }
+  });
+
+  return Array.from(cookieMap.entries())
+    .map(([name, value]) => `${name}=${value}`)
+    .join("; ");
+}
+
+function createNextResponse(request: NextRequest, session: SessionCheck) {
+  const requestHeaders = new Headers(request.headers);
+
+  if (session.setCookieHeaders.length > 0) {
+    requestHeaders.set(
+      "cookie",
+      mergeCookieHeader(
+        request.headers.get("cookie") ?? "",
+        session.setCookieHeaders,
+      ),
+    );
+  }
+
+  const response = NextResponse.next({
+    request: {
+      headers: requestHeaders,
+    },
+  });
+
+  appendSetCookieHeaders(response, session.setCookieHeaders);
+  return response;
+}
+
+async function refreshSession(request: NextRequest): Promise<SessionCheck> {
+  try {
+    const response = await fetch(`${getApiUrl()}/auth/refresh`, {
+      cache: "no-store",
+      headers: {
+        Accept: "application/json",
+        Cookie: request.headers.get("cookie") ?? "",
+      },
+      method: "POST",
+    });
+
+    if (!response.ok) {
+      return {
+        shouldClearCookies: response.status === 401 || response.status === 403,
+        setCookieHeaders: [],
+        user: null,
+      };
+    }
+
+    return {
+      shouldClearCookies: false,
+      setCookieHeaders: getSetCookieHeaders(response),
+      user: extractProxyUser(await response.json()),
+    };
+  } catch {
+    return { shouldClearCookies: false, setCookieHeaders: [], user: null };
+  }
+}
+
 async function checkSession(request: NextRequest): Promise<SessionCheck> {
   if (!hasAuthCookie(request)) {
-    return { shouldClearCookies: false, user: null };
+    return { shouldClearCookies: false, setCookieHeaders: [], user: null };
   }
 
   try {
@@ -70,18 +192,24 @@ async function checkSession(request: NextRequest): Promise<SessionCheck> {
     });
 
     if (!response.ok) {
+      if (response.status === 401 && hasRefreshCookie(request)) {
+        return refreshSession(request);
+      }
+
       return {
         shouldClearCookies: response.status === 401 || response.status === 403,
+        setCookieHeaders: [],
         user: null,
       };
     }
 
     return {
       shouldClearCookies: false,
+      setCookieHeaders: [],
       user: extractProxyUser(await response.json()),
     };
   } catch {
-    return { shouldClearCookies: false, user: null };
+    return { shouldClearCookies: false, setCookieHeaders: [], user: null };
   }
 }
 
@@ -125,17 +253,21 @@ export async function proxy(request: NextRequest) {
     }
 
     if (!isAllowedRole(session.user.role, requiredRoles)) {
-      return redirectToRoleHome(request, session.user.role);
+      const response = redirectToRoleHome(request, session.user.role);
+      appendSetCookieHeaders(response, session.setCookieHeaders);
+      return response;
     }
 
-    return NextResponse.next();
+    return createNextResponse(request, session);
   }
 
   if (isAuthPage && session.user) {
-    return redirectToRoleHome(request, session.user.role);
+    const response = redirectToRoleHome(request, session.user.role);
+    appendSetCookieHeaders(response, session.setCookieHeaders);
+    return response;
   }
 
-  const response = NextResponse.next();
+  const response = createNextResponse(request, session);
 
   if (session.shouldClearCookies) {
     clearAuthCookies(response);

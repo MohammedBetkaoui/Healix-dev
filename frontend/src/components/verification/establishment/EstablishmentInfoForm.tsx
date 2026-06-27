@@ -72,6 +72,24 @@ export function EstablishmentInfoForm({
         </div>
 
         <div>
+          <Label htmlFor="verification-legalForm">
+            {t("verification.form.legalForm")}
+          </Label>
+          <Input
+            id="verification-legalForm"
+            dir={direction}
+            className="mt-2 text-start"
+            placeholder={t("verification.form.placeholders.legalForm")}
+            aria-invalid={Boolean(errors.legalForm)}
+            {...register("legalForm")}
+          />
+          <FormErrorMessage
+            id="verification-legalForm-error"
+            message={errors.legalForm?.message}
+          />
+        </div>
+
+        <div>
           <Label htmlFor="verification-wilaya">{t("verification.form.wilaya")}</Label>
           <Select
             id="verification-wilaya"
@@ -89,6 +107,24 @@ export function EstablishmentInfoForm({
           <FormErrorMessage
             id="verification-wilaya-error"
             message={errors.wilaya?.message}
+          />
+        </div>
+
+        <div>
+          <Label htmlFor="verification-commune">
+            {t("verification.form.commune")}
+          </Label>
+          <Input
+            id="verification-commune"
+            dir={direction}
+            className="mt-2 text-start"
+            placeholder={t("verification.form.placeholders.commune")}
+            aria-invalid={Boolean(errors.commune)}
+            {...register("commune")}
+          />
+          <FormErrorMessage
+            id="verification-commune-error"
+            message={errors.commune?.message}
           />
         </div>
 
@@ -159,6 +195,24 @@ export function EstablishmentInfoForm({
           <FormErrorMessage
             id="verification-managerFullName-error"
             message={errors.managerFullName?.message}
+          />
+        </div>
+
+        <div>
+          <Label htmlFor="verification-legalRepresentativeNinOrId">
+            {t("verification.form.legalRepresentativeNinOrId")}
+          </Label>
+          <Input
+            id="verification-legalRepresentativeNinOrId"
+            dir={direction}
+            className="mt-2 text-start"
+            placeholder={t("verification.form.placeholders.legalRepresentativeNinOrId")}
+            aria-invalid={Boolean(errors.legalRepresentativeNinOrId)}
+            {...register("legalRepresentativeNinOrId")}
+          />
+          <FormErrorMessage
+            id="verification-legalRepresentativeNinOrId-error"
+            message={errors.legalRepresentativeNinOrId?.message}
           />
         </div>
 

@@ -2,10 +2,12 @@ import { BadRequestException, Injectable } from '@nestjs/common';
 
 import { type Prisma, type VerificationDocument } from '@prisma/client';
 import {
+  requiredDoctorDocumentTypes,
   requiredEstablishmentDocumentTypes,
-  type VerificationDocumentType,
+  VerificationDocumentType,
 } from '../../common/enums/verification-document-type.enum';
 import { VerificationDocumentStatus } from '../../common/enums/verification-document-status.enum';
+import { DoctorType } from '../../common/enums/doctor-type.enum';
 import { PrismaService } from '../../prisma/prisma.service';
 import { type UploadedDocumentSummary } from '../types/verification.types';
 
@@ -91,6 +93,21 @@ export class VerificationDocumentService {
     });
   }
 
+  async findDocumentForDoctorProfile(
+    documentId: string,
+    doctorProfileId: string,
+    client: PrismaExecutor = this.prisma,
+  ): Promise<VerificationDocument | null> {
+    return client.verificationDocument.findFirst({
+      where: {
+        id: documentId,
+        verificationRequest: {
+          doctorProfileId,
+        },
+      },
+    });
+  }
+
   async deleteDocument(
     documentId: string,
     client: PrismaExecutor = this.prisma,
@@ -114,6 +131,42 @@ export class VerificationDocumentService {
     return requiredEstablishmentDocumentTypes.filter(
       (documentType) => !uploadedTypes.has(documentType),
     );
+  }
+
+  getMissingRequiredDoctorDocuments(
+    documents: Pick<VerificationDocument, 'documentType' | 'status'>[],
+    doctorType?: string | null,
+  ): VerificationDocumentType[] {
+    const uploadedTypes = new Set(
+      documents
+        .filter((document) => document.status === VerificationDocumentStatus.UPLOADED)
+        .map((document) => document.documentType),
+    );
+    const requiredTypes: VerificationDocumentType[] = [
+      ...requiredDoctorDocumentTypes,
+    ];
+
+    if (doctorType === DoctorType.SPECIALIST) {
+      requiredTypes.push(VerificationDocumentType.SPECIALITY_DEGREE);
+    }
+
+    return requiredTypes.filter(
+      (documentType) => !uploadedTypes.has(documentType),
+    );
+  }
+
+  assertRequiredDoctorDocumentsPresent(
+    documents: Pick<VerificationDocument, 'documentType' | 'status'>[],
+    doctorType?: string | null,
+  ): void {
+    const missingDocuments = this.getMissingRequiredDoctorDocuments(
+      documents,
+      doctorType,
+    );
+
+    if (missingDocuments.length > 0) {
+      throw new BadRequestException('Document obligatoire manquant.');
+    }
   }
 
   assertRequiredDocumentsPresent(

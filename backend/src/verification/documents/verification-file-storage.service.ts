@@ -15,9 +15,10 @@ import {
 
 type StoreFileInput = {
   documentType: string;
-  establishmentId: string;
   extension: string;
   file: Express.Multer.File;
+  ownerId: string;
+  ownerType: 'doctors' | 'establishments';
   verificationRequestId: string;
 };
 
@@ -47,14 +48,14 @@ export class VerificationFileStorageService {
     );
     const targetDirectory = this.resolveSafePath(
       'verifications',
-      'establishments',
-      input.establishmentId,
+      input.ownerType,
+      input.ownerId,
       input.verificationRequestId,
     );
     const localPath = this.resolveSafePath(
       'verifications',
-      'establishments',
-      input.establishmentId,
+      input.ownerType,
+      input.ownerId,
       input.verificationRequestId,
       storedName,
     );

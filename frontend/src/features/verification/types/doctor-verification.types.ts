@@ -8,6 +8,7 @@ export type DoctorVerificationStepId =
 
 export type VerificationStatus =
   | "NOT_STARTED"
+  | "DRAFT"
   | "PENDING_VERIFICATION"
   | "VERIFIED"
   | "REJECTED";
@@ -135,4 +136,115 @@ export type DoctorVerificationStep = {
   id: DoctorVerificationStepId;
   labelKey: string;
   shortLabelKey: string;
+};
+
+export type DoctorVerificationPrefillResponse = {
+  doctor: {
+    id: string;
+    userId: string;
+    fullName: string;
+    email: string;
+    phone: string;
+    speciality: string;
+    wilaya: string;
+    professionalAddress: string;
+    isIndependent: boolean;
+  };
+  verification: {
+    status: VerificationStatus;
+    currentStep: DoctorVerificationStepId;
+    canSubmit: boolean;
+  };
+  draftData?: Partial<{
+    fullName: string;
+    birthDate: string;
+    birthPlace: string;
+    nationality: string;
+    ninOrIdNumber: string;
+    identityDocumentType: string;
+    phone: string;
+    professionalEmail: string;
+    wilaya: string;
+    commune: string;
+    address: string;
+    doctorType: string;
+    speciality: string;
+    mainDegree: string;
+    university: string;
+    graduationYear: number;
+    specialityDegree: string;
+    specialityGraduationYear: number;
+    orderRegistrationNumber: string;
+    regionalCouncil: string;
+    registrationWilaya: string;
+    registrationDate: string;
+    professionalStatus: string;
+    practiceAuthorizationNumber: string;
+    authorizationAuthority: string;
+    cabinetName: string;
+    cabinetType: string;
+    cabinetAddress: string;
+    cabinetWilaya: string;
+    cabinetCommune: string;
+    cabinetPhone: string;
+    cabinetEmail: string;
+    healthDirectionWilaya: string;
+    cabinetOpeningAuthorization: string;
+    nif: string;
+    taxCenter: string;
+    casnosNumber: string;
+    fiscalActivityType: string;
+    professionalRib: string;
+    confirmationAccuracy: boolean;
+  }>;
+};
+
+export type DoctorVerificationDraftPayload = {
+  fullName: string;
+  birthDate: string;
+  birthPlace?: string;
+  nationality?: string;
+  ninOrIdNumber: string;
+  identityDocumentType: string;
+  phone: string;
+  professionalEmail: string;
+  wilaya: string;
+  commune: string;
+  address?: string;
+  doctorType: string;
+  speciality: string;
+  mainDegree: string;
+  university: string;
+  graduationYear: number;
+  specialityDegree?: string;
+  specialityGraduationYear?: number;
+  orderRegistrationNumber: string;
+  regionalCouncil?: string;
+  registrationWilaya: string;
+  registrationDate: string;
+  professionalStatus: string;
+  practiceAuthorizationNumber?: string;
+  authorizationAuthority?: string;
+  cabinetName?: string;
+  cabinetType: string;
+  cabinetAddress: string;
+  cabinetWilaya: string;
+  cabinetCommune: string;
+  cabinetPhone?: string;
+  cabinetEmail?: string;
+  healthDirectionWilaya: string;
+  cabinetOpeningAuthorization?: string;
+  nif: string;
+  taxCenter: string;
+  casnosNumber?: string;
+  fiscalActivityType: string;
+  professionalRib?: string;
+  confirmationAccuracy: boolean;
+  currentStep?: DoctorVerificationStepId;
+};
+
+export type DoctorVerificationSubmitResponse = {
+  message: string;
+  status: "PENDING_VERIFICATION";
+  submittedAt: string;
 };

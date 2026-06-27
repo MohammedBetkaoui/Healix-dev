@@ -1,8 +1,8 @@
 "use client";
 
 import { zodResolver } from "@hookform/resolvers/zod";
-import { CheckCircle2, Info, ShieldCheck } from "lucide-react";
-import { useMemo, useState } from "react";
+import { CheckCircle2, Info, Loader2, ShieldCheck } from "lucide-react";
+import { useEffect, useMemo, useState } from "react";
 import { useForm, useWatch } from "react-hook-form";
 
 import { doctorNavSections } from "@/components/dashboard/layout/navigation";
@@ -18,10 +18,17 @@ import {
   type DoctorDocumentDefinition,
   type DoctorDocumentType,
   type DoctorDocumentUploadState,
+  type DoctorVerificationDraftPayload,
   type DoctorVerificationFormInput,
   type DoctorVerificationStep,
   type VerificationStatus,
 } from "@/features/verification/types/doctor-verification.types";
+import {
+  createDoctorVerificationDraft,
+  submitDoctorVerification,
+  uploadDoctorVerificationDocument,
+} from "@/features/verification/api/doctor-verification.api";
+import { useDoctorVerificationPrefill } from "@/features/verification/hooks/use-doctor-verification-prefill";
 
 import { DoctorFiscalSocialStep } from "./steps/DoctorFiscalSocialStep";
 import { DoctorIdentityStep } from "./steps/DoctorIdentityStep";
@@ -301,15 +308,188 @@ function hasText(value: unknown) {
   return typeof value === "string" && value.trim().length > 0;
 }
 
+function getErrorMessage(error: unknown, fallback: string) {
+  if (!error || typeof error !== "object") {
+    return fallback;
+  }
+
+  const response = (error as { response?: { data?: { message?: unknown } } })
+    .response;
+  const message = response?.data?.message;
+
+  if (Array.isArray(message)) {
+    return message.filter((entry) => typeof entry === "string").join(" ");
+  }
+
+  if (typeof message === "string") {
+    return message;
+  }
+
+  return fallback;
+}
+
+function toInputDate(value?: string | null) {
+  return value ? value.slice(0, 10) : "";
+}
+
+function toOptionalNumber(value: string) {
+  const trimmed = value.trim();
+  return trimmed ? Number(trimmed) : undefined;
+}
+
+function mapIdentityDocumentType(value: string) {
+  if (value === "NATIONAL_ID") {
+    return "NATIONAL_ID_CARD";
+  }
+
+  return value;
+}
+
+function mapIdentityDocumentTypeFromApi(value?: string) {
+  if (value === "NATIONAL_ID_CARD") {
+    return "NATIONAL_ID";
+  }
+
+  return value ?? "";
+}
+
+function mapDoctorType(value: string) {
+  if (value === "GENERALIST") {
+    return "GENERAL_PRACTITIONER";
+  }
+
+  return value;
+}
+
+function mapDoctorTypeFromApi(value?: string) {
+  if (value === "GENERAL_PRACTITIONER") {
+    return "GENERALIST";
+  }
+
+  return value ?? "";
+}
+
+function mapProfessionalStatus(value: string) {
+  const statusMap: Record<string, string> = {
+    INDEPENDENT_LIBERAL: "INDEPENDENT_PRIVATE_DOCTOR",
+    PRIVATE_GROUP: "PRIVATE_GROUP_CABINET",
+    PRIVATE_SOLO: "PRIVATE_INDIVIDUAL_CABINET",
+    PUBLIC_COMPLEMENTARY: "PUBLIC_WITH_COMPLEMENTARY_ACTIVITY",
+  };
+
+  return statusMap[value] ?? value;
+}
+
+function mapProfessionalStatusFromApi(value?: string) {
+  const statusMap: Record<string, string> = {
+    INDEPENDENT_PRIVATE_DOCTOR: "INDEPENDENT_LIBERAL",
+    PRIVATE_GROUP_CABINET: "PRIVATE_GROUP",
+    PRIVATE_INDIVIDUAL_CABINET: "PRIVATE_SOLO",
+    PUBLIC_WITH_COMPLEMENTARY_ACTIVITY: "PUBLIC_COMPLEMENTARY",
+  };
+
+  return value ? statusMap[value] ?? value : "";
+}
+
+function mapCabinetType(value: string) {
+  const cabinetMap: Record<string, string> = {
+    GROUP: "GROUP_CABINET",
+    INDIVIDUAL: "INDIVIDUAL_CABINET",
+  };
+
+  return cabinetMap[value] ?? value;
+}
+
+function mapCabinetTypeFromApi(value?: string) {
+  const cabinetMap: Record<string, string> = {
+    GROUP_CABINET: "GROUP",
+    INDIVIDUAL_CABINET: "INDIVIDUAL",
+  };
+
+  return value ? cabinetMap[value] ?? value : "";
+}
+
+function mapFiscalActivityType(value: string) {
+  const fiscalMap: Record<string, string> = {
+    GROUP_CABINET: "GROUP_MEDICAL_CABINET",
+    INDIVIDUAL_CABINET: "INDIVIDUAL_MEDICAL_CABINET",
+    LIBERAL_MEDICAL: "MEDICAL_LIBERAL_PROFESSION",
+  };
+
+  return fiscalMap[value] ?? value;
+}
+
+function mapFiscalActivityTypeFromApi(value?: string) {
+  const fiscalMap: Record<string, string> = {
+    GROUP_MEDICAL_CABINET: "GROUP_CABINET",
+    INDIVIDUAL_MEDICAL_CABINET: "INDIVIDUAL_CABINET",
+    MEDICAL_LIBERAL_PROFESSION: "LIBERAL_MEDICAL",
+  };
+
+  return value ? fiscalMap[value] ?? value : "";
+}
+
+function toDraftPayload(
+  values: DoctorVerificationFormInput,
+): DoctorVerificationDraftPayload {
+  return {
+    address: values.personalOrProfessionalAddress,
+    authorizationAuthority: values.issuingAuthority,
+    birthDate: values.birthDate,
+    birthPlace: values.birthPlace,
+    cabinetAddress: values.cabinetAddress,
+    cabinetCommune: values.cabinetCommune,
+    cabinetEmail: values.cabinetEmail,
+    cabinetName: values.cabinetName,
+    cabinetOpeningAuthorization: values.cabinetOpeningAuthorizationNumber,
+    cabinetPhone: values.cabinetPhone,
+    cabinetType: mapCabinetType(values.cabinetType),
+    cabinetWilaya: values.cabinetWilaya,
+    casnosNumber: values.casnosNumber,
+    commune: values.commune,
+    confirmationAccuracy: values.confirmAuthenticity,
+    currentStep: "DOCUMENTS_SUBMISSION",
+    doctorType: mapDoctorType(values.doctorType),
+    fiscalActivityType: mapFiscalActivityType(values.fiscalActivityType),
+    fullName: values.fullName,
+    graduationYear: Number(values.graduationYear),
+    healthDirectionWilaya: values.healthDirectorate,
+    identityDocumentType: mapIdentityDocumentType(values.identityDocumentType),
+    mainDegree: values.primaryDegree,
+    nationality: values.nationality,
+    nif: values.nif,
+    ninOrIdNumber: values.identityNumber,
+    orderRegistrationNumber: values.ordreRegistrationNumber,
+    phone: values.phone,
+    practiceAuthorizationNumber: values.practiceAuthorizationNumber,
+    professionalEmail: values.professionalEmail,
+    professionalRib: values.professionalRib,
+    professionalStatus: mapProfessionalStatus(values.professionalStatus),
+    regionalCouncil: values.regionalCouncil,
+    registrationDate: values.registrationDate,
+    registrationWilaya: values.registrationWilaya,
+    speciality: values.speciality,
+    specialityDegree: values.specialityDegree,
+    specialityGraduationYear: toOptionalNumber(values.specialityGraduationYear),
+    taxCenter: values.taxCenter,
+    university: values.university,
+    wilaya: values.wilaya,
+  };
+}
+
 export function DoctorVerificationPage() {
   const { locale } = useStoredLocale();
   const { direction, t } = useTranslation(locale);
-  const [status, setStatus] = useState<VerificationStatus>("NOT_STARTED");
+  const { data: prefillData, isError: isPrefillError, isLoading: isPrefillLoading } =
+    useDoctorVerificationPrefill();
+  const [submittedStatus, setSubmittedStatus] =
+    useState<VerificationStatus | null>(null);
   const [activeStepIndex, setActiveStepIndex] = useState(0);
   const [completedStepIds, setCompletedStepIds] = useState<Set<string>>(
     () => new Set(),
   );
   const [isSubmitting, setSubmitting] = useState(false);
+  const [apiErrorMessage, setApiErrorMessage] = useState<string | null>(null);
   const [toastMessage, setToastMessage] = useState<string | null>(null);
   const [documentStates, setDocumentStates] = useState(createInitialDocumentStates);
 
@@ -330,6 +510,7 @@ export function DoctorVerificationPage() {
     formState: { errors },
     handleSubmit,
     register,
+    reset,
     setError,
     clearErrors,
     setValue,
@@ -339,6 +520,77 @@ export function DoctorVerificationPage() {
     mode: "onBlur",
     resolver: zodResolver(schema),
   });
+
+  const status =
+    submittedStatus ?? prefillData?.verification.status ?? "NOT_STARTED";
+  const displayStatus = status === "DRAFT" ? "NOT_STARTED" : status;
+
+  useEffect(() => {
+    if (!prefillData) {
+      return;
+    }
+
+    const doctor = prefillData.doctor;
+    const draftData = prefillData.draftData;
+
+    reset({
+      ...defaultValues,
+      birthDate: toInputDate(draftData?.birthDate),
+      birthPlace: draftData?.birthPlace ?? "",
+      cabinetAddress:
+        draftData?.cabinetAddress ?? doctor.professionalAddress,
+      cabinetCommune: draftData?.cabinetCommune ?? "",
+      cabinetEmail: draftData?.cabinetEmail ?? "",
+      cabinetName: draftData?.cabinetName ?? "",
+      cabinetOpeningAuthorizationDocument: null,
+      cabinetOpeningAuthorizationNumber:
+        draftData?.cabinetOpeningAuthorization ?? "",
+      cabinetPhone: draftData?.cabinetPhone ?? "",
+      cabinetType: mapCabinetTypeFromApi(draftData?.cabinetType),
+      cabinetWilaya: draftData?.cabinetWilaya ?? doctor.wilaya,
+      casnosNumber: draftData?.casnosNumber ?? "",
+      commune: draftData?.commune ?? "",
+      confirmAuthenticity: draftData?.confirmationAccuracy ?? false,
+      doctorType: mapDoctorTypeFromApi(draftData?.doctorType),
+      fiscalActivityType: mapFiscalActivityTypeFromApi(
+        draftData?.fiscalActivityType,
+      ),
+      fullName: draftData?.fullName ?? doctor.fullName,
+      graduationYear: draftData?.graduationYear
+        ? String(draftData.graduationYear)
+        : "",
+      healthDirectorate: draftData?.healthDirectionWilaya ?? "",
+      identityDocumentType: mapIdentityDocumentTypeFromApi(
+        draftData?.identityDocumentType,
+      ),
+      identityNumber: draftData?.ninOrIdNumber ?? "",
+      issuingAuthority: draftData?.authorizationAuthority ?? "",
+      nationality: draftData?.nationality ?? "",
+      nif: draftData?.nif ?? "",
+      ordreRegistrationNumber: draftData?.orderRegistrationNumber ?? "",
+      personalOrProfessionalAddress:
+        draftData?.address ?? doctor.professionalAddress,
+      phone: draftData?.phone ?? doctor.phone,
+      practiceAuthorizationNumber:
+        draftData?.practiceAuthorizationNumber ?? "",
+      professionalEmail: draftData?.professionalEmail ?? doctor.email,
+      professionalRib: draftData?.professionalRib ?? "",
+      professionalStatus: mapProfessionalStatusFromApi(
+        draftData?.professionalStatus,
+      ),
+      regionalCouncil: draftData?.regionalCouncil ?? "",
+      registrationDate: toInputDate(draftData?.registrationDate),
+      registrationWilaya: draftData?.registrationWilaya ?? "",
+      speciality: draftData?.speciality ?? doctor.speciality,
+      specialityDegree: draftData?.specialityDegree ?? "",
+      specialityGraduationYear: draftData?.specialityGraduationYear
+        ? String(draftData.specialityGraduationYear)
+        : "",
+      taxCenter: draftData?.taxCenter ?? "",
+      university: draftData?.university ?? "",
+      wilaya: draftData?.wilaya ?? doctor.wilaya,
+    });
+  }, [prefillData, reset]);
 
   const watchedValues = useWatch({ control });
   const activeStep = doctorVerificationSteps[activeStepIndex];
@@ -504,27 +756,51 @@ export function DoctorVerificationPage() {
       [type]: {
         fileName: file.name,
         fileSize: file.size,
-        status: status === "PENDING_VERIFICATION" ? "UPLOADED" : "READY",
+        status: displayStatus === "PENDING_VERIFICATION" ? "UPLOADED" : "READY",
         type,
       },
     }));
   }
 
-  const onSubmit = handleSubmit(async () => {
-    const isValid = await trigger(activeStep.fields);
+  const onSubmit = handleSubmit(async (values) => {
+    const isValid = await trigger();
 
     if (!isValid || missingRequiredDocuments.length > 0) {
       return;
     }
 
     setSubmitting(true);
+    setApiErrorMessage(null);
 
     try {
       // Backend validation, secure file storage and malware scanning remain mandatory.
-      await new Promise((resolve) => window.setTimeout(resolve, 800));
+      await createDoctorVerificationDraft(toDraftPayload(values));
+
+      for (const document of doctorDocuments) {
+        const file = values[document.fieldName];
+
+        if (file) {
+          await uploadDoctorVerificationDocument({
+            documentType: document.type,
+            file,
+          });
+          setDocumentStates((current) => ({
+            ...current,
+            [document.type]: {
+              ...current[document.type],
+              fileName: file.name,
+              fileSize: file.size,
+              status: "UPLOADED",
+              type: document.type,
+            },
+          }));
+        }
+      }
+
+      const response = await submitDoctorVerification();
       setCompletedStepIds(new Set(doctorVerificationSteps.map((step) => step.id)));
-      setStatus("PENDING_VERIFICATION");
-      setToastMessage(t("doctorVerification.submission.success"));
+      setSubmittedStatus(response.status);
+      setToastMessage(response.message || t("doctorVerification.submission.success"));
       setDocumentStates((current) =>
         Object.fromEntries(
           Object.entries(current).map(([key, value]) => [
@@ -534,6 +810,10 @@ export function DoctorVerificationPage() {
         ) as Record<DoctorDocumentType, DoctorDocumentUploadState>,
       );
       window.setTimeout(() => setToastMessage(null), 3000);
+    } catch (error) {
+      setApiErrorMessage(
+        getErrorMessage(error, t("doctorVerification.errors.submitFailed")),
+      );
     } finally {
       setSubmitting(false);
     }
@@ -626,21 +906,21 @@ export function DoctorVerificationPage() {
         <DoctorVerificationStatusCard
           demoBadgeLabel={t("doctorVerification.status.demoBadge")}
           description={
-            status === "PENDING_VERIFICATION"
+            displayStatus === "PENDING_VERIFICATION"
               ? t("doctorVerification.status.pendingDescription")
               : t("doctorVerification.status.notStarted")
           }
-          isPending={status === "PENDING_VERIFICATION"}
+          isPending={displayStatus === "PENDING_VERIFICATION"}
           onStart={() => {
             const target = document.getElementById("doctor-verification-form");
             target?.scrollIntoView({ behavior: "smooth", block: "start" });
           }}
           startLabel={t("doctorVerification.status.start")}
-          status={status}
-          statusLabel={t(`doctorVerification.status.values.${status}`)}
+          status={displayStatus}
+          statusLabel={t(`doctorVerification.status.values.${displayStatus}`)}
           statusTitle={t("doctorVerification.status.current")}
           title={
-            status === "PENDING_VERIFICATION"
+            displayStatus === "PENDING_VERIFICATION"
               ? t("doctorVerification.status.pendingTitle")
               : t("doctorVerification.page.title")
           }
@@ -666,6 +946,34 @@ export function DoctorVerificationPage() {
           </div>
         </div>
 
+        {isPrefillLoading ? (
+          <div
+            className="flex items-center gap-2 rounded-2xl border border-cyan-100 bg-cyan-50/70 px-4 py-3 text-sm text-cyan-900"
+            role="status"
+          >
+            <Loader2 className="h-4 w-4 animate-spin" />
+            <span>{t("doctorVerification.form.prefillLoading")}</span>
+          </div>
+        ) : null}
+
+        {isPrefillError ? (
+          <div
+            className="rounded-2xl border border-red-100 bg-red-50 px-4 py-3 text-sm text-red-700"
+            role="alert"
+          >
+            {t("doctorVerification.form.prefillError")}
+          </div>
+        ) : null}
+
+        {apiErrorMessage ? (
+          <div
+            className="rounded-2xl border border-red-100 bg-red-50 px-4 py-3 text-sm text-red-700"
+            role="alert"
+          >
+            {apiErrorMessage}
+          </div>
+        ) : null}
+
         <form
           id="doctor-verification-form"
           className="space-y-6"
@@ -678,7 +986,7 @@ export function DoctorVerificationPage() {
             title={t("doctorVerification.security.title")}
           />
 
-          {status === "PENDING_VERIFICATION" ? (
+          {displayStatus === "PENDING_VERIFICATION" ? (
             <section className="rounded-[24px] border border-cyan-100 bg-cyan-50/50 p-6 shadow-[0_12px_36px_rgba(15,23,42,0.04)]">
               <div className="flex items-start gap-4">
                 <span className="flex h-12 w-12 shrink-0 items-center justify-center rounded-full bg-white text-cyan-700 shadow-sm">
@@ -706,7 +1014,10 @@ export function DoctorVerificationPage() {
             onPrevious={handlePrevious}
             onSubmit={onSubmit}
             previousLabel={t("doctorVerification.navigation.previous")}
-            submitDisabled={missingRequiredDocuments.length > 0}
+            submitDisabled={
+              displayStatus === "PENDING_VERIFICATION" ||
+              missingRequiredDocuments.length > 0
+            }
             submitLabel={t("doctorVerification.submission.submit")}
             submittingLabel={t("doctorVerification.submission.loading")}
           />

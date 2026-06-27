@@ -11,6 +11,10 @@ export const doctorVerificationAr = {
     footerSubtitle: "طب الأعصاب",
     workspaceSubtitle: "عيادة HealixDZ",
   },
+  form: {
+    prefillLoading: "جاري تحميل المعلومات المسجلة...",
+    prefillError: "تعذر تحميل المعلومات المسجلة. يرجى تحديث الصفحة.",
+  },
   status: {
     current: "الحالة الحالية",
     demoBadge: "الوضع التجريبي",
@@ -249,5 +253,6 @@ export const doctorVerificationAr = {
     fileTooLarge: "حجم الملف كبير جدًا",
     documentRequired: "وثيقة إلزامية",
     confirmAuthenticity: "يرجى تأكيد صحة المعلومات.",
+    submitFailed: "تعذر إرسال طلب التحقق. يرجى المحاولة مرة أخرى.",
   },
 } as const;

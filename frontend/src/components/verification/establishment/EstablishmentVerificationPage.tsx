@@ -15,12 +15,18 @@ import {
 import { useStoredLocale, useTranslation } from "@/lib/i18n";
 import {
   type DocumentUploadState,
+  type EstablishmentVerificationDraftPayload,
   type EstablishmentVerificationFormInput,
   type RequiredDocumentDefinition,
   type RequiredDocumentType,
   type VerificationStatus,
 } from "@/features/verification/types/verification.types";
 import { useEstablishmentVerificationPrefill } from "@/features/verification/hooks/use-establishment-verification-prefill";
+import {
+  createEstablishmentVerificationDraft,
+  submitEstablishmentVerification,
+  uploadEstablishmentVerificationDocument,
+} from "@/features/verification/api/establishment-verification.api";
 import { ESTABLISHMENT_TYPE_OPTIONS } from "@/types/auth";
 import { cn } from "@/lib/utils";
 
@@ -42,7 +48,7 @@ const requiredDocuments: RequiredDocumentDefinition[] = [
     descriptionKey: "verification.documents.items.nif.description",
     fieldName: "nifDocument",
     titleKey: "verification.documents.items.nif.title",
-    type: "NIF",
+    type: "NIF_DOCUMENT",
   },
   {
     descriptionKey: "verification.documents.items.healthAuthorization.description",
@@ -54,7 +60,7 @@ const requiredDocuments: RequiredDocumentDefinition[] = [
     descriptionKey: "verification.documents.items.managerId.description",
     fieldName: "managerIdDocument",
     titleKey: "verification.documents.items.managerId.title",
-    type: "MANAGER_ID",
+    type: "LEGAL_REPRESENTATIVE_ID",
   },
   {
     descriptionKey: "verification.documents.items.addressProof.description",
@@ -67,12 +73,15 @@ const requiredDocuments: RequiredDocumentDefinition[] = [
 const defaultValues: EstablishmentVerificationFormInput = {
   address: "",
   addressProofDocument: null,
+  commune: "",
   commercialRegisterDocument: null,
   commercialRegisterNumber: "",
   establishmentName: "",
   establishmentType: ESTABLISHMENT_TYPE_OPTIONS[0]?.value ?? "CLINIC",
   healthAuthorizationDocument: null,
   healthAuthorizationNumber: "",
+  legalForm: "",
+  legalRepresentativeNinOrId: "",
   managerFullName: "",
   managerIdDocument: null,
   nif: "",
@@ -85,10 +94,59 @@ const defaultValues: EstablishmentVerificationFormInput = {
 function createInitialDocumentStates(): Record<RequiredDocumentType, DocumentUploadState> {
   return {
     COMMERCIAL_REGISTER: { status: "MISSING", type: "COMMERCIAL_REGISTER" },
-    NIF: { status: "MISSING", type: "NIF" },
+    NIF_DOCUMENT: { status: "MISSING", type: "NIF_DOCUMENT" },
     HEALTH_AUTHORIZATION: { status: "MISSING", type: "HEALTH_AUTHORIZATION" },
-    MANAGER_ID: { status: "MISSING", type: "MANAGER_ID" },
+    LEGAL_REPRESENTATIVE_ID: {
+      status: "MISSING",
+      type: "LEGAL_REPRESENTATIVE_ID",
+    },
     ADDRESS_PROOF: { status: "MISSING", type: "ADDRESS_PROOF" },
+  };
+}
+
+const requiredInfoFieldCount = 13;
+
+function getErrorMessage(error: unknown, fallback: string) {
+  if (!error || typeof error !== "object") {
+    return fallback;
+  }
+
+  const response = (error as { response?: { data?: { message?: unknown } } })
+    .response;
+  const message = response?.data?.message;
+
+  if (Array.isArray(message)) {
+    return message.filter((entry) => typeof entry === "string").join(" ");
+  }
+
+  if (typeof message === "string") {
+    return message;
+  }
+
+  return fallback;
+}
+
+function toDraftPayload(
+  values: EstablishmentVerificationFormInput,
+): EstablishmentVerificationDraftPayload {
+  return {
+    address: values.address,
+    commercialRegisterNumber: values.commercialRegisterNumber,
+    commune: values.commune,
+    confirmationAccuracy: true,
+    currentStep: "SUBMISSION",
+    healthAuthorizationNumber: values.healthAuthorizationNumber,
+    legalForm: values.legalForm,
+    legalRepresentativeEmail: values.professionalEmail,
+    legalRepresentativeFullName: values.managerFullName,
+    legalRepresentativeNinOrId: values.legalRepresentativeNinOrId,
+    legalRepresentativePhone: values.phone,
+    name: values.establishmentName,
+    nif: values.nif,
+    phone: values.phone,
+    professionalEmail: values.professionalEmail,
+    type: values.establishmentType,
+    wilaya: values.wilaya,
   };
 }
 
@@ -100,6 +158,7 @@ export function EstablishmentVerificationPage() {
   const [submittedStatus, setSubmittedStatus] =
     useState<VerificationStatus | null>(null);
   const [isSubmittingRequest, setSubmittingRequest] = useState(false);
+  const [apiErrorMessage, setApiErrorMessage] = useState<string | null>(null);
   const [toastMessage, setToastMessage] = useState<string | null>(null);
   const [documentStates, setDocumentStates] = useState<Record<
     RequiredDocumentType,
@@ -147,9 +206,12 @@ export function EstablishmentVerificationPage() {
       ...defaultValues,
       address: draftData?.address ?? establishment.address,
       commercialRegisterNumber: draftData?.commercialRegisterNumber ?? "",
+      commune: draftData?.commune ?? "",
       establishmentName: draftData?.name ?? establishment.name,
       establishmentType: draftData?.type ?? establishment.type,
       healthAuthorizationNumber: draftData?.healthAuthorizationNumber ?? "",
+      legalForm: draftData?.legalForm ?? "",
+      legalRepresentativeNinOrId: draftData?.legalRepresentativeNinOrId ?? "",
       managerFullName:
         draftData?.legalRepresentativeFullName ?? establishment.managerFullName,
       nif: draftData?.nif ?? "",
@@ -166,11 +228,14 @@ export function EstablishmentVerificationPage() {
     const infoFields = [
       watchedValues.establishmentName,
       watchedValues.establishmentType,
+      watchedValues.legalForm,
       watchedValues.wilaya,
+      watchedValues.commune,
       watchedValues.address,
       watchedValues.professionalEmail,
       watchedValues.phone,
       watchedValues.managerFullName,
+      watchedValues.legalRepresentativeNinOrId,
       watchedValues.nif,
       watchedValues.commercialRegisterNumber,
       watchedValues.healthAuthorizationNumber,
@@ -189,7 +254,8 @@ export function EstablishmentVerificationPage() {
   );
 
   const isReadyToSubmit =
-    infoCompletedCount >= 8 &&
+    status !== "PENDING_VERIFICATION" &&
+    infoCompletedCount >= requiredInfoFieldCount &&
     requiredDocuments.every((document) => {
       const state = documentStates[document.type];
       return state.status === "READY" || state.status === "UPLOADED";
@@ -256,7 +322,7 @@ export function EstablishmentVerificationPage() {
     }));
   };
 
-  const onSubmit = handleSubmit(async () => {
+  const onSubmit = handleSubmit(async (values) => {
     const isValid = await trigger();
 
     if (!isValid || !isReadyToSubmit) {
@@ -264,21 +330,40 @@ export function EstablishmentVerificationPage() {
     }
 
     setSubmittingRequest(true);
+    setApiErrorMessage(null);
 
     try {
-      // Backend validation and secure file scanning remain mandatory.
-      await new Promise((resolve) => window.setTimeout(resolve, 800));
-      setSubmittedStatus("PENDING_VERIFICATION");
-      setToastMessage(t("verification.submit.success"));
-      setDocumentStates((current) =>
-        Object.fromEntries(
-          Object.entries(current).map(([key, value]) => [
-            key,
-            { ...value, status: value.fileName ? "UPLOADED" : value.status },
-          ]),
-        ) as Record<RequiredDocumentType, DocumentUploadState>,
-      );
+      await createEstablishmentVerificationDraft(toDraftPayload(values));
+
+      for (const document of requiredDocuments) {
+        const file = values[document.fieldName];
+
+        if (file) {
+          await uploadEstablishmentVerificationDocument({
+            documentType: document.type,
+            file,
+          });
+          setDocumentStates((current) => ({
+            ...current,
+            [document.type]: {
+              ...current[document.type],
+              fileName: file.name,
+              fileSize: file.size,
+              status: "UPLOADED",
+              type: document.type,
+            },
+          }));
+        }
+      }
+
+      const response = await submitEstablishmentVerification();
+      setSubmittedStatus(response.status);
+      setToastMessage(response.message || t("verification.submit.success"));
       window.setTimeout(() => setToastMessage(null), 3000);
+    } catch (error) {
+      setApiErrorMessage(
+        getErrorMessage(error, t("verification.errors.submitFailed")),
+      );
     } finally {
       setSubmittingRequest(false);
     }
@@ -373,6 +458,15 @@ export function EstablishmentVerificationPage() {
             </div>
           ) : null}
 
+          {apiErrorMessage ? (
+            <div
+              className="rounded-2xl border border-red-100 bg-red-50 px-4 py-3 text-sm text-red-700"
+              role="alert"
+            >
+              {apiErrorMessage}
+            </div>
+          ) : null}
+
           <EstablishmentInfoForm
             direction={direction}
             errors={errors}
@@ -396,6 +490,7 @@ export function EstablishmentVerificationPage() {
           <VerificationSubmitPanel
             completedInfoCount={infoCompletedCount}
             documentsAddedCount={documentsAddedCount}
+            infoTotalCount={requiredInfoFieldCount}
             isLoading={isSubmittingRequest}
             isReady={isReadyToSubmit}
             onSubmit={onSubmit}
