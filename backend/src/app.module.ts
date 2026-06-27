@@ -5,6 +5,7 @@ import { ThrottlerGuard, ThrottlerModule } from '@nestjs/throttler';
 
 import { AppController } from './app.controller';
 import { AppService } from './app.service';
+import { AdminAuthModule } from './admin-auth/admin-auth.module';
 import { AuthModule } from './auth/auth.module';
 import { VerificationModule } from './verification/verification.module';
 
@@ -17,6 +18,7 @@ import { VerificationModule } from './verification/verification.module';
         limit: 20,
       },
     ]),
+    AdminAuthModule,
     AuthModule,
     VerificationModule,
   ],

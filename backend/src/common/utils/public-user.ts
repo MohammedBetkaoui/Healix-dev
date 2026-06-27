@@ -11,6 +11,14 @@ export type PublicUser = {
   accountStatus: AccountStatus;
 };
 
+export type PublicAdmin = {
+  id: string;
+  fullName: string;
+  email: string;
+  role: Extract<UserRole, 'SUPER_ADMIN' | 'ADMIN_VERIFICATION'>;
+  accountStatus: Extract<AccountStatus, 'ACTIVE'>;
+};
+
 export function toPublicUser(
   user: Pick<
     User,
@@ -24,5 +32,17 @@ export function toPublicUser(
     phone: user.phone,
     role: user.role,
     accountStatus: user.accountStatus,
+  };
+}
+
+export function toPublicAdmin(
+  user: Pick<User, 'id' | 'fullName' | 'email' | 'role' | 'accountStatus'>,
+): PublicAdmin {
+  return {
+    id: user.id,
+    fullName: user.fullName,
+    email: user.email,
+    role: user.role as PublicAdmin['role'],
+    accountStatus: user.accountStatus as PublicAdmin['accountStatus'],
   };
 }

@@ -2,6 +2,15 @@ import axios, { type AxiosError, type InternalAxiosRequestConfig } from "axios";
 
 const defaultApiUrl = "http://localhost:3001/api";
 
+function isAuthRefreshExcludedUrl(requestUrl: string): boolean {
+  return (
+    requestUrl.includes("/auth/login") ||
+    requestUrl.includes("/auth/refresh") ||
+    requestUrl.includes("/auth/logout") ||
+    requestUrl.includes("/admin/auth")
+  );
+}
+
 export const apiClient = axios.create({
   baseURL: process.env.NEXT_PUBLIC_API_URL ?? defaultApiUrl,
   headers: {
@@ -29,9 +38,7 @@ apiClient.interceptors.response.use(
       status === 401 &&
       originalRequest &&
       !originalRequest._retry &&
-      !requestUrl.includes("/auth/login") &&
-      !requestUrl.includes("/auth/refresh") &&
-      !requestUrl.includes("/auth/logout")
+      !isAuthRefreshExcludedUrl(requestUrl)
     ) {
       originalRequest._retry = true;
 

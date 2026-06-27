@@ -49,3 +49,35 @@ export function getClearCookieOptions(secure: boolean): CookieOptions {
     secure,
   };
 }
+
+export function getAdminAccessCookieOptions(
+  secure: boolean,
+  maxAge: number,
+): CookieOptions {
+  return createBaseCookieOptions({
+    maxAge,
+    sameSite: secure ? 'strict' : 'lax',
+    secure,
+  });
+}
+
+export function getAdminRefreshCookieOptions(
+  secure: boolean,
+  maxAge: number,
+): CookieOptions {
+  return createBaseCookieOptions({
+    maxAge,
+    sameSite: secure ? 'strict' : 'lax',
+    secure,
+  });
+}
+
+export function getClearAdminCookieOptions(secure: boolean): CookieOptions {
+  return {
+    httpOnly: true,
+    maxAge: 0,
+    path: '/',
+    sameSite: secure ? 'strict' : 'lax',
+    secure,
+  };
+}

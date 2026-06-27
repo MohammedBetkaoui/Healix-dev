@@ -90,6 +90,7 @@ function mapBackendMessage(
 
   if (
     comparable.includes("email ou mot de passe incorrect") ||
+    comparable.includes("identifiants administrateur incorrects") ||
     comparable.includes("invalid credentials")
   ) {
     return messages.invalidCredentials ?? messages.validation;
