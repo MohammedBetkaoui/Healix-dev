@@ -1,0 +1,99 @@
+"use client";
+
+import { Button } from "@/components/ui/button";
+import { type TranslationFunction } from "@/lib/i18n";
+import { type AdminAuditLogItem } from "@/types/admin";
+
+import { AdminAuditActionBadge } from "./AdminAuditActionBadge";
+
+type AdminAuditLogsTableProps = {
+  logs: AdminAuditLogItem[];
+  onViewDetails: (log: AdminAuditLogItem) => void;
+  t: TranslationFunction;
+};
+
+export function getAuditStatus(action: string): "FAILED" | "INFO" | "SUCCESS" {
+  if (action.includes("FAILED") || action.includes("REJECTED")) {
+    return "FAILED";
+  }
+
+  if (
+    action.includes("SUCCESS") ||
+    action.includes("APPROVED") ||
+    action.includes("SUBMITTED") ||
+    action.includes("UPLOADED") ||
+    action.includes("LOGOUT")
+  ) {
+    return "SUCCESS";
+  }
+
+  return "INFO";
+}
+
+export function AdminAuditLogsTable({
+  logs,
+  onViewDetails,
+  t,
+}: AdminAuditLogsTableProps) {
+  if (logs.length === 0) {
+    return (
+      <div className="rounded-2xl border border-dashed border-slate-300 bg-white p-10 text-center text-sm text-slate-500">
+        {t("admin.common.noResults")}
+      </div>
+    );
+  }
+
+  return (
+    <section className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
+      <div className="overflow-x-auto">
+        <table className="min-w-full divide-y divide-slate-200 text-sm">
+          <thead className="bg-slate-50 text-xs uppercase tracking-[0.12em] text-slate-500">
+            <tr>
+              <th className="px-5 py-4 text-start">{t("admin.audit.table.date")}</th>
+              <th className="px-5 py-4 text-start">{t("admin.audit.table.user")}</th>
+              <th className="px-5 py-4 text-start">{t("admin.audit.table.role")}</th>
+              <th className="px-5 py-4 text-start">{t("admin.audit.table.action")}</th>
+              <th className="px-5 py-4 text-start">{t("admin.audit.table.entity")}</th>
+              <th className="px-5 py-4 text-start">{t("admin.audit.table.ip")}</th>
+              <th className="px-5 py-4 text-start">{t("admin.audit.table.status")}</th>
+              <th className="px-5 py-4 text-start">{t("admin.audit.table.details")}</th>
+            </tr>
+          </thead>
+          <tbody className="divide-y divide-slate-100">
+            {logs.map((log) => (
+              <tr key={log.id}>
+                <td className="px-5 py-4 text-slate-600">{log.createdAt}</td>
+                <td className="px-5 py-4 font-semibold text-slate-950">
+                  {log.userName ?? t("admin.common.system")}
+                </td>
+                <td className="px-5 py-4 text-slate-600">
+                  {log.userRole ?? "-"}
+                </td>
+                <td className="px-5 py-4">
+                  <AdminAuditActionBadge action={log.action} />
+                </td>
+                <td className="px-5 py-4 text-slate-600">{log.entityType}</td>
+                <td className="px-5 py-4 text-slate-600">
+                  {log.ipAddress ?? "-"}
+                </td>
+                <td className="px-5 py-4 text-slate-600">
+                  {t(`admin.badges.auditStatus.${getAuditStatus(log.action)}`)}
+                </td>
+                <td className="px-5 py-4">
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    onClick={() => onViewDetails(log)}
+                  >
+                    {t("admin.actions.viewDetails")}
+                  </Button>
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    </section>
+  );
+}

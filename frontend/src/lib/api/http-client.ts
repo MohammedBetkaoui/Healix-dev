@@ -2,12 +2,24 @@ import axios, { type AxiosError, type InternalAxiosRequestConfig } from "axios";
 
 const defaultApiUrl = "http://localhost:3001/api";
 
-function isAuthRefreshExcludedUrl(requestUrl: string): boolean {
+function isUserAuthRefreshExcludedUrl(requestUrl: string): boolean {
   return (
     requestUrl.includes("/auth/login") ||
     requestUrl.includes("/auth/refresh") ||
     requestUrl.includes("/auth/logout") ||
-    requestUrl.includes("/admin/auth")
+    requestUrl.includes("/admin/")
+  );
+}
+
+function isAdminRoute(requestUrl: string): boolean {
+  return requestUrl.includes("/admin/");
+}
+
+function isAdminRefreshExcludedUrl(requestUrl: string): boolean {
+  return (
+    requestUrl.includes("/admin/auth/login") ||
+    requestUrl.includes("/admin/auth/refresh") ||
+    requestUrl.includes("/admin/auth/logout")
   );
 }
 
@@ -38,7 +50,24 @@ apiClient.interceptors.response.use(
       status === 401 &&
       originalRequest &&
       !originalRequest._retry &&
-      !isAuthRefreshExcludedUrl(requestUrl)
+      isAdminRoute(requestUrl) &&
+      !isAdminRefreshExcludedUrl(requestUrl)
+    ) {
+      originalRequest._retry = true;
+
+      try {
+        await apiClient.post("/admin/auth/refresh");
+        return apiClient.request(originalRequest);
+      } catch {
+        return Promise.reject(error);
+      }
+    }
+
+    if (
+      status === 401 &&
+      originalRequest &&
+      !originalRequest._retry &&
+      !isUserAuthRefreshExcludedUrl(requestUrl)
     ) {
       originalRequest._retry = true;
 

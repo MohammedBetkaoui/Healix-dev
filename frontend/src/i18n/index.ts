@@ -1,4 +1,5 @@
 import { adminAuthAr } from "./locales/ar/admin-auth";
+import { adminAr } from "./locales/ar/admin";
 import { commonAr } from "./locales/ar/common";
 import { dashboardAr } from "./locales/ar/dashboard";
 import { doctorVerificationAr } from "./locales/ar/doctor-verification";
@@ -6,6 +7,7 @@ import { loginAr } from "./locales/ar/login";
 import { registerAr } from "./locales/ar/register";
 import { verificationAr } from "./locales/ar/verification";
 import { adminAuthFr } from "./locales/fr/admin-auth";
+import { adminFr } from "./locales/fr/admin";
 import { commonFr } from "./locales/fr/common";
 import { dashboardFr } from "./locales/fr/dashboard";
 import { doctorVerificationFr } from "./locales/fr/doctor-verification";
@@ -20,6 +22,7 @@ export const defaultLocale: Locale = "fr";
 
 export const dictionaries = {
   fr: {
+    admin: adminFr,
     adminAuth: adminAuthFr,
     common: commonFr,
     dashboard: dashboardFr,
@@ -29,6 +32,7 @@ export const dictionaries = {
     verification: verificationFr,
   },
   ar: {
+    admin: adminAr,
     adminAuth: adminAuthAr,
     common: commonAr,
     dashboard: dashboardAr,
