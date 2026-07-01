@@ -48,6 +48,20 @@ const requiredDoctorDocuments = new Set([
   "SPECIALITY_DEGREE",
 ]);
 
+const documentTypeLabels: Record<string, string> = {
+  COMMERCIAL_REGISTER: "Registre de commerce",
+  NIF_DOCUMENT: "Numéro d'identification fiscale (NIF)",
+  HEALTH_AUTHORIZATION: "Autorisation sanitaire ou agrément",
+  LEGAL_REPRESENTATIVE_ID: "Pièce d'identité du responsable légal",
+  ADDRESS_PROOF: "Justificatif d'adresse professionnelle",
+  IDENTITY_DOCUMENT: "Pièce d'identité",
+  MEDICAL_DEGREE: "Diplôme de docteur en médecine",
+  ORDRE_REGISTRATION: "Attestation d'inscription à l'Ordre",
+  PRACTICE_AUTHORIZATION: "Autorisation d'exercice",
+  CABINET_ADDRESS_PROOF: "Justificatif d'adresse du cabinet",
+  SPECIALITY_DEGREE: "Diplôme de spécialité",
+};
+
 function valueToText(value: unknown): string {
   if (value === null || value === undefined || value === "") {
     return "-";
@@ -148,10 +162,11 @@ function mapDetailToView(
         : 100,
     documents: response.documents.map((document) => ({
       id: document.id,
+      originalName: document.originalName,
       required: requiredDocuments.has(document.documentType),
       size: formatFileSize(document.size),
       status: document.status,
-      title: document.originalName,
+      title: documentTypeLabels[document.documentType] ?? document.documentType,
       type: document.documentType,
       uploadedAt: document.uploadedAt,
     })),
@@ -292,6 +307,7 @@ export function AdminVerificationDetailPage({
           documents={detail.documents}
           onPreview={setPreviewDocument}
           t={t}
+          verificationId={id}
         />
 
         <section className="grid gap-6 xl:grid-cols-[1.15fr_0.85fr]">
@@ -313,6 +329,7 @@ export function AdminVerificationDetailPage({
         document={previewDocument}
         onClose={() => setPreviewDocument(null)}
         t={t}
+        verificationId={id}
       />
     </AdminShell>
   );

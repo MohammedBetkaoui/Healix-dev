@@ -166,6 +166,19 @@ export const adminFr = {
       optional: "Optionnel",
       required: "Obligatoire",
       title: "Documents soumis",
+      types: {
+        COMMERCIAL_REGISTER: "Registre de commerce",
+        NIF_DOCUMENT: "Numéro d'identification fiscale (NIF)",
+        HEALTH_AUTHORIZATION: "Autorisation sanitaire ou agrément",
+        LEGAL_REPRESENTATIVE_ID: "Pièce d'identité du responsable légal",
+        ADDRESS_PROOF: "Justificatif d'adresse professionnelle",
+        IDENTITY_DOCUMENT: "Pièce d'identité",
+        MEDICAL_DEGREE: "Diplôme de docteur en médecine",
+        ORDRE_REGISTRATION: "Attestation d'inscription à l'Ordre",
+        PRACTICE_AUTHORIZATION: "Autorisation d'exercice",
+        CABINET_ADDRESS_PROOF: "Justificatif d'adresse du cabinet",
+        SPECIALITY_DEGREE: "Diplôme de spécialité",
+      },
     },
     header: {
       completeness: "Score de complétude",
@@ -177,8 +190,12 @@ export const adminFr = {
       summary: "Résumé du dossier",
     },
     modal: {
-      title: "Aperçu document mock",
-      text: "Aucun fichier réel n'est affiché dans cette interface mock.",
+      title: "Aperçu du document",
+      loading: "Chargement du document...",
+      error: "Impossible de charger le document.",
+      file: "Fichier soumis",
+      unsupportedFormat: "Ce format ne peut pas être affiché directement.",
+      unsupportedFormatHint: "Téléchargez le fichier pour le consulter.",
     },
     page: {
       subtitle:

@@ -163,6 +163,19 @@ export const adminAr = {
       optional: "اختياري",
       required: "إلزامي",
       title: "الوثائق المرسلة",
+      types: {
+        COMMERCIAL_REGISTER: "السجل التجاري",
+        NIF_DOCUMENT: "رقم التعريف الجبائي (NIF)",
+        HEALTH_AUTHORIZATION: "الترخيص الصحي أو الاعتماد",
+        LEGAL_REPRESENTATIVE_ID: "بطاقة هوية الممثل القانوني",
+        ADDRESS_PROOF: "وثيقة إثبات العنوان المهني",
+        IDENTITY_DOCUMENT: "وثيقة الهوية",
+        MEDICAL_DEGREE: "شهادة الدكتوراه في الطب",
+        ORDRE_REGISTRATION: "شهادة التسجيل في المجلس",
+        PRACTICE_AUTHORIZATION: "رخصة مزاولة المهنة",
+        CABINET_ADDRESS_PROOF: "وثيقة عنوان العيادة",
+        SPECIALITY_DEGREE: "شهادة التخصص",
+      },
     },
     header: {
       completeness: "نسبة الاكتمال",
@@ -174,8 +187,12 @@ export const adminAr = {
       summary: "ملخص الملف",
     },
     modal: {
-      title: "معاينة وثيقة تجريبية",
-      text: "لا يتم عرض أي ملف حقيقي في هذه الواجهة التجريبية.",
+      title: "معاينة الوثيقة",
+      loading: "جاري تحميل الوثيقة...",
+      error: "تعذر تحميل الوثيقة.",
+      file: "الملف المرسل",
+      unsupportedFormat: "لا يمكن عرض هذا التنسيق مباشرة.",
+      unsupportedFormatHint: "حمّل الملف للاطلاع عليه.",
     },
     page: {
       subtitle:
