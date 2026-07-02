@@ -509,6 +509,10 @@ function toDraftPayload(
   };
 }
 
+function normalizeDisplayStatus(status: VerificationStatus): VerificationStatus {
+  return status === "DRAFT" ? "NOT_STARTED" : status;
+}
+
 export function DoctorVerificationPage() {
   const { locale } = useStoredLocale();
   const { direction, t } = useTranslation(locale);
@@ -561,9 +565,14 @@ export function DoctorVerificationPage() {
 
   const status =
     submittedStatus ?? prefillData?.verification.status ?? "NOT_STARTED";
-  const displayStatus = status === "DRAFT" ? "NOT_STARTED" : status;
+  const displayStatus = normalizeDisplayStatus(status);
   const isPendingReview = status === "PENDING_VERIFICATION";
-  const showModificationGate = isPendingReview && !isModificationOpen;
+  const isRejected = displayStatus === "REJECTED";
+  const isVerified = displayStatus === "VERIFIED";
+  const isSuspended = displayStatus === "SUSPENDED";
+  const canEditSubmittedRequest = isPendingReview || isRejected;
+  const isVerificationLocked = isVerified || isSuspended;
+  const showModificationGate = canEditSubmittedRequest && !isModificationOpen;
   const savedStepIndex = useMemo(
     () => getStepIndexFromId(prefillData?.verification.currentStep),
     [prefillData?.verification.currentStep],
@@ -833,7 +842,7 @@ export function DoctorVerificationPage() {
       // Backend validation, secure file storage and malware scanning remain mandatory.
       const draftPayload = toDraftPayload(values);
 
-      if (isPendingReview) {
+      if (canEditSubmittedRequest) {
         await updateDoctorVerificationDraft(draftPayload);
       } else {
         await createDoctorVerificationDraft(draftPayload);
@@ -867,11 +876,11 @@ export function DoctorVerificationPage() {
       setCompletedStepIds(new Set(doctorVerificationSteps.map((step) => step.id)));
       setSubmittedStatus(response.status);
       setToastMessage(
-        isPendingReview
+        canEditSubmittedRequest
           ? t("doctorVerification.submission.updateSuccess")
           : response.message || t("doctorVerification.submission.success"),
       );
-      if (isPendingReview) {
+      if (canEditSubmittedRequest) {
         setModificationOpen(false);
       }
       setDocumentStateOverrides(
@@ -981,21 +990,27 @@ export function DoctorVerificationPage() {
           description={
             displayStatus === "PENDING_VERIFICATION"
               ? t("doctorVerification.status.pendingDescription")
-              : t("doctorVerification.status.notStarted")
+              : displayStatus === "VERIFIED"
+                ? t("doctorVerification.status.verifiedDescription")
+                : displayStatus === "REJECTED"
+                  ? t("doctorVerification.status.rejectedDescription")
+                  : displayStatus === "SUSPENDED"
+                    ? t("doctorVerification.status.suspendedDescription")
+                    : t("doctorVerification.status.notStarted")
           }
           isPending={displayStatus === "PENDING_VERIFICATION"}
-          onStart={() => {
-            if (isPendingReview) {
-              setModificationOpen(true);
-              return;
-            }
+          onStart={
+            displayStatus === "NOT_STARTED"
+              ? () => {
             const target = document.getElementById("doctor-verification-form");
             target?.scrollIntoView({ behavior: "smooth", block: "start" });
-          }}
+                }
+              : undefined
+          }
           startLabel={
-            isPendingReview
-              ? t("doctorVerification.status.editButton")
-              : t("doctorVerification.status.start")
+            displayStatus === "NOT_STARTED"
+              ? t("doctorVerification.status.start")
+              : undefined
           }
           status={displayStatus}
           statusLabel={t(`doctorVerification.status.values.${displayStatus}`)}
@@ -1003,18 +1018,36 @@ export function DoctorVerificationPage() {
           title={
             displayStatus === "PENDING_VERIFICATION"
               ? t("doctorVerification.status.pendingTitle")
-              : t("doctorVerification.page.title")
+              : displayStatus === "VERIFIED"
+                ? t("doctorVerification.status.verifiedTitle")
+                : displayStatus === "REJECTED"
+                  ? t("doctorVerification.status.rejectedTitle")
+                  : displayStatus === "SUSPENDED"
+                    ? t("doctorVerification.status.suspendedTitle")
+                    : t("doctorVerification.page.title")
           }
         />
 
         {showModificationGate ? (
           <PendingVerificationNotice
-            buttonLabel={t("doctorVerification.status.editButton")}
-            description={t("doctorVerification.status.editNoticeDescription")}
+            buttonLabel={
+              isRejected
+                ? t("doctorVerification.status.correctButton")
+                : t("doctorVerification.status.editButton")
+            }
+            description={
+              isRejected
+                ? t("doctorVerification.status.rejectedEditDescription")
+                : t("doctorVerification.status.editNoticeDescription")
+            }
             onEdit={() => setModificationOpen(true)}
-            title={t("doctorVerification.status.editNoticeTitle")}
+            title={
+              isRejected
+                ? t("doctorVerification.status.rejectedEditTitle")
+                : t("doctorVerification.status.editNoticeTitle")
+            }
           />
-        ) : (
+        ) : isVerificationLocked ? null : (
           <>
             <DoctorVerificationStepper
               activeStepIndex={activeStepIndex}
@@ -1106,12 +1139,12 @@ export function DoctorVerificationPage() {
             previousLabel={t("doctorVerification.navigation.previous")}
             submitDisabled={missingRequiredDocuments.length > 0}
             submitLabel={
-              isPendingReview
+              canEditSubmittedRequest
                 ? t("doctorVerification.submission.updateSubmit")
                 : t("doctorVerification.submission.submit")
             }
             submittingLabel={
-              isPendingReview
+              canEditSubmittedRequest
                 ? t("doctorVerification.submission.updateLoading")
                 : t("doctorVerification.submission.loading")
             }

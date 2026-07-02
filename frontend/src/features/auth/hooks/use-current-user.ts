@@ -10,7 +10,7 @@ import {
 import { getCurrentUser } from "../api/me.api";
 
 export function useCurrentUser(
-  messages: ApiErrorMessages,
+  messages?: ApiErrorMessages,
   options?: { enabled?: boolean },
 ) {
   return useQuery({

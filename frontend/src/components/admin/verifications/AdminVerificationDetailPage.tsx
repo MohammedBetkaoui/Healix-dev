@@ -1,5 +1,6 @@
 "use client";
 
+import { BadgeCheck, CircleSlash } from "lucide-react";
 import Link from "next/link";
 import { useMemo, useState } from "react";
 
@@ -9,12 +10,18 @@ import {
   useAdminVerificationDecision,
   useAdminVerificationDetail,
 } from "@/features/admin/hooks/use-admin-verification-detail";
-import { useStoredLocale, useTranslation } from "@/lib/i18n";
+import {
+  type TranslationFunction,
+  useStoredLocale,
+  useTranslation,
+} from "@/lib/i18n";
+import { cn } from "@/lib/utils";
 import {
   type AdminVerificationDetailResponse,
   type VerificationDecision,
   type VerificationDetail,
   type VerificationDocument,
+  type VerificationStatus,
 } from "@/types/admin";
 
 import { VerificationStatusBadge } from "./VerificationStatusBadge";
@@ -28,6 +35,12 @@ import { VerificationTimeline } from "./detail/VerificationTimeline";
 
 type AdminVerificationDetailPageProps = {
   id: string;
+};
+
+type AdminDecisionResultProps = {
+  reason?: string | null;
+  status: VerificationStatus;
+  t: TranslationFunction;
 };
 
 const requiredEstablishmentDocuments = new Set([
@@ -100,6 +113,69 @@ function formatFileSize(size: number): string {
   }
 
   return `${(size / (1024 * 1024)).toFixed(1)} MB`;
+}
+
+function AdminDecisionResult({
+  reason,
+  status,
+  t,
+}: AdminDecisionResultProps) {
+  const isApproved = status === "VERIFIED";
+  const isRejected = status === "REJECTED";
+  const Icon = isApproved ? BadgeCheck : CircleSlash;
+
+  const title = isApproved
+    ? t("admin.detail.decision.approvedTitle")
+    : isRejected
+      ? t("admin.detail.decision.rejectedTitle")
+      : t("admin.detail.decision.lockedTitle");
+
+  const description = isApproved
+    ? t("admin.detail.decision.approvedDescription")
+    : isRejected
+      ? t("admin.detail.decision.rejectedDescription")
+      : t("admin.detail.decision.unavailableDescription");
+
+  return (
+    <section
+      className={cn(
+        "rounded-2xl border bg-white p-6 shadow-sm",
+        isApproved && "border-emerald-200 bg-emerald-50/60",
+        isRejected && "border-red-200 bg-red-50/60",
+        !isApproved && !isRejected && "border-slate-200",
+      )}
+    >
+      <div className="flex items-start gap-4">
+        <span
+          className={cn(
+            "flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl border",
+            isApproved &&
+              "border-emerald-200 bg-white text-emerald-700 shadow-sm",
+            isRejected && "border-red-200 bg-white text-red-700 shadow-sm",
+            !isApproved &&
+              !isRejected &&
+              "border-slate-200 bg-slate-50 text-slate-600",
+          )}
+        >
+          <Icon size={22} strokeWidth={1.8} />
+        </span>
+        <div className="min-w-0">
+          <h2 className="text-lg font-semibold text-slate-950">{title}</h2>
+          <p className="mt-2 text-sm leading-6 text-slate-600">
+            {description}
+          </p>
+          {isRejected && reason ? (
+            <div className="mt-4 rounded-xl border border-red-100 bg-white p-4">
+              <p className="text-xs font-semibold uppercase tracking-[0.12em] text-red-700">
+                {t("admin.detail.decision.savedReason")}
+              </p>
+              <p className="mt-2 text-sm leading-6 text-slate-700">{reason}</p>
+            </div>
+          ) : null}
+        </div>
+      </div>
+    </section>
+  );
 }
 
 function mapDetailToView(
@@ -240,7 +316,10 @@ export function AdminVerificationDetailPage({
     setFeedback(t("admin.detail.decision.rejected"));
   };
 
-  const status = decision.approve.data?.status ?? decision.reject.data?.status ?? detail?.status;
+  const status =
+    decision.approve.data?.status ?? decision.reject.data?.status ?? detail?.status;
+  const canRenderDecisionActions = status === "PENDING_VERIFICATION";
+  const rejectionReason = decision.reject.data?.reason ?? data?.rejectionReason;
 
   return (
     <AdminShell
@@ -310,17 +389,34 @@ export function AdminVerificationDetailPage({
           verificationId={id}
         />
 
-        <section className="grid gap-6 xl:grid-cols-[1.15fr_0.85fr]">
-          <AdminDecisionChecklist t={t} />
-          <div className="space-y-6">
-            <VerificationTimeline detail={detail} title={t("admin.detail.timeline")} />
-            <AdminDecisionPanel
-              isPending={decision.isPending}
-              onDecision={handleDecision}
+        {canRenderDecisionActions ? (
+          <section className="grid gap-6 xl:grid-cols-[1.15fr_0.85fr]">
+            <AdminDecisionChecklist t={t} />
+            <div className="space-y-6">
+              <VerificationTimeline
+                detail={detail}
+                title={t("admin.detail.timeline")}
+              />
+              <AdminDecisionPanel
+                isPending={decision.isPending}
+                onDecision={handleDecision}
+                t={t}
+              />
+            </div>
+          </section>
+        ) : (
+          <section className="grid gap-6 xl:grid-cols-[1.15fr_0.85fr]">
+            <AdminDecisionResult
+              reason={rejectionReason}
+              status={status ?? detail.status}
               t={t}
             />
-          </div>
-        </section>
+            <VerificationTimeline
+              detail={detail}
+              title={t("admin.detail.timeline")}
+            />
+          </section>
+        )}
           </>
         )}
       </div>

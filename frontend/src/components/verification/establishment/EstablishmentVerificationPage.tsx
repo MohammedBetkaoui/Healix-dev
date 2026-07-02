@@ -176,6 +176,10 @@ function toDraftPayload(
   };
 }
 
+function normalizeDisplayStatus(status: VerificationStatus): VerificationStatus {
+  return status === "DRAFT" ? "NOT_STARTED" : status;
+}
+
 export function EstablishmentVerificationPage() {
   const { locale } = useStoredLocale();
   const { direction, t } = useTranslation(locale);
@@ -220,8 +224,14 @@ export function EstablishmentVerificationPage() {
   });
   const status =
     submittedStatus ?? prefillData?.verification.status ?? "NOT_STARTED";
-  const isPendingReview = status === "PENDING_VERIFICATION";
-  const showModificationGate = isPendingReview && !isModificationOpen;
+  const displayStatus = normalizeDisplayStatus(status);
+  const isPendingReview = displayStatus === "PENDING_VERIFICATION";
+  const isRejected = displayStatus === "REJECTED";
+  const isVerified = displayStatus === "VERIFIED";
+  const isSuspended = displayStatus === "SUSPENDED";
+  const canEditSubmittedRequest = isPendingReview || isRejected;
+  const isVerificationLocked = isVerified || isSuspended;
+  const showModificationGate = canEditSubmittedRequest && !isModificationOpen;
   const prefilledDocumentStates = useMemo(
     () => createDocumentStatesFromPrefill(prefillData?.documents),
     [prefillData?.documents],
@@ -374,7 +384,7 @@ export function EstablishmentVerificationPage() {
     try {
       const draftPayload = toDraftPayload(values);
 
-      if (isPendingReview) {
+      if (canEditSubmittedRequest) {
         await updateEstablishmentVerificationDraft(draftPayload);
       } else {
         await createEstablishmentVerificationDraft(draftPayload);
@@ -407,11 +417,11 @@ export function EstablishmentVerificationPage() {
       });
       setSubmittedStatus(response.status);
       setToastMessage(
-        isPendingReview
+        canEditSubmittedRequest
           ? t("verification.submit.updateSuccess")
           : response.message || t("verification.submit.success"),
       );
-      if (isPendingReview) {
+      if (canEditSubmittedRequest) {
         setModificationOpen(false);
       }
       window.setTimeout(() => setToastMessage(null), 3000);
@@ -462,42 +472,66 @@ export function EstablishmentVerificationPage() {
         <VerificationStatusCard
           demoBadgeLabel={t("verification.status.demoBadge")}
           description={
-            status === "PENDING_VERIFICATION"
+            displayStatus === "PENDING_VERIFICATION"
               ? t("verification.status.pendingDescription")
-              : t("verification.status.notStarted")
+              : displayStatus === "VERIFIED"
+                ? t("verification.status.verifiedDescription")
+                : displayStatus === "REJECTED"
+                  ? t("verification.status.rejectedDescription")
+                  : displayStatus === "SUSPENDED"
+                    ? t("verification.status.suspendedDescription")
+                    : t("verification.status.notStarted")
           }
-          isPending={status === "PENDING_VERIFICATION"}
-          onStart={() => {
-            if (isPendingReview) {
-              setModificationOpen(true);
-              return;
-            }
+          isPending={displayStatus === "PENDING_VERIFICATION"}
+          onStart={
+            displayStatus === "NOT_STARTED"
+              ? () => {
             const target = document.getElementById("verification-info-section");
             target?.scrollIntoView({ behavior: "smooth", block: "start" });
-          }}
-          startLabel={
-            isPendingReview
-              ? t("verification.status.editButton")
-              : t("verification.status.start")
+                }
+              : undefined
           }
-          status={status}
-          statusLabel={t(`verification.status.values.${status}`)}
+          startLabel={
+            displayStatus === "NOT_STARTED"
+              ? t("verification.status.start")
+              : undefined
+          }
+          status={displayStatus}
+          statusLabel={t(`verification.status.values.${displayStatus}`)}
           statusTitle={t("verification.status.current")}
           title={
-            status === "PENDING_VERIFICATION"
+            displayStatus === "PENDING_VERIFICATION"
               ? t("verification.status.pendingTitle")
-              : t("verification.page.title")
+              : displayStatus === "VERIFIED"
+                ? t("verification.status.verifiedTitle")
+                : displayStatus === "REJECTED"
+                  ? t("verification.status.rejectedTitle")
+                  : displayStatus === "SUSPENDED"
+                    ? t("verification.status.suspendedTitle")
+                    : t("verification.page.title")
           }
         />
 
         {showModificationGate ? (
           <PendingVerificationNotice
-            buttonLabel={t("verification.status.editButton")}
-            description={t("verification.status.editNoticeDescription")}
+            buttonLabel={
+              isRejected
+                ? t("verification.status.correctButton")
+                : t("verification.status.editButton")
+            }
+            description={
+              isRejected
+                ? t("verification.status.rejectedEditDescription")
+                : t("verification.status.editNoticeDescription")
+            }
             onEdit={() => setModificationOpen(true)}
-            title={t("verification.status.editNoticeTitle")}
+            title={
+              isRejected
+                ? t("verification.status.rejectedEditTitle")
+                : t("verification.status.editNoticeTitle")
+            }
           />
-        ) : (
+        ) : isVerificationLocked ? null : (
           <>
             <VerificationStepper
               activeStep={1}
@@ -572,12 +606,12 @@ export function EstablishmentVerificationPage() {
                 : t("verification.submit.incomplete")
             }
             submitLabel={
-              isPendingReview
+              canEditSubmittedRequest
                 ? t("verification.submit.updateButton")
                 : t("verification.submit.button")
             }
             submittingLabel={
-              isPendingReview
+              canEditSubmittedRequest
                 ? t("verification.submit.updateLoading")
                 : t("verification.submit.loading")
             }

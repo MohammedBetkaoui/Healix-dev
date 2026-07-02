@@ -25,7 +25,7 @@ async function downloadDocument(
   const url = URL.createObjectURL(response.data as Blob);
   const anchor = window.document.createElement("a");
   anchor.href = url;
-  anchor.download = document.originalName;
+  anchor.download = document.originalName ?? document.title;
   anchor.click();
   URL.revokeObjectURL(url);
 }
@@ -55,9 +55,11 @@ export function VerificationDocumentsList({
               </span>
               <div>
                 <p className="font-semibold text-slate-950">{document.title}</p>
-                <p className="mt-0.5 text-xs text-slate-400 italic">
-                  {document.originalName}
-                </p>
+                {document.originalName ? (
+                  <p className="mt-0.5 text-xs text-slate-400 italic">
+                    {document.originalName}
+                  </p>
+                ) : null}
                 <p className="mt-1 text-xs text-slate-500">
                   {document.size} · {document.uploadedAt}
                 </p>

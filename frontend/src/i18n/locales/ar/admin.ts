@@ -153,11 +153,20 @@ export const adminAr = {
     },
     decision: {
       approved: "تم قبول الملف بنجاح.",
+      approvedDescription:
+        "تم قبول الطلب. يعرض حساب المستخدم الآن حالة التحقق المناسبة.",
+      approvedTitle: "تم قبول الطلب",
       confirmation: "أؤكد أنني راجعت المعلومات والوثائق المقدمة.",
+      lockedTitle: "تم تسجيل القرار مسبقًا",
       rejected: "تم رفض الملف بنجاح.",
+      rejectedDescription:
+        "تم رفض الطلب. يمكن للمستخدم تصحيح ملفه وإرساله من جديد.",
+      rejectedTitle: "تم رفض الطلب",
       rejectionReason: "سبب الرفض",
       rejectionRequired: "يرجى إدخال سبب الرفض.",
+      savedReason: "السبب المسجل",
       title: "قرار الإدارة",
+      unavailableDescription: "لا توجد إجراءات إدارية متاحة لهذه الحالة.",
     },
     documents: {
       optional: "اختياري",
@@ -276,6 +285,8 @@ export const adminAr = {
       priority: "مستوى الأولوية",
       search: "بحث بالاسم أو البريد أو الهاتف",
       status: "الحالة",
+      submittedFrom: "مرسل من",
+      submittedTo: "مرسل إلى",
       type: "النوع",
       wilaya: "الولاية",
     },

@@ -11,6 +11,8 @@ export type VerificationFilterState = {
   priority: "ALL" | VerificationPriority;
   search: string;
   status: "ALL" | VerificationStatus;
+  submittedFrom: string;
+  submittedTo: string;
   type: "ALL" | VerificationRequestType;
   wilaya: string;
 };
@@ -120,6 +122,36 @@ export function VerificationFilters({
             value={filters.wilaya}
             onChange={(event) =>
               onChange({ ...filters, wilaya: event.target.value })
+            }
+          />
+        </div>
+
+        <div>
+          <Label htmlFor="verificationSubmittedFrom">
+            {t("admin.verifications.filters.submittedFrom")}
+          </Label>
+          <Input
+            id="verificationSubmittedFrom"
+            type="date"
+            className="mt-2 rounded-xl border-slate-200"
+            value={filters.submittedFrom}
+            onChange={(event) =>
+              onChange({ ...filters, submittedFrom: event.target.value })
+            }
+          />
+        </div>
+
+        <div>
+          <Label htmlFor="verificationSubmittedTo">
+            {t("admin.verifications.filters.submittedTo")}
+          </Label>
+          <Input
+            id="verificationSubmittedTo"
+            type="date"
+            className="mt-2 rounded-xl border-slate-200"
+            value={filters.submittedTo}
+            onChange={(event) =>
+              onChange({ ...filters, submittedTo: event.target.value })
             }
           />
         </div>

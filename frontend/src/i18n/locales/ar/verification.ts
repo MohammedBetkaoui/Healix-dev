@@ -13,10 +13,23 @@ export const verificationAr = {
     pendingTitle: "طلبك قيد المراجعة",
     pendingDescription:
       "طلبك قيد المراجعة. سيتم إشعارك بعد انتهاء مراجعة الإدارة.",
+    verifiedTitle: "تم قبول التحقق",
+    verifiedDescription:
+      "تم التحقق من مؤسستك. يمكن الآن تفعيل الوصول إلى الوظائف الطبية الحقيقية حسب الاشتراك.",
+    rejectedTitle: "تم رفض التحقق",
+    rejectedDescription:
+      "تم رفض طلبك من طرف الإدارة. يمكنك تصحيح المعلومات وإرسال الملف مرة أخرى.",
+    suspendedTitle: "تم تعليق التحقق",
+    suspendedDescription:
+      "تم تعليق التحقق. يرجى التواصل مع إدارة HealixDZ لمزيد من المعلومات.",
     editNoticeTitle: "تم إرسال طلب التحقق مسبقًا",
     editNoticeDescription:
       "طلبك في انتظار مراجعة الإدارة. خلال هذه الفترة يمكنك تعديل المعلومات أو استبدال الوثائق. سيتم الاحتفاظ بالوثائق القديمة إلى غاية حفظ التعديلات النهائية.",
+    rejectedEditTitle: "يجب تصحيح الطلب",
+    rejectedEditDescription:
+      "تم رفض ملفك. يمكنك تعديل المعلومات أو استبدال الوثائق، ثم إرسال الطلب مرة أخرى.",
     editButton: "تعديل الطلب",
+    correctButton: "تصحيح الطلب",
     values: {
       NOT_STARTED: "NOT_STARTED",
       DRAFT: "DRAFT",

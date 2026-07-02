@@ -155,12 +155,22 @@ export const adminFr = {
     },
     decision: {
       approved: "Dossier approuvé avec succès.",
+      approvedDescription:
+        "La demande est approuvée. Le compte utilisateur affiche maintenant le statut de vérification correspondant.",
+      approvedTitle: "Demande approuvée",
       confirmation:
         "Je confirme avoir vérifié les informations et les documents fournis.",
+      lockedTitle: "Décision déjà enregistrée",
       rejected: "Dossier refusé avec succès.",
+      rejectedDescription:
+        "La demande est refusée. L'utilisateur pourra corriger son dossier et le renvoyer.",
+      rejectedTitle: "Demande refusée",
       rejectionReason: "Raison du refus",
       rejectionRequired: "Veuillez indiquer la raison du refus.",
+      savedReason: "Raison enregistrée",
       title: "Décision admin",
+      unavailableDescription:
+        "Aucune action admin n'est disponible pour ce statut.",
     },
     documents: {
       optional: "Optionnel",
@@ -279,6 +289,8 @@ export const adminFr = {
       priority: "Niveau de priorité",
       search: "Recherche par nom, email, téléphone",
       status: "Statut",
+      submittedFrom: "Soumis depuis",
+      submittedTo: "Soumis jusqu'au",
       type: "Type",
       wilaya: "Wilaya",
     },

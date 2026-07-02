@@ -14,8 +14,9 @@ export function useAdminLogout() {
   return useMutation({
     mutationFn: adminLogout,
     onSettled: async () => {
-      await queryClient.invalidateQueries({ queryKey: ["admin-auth"] });
-      router.push(adminRoutes.login);
+      queryClient.removeQueries({ queryKey: ["admin"] });
+      queryClient.removeQueries({ queryKey: ["admin-auth"] });
+      router.replace(adminRoutes.login);
     },
   });
 }

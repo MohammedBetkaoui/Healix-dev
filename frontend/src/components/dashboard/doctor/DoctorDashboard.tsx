@@ -18,6 +18,8 @@ import { ActivityTable } from "@/components/dashboard/shared/ActivityTable";
 import { QuickActionCard } from "@/components/dashboard/shared/QuickActionCard";
 import { StatCard } from "@/components/dashboard/shared/StatCard";
 import { UsageChart } from "@/components/dashboard/shared/UsageChart";
+import { getDashboardAccountStatusPresentation } from "@/components/dashboard/shared/account-status-presentation";
+import { useCurrentUser } from "@/features/auth/hooks/use-current-user";
 import { useStoredLocale, useTranslation } from "@/lib/i18n";
 import {
   type DashboardActivityColumn,
@@ -111,6 +113,12 @@ const doctorQuickActions: DashboardQuickAction[] = [
 export function DoctorDashboard() {
   const { locale } = useStoredLocale();
   const { t } = useTranslation(locale);
+  const currentUser = useCurrentUser(undefined, { enabled: true });
+  const accountStatus = getDashboardAccountStatusPresentation({
+    isLoading: currentUser.isLoading,
+    status: currentUser.data?.accountStatus,
+    t,
+  });
 
   const columns: DashboardActivityColumn[] = [
     { key: "action", label: t("dashboard.doctor.table.columns.action") },
@@ -167,13 +175,21 @@ export function DoctorDashboard() {
             <StatCard
               key={item.key}
               actionLabel={
-                item.actionLabelKey ? t(item.actionLabelKey) : undefined
+                item.key === "account"
+                  ? accountStatus.actionLabel
+                  : item.actionLabelKey
+                    ? t(item.actionLabelKey)
+                    : undefined
               }
               icon={item.icon}
               label={t(item.labelKey)}
               tone={item.tone}
-              value={item.value}
-              variation={t(item.hintKey)}
+              value={
+                item.key === "account" ? accountStatus.statusLabel : item.value
+              }
+              variation={
+                item.key === "account" ? accountStatus.statHint : t(item.hintKey)
+              }
             />
           ))}
         </div>
@@ -207,11 +223,11 @@ export function DoctorDashboard() {
           />
           <div className="space-y-6">
             <AccountStatusCard
-              actionLabel={t("dashboard.common.accountStatus.startVerification")}
-              description={t("dashboard.common.accountStatus.statusCardDescription")}
-              demoLabel={t("dashboard.common.demoBadge")}
-              statusLabel={t("dashboard.common.demoBadge")}
-              title={t("dashboard.common.accountStatus.statusCardTitle")}
+              actionLabel={accountStatus.actionLabel}
+              description={accountStatus.cardDescription}
+              demoLabel={accountStatus.footerLabel}
+              statusLabel={accountStatus.statusLabel}
+              title={accountStatus.cardTitle}
             />
             <section className="rounded-[26px] border border-slate-200/80 bg-white p-6 shadow-[0_12px_36px_rgba(15,23,42,0.04)]">
               <div className="mb-5 flex items-center gap-3">

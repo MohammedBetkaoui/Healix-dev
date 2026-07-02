@@ -8,13 +8,25 @@ type VerificationStatusCardProps = {
   demoBadgeLabel: string;
   description: string;
   isPending: boolean;
-  onStart: () => void;
-  startLabel: string;
+  onStart?: () => void;
+  startLabel?: string;
   status: VerificationStatus;
   statusLabel: string;
   statusTitle: string;
   title: string;
 };
+
+function getStatusTone(status: VerificationStatus, isPending: boolean) {
+  if (status === "VERIFIED") {
+    return "bg-emerald-50 text-emerald-700";
+  }
+
+  if (status === "REJECTED" || status === "SUSPENDED") {
+    return "bg-red-50 text-red-700";
+  }
+
+  return isPending ? "bg-amber-50 text-amber-700" : "bg-cyan-50 text-cyan-700";
+}
 
 export function VerificationStatusCard({
   demoBadgeLabel,
@@ -34,7 +46,7 @@ export function VerificationStatusCard({
           <span
             className={cn(
               "flex h-12 w-12 shrink-0 items-center justify-center rounded-full",
-              isPending ? "bg-amber-50 text-amber-700" : "bg-cyan-50 text-cyan-700",
+              getStatusTone(status, isPending),
             )}
           >
             {isPending ? <Clock3 className="h-5 w-5" /> : <ShieldCheck className="h-5 w-5" />}
@@ -59,7 +71,7 @@ export function VerificationStatusCard({
             <BadgeCheck className="h-4 w-4" />
             {statusLabel || status}
           </span>
-          {!isPending ? (
+          {startLabel && onStart ? (
             <Button className="rounded-full px-5" onClick={onStart}>
               {startLabel}
             </Button>

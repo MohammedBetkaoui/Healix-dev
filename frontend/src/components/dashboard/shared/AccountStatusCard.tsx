@@ -6,7 +6,7 @@ import { cn } from "@/lib/utils";
 import { StatusBadge } from "./StatusBadge";
 
 type AccountStatusCardProps = {
-  actionLabel: string;
+  actionLabel?: string;
   compact?: boolean;
   description: string;
   demoLabel: string;
@@ -51,16 +51,18 @@ export function AccountStatusCard({
               <BadgeCheck className="h-4 w-4" aria-hidden="true" />
               {demoLabel}
             </span>
-            <Button
-              size={compact ? "sm" : "default"}
-              className={cn(compact && "h-9 rounded-full px-4 text-xs")}
-            >
-              {actionLabel}
-            </Button>
+            {actionLabel ? (
+              <Button
+                size={compact ? "sm" : "default"}
+                className={cn(compact && "h-9 rounded-full px-4 text-xs")}
+              >
+                {actionLabel}
+              </Button>
+            ) : null}
           </div>
         </div>
       </div>
-      {/* Real user data will be loaded later from secure backend endpoints using httpOnly cookies. */}
+      {/* Account state is loaded from secure backend endpoints using httpOnly cookies. */}
     </section>
   );
 }

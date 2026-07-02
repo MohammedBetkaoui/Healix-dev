@@ -17,9 +17,8 @@ type VerificationDocumentModalProps = {
 
 type ViewerState =
   | { status: "idle" }
-  | { status: "loading" }
-  | { status: "error" }
-  | { status: "ready"; blobUrl: string; mimeType: string };
+  | { documentId: string; status: "error" }
+  | { documentId: string; status: "ready"; blobUrl: string; mimeType: string };
 
 function isImageMime(mime: string) {
   return mime.startsWith("image/");
@@ -40,11 +39,8 @@ export function VerificationDocumentModal({
 
   useEffect(() => {
     if (!document) {
-      setViewer({ status: "idle" });
       return;
     }
-
-    setViewer({ status: "loading" });
 
     let cancelled = false;
 
@@ -60,10 +56,17 @@ export function VerificationDocumentModal({
           "application/octet-stream";
         const blobUrl = URL.createObjectURL(response.data);
         prevBlobUrl.current = blobUrl;
-        setViewer({ status: "ready", blobUrl, mimeType: mime });
+        setViewer({
+          status: "ready",
+          blobUrl,
+          documentId: document.id,
+          mimeType: mime,
+        });
       })
       .catch(() => {
-        if (!cancelled) setViewer({ status: "error" });
+        if (!cancelled) {
+          setViewer({ status: "error", documentId: document.id });
+        }
       });
 
     return () => {
@@ -84,12 +87,16 @@ export function VerificationDocumentModal({
     const url = URL.createObjectURL(response.data);
     const anchor = window.document.createElement("a");
     anchor.href = url;
-    anchor.download = document.originalName;
+    anchor.download = document.originalName ?? document.title;
     anchor.click();
     URL.revokeObjectURL(url);
   };
 
   if (!document) return null;
+
+  const isCurrentViewer =
+    viewer.status !== "idle" && viewer.documentId === document.id;
+  const isLoading = !isCurrentViewer;
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
@@ -111,7 +118,8 @@ export function VerificationDocumentModal({
               {document.title}
             </h2>
             <p className="truncate text-xs text-slate-400 italic">
-              {document.originalName} · {document.size}
+              {document.originalName ? `${document.originalName} · ` : ""}
+              {document.size}
             </p>
           </div>
           <div className="flex items-center gap-2 shrink-0">
@@ -138,14 +146,14 @@ export function VerificationDocumentModal({
 
         {/* Viewer body */}
         <div className="flex min-h-120 flex-1 items-center justify-center overflow-auto bg-slate-50">
-          {viewer.status === "loading" && (
+          {isLoading && (
             <div className="flex flex-col items-center gap-3 text-slate-500">
               <Loader2 className="h-8 w-8 animate-spin text-cyan-600" />
               <span className="text-sm">{t("admin.detail.modal.loading")}</span>
             </div>
           )}
 
-          {viewer.status === "error" && (
+          {isCurrentViewer && viewer.status === "error" && (
             <div className="flex flex-col items-center gap-3 rounded-2xl bg-red-50 px-8 py-10 text-center">
               <p className="font-semibold text-red-700">
                 {t("admin.detail.modal.error")}
@@ -153,7 +161,8 @@ export function VerificationDocumentModal({
             </div>
           )}
 
-          {viewer.status === "ready" &&
+          {isCurrentViewer &&
+            viewer.status === "ready" &&
             (isImageMime(viewer.mimeType) ? (
               <img
                 src={viewer.blobUrl}

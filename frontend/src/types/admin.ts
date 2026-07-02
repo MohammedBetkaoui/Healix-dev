@@ -40,7 +40,7 @@ export type VerificationPriority = "NORMAL" | "REVIEW" | "URGENT";
 export type VerificationDocument = {
   id: string;
   title: string;
-  originalName: string;
+  originalName?: string;
   type: string;
   required: boolean;
   status: "READY" | "UPLOADED" | "REJECTED";

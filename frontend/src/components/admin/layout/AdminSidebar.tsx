@@ -13,6 +13,7 @@ import { usePathname } from "next/navigation";
 
 import { Button } from "@/components/ui/button";
 import { adminRoutes } from "@/config/admin-routes";
+import { useAdminLogout } from "@/features/admin-auth/hooks/use-admin-logout";
 import { type Direction, type TranslationFunction } from "@/lib/i18n";
 import { cn } from "@/lib/utils";
 import { type AdminNavItem } from "@/types/admin";
@@ -69,7 +70,13 @@ export function AdminSidebar({
   t,
 }: AdminSidebarProps) {
   const pathname = usePathname();
+  const adminLogoutMutation = useAdminLogout();
   const displayName = adminName ?? "HealixDZ Admin";
+
+  const handleLogout = () => {
+    onNavigate?.();
+    adminLogoutMutation.mutate();
+  };
 
   return (
     <aside className="flex h-full w-[280px] flex-col border-slate-200 bg-white shadow-sm">
@@ -152,8 +159,9 @@ export function AdminSidebar({
         <Button
           type="button"
           variant="ghost"
+          disabled={adminLogoutMutation.isPending}
           className="mt-3 w-full justify-start text-slate-600"
-          onClick={onNavigate}
+          onClick={handleLogout}
         >
           <LogOut className="h-4 w-4" aria-hidden="true" />
           {t("admin.layout.nav.logout")}

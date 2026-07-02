@@ -3,6 +3,7 @@
 import { useMemo, useState } from "react";
 
 import { AdminShell } from "@/components/admin/layout/AdminShell";
+import { Button } from "@/components/ui/button";
 import { useAdminVerifications } from "@/features/admin/hooks/use-admin-verifications";
 import { useStoredLocale, useTranslation } from "@/lib/i18n";
 import {
@@ -21,9 +22,13 @@ const initialFilters: VerificationFilterState = {
   priority: "ALL",
   search: "",
   status: "ALL",
+  submittedFrom: "",
+  submittedTo: "",
   type: "ALL",
   wilaya: "",
 };
+
+const verificationsPageSize = 20;
 
 function getDerivedPriority(
   request: AdminVerificationListItem,
@@ -43,19 +48,40 @@ export function AdminVerificationsPage() {
   const { locale } = useStoredLocale();
   const { t } = useTranslation(locale);
   const [filters, setFilters] = useState<VerificationFilterState>(initialFilters);
+  const [page, setPage] = useState(1);
+
+  const updateFilters = (nextFilters: VerificationFilterState) => {
+    setFilters(nextFilters);
+    setPage(1);
+  };
+
+  const resetFilters = () => {
+    setFilters(initialFilters);
+    setPage(1);
+  };
 
   const query = useMemo(
     () => ({
-      limit: 20,
-      page: 1,
+      limit: verificationsPageSize,
+      page,
       search: filters.search.trim() || undefined,
       sortBy: "submittedAt" as const,
       sortOrder: "desc" as const,
       status: filters.status === "ALL" ? undefined : filters.status,
+      submittedFrom: filters.submittedFrom || undefined,
+      submittedTo: filters.submittedTo || undefined,
       type: filters.type === "ALL" ? undefined : filters.type,
       wilaya: filters.wilaya.trim() || undefined,
     }),
-    [filters.search, filters.status, filters.type, filters.wilaya],
+    [
+      filters.search,
+      filters.status,
+      filters.submittedFrom,
+      filters.submittedTo,
+      filters.type,
+      filters.wilaya,
+      page,
+    ],
   );
 
   const { data, error, isLoading } = useAdminVerifications(query);
@@ -76,6 +102,10 @@ export function AdminVerificationsPage() {
     });
   }, [data?.data, filters.documentsComplete, filters.priority]);
 
+  const totalPages = Math.max(1, data?.meta.totalPages ?? 1);
+  const canGoPrevious = page > 1;
+  const canGoNext = page < totalPages;
+
   return (
     <AdminShell
       breadcrumb={`${t("admin.breadcrumb.pages")} / ${t("admin.layout.nav.verifications")}`}
@@ -87,8 +117,8 @@ export function AdminVerificationsPage() {
         </p>
         <VerificationFilters
           filters={filters}
-          onChange={setFilters}
-          onReset={() => setFilters(initialFilters)}
+          onChange={updateFilters}
+          onReset={resetFilters}
           t={t}
         />
         {isLoading ? (
@@ -102,13 +132,33 @@ export function AdminVerificationsPage() {
         ) : (
           <>
             <VerificationsTable requests={filteredRequests} t={t} />
-            <p className="text-sm text-slate-500">
-              {t("admin.verifications.pagination", {
-                page: data?.meta.page ?? 1,
-                total: data?.meta.total ?? 0,
-                totalPages: data?.meta.totalPages ?? 1,
-              })}
-            </p>
+            <div className="flex flex-col gap-3 rounded-2xl border border-slate-200 bg-white p-4 shadow-sm sm:flex-row sm:items-center sm:justify-between">
+              <p className="text-sm text-slate-500">
+                {t("admin.verifications.pagination", {
+                  page: data?.meta.page ?? page,
+                  total: data?.meta.total ?? 0,
+                  totalPages,
+                })}
+              </p>
+              <div className="flex items-center gap-2">
+                <Button
+                  type="button"
+                  variant="outline"
+                  disabled={!canGoPrevious}
+                  onClick={() => setPage((currentPage) => currentPage - 1)}
+                >
+                  {t("admin.actions.previous")}
+                </Button>
+                <Button
+                  type="button"
+                  variant="outline"
+                  disabled={!canGoNext}
+                  onClick={() => setPage((currentPage) => currentPage + 1)}
+                >
+                  {t("admin.actions.next")}
+                </Button>
+              </div>
+            </div>
           </>
         )}
       </div>

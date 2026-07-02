@@ -18,6 +18,73 @@ export const dashboardFr = {
       statusCardDescription:
         "Votre compte est actuellement en mode démonstration. Pour accéder aux fonctionnalités médicales réelles, veuillez compléter la vérification professionnelle.",
       startVerification: "Commencer la vérification",
+      actions: {
+        correct: "Corriger la vérification",
+        start: "Commencer la vérification",
+      },
+      descriptions: {
+        active:
+          "Votre compte est actif. Les fonctionnalités médicales réelles peuvent être utilisées selon votre abonnement et vos autorisations.",
+        basic:
+          "Votre compte est actuellement en mode démonstration. Pour accéder aux fonctionnalités médicales réelles, veuillez compléter la vérification professionnelle.",
+        loading: "Chargement du statut de votre compte...",
+        paymentPending:
+          "Votre vérification est validée. L'activation complète dépend maintenant du paiement ou de l'abonnement.",
+        pending:
+          "Votre demande de vérification est en cours d'examen par l'administration HealixDZ.",
+        rejected:
+          "Votre demande de vérification a été refusée. Vous pouvez corriger les informations ou documents demandés.",
+        suspended:
+          "Votre compte est suspendu. Contactez l'administration HealixDZ pour plus d'informations.",
+        unknown:
+          "Impossible de confirmer le statut du compte pour le moment. Veuillez réessayer dans quelques instants.",
+        verified:
+          "Votre vérification professionnelle est validée. La prochaine étape concerne l'abonnement ou l'activation du plan.",
+      },
+      footers: {
+        active: "Accès réel actif",
+        basic: "Mode démo",
+        loading: "Synchronisation",
+        paymentPending: "Paiement requis",
+        pending: "En attente admin",
+        rejected: "Correction requise",
+        suspended: "Accès suspendu",
+        unknown: "Statut indisponible",
+        verified: "Compte vérifié",
+      },
+      hints: {
+        active: "Accès réel actif",
+        basic: "Accès démo actif",
+        loading: "Synchronisation...",
+        paymentPending: "Paiement en attente",
+        pending: "Validation admin en cours",
+        rejected: "Correction nécessaire",
+        suspended: "Accès temporairement bloqué",
+        unknown: "Statut à recharger",
+        verified: "Vérification validée",
+      },
+      statusLabels: {
+        active: "Compte actif",
+        basic: "Mode démonstration",
+        loading: "Chargement...",
+        paymentPending: "Paiement en attente",
+        pending: "En cours de vérification",
+        rejected: "Vérification refusée",
+        suspended: "Compte suspendu",
+        unknown: "Indisponible",
+        verified: "Compte vérifié",
+      },
+      titles: {
+        active: "Compte actif",
+        basic: "Compte en démonstration",
+        loading: "Statut du compte",
+        paymentPending: "Paiement en attente",
+        pending: "Vérification en cours",
+        rejected: "Vérification à corriger",
+        suspended: "Compte suspendu",
+        unknown: "Statut indisponible",
+        verified: "Compte vérifié",
+      },
     },
     actions: {
       profile: "Profil",

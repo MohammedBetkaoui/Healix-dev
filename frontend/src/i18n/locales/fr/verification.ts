@@ -14,10 +14,23 @@ export const verificationFr = {
     pendingTitle: "Votre demande est en cours d'examen",
     pendingDescription:
       "Votre demande est en cours d'examen. Vous serez notifie apres validation par l'administration.",
+    verifiedTitle: "Verification acceptee",
+    verifiedDescription:
+      "Votre etablissement est verifie. L'acces aux fonctionnalites medicales reelles peut maintenant etre active selon votre abonnement.",
+    rejectedTitle: "Verification refusee",
+    rejectedDescription:
+      "Votre demande a ete refusee par l'administration. Vous pouvez corriger les informations et renvoyer votre dossier.",
+    suspendedTitle: "Verification suspendue",
+    suspendedDescription:
+      "Votre verification est suspendue. Veuillez contacter l'administration HealixDZ pour plus d'informations.",
     editNoticeTitle: "Vérification déjà envoyée",
     editNoticeDescription:
       "Votre demande est en attente de validation par l'administration. Pendant cette periode, vous pouvez encore modifier les informations et remplacer des documents. Les anciens documents seront conserves jusqu'a l'enregistrement final des modifications.",
+    rejectedEditTitle: "Correction de la demande requise",
+    rejectedEditDescription:
+      "Votre dossier a ete refuse. Vous pouvez modifier les informations ou remplacer les documents, puis soumettre la demande a nouveau.",
     editButton: "Modifier ma demande",
+    correctButton: "Corriger ma demande",
     values: {
       NOT_STARTED: "NOT_STARTED",
       DRAFT: "DRAFT",
