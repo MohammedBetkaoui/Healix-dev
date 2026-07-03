@@ -10,6 +10,10 @@ export const dashboardFr = {
     },
     title: "Tableau de bord",
     demoBadge: "Mode démo",
+    header: {
+      searchPlaceholder: "Rechercher patient, rapport, analyse...",
+      secureWorkspace: "Espace sécurisé",
+    },
     accountStatus: {
       label: "Statut du compte",
       value: "BASIC_ACCOUNT",
@@ -105,6 +109,8 @@ export const dashboardFr = {
     },
   },
   sidebar: {
+    collapse: "Reduire la barre laterale",
+    expand: "Afficher la barre laterale",
     sections: {
       clinic: "CLINIQUE",
       ai: "INTELLIGENCE ARTIFICIELLE",

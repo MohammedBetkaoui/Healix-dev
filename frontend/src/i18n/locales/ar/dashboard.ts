@@ -10,6 +10,10 @@ export const dashboardAr = {
     },
     title: "لوحة التحكم",
     demoBadge: "الوضع التجريبي",
+    header: {
+      searchPlaceholder: "البحث عن مريض، تقرير أو تحليل...",
+      secureWorkspace: "فضاء آمن",
+    },
     accountStatus: {
       label: "حالة الحساب",
       value: "BASIC_ACCOUNT",
@@ -104,6 +108,8 @@ export const dashboardAr = {
     },
   },
   sidebar: {
+    collapse: "تصغير الشريط الجانبي",
+    expand: "توسيع الشريط الجانبي",
     sections: {
       clinic: "العيادة",
       ai: "الذكاء الاصطناعي",

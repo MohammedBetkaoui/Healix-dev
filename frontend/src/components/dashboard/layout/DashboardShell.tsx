@@ -5,9 +5,9 @@ import { useMemo, useState, type ReactNode } from "react";
 import { type AccountType } from "@/types/auth";
 import {
   type DashboardNavSection,
-  type DashboardThemeMode,
   type DashboardUserSummary,
 } from "@/types/dashboard";
+import { useDashboardSidebarPreference } from "@/lib/dashboard-preferences";
 import { useStoredLocale, useTranslation } from "@/lib/i18n";
 import { cn } from "@/lib/utils";
 
@@ -35,16 +35,14 @@ export function DashboardShell({
   user,
 }: DashboardShellProps) {
   const [isSidebarOpen, setSidebarOpen] = useState(false);
-  const [themeMode, setThemeMode] = useState<DashboardThemeMode>("light");
+  const { isSidebarCollapsed, toggleSidebarCollapsed } =
+    useDashboardSidebarPreference();
   const { locale, setLocale } = useStoredLocale();
   const { direction, t } = useTranslation(locale);
 
   const shellClasses = useMemo(
-    () =>
-      themeMode === "light"
-        ? "bg-[linear-gradient(180deg,#fafcfd_0%,#f6fafb_100%)] text-slate-950"
-        : "bg-[linear-gradient(180deg,#f4f7fa_0%,#eef3f8_100%)] text-slate-950",
-    [themeMode],
+    () => "bg-[linear-gradient(180deg,#fafcfd_0%,#f6fafb_100%)] text-slate-950",
+    [],
   );
 
   return (
@@ -57,9 +55,11 @@ export function DashboardShell({
         <DashboardSidebar
           activeKey={activeKey}
           direction={direction}
+          isCollapsed={isSidebarCollapsed}
           isOpen={isSidebarOpen}
           navSections={navSections}
           onClose={() => setSidebarOpen(false)}
+          onToggleCollapse={toggleSidebarCollapsed}
           t={t}
           user={user}
         />
@@ -70,11 +70,7 @@ export function DashboardShell({
             locale={locale}
             onLocaleChange={setLocale}
             onMenuOpen={() => setSidebarOpen(true)}
-            onThemeToggle={() =>
-              setThemeMode((current) => (current === "light" ? "soft" : "light"))
-            }
             t={t}
-            themeMode={themeMode}
             title={t(titleKey)}
             user={{ ...user, accountType }}
           />

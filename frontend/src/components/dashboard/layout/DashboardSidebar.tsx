@@ -2,6 +2,8 @@
 
 import {
   Activity,
+  PanelLeftClose,
+  PanelLeftOpen,
   Settings,
   X,
 } from "lucide-react";
@@ -21,9 +23,11 @@ import {
 type DashboardSidebarProps = {
   activeKey: string;
   direction: Direction;
+  isCollapsed: boolean;
   isOpen: boolean;
   navSections: DashboardNavSection[];
   onClose: () => void;
+  onToggleCollapse: () => void;
   t: TranslationFunction;
   user: DashboardUserSummary;
 };
@@ -43,6 +47,7 @@ function badgeClasses(tone: DashboardNavBadgeTone) {
 type NavRowProps = {
   active: boolean;
   direction: Direction;
+  isCollapsed: boolean;
   isLogoutLoading: boolean;
   item: DashboardNavItem;
   onLogout: () => void;
@@ -52,14 +57,19 @@ type NavRowProps = {
 function NavRow({
   active,
   direction,
+  isCollapsed,
   isLogoutLoading,
   item,
   onLogout,
   t,
 }: NavRowProps) {
   const Icon = item.icon;
+  const label = isLogoutLoading && item.key === "logout"
+    ? `${t(item.labelKey)}...`
+    : t(item.labelKey);
   const rowClasses = cn(
     "group relative flex min-h-11 w-full items-center gap-3 rounded-xl px-3 text-sm font-medium transition",
+    isCollapsed && "lg:justify-center lg:gap-0 lg:px-0",
     active
       ? "bg-blue-50 text-blue-500"
       : "text-slate-700 hover:bg-slate-50 hover:text-slate-950",
@@ -83,15 +93,19 @@ function NavRow({
           active ? "text-blue-500" : "text-slate-500 group-hover:text-slate-900",
         )}
       />
-      <span className="min-w-0 flex-1 truncate text-start">
-        {isLogoutLoading && item.key === "logout"
-          ? `${t(item.labelKey)}...`
-          : t(item.labelKey)}
+      <span
+        className={cn(
+          "min-w-0 flex-1 truncate text-start",
+          isCollapsed && "lg:hidden",
+        )}
+      >
+        {label}
       </span>
       {item.badge ? (
         <span
           className={cn(
             "inline-flex min-w-7 items-center justify-center rounded-md px-1.5 py-0.5 text-[10px] font-bold tracking-[0.08em]",
+            isCollapsed && "lg:hidden",
             badgeClasses(item.badge.tone),
           )}
         >
@@ -108,6 +122,8 @@ function NavRow({
         className={rowClasses}
         disabled={isLogoutLoading}
         onClick={onLogout}
+        title={label}
+        aria-label={label}
       >
         {rowContent}
       </button>
@@ -115,7 +131,7 @@ function NavRow({
   }
 
   return (
-    <Link href={item.href} className={rowClasses}>
+    <Link href={item.href} className={rowClasses} title={label} aria-label={label}>
       {rowContent}
     </Link>
   );
@@ -124,13 +140,16 @@ function NavRow({
 export function DashboardSidebar({
   activeKey,
   direction,
+  isCollapsed,
   isOpen,
   navSections,
   onClose,
+  onToggleCollapse,
   t,
   user,
 }: DashboardSidebarProps) {
   const { isLoading: isLogoutLoading, logout } = useLogout();
+  const CollapseIcon = isCollapsed ? PanelLeftOpen : PanelLeftClose;
 
   return (
     <>
@@ -145,7 +164,8 @@ export function DashboardSidebar({
 
       <aside
         className={cn(
-          "fixed inset-y-0 z-40 flex w-[272px] shrink-0 flex-col bg-white shadow-[0_24px_80px_rgba(15,23,42,0.14)] transition lg:sticky lg:inset-auto lg:top-0 lg:z-0 lg:h-screen lg:translate-x-0 lg:self-start lg:shadow-none",
+          "fixed inset-y-0 z-40 flex w-[272px] shrink-0 flex-col bg-white shadow-[0_24px_80px_rgba(15,23,42,0.14)] transition-[transform,width] duration-300 lg:sticky lg:inset-auto lg:top-0 lg:z-0 lg:h-screen lg:translate-x-0 lg:self-start lg:shadow-none",
+          isCollapsed ? "lg:w-[88px]" : "lg:w-[272px]",
           direction === "rtl"
             ? "right-0 border-l border-slate-200/70 lg:right-auto"
             : "left-0 border-r border-slate-200/70 lg:left-auto",
@@ -157,12 +177,22 @@ export function DashboardSidebar({
         )}
       >
         <div className="border-b border-slate-200/70 px-4 py-4">
-          <div className="flex items-start justify-between gap-3">
-            <div className="flex min-w-0 items-center gap-3">
+          <div
+            className={cn(
+              "flex items-start justify-between gap-3",
+              isCollapsed && "lg:flex-col lg:items-center lg:justify-start lg:gap-2",
+            )}
+          >
+            <div
+              className={cn(
+                "flex min-w-0 items-center gap-3",
+                isCollapsed && "lg:justify-center lg:gap-0",
+              )}
+            >
               <span className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-[linear-gradient(135deg,#3b82f6_0%,#7c3aed_100%)] text-white shadow-[0_12px_30px_rgba(59,130,246,0.28)]">
                 <Activity size={18} strokeWidth={2.4} />
               </span>
-              <div className="min-w-0">
+              <div className={cn("min-w-0", isCollapsed && "lg:hidden")}>
                 <div className="flex items-center gap-2">
                   <p className="truncate text-[1.05rem] font-semibold tracking-tight text-slate-950">
                     HealixDZ
@@ -177,6 +207,27 @@ export function DashboardSidebar({
               </div>
             </div>
             <Button
+              variant="outline"
+              size="icon"
+              className="hidden h-9 w-9 rounded-xl border-slate-200 bg-white text-slate-600 shadow-sm transition hover:bg-slate-50 hover:text-slate-950 lg:inline-flex"
+              onClick={onToggleCollapse}
+              aria-label={
+                isCollapsed
+                  ? t("dashboard.sidebar.expand")
+                  : t("dashboard.sidebar.collapse")
+              }
+              title={
+                isCollapsed
+                  ? t("dashboard.sidebar.expand")
+                  : t("dashboard.sidebar.collapse")
+              }
+            >
+              <CollapseIcon
+                className={cn("h-4 w-4", direction === "rtl" && "rotate-180")}
+                strokeWidth={1.8}
+              />
+            </Button>
+            <Button
               variant="ghost"
               size="icon"
               className="rounded-full lg:hidden"
@@ -188,10 +239,18 @@ export function DashboardSidebar({
           </div>
         </div>
 
-        <div className="flex-1 overflow-y-auto px-4 py-5">
+        <div className={cn("flex-1 overflow-y-auto px-4 py-5", isCollapsed && "lg:px-3")}>
           {navSections.map((section) => (
-            <section key={section.key} className="mb-6 last:mb-0">
-              <p className="px-3 pb-2 text-[10px] font-bold tracking-[0.18em] text-slate-400">
+            <section
+              key={section.key}
+              className={cn("mb-6 last:mb-0", isCollapsed && "lg:mb-3")}
+            >
+              <p
+                className={cn(
+                  "px-3 pb-2 text-[10px] font-bold tracking-[0.18em] text-slate-400",
+                  isCollapsed && "lg:sr-only",
+                )}
+              >
                 {t(section.titleKey)}
               </p>
               <div className="space-y-0.5">
@@ -200,6 +259,7 @@ export function DashboardSidebar({
                     key={item.key}
                     active={item.key === activeKey}
                     direction={direction}
+                    isCollapsed={isCollapsed}
                     isLogoutLoading={isLogoutLoading}
                     item={item}
                     onLogout={() => {
@@ -214,11 +274,16 @@ export function DashboardSidebar({
         </div>
 
         <div className="mt-auto border-t border-slate-200/70 px-4 py-3">
-          <div className="flex items-center gap-3">
+          <div
+            className={cn(
+              "flex items-center gap-3",
+              isCollapsed && "lg:justify-center lg:gap-0",
+            )}
+          >
             <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-[linear-gradient(135deg,#10b981_0%,#3b82f6_100%)] text-sm font-semibold text-white shadow-[0_10px_24px_rgba(16,185,129,0.18)]">
               {user.initials}
             </span>
-            <div className="min-w-0 flex-1">
+            <div className={cn("min-w-0 flex-1", isCollapsed && "lg:hidden")}>
               <p className="truncate text-sm font-medium text-slate-950">
                 {user.name}
               </p>
@@ -231,7 +296,10 @@ export function DashboardSidebar({
             </div>
             <button
               type="button"
-              className="inline-flex h-9 w-9 items-center justify-center rounded-full text-slate-400 transition hover:bg-slate-100 hover:text-slate-700"
+              className={cn(
+                "inline-flex h-9 w-9 items-center justify-center rounded-full text-slate-400 transition hover:bg-slate-100 hover:text-slate-700",
+                isCollapsed && "lg:hidden",
+              )}
               aria-label={t("dashboard.sidebar.establishment.settings")}
             >
               <Settings size={16} strokeWidth={1.7} />
