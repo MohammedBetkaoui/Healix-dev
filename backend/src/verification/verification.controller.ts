@@ -21,6 +21,7 @@ import { CurrentUser } from '../common/decorators/current-user.decorator';
 import { Roles } from '../common/decorators/roles.decorator';
 import { UserRole } from '../common/enums/user-role.enum';
 import { RolesGuard } from '../common/guards/roles.guard';
+import { getRequestContext } from '../common/utils/request-context';
 import { DoctorVerificationService } from './doctor/doctor-verification.service';
 import { SubmitDoctorVerificationDto } from './doctor/dto/submit-doctor-verification.dto';
 import { UpdateDoctorVerificationDto } from './doctor/dto/update-doctor-verification.dto';
@@ -63,10 +64,11 @@ export class VerificationController {
     @Body() dto: UpdateEstablishmentVerificationDto,
     @Req() request: Request,
   ) {
-    return this.establishmentVerificationService.createDraft(user.sub, dto, {
-      ipAddress: request.ip,
-      userAgent: request.get('user-agent') ?? null,
-    });
+    return this.establishmentVerificationService.createDraft(
+      user.sub,
+      dto,
+      getRequestContext(request),
+    );
   }
 
   @Patch('establishment/draft')
@@ -76,10 +78,11 @@ export class VerificationController {
     @Body() dto: UpdateEstablishmentVerificationDto,
     @Req() request: Request,
   ) {
-    return this.establishmentVerificationService.updateDraft(user.sub, dto, {
-      ipAddress: request.ip,
-      userAgent: request.get('user-agent') ?? null,
-    });
+    return this.establishmentVerificationService.updateDraft(
+      user.sub,
+      dto,
+      getRequestContext(request),
+    );
   }
 
   @Post('establishment/upload-document')
@@ -104,10 +107,7 @@ export class VerificationController {
         documentType: dto.documentType,
         file,
       },
-      {
-        ipAddress: request.ip,
-        userAgent: request.get('user-agent') ?? null,
-      },
+      getRequestContext(request),
     );
   }
 
@@ -121,10 +121,7 @@ export class VerificationController {
     return this.establishmentVerificationService.deleteDocument(
       user.sub,
       documentId,
-      {
-        ipAddress: request.ip,
-        userAgent: request.get('user-agent') ?? null,
-      },
+      getRequestContext(request),
     );
   }
 
@@ -135,10 +132,11 @@ export class VerificationController {
     @Body() dto: SubmitEstablishmentVerificationDto,
     @Req() request: Request,
   ) {
-    return this.establishmentVerificationService.submit(user.sub, dto, {
-      ipAddress: request.ip,
-      userAgent: request.get('user-agent') ?? null,
-    });
+    return this.establishmentVerificationService.submit(
+      user.sub,
+      dto,
+      getRequestContext(request),
+    );
   }
 
   @Get('doctor/prefill')
@@ -166,10 +164,11 @@ export class VerificationController {
     @Body() dto: UpdateDoctorVerificationDto,
     @Req() request: Request,
   ) {
-    return this.doctorVerificationService.createDraft(user.sub, dto, {
-      ipAddress: request.ip,
-      userAgent: request.get('user-agent') ?? null,
-    });
+    return this.doctorVerificationService.createDraft(
+      user.sub,
+      dto,
+      getRequestContext(request),
+    );
   }
 
   @Patch('doctor/draft')
@@ -179,10 +178,11 @@ export class VerificationController {
     @Body() dto: UpdateDoctorVerificationDto,
     @Req() request: Request,
   ) {
-    return this.doctorVerificationService.updateDraft(user.sub, dto, {
-      ipAddress: request.ip,
-      userAgent: request.get('user-agent') ?? null,
-    });
+    return this.doctorVerificationService.updateDraft(
+      user.sub,
+      dto,
+      getRequestContext(request),
+    );
   }
 
   @Post('doctor/upload-document')
@@ -207,10 +207,7 @@ export class VerificationController {
         documentType: dto.documentType,
         file,
       },
-      {
-        ipAddress: request.ip,
-        userAgent: request.get('user-agent') ?? null,
-      },
+      getRequestContext(request),
     );
   }
 
@@ -221,10 +218,11 @@ export class VerificationController {
     @Param('documentId') documentId: string,
     @Req() request: Request,
   ) {
-    return this.doctorVerificationService.deleteDocument(user.sub, documentId, {
-      ipAddress: request.ip,
-      userAgent: request.get('user-agent') ?? null,
-    });
+    return this.doctorVerificationService.deleteDocument(
+      user.sub,
+      documentId,
+      getRequestContext(request),
+    );
   }
 
   @Post('doctor/submit')
@@ -234,9 +232,10 @@ export class VerificationController {
     @Body() dto: SubmitDoctorVerificationDto,
     @Req() request: Request,
   ) {
-    return this.doctorVerificationService.submit(user.sub, dto, {
-      ipAddress: request.ip,
-      userAgent: request.get('user-agent') ?? null,
-    });
+    return this.doctorVerificationService.submit(
+      user.sub,
+      dto,
+      getRequestContext(request),
+    );
   }
 }

@@ -1,4 +1,6 @@
 import { Button } from "@/components/ui/button";
+import { type Locale } from "@/i18n";
+import { formatAdminDateTime } from "@/lib/date-format";
 import { type TranslationFunction } from "@/lib/i18n";
 import { type RegisteredUser } from "@/types/admin";
 
@@ -7,11 +9,12 @@ import { AdminUserRoleBadge } from "./AdminUserRoleBadge";
 import { AdminUserStatusBadge } from "./AdminUserStatusBadge";
 
 type AdminUsersTableProps = {
+  locale: Locale;
   t: TranslationFunction;
   users: RegisteredUser[];
 };
 
-export function AdminUsersTable({ t, users }: AdminUsersTableProps) {
+export function AdminUsersTable({ locale, t, users }: AdminUsersTableProps) {
   if (users.length === 0) {
     return (
       <div className="rounded-2xl border border-dashed border-slate-300 bg-white p-10 text-center text-sm text-slate-500">
@@ -53,7 +56,9 @@ export function AdminUsersTable({ t, users }: AdminUsersTableProps) {
                 <td className="px-5 py-4">
                   <VerificationStatusBadge status={user.verificationStatus} t={t} />
                 </td>
-                <td className="px-5 py-4 text-slate-600">{user.createdAt}</td>
+                <td className="px-5 py-4 text-slate-600">
+                  {formatAdminDateTime(user.createdAt, locale)}
+                </td>
                 <td className="px-5 py-4">
                   <div className="flex gap-2">
                     <Button type="button" variant="outline" size="sm">

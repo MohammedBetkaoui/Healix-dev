@@ -65,7 +65,7 @@ export function AdminUsersPage() {
           </div>
         ) : (
           <>
-            <AdminUsersTable t={t} users={data?.data ?? []} />
+            <AdminUsersTable locale={locale} t={t} users={data?.data ?? []} />
             <p className="text-sm text-slate-500">
               {t("admin.users.pagination", {
                 page: data?.meta.page ?? 1,

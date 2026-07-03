@@ -15,6 +15,7 @@ import { type AdminAuthenticatedRequest } from '../../admin-auth/types/admin-aut
 import { Roles } from '../../common/decorators/roles.decorator';
 import { UserRole } from '../../common/enums/user-role.enum';
 import { RolesGuard } from '../../common/guards/roles.guard';
+import { getRequestContext } from '../../common/utils/request-context';
 import { ListUsersQueryDto } from './dto/list-users-query.dto';
 import { SuspendUserDto } from './dto/suspend-user.dto';
 import { AdminUsersService } from './admin-users.service';
@@ -35,10 +36,11 @@ export class AdminUsersController {
     @Param('id') id: string,
     @Req() request: AdminAuthenticatedRequest,
   ) {
-    return this.usersService.getUserById(id, request.user.sub, {
-      ipAddress: request.ip,
-      userAgent: request.get('user-agent') ?? null,
-    });
+    return this.usersService.getUserById(
+      id,
+      request.user.sub,
+      getRequestContext(request),
+    );
   }
 
   @Patch(':id/suspend')
@@ -48,10 +50,12 @@ export class AdminUsersController {
     @Body() dto: SuspendUserDto,
     @Req() request: AdminAuthenticatedRequest,
   ) {
-    return this.usersService.suspendUser(id, request.user.sub, dto, {
-      ipAddress: request.ip,
-      userAgent: request.get('user-agent') ?? null,
-    });
+    return this.usersService.suspendUser(
+      id,
+      request.user.sub,
+      dto,
+      getRequestContext(request),
+    );
   }
 
   @Patch(':id/reactivate')
@@ -60,9 +64,10 @@ export class AdminUsersController {
     @Param('id') id: string,
     @Req() request: AdminAuthenticatedRequest,
   ) {
-    return this.usersService.reactivateUser(id, request.user.sub, {
-      ipAddress: request.ip,
-      userAgent: request.get('user-agent') ?? null,
-    });
+    return this.usersService.reactivateUser(
+      id,
+      request.user.sub,
+      getRequestContext(request),
+    );
   }
 }

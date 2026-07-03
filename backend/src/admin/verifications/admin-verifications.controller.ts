@@ -17,6 +17,7 @@ import { type AdminAuthenticatedRequest } from '../../admin-auth/types/admin-aut
 import { Roles } from '../../common/decorators/roles.decorator';
 import { UserRole } from '../../common/enums/user-role.enum';
 import { RolesGuard } from '../../common/guards/roles.guard';
+import { getRequestContext } from '../../common/utils/request-context';
 import { AdminVerificationsService } from './admin-verifications.service';
 import { ApproveVerificationDto } from './dto/approve-verification.dto';
 import { ListVerificationsQueryDto } from './dto/list-verifications-query.dto';
@@ -43,10 +44,7 @@ export class AdminVerificationsController {
     return this.verificationsService.getVerificationById(
       id,
       request.user.sub,
-      {
-        ipAddress: request.ip,
-        userAgent: request.get('user-agent') ?? null,
-      },
+      getRequestContext(request),
     );
   }
 
@@ -61,10 +59,7 @@ export class AdminVerificationsController {
       id,
       request.user.sub,
       dto,
-      {
-        ipAddress: request.ip,
-        userAgent: request.get('user-agent') ?? null,
-      },
+      getRequestContext(request),
     );
   }
 
@@ -79,10 +74,7 @@ export class AdminVerificationsController {
       id,
       request.user.sub,
       dto,
-      {
-        ipAddress: request.ip,
-        userAgent: request.get('user-agent') ?? null,
-      },
+      getRequestContext(request),
     );
   }
 
@@ -98,10 +90,7 @@ export class AdminVerificationsController {
       documentId,
       request.user.sub,
       'inline',
-      {
-        ipAddress: request.ip,
-        userAgent: request.get('user-agent') ?? null,
-      },
+      getRequestContext(request),
     );
 
     response.setHeader('Content-Type', document.mimeType);
@@ -126,10 +115,7 @@ export class AdminVerificationsController {
       documentId,
       request.user.sub,
       'attachment',
-      {
-        ipAddress: request.ip,
-        userAgent: request.get('user-agent') ?? null,
-      },
+      getRequestContext(request),
     );
 
     response.setHeader('Content-Type', document.mimeType);

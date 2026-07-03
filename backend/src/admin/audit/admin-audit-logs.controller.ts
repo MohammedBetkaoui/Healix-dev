@@ -5,6 +5,7 @@ import { type AdminAuthenticatedRequest } from '../../admin-auth/types/admin-aut
 import { Roles } from '../../common/decorators/roles.decorator';
 import { UserRole } from '../../common/enums/user-role.enum';
 import { RolesGuard } from '../../common/guards/roles.guard';
+import { getRequestContext } from '../../common/utils/request-context';
 import { AdminAuditLogsService } from './admin-audit-logs.service';
 import { ListAuditLogsQueryDto } from './dto/list-audit-logs-query.dto';
 
@@ -24,9 +25,10 @@ export class AdminAuditLogsController {
     @Param('id') id: string,
     @Req() request: AdminAuthenticatedRequest,
   ) {
-    return this.auditLogsService.getAuditLogById(id, request.user.sub, {
-      ipAddress: request.ip,
-      userAgent: request.get('user-agent') ?? null,
-    });
+    return this.auditLogsService.getAuditLogById(
+      id,
+      request.user.sub,
+      getRequestContext(request),
+    );
   }
 }

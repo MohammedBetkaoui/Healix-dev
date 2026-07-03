@@ -11,6 +11,7 @@ import { AuthGuard } from '@nestjs/passport';
 import { Throttle } from '@nestjs/throttler';
 import { type Request, type Response } from 'express';
 
+import { getRequestContext } from '../common/utils/request-context';
 import { AdminAuthService } from './admin-auth.service';
 import { AdminLoginDto } from './dto/admin-login.dto';
 import { AdminJwtGuard } from './guards/admin-jwt.guard';
@@ -27,10 +28,7 @@ export class AdminAuthController {
     @Req() request: Request,
     @Res({ passthrough: true }) response: Response,
   ) {
-    return this.adminAuthService.login(dto, response, {
-      ipAddress: request.ip,
-      userAgent: request.get('user-agent') ?? null,
-    });
+    return this.adminAuthService.login(dto, response, getRequestContext(request));
   }
 
   @Get('me')
@@ -45,10 +43,11 @@ export class AdminAuthController {
     @Req() request: AdminAuthenticatedRequest,
     @Res({ passthrough: true }) response: Response,
   ) {
-    return this.adminAuthService.refreshSession(request.user, response, {
-      ipAddress: request.ip,
-      userAgent: request.get('user-agent') ?? null,
-    });
+    return this.adminAuthService.refreshSession(
+      request.user,
+      response,
+      getRequestContext(request),
+    );
   }
 
   @Post('logout')
@@ -56,9 +55,10 @@ export class AdminAuthController {
     @Req() request: Request,
     @Res({ passthrough: true }) response: Response,
   ) {
-    return this.adminAuthService.logout(request, response, {
-      ipAddress: request.ip,
-      userAgent: request.get('user-agent') ?? null,
-    });
+    return this.adminAuthService.logout(
+      request,
+      response,
+      getRequestContext(request),
+    );
   }
 }

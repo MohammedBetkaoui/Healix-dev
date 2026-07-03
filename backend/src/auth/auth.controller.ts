@@ -11,6 +11,7 @@ import { Throttle } from '@nestjs/throttler';
 import { type Request, type Response } from 'express';
 import { AuthGuard } from '@nestjs/passport';
 
+import { getRequestContext } from '../common/utils/request-context';
 import { AuthService } from './auth.service';
 import { LoginDto } from './dto/login.dto';
 import { RegisterEstablishmentDto } from './dto/register-establishment.dto';
@@ -29,10 +30,7 @@ export class AuthController {
     @Req() request: Request,
     @Res({ passthrough: true }) response: Response,
   ) {
-    return this.authService.login(dto, response, {
-      ipAddress: request.ip,
-      userAgent: request.get('user-agent') ?? null,
-    });
+    return this.authService.login(dto, response, getRequestContext(request));
   }
 
   @Post('register-establishment')
@@ -40,10 +38,10 @@ export class AuthController {
     @Body() dto: RegisterEstablishmentDto,
     @Req() request: Request,
   ) {
-    return this.authService.registerEstablishment(dto, {
-      ipAddress: request.ip,
-      userAgent: request.get('user-agent') ?? null,
-    });
+    return this.authService.registerEstablishment(
+      dto,
+      getRequestContext(request),
+    );
   }
 
   @Post('register-independent-doctor')
@@ -51,10 +49,10 @@ export class AuthController {
     @Body() dto: RegisterIndependentDoctorDto,
     @Req() request: Request,
   ) {
-    return this.authService.registerIndependentDoctor(dto, {
-      ipAddress: request.ip,
-      userAgent: request.get('user-agent') ?? null,
-    });
+    return this.authService.registerIndependentDoctor(
+      dto,
+      getRequestContext(request),
+    );
   }
 
   @Get('me')
@@ -69,10 +67,11 @@ export class AuthController {
     @Req() request: AuthenticatedRequest,
     @Res({ passthrough: true }) response: Response,
   ) {
-    return this.authService.refreshSession(request.user, response, {
-      ipAddress: request.ip,
-      userAgent: request.get('user-agent') ?? null,
-    });
+    return this.authService.refreshSession(
+      request.user,
+      response,
+      getRequestContext(request),
+    );
   }
 
   @Post('logout')
@@ -80,9 +79,6 @@ export class AuthController {
     @Req() request: Request,
     @Res({ passthrough: true }) response: Response,
   ) {
-    return this.authService.logout(request, response, {
-      ipAddress: request.ip,
-      userAgent: request.get('user-agent') ?? null,
-    });
+    return this.authService.logout(request, response, getRequestContext(request));
   }
 }

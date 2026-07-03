@@ -111,7 +111,7 @@ export const establishmentNavSections: DashboardNavSection[] = [
         labelKey: "dashboard.sidebar.establishment.verification",
       },
       {
-        href: "#subscription",
+        href: "/establishment/subscription",
         icon: CreditCard,
         key: "subscription",
         labelKey: "dashboard.sidebar.establishment.subscription",
@@ -225,7 +225,7 @@ export const doctorNavSections: DashboardNavSection[] = [
         labelKey: "dashboard.sidebar.doctor.verification",
       },
       {
-        href: "#subscription",
+        href: "/doctor/subscription",
         icon: CreditCard,
         key: "subscription",
         labelKey: "dashboard.sidebar.doctor.subscription",
