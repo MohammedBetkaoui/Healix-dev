@@ -97,6 +97,7 @@ export function AdminAuditLogsPage() {
         ) : (
           <>
             <AdminAuditLogsTable
+              locale={locale}
               logs={filteredLogs}
               onViewDetails={setSelectedLog}
               t={t}
@@ -132,6 +133,7 @@ export function AdminAuditLogsPage() {
         )}
       </div>
       <AdminAuditLogDetailModal
+        locale={locale}
         log={selectedLog}
         onClose={() => setSelectedLog(null)}
         t={t}

@@ -18,7 +18,101 @@ export const adminAr = {
     viewFile: "عرض الملف",
   },
   audit: {
+    actions: {
+      ADMIN_DOWNLOADED_VERIFICATION_DOCUMENT: {
+        description: "قام {actor} بتحميل وثيقة مرتبطة بـ {entity}.",
+        label: "تحميل وثيقة",
+      },
+      ADMIN_LOGIN_FAILED: {
+        description: "فشلت محاولة دخول إلى فضاء الإدارة باسم {actor}.",
+        label: "فشل دخول الإدارة",
+      },
+      ADMIN_LOGIN_SUCCESS: {
+        description: "سجل {actor} الدخول بنجاح إلى فضاء الإدارة.",
+        label: "دخول الإدارة بنجاح",
+      },
+      ADMIN_LOGOUT: {
+        description: "غادر {actor} فضاء الإدارة.",
+        label: "خروج من الإدارة",
+      },
+      ADMIN_REFRESH_TOKEN_FAILED: {
+        description: "فشل تجديد جلسة الإدارة الخاصة بـ {actor}.",
+        label: "فشل تجديد الجلسة",
+      },
+      ADMIN_REFRESH_TOKEN_USED: {
+        description: "تم تجديد جلسة الإدارة الخاصة بـ {actor} بشكل آمن.",
+        label: "تجديد الجلسة",
+      },
+      ADMIN_VIEWED_AUDIT_LOG: {
+        description: "اطلع {actor} على سجل تدقيق.",
+        label: "عرض سجل تدقيق",
+      },
+      ADMIN_VIEWED_USER: {
+        description: "اطلع {actor} على ملف مستخدم.",
+        label: "عرض مستخدم",
+      },
+      ADMIN_VIEWED_VERIFICATION: {
+        description: "فتح {actor} ملف تحقق للمراجعة.",
+        label: "عرض ملف تحقق",
+      },
+      ADMIN_VIEWED_VERIFICATION_DOCUMENT: {
+        description: "عاين {actor} وثيقة مرسلة ضمن {entity}.",
+        label: "معاينة وثيقة",
+      },
+      DOCTOR_VERIFICATION_SUBMITTED: {
+        description: "أرسل طبيب مستقل طلب تحقق مهني.",
+        label: "إرسال تحقق طبيب",
+      },
+      ESTABLISHMENT_VERIFICATION_SUBMITTED: {
+        description: "أرسلت مؤسسة صحية طلب تحقق مهني.",
+        label: "إرسال تحقق مؤسسة",
+      },
+      LOGOUT: {
+        description: "سجل {actor} الخروج من المنصة.",
+        label: "خروج مستخدم",
+      },
+      USER_REACTIVATED: {
+        description: "أعاد {actor} تفعيل حساب مستخدم.",
+        label: "إعادة تفعيل حساب",
+      },
+      USER_SUSPENDED: {
+        description: "علّق {actor} حساب مستخدم.",
+        label: "تعليق حساب",
+      },
+      VERIFICATION_APPROVED: {
+        description: "قبل {actor} طلب تحقق مهني.",
+        label: "قبول الطلب",
+      },
+      VERIFICATION_REJECTED: {
+        description: "رفض {actor} طلب تحقق مهني.",
+        label: "رفض الطلب",
+      },
+    },
+    detail: {
+      action: "الإجراء المنفذ",
+      actor: "الفاعل",
+      contextDescription:
+        "هذه المعلومات مأخوذة من سجل الأمان وتساعد على فهم سياق الإجراء.",
+      contextTitle: "السياق المسجل",
+      date: "التاريخ والوقت",
+      defaultDescription: "قام {actor} بتنفيذ الإجراء « {action} » على {entity}.",
+      device: "الجهاز والمتصفح",
+      entity: "المورد المعني",
+      entityId: "معرف المورد",
+      ip: "عنوان IP",
+      noMetadata: "لا توجد بيانات إضافية غير حساسة مرتبطة بهذا الحدث.",
+      role: "الدور",
+      structuredData: "بيانات منظمة متاحة",
+      unknownDevice: "الجهاز غير محدد",
+    },
     detailTitle: "تفاصيل سجل التدقيق",
+    entities: {
+      AUTH_SESSION: "جلسة المصادقة",
+      AUDIT_LOG: "سجل التدقيق",
+      USER: "حساب مستخدم",
+      VERIFICATION_DOCUMENT: "وثيقة تحقق",
+      VERIFICATION_REQUEST: "طلب تحقق",
+    },
     error: "تعذر تحميل سجلات التدقيق.",
     filters: {
       action: "نوع الإجراء",
@@ -33,6 +127,18 @@ export const adminAr = {
       title: "سجلات التدقيق",
     },
     loading: "جاري تحميل سجلات التدقيق...",
+    metadata: {
+      adminNote: "ملاحظة الإدارة",
+      currentStep: "المرحلة الحالية",
+      documentType: "نوع الوثيقة",
+      email: "البريد المعني",
+      reason: "السبب",
+      role: "الدور المعني",
+      status: "الحالة",
+      type: "نوع الطلب",
+      userId: "المستخدم المعني",
+      verificationRequestId: "طلب التحقق المعني",
+    },
     pagination: "الصفحة {page} من {totalPages} · {total} نتيجة",
     table: {
       action: "الإجراء",

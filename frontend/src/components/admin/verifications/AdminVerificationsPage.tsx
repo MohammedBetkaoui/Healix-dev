@@ -131,7 +131,11 @@ export function AdminVerificationsPage() {
           </div>
         ) : (
           <>
-            <VerificationsTable requests={filteredRequests} t={t} />
+            <VerificationsTable
+              locale={locale}
+              requests={filteredRequests}
+              t={t}
+            />
             <div className="flex flex-col gap-3 rounded-2xl border border-slate-200 bg-white p-4 shadow-sm sm:flex-row sm:items-center sm:justify-between">
               <p className="text-sm text-slate-500">
                 {t("admin.verifications.pagination", {

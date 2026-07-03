@@ -1,12 +1,16 @@
 "use client";
 
 import { Button } from "@/components/ui/button";
+import { type Locale } from "@/i18n";
+import { formatAdminDateTime } from "@/lib/date-format";
 import { type TranslationFunction } from "@/lib/i18n";
 import { type AdminAuditLogItem } from "@/types/admin";
 
 import { AdminAuditActionBadge } from "./AdminAuditActionBadge";
+import { getAuditEntityLabel } from "./audit-presentation";
 
 type AdminAuditLogsTableProps = {
+  locale: Locale;
   logs: AdminAuditLogItem[];
   onViewDetails: (log: AdminAuditLogItem) => void;
   t: TranslationFunction;
@@ -31,6 +35,7 @@ export function getAuditStatus(action: string): "FAILED" | "INFO" | "SUCCESS" {
 }
 
 export function AdminAuditLogsTable({
+  locale,
   logs,
   onViewDetails,
   t,
@@ -62,7 +67,9 @@ export function AdminAuditLogsTable({
           <tbody className="divide-y divide-slate-100">
             {logs.map((log) => (
               <tr key={log.id}>
-                <td className="px-5 py-4 text-slate-600">{log.createdAt}</td>
+                <td className="px-5 py-4 text-slate-600">
+                  {formatAdminDateTime(log.createdAt, locale)}
+                </td>
                 <td className="px-5 py-4 font-semibold text-slate-950">
                   {log.userName ?? t("admin.common.system")}
                 </td>
@@ -70,9 +77,11 @@ export function AdminAuditLogsTable({
                   {log.userRole ?? "-"}
                 </td>
                 <td className="px-5 py-4">
-                  <AdminAuditActionBadge action={log.action} />
+                  <AdminAuditActionBadge action={log.action} t={t} />
                 </td>
-                <td className="px-5 py-4 text-slate-600">{log.entityType}</td>
+                <td className="px-5 py-4 text-slate-600">
+                  {getAuditEntityLabel(log.entityType, t)}
+                </td>
                 <td className="px-5 py-4 text-slate-600">
                   {log.ipAddress ?? "-"}
                 </td>

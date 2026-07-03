@@ -1,6 +1,8 @@
 import Link from "next/link";
 
 import { adminRoutes } from "@/config/admin-routes";
+import { type Locale } from "@/i18n";
+import { formatAdminDateTime } from "@/lib/date-format";
 import { type TranslationFunction } from "@/lib/i18n";
 import { type AdminVerificationListItem } from "@/types/admin";
 
@@ -9,11 +11,16 @@ import { VerificationStatusBadge } from "./VerificationStatusBadge";
 import { VerificationTypeBadge } from "./VerificationTypeBadge";
 
 type VerificationsTableProps = {
+  locale: Locale;
   requests: AdminVerificationListItem[];
   t: TranslationFunction;
 };
 
-export function VerificationsTable({ requests, t }: VerificationsTableProps) {
+export function VerificationsTable({
+  locale,
+  requests,
+  t,
+}: VerificationsTableProps) {
   if (requests.length === 0) {
     return (
       <div className="rounded-2xl border border-dashed border-slate-300 bg-white p-10 text-center text-sm text-slate-500">
@@ -60,9 +67,11 @@ export function VerificationsTable({ requests, t }: VerificationsTableProps) {
                   })}
                 </td>
                 <td className="px-5 py-4 text-slate-600">
-                  {request.submittedAt ?? "-"}
+                  {formatAdminDateTime(request.submittedAt, locale)}
                 </td>
-                <td className="px-5 py-4 text-slate-600">{request.updatedAt}</td>
+                <td className="px-5 py-4 text-slate-600">
+                  {formatAdminDateTime(request.updatedAt, locale)}
+                </td>
                 <td className="px-5 py-4">
                   <VerificationCompletenessBadge
                     score={request.completenessScore}
@@ -104,6 +113,20 @@ export function VerificationsTable({ requests, t }: VerificationsTableProps) {
               <span className="rounded-full bg-white px-2.5 py-1 text-xs font-semibold text-slate-600">
                 {request.wilaya}
               </span>
+            </div>
+            <div className="mt-4 grid gap-2 rounded-xl border border-slate-200 bg-white p-3 text-xs text-slate-500">
+              <p>
+                <span className="font-semibold text-slate-700">
+                  {t("admin.verifications.table.submittedAt")}:
+                </span>{" "}
+                {formatAdminDateTime(request.submittedAt, locale)}
+              </p>
+              <p>
+                <span className="font-semibold text-slate-700">
+                  {t("admin.verifications.table.updatedAt")}:
+                </span>{" "}
+                {formatAdminDateTime(request.updatedAt, locale)}
+              </p>
             </div>
             <Link
               href={adminRoutes.verificationDetail(request.id)}

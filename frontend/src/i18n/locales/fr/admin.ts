@@ -18,7 +18,113 @@ export const adminFr = {
     viewFile: "Voir dossier",
   },
   audit: {
+    actions: {
+      ADMIN_DOWNLOADED_VERIFICATION_DOCUMENT: {
+        description:
+          "{actor} a téléchargé un document rattaché à {entity}.",
+        label: "Document téléchargé",
+      },
+      ADMIN_LOGIN_FAILED: {
+        description:
+          "Une tentative de connexion administrateur a échoué pour {actor}.",
+        label: "Connexion admin échouée",
+      },
+      ADMIN_LOGIN_SUCCESS: {
+        description:
+          "{actor} s'est connecté avec succès à l'espace d'administration.",
+        label: "Connexion admin réussie",
+      },
+      ADMIN_LOGOUT: {
+        description: "{actor} a quitté l'espace d'administration.",
+        label: "Déconnexion admin",
+      },
+      ADMIN_REFRESH_TOKEN_FAILED: {
+        description:
+          "Le renouvellement de session administrateur a échoué pour {actor}.",
+        label: "Renouvellement refusé",
+      },
+      ADMIN_REFRESH_TOKEN_USED: {
+        description:
+          "La session administrateur de {actor} a été renouvelée de manière sécurisée.",
+        label: "Session renouvelée",
+      },
+      ADMIN_VIEWED_AUDIT_LOG: {
+        description: "{actor} a consulté un journal d'audit.",
+        label: "Audit consulté",
+      },
+      ADMIN_VIEWED_USER: {
+        description: "{actor} a consulté un profil utilisateur.",
+        label: "Utilisateur consulté",
+      },
+      ADMIN_VIEWED_VERIFICATION: {
+        description:
+          "{actor} a ouvert un dossier de vérification pour analyse.",
+        label: "Dossier consulté",
+      },
+      ADMIN_VIEWED_VERIFICATION_DOCUMENT: {
+        description:
+          "{actor} a prévisualisé un document soumis dans {entity}.",
+        label: "Document consulté",
+      },
+      DOCTOR_VERIFICATION_SUBMITTED: {
+        description:
+          "Un médecin indépendant a soumis une demande de vérification.",
+        label: "Vérification médecin soumise",
+      },
+      ESTABLISHMENT_VERIFICATION_SUBMITTED: {
+        description:
+          "Un établissement a soumis une demande de vérification.",
+        label: "Vérification établissement soumise",
+      },
+      LOGOUT: {
+        description: "{actor} s'est déconnecté de la plateforme.",
+        label: "Déconnexion utilisateur",
+      },
+      USER_REACTIVATED: {
+        description: "{actor} a réactivé un compte utilisateur.",
+        label: "Compte réactivé",
+      },
+      USER_SUSPENDED: {
+        description: "{actor} a suspendu un compte utilisateur.",
+        label: "Compte suspendu",
+      },
+      VERIFICATION_APPROVED: {
+        description:
+          "{actor} a approuvé une demande de vérification professionnelle.",
+        label: "Demande approuvée",
+      },
+      VERIFICATION_REJECTED: {
+        description:
+          "{actor} a refusé une demande de vérification professionnelle.",
+        label: "Demande refusée",
+      },
+    },
+    detail: {
+      action: "Action effectuée",
+      actor: "Acteur",
+      contextDescription:
+        "Ces informations proviennent du journal sécurisé et servent à comprendre le contexte de l'action.",
+      contextTitle: "Contexte enregistré",
+      date: "Date et heure",
+      defaultDescription:
+        "{actor} a effectué l'action « {action} » sur {entity}.",
+      device: "Appareil et navigateur",
+      entity: "Ressource concernée",
+      entityId: "ID ressource",
+      ip: "Adresse IP",
+      noMetadata: "Aucune métadonnée non sensible n'est associée à cet événement.",
+      role: "Rôle",
+      structuredData: "Données structurées disponibles",
+      unknownDevice: "Appareil non renseigné",
+    },
     detailTitle: "Détails de l'audit",
+    entities: {
+      AUTH_SESSION: "Session d'authentification",
+      AUDIT_LOG: "Journal d'audit",
+      USER: "Compte utilisateur",
+      VERIFICATION_DOCUMENT: "Document de vérification",
+      VERIFICATION_REQUEST: "Demande de vérification",
+    },
     error: "Impossible de charger les audit logs.",
     filters: {
       action: "Type d'action",
@@ -34,6 +140,18 @@ export const adminFr = {
       title: "Audit logs",
     },
     loading: "Chargement des audit logs...",
+    metadata: {
+      adminNote: "Note administrateur",
+      currentStep: "Étape actuelle",
+      documentType: "Type de document",
+      email: "Email concerné",
+      reason: "Raison",
+      role: "Rôle concerné",
+      status: "Statut",
+      type: "Type de demande",
+      userId: "Utilisateur concerné",
+      verificationRequestId: "Demande concernée",
+    },
     pagination: "Page {page} sur {totalPages} · {total} résultats",
     table: {
       action: "Action",
