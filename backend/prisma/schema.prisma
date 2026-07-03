@@ -57,6 +57,39 @@ enum VerificationRequestType {
   INDEPENDENT_DOCTOR
 }
 
+enum AccountType {
+  ESTABLISHMENT
+  INDEPENDENT_DOCTOR
+}
+
+enum BillingPeriod {
+  MONTHLY
+  ANNUAL
+}
+
+enum PaymentMethod {
+  SYNTHETIC_CHARGILY
+  MANUAL_CASH
+  MANUAL_POST_TRANSFER
+  BARIDIMOB_RECEIPT
+}
+
+enum PaymentStatus {
+  CREATED
+  WAITING_PAYMENT
+  WAITING_ADMIN_REVIEW
+  PAID
+  REJECTED
+  FAILED
+  CANCELED
+  EXPIRED
+}
+
+enum PaymentProofDocumentType {
+  POST_TRANSFER_PROOF
+  BARIDIMOB_RECEIPT
+}
+
 enum VerificationStep {
   ESTABLISHMENT_INFO
   LEGAL_INFO
@@ -160,6 +193,9 @@ model User {
   auditLogs                    AuditLog[]
   verificationRequests         VerificationRequest[] @relation("VerificationRequestUser")
   reviewedVerificationRequests VerificationRequest[] @relation("VerificationReviewedBy")
+  subscriptions                Subscription[]        @relation("SubscriptionUser")
+  payments                     Payment[]             @relation("PaymentUser")
+  reviewedPayments             Payment[]             @relation("PaymentReviewedBy")
 
   @@map("users")
 }
@@ -380,4 +416,113 @@ model VerificationDocument {
   @@unique([verificationRequestId, documentType])
   @@index([verificationRequestId])
   @@map("verification_documents")
+}
+
+model SubscriptionPlan {
+  id           String      @id @default(cuid())
+  name         String      @db.VarChar(120)
+  code         String      @unique @db.VarChar(80)
+  accountType  AccountType @map("account_type")
+  description  String?     @db.Text
+  monthlyPrice Int?        @map("monthly_price")
+  annualPrice  Int?        @map("annual_price")
+  currency     String      @default("DZD") @db.VarChar(8)
+  features     Json?
+  limits       Json?
+  recommended  Boolean     @default(false)
+  custom       Boolean     @default(false)
+  active       Boolean     @default(true)
+  createdAt    DateTime    @default(now()) @map("created_at")
+  updatedAt    DateTime    @updatedAt @map("updated_at")
+
+  subscriptions Subscription[]
+  payments      Payment[]
+
+  @@index([accountType])
+  @@index([active])
+  @@map("subscription_plans")
+}
+
+model Subscription {
+  id            String             @id @default(cuid())
+  userId        String             @map("user_id")
+  planId        String             @map("plan_id")
+  accountType   AccountType        @map("account_type")
+  status        SubscriptionStatus
+  billingPeriod BillingPeriod      @map("billing_period")
+  startedAt     DateTime?          @map("started_at")
+  expiresAt     DateTime?          @map("expires_at")
+  canceledAt    DateTime?          @map("canceled_at")
+  createdAt     DateTime           @default(now()) @map("created_at")
+  updatedAt     DateTime           @updatedAt @map("updated_at")
+
+  user     User             @relation("SubscriptionUser", fields: [userId], references: [id], onDelete: Cascade)
+  plan     SubscriptionPlan @relation(fields: [planId], references: [id])
+  payments Payment[]
+
+  @@index([userId])
+  @@index([planId])
+  @@index([status])
+  @@map("subscriptions")
+}
+
+model Payment {
+  id                String        @id @default(cuid())
+  userId            String        @map("user_id")
+  subscriptionId    String?       @map("subscription_id")
+  planId            String        @map("plan_id")
+  accountType       AccountType   @map("account_type")
+  method            PaymentMethod
+  status            PaymentStatus
+  amount            Int
+  currency          String        @default("DZD") @db.VarChar(8)
+  billingPeriod     BillingPeriod @map("billing_period")
+  reference         String        @unique @db.VarChar(80)
+  provider          String?       @db.VarChar(80)
+  providerPaymentId String?       @map("provider_payment_id") @db.VarChar(120)
+  providerStatus    String?       @map("provider_status") @db.VarChar(80)
+  syntheticMode     Boolean       @default(true) @map("synthetic_mode")
+  cardLast4         String?       @map("card_last4") @db.VarChar(4)
+  cardHolderName    String?       @map("card_holder_name") @db.VarChar(120)
+  proofDocumentId   String?       @map("proof_document_id")
+  adminNote         String?       @map("admin_note") @db.Text
+  rejectionReason   String?       @map("rejection_reason") @db.Text
+  paidAt            DateTime?     @map("paid_at")
+  reviewedAt        DateTime?     @map("reviewed_at")
+  reviewedById      String?       @map("reviewed_by_id")
+  createdAt         DateTime      @default(now()) @map("created_at")
+  updatedAt         DateTime      @updatedAt @map("updated_at")
+
+  user          User                  @relation("PaymentUser", fields: [userId], references: [id], onDelete: Cascade)
+  plan          SubscriptionPlan      @relation(fields: [planId], references: [id])
+  subscription  Subscription?         @relation(fields: [subscriptionId], references: [id])
+  reviewedBy    User?                 @relation("PaymentReviewedBy", fields: [reviewedById], references: [id], onDelete: SetNull)
+  proofDocument PaymentProofDocument?
+
+  @@index([userId])
+  @@index([subscriptionId])
+  @@index([planId])
+  @@index([status])
+  @@index([method])
+  @@index([reviewedById])
+  @@map("payments")
+}
+
+model PaymentProofDocument {
+  id           String                   @id @default(cuid())
+  paymentId    String                   @unique @map("payment_id")
+  documentType PaymentProofDocumentType @map("document_type")
+  originalName String                   @map("original_name") @db.VarChar(255)
+  storedName   String                   @map("stored_name") @db.VarChar(255)
+  mimeType     String                   @map("mime_type") @db.VarChar(100)
+  size         Int
+  localPath    String                   @map("local_path") @db.VarChar(500)
+  checksum     String?                  @db.VarChar(128)
+  uploadedAt   DateTime                 @default(now()) @map("uploaded_at")
+  createdAt    DateTime                 @default(now()) @map("created_at")
+  updatedAt    DateTime                 @updatedAt @map("updated_at")
+
+  payment Payment @relation(fields: [paymentId], references: [id], onDelete: Cascade)
+
+  @@map("payment_proof_documents")
 }

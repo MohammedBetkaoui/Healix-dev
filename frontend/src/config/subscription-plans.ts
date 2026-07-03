@@ -17,7 +17,7 @@ export const doctorSubscriptionPlans: SubscriptionPlan[] = [
       "subscription.plans.doctor.starter.features.ai",
       "subscription.plans.doctor.starter.features.support",
     ],
-    id: "doctor-starter",
+    id: "DOCTOR_STARTER",
     limits: [
       "subscription.plans.doctor.starter.limits.patients",
       "subscription.plans.doctor.starter.limits.ai",
@@ -42,7 +42,7 @@ export const doctorSubscriptionPlans: SubscriptionPlan[] = [
       "subscription.plans.doctor.pro.features.exportPdf",
       "subscription.plans.doctor.pro.features.prioritySupport",
     ],
-    id: "doctor-pro",
+    id: "DOCTOR_PRO",
     limits: [
       "subscription.plans.doctor.pro.limits.patients",
       "subscription.plans.doctor.pro.limits.ai",
@@ -66,7 +66,7 @@ export const doctorSubscriptionPlans: SubscriptionPlan[] = [
       "subscription.plans.doctor.premium.features.priorityAi",
       "subscription.plans.doctor.premium.features.support",
     ],
-    id: "doctor-premium-ai",
+    id: "DOCTOR_PREMIUM_AI",
     limits: [
       "subscription.plans.doctor.premium.limits.patients",
       "subscription.plans.doctor.premium.limits.ai",
@@ -92,7 +92,7 @@ export const establishmentSubscriptionPlans: SubscriptionPlan[] = [
       "subscription.plans.establishment.basic.features.ai",
       "subscription.plans.establishment.basic.features.support",
     ],
-    id: "establishment-basic-clinic",
+    id: "EST_BASIC_CLINIC",
     limits: [
       "subscription.plans.establishment.basic.limits.doctors",
       "subscription.plans.establishment.basic.limits.patients",
@@ -117,7 +117,7 @@ export const establishmentSubscriptionPlans: SubscriptionPlan[] = [
       "subscription.plans.establishment.pro.features.services",
       "subscription.plans.establishment.pro.features.support",
     ],
-    id: "establishment-pro-center",
+    id: "EST_PRO_CENTER",
     limits: [
       "subscription.plans.establishment.pro.limits.doctors",
       "subscription.plans.establishment.pro.limits.patients",
@@ -143,7 +143,7 @@ export const establishmentSubscriptionPlans: SubscriptionPlan[] = [
       "subscription.plans.establishment.enterprise.features.support",
       "subscription.plans.establishment.enterprise.features.fhir",
     ],
-    id: "establishment-enterprise",
+    id: "EST_ENTERPRISE",
     limits: [
       "subscription.plans.establishment.enterprise.limits.doctors",
       "subscription.plans.establishment.enterprise.limits.patients",
@@ -168,7 +168,7 @@ export const establishmentSubscriptionPlans: SubscriptionPlan[] = [
       "subscription.plans.establishment.custom.features.accompaniment",
       "subscription.plans.establishment.custom.features.deployment",
     ],
-    id: "establishment-custom",
+    id: "EST_CUSTOM",
     limits: [
       "subscription.plans.establishment.custom.limits.scope",
       "subscription.plans.establishment.custom.limits.integration",

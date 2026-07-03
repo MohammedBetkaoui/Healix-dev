@@ -24,7 +24,11 @@ export type SubscriptionStatus =
 
 export type BillingPeriod = "MONTHLY" | "ANNUAL";
 
-export type PaymentMethod = "CHARGILY" | "MANUAL_TRANSFER" | "BARIDIMOB";
+export type PaymentMethod =
+  | "SYNTHETIC_CHARGILY"
+  | "MANUAL_CASH"
+  | "MANUAL_POST_TRANSFER"
+  | "BARIDIMOB_RECEIPT";
 
 export type SubscriptionPlan = {
   accountType: AccountType;

@@ -29,7 +29,11 @@ export function ManualPaymentNotice({
   plan,
   t,
 }: ManualPaymentNoticeProps) {
-  if (paymentMethod !== "MANUAL_TRANSFER" && paymentMethod !== "BARIDIMOB") {
+  if (
+    paymentMethod !== "MANUAL_POST_TRANSFER" &&
+    paymentMethod !== "BARIDIMOB_RECEIPT" &&
+    paymentMethod !== "MANUAL_CASH"
+  ) {
     return null;
   }
 
@@ -46,7 +50,9 @@ export function ManualPaymentNotice({
             {t("subscription.manual.title")}
           </h2>
           <p className="mt-2 text-sm leading-6 text-slate-600">
-            {t("subscription.manual.description")}
+            {paymentMethod === "MANUAL_CASH"
+              ? t("subscription.manual.cashDescription")
+              : t("subscription.manual.description")}
           </p>
         </div>
       </div>
@@ -61,7 +67,9 @@ export function ManualPaymentNotice({
           <dt className="text-xs font-semibold uppercase tracking-[0.12em] text-slate-500">
             {t("subscription.manual.reference")}
           </dt>
-          <dd className="mt-1 font-semibold text-slate-950">HLX-MOCK-2026</dd>
+          <dd className="mt-1 font-semibold text-slate-950">
+            {t("subscription.manual.generatedLater")}
+          </dd>
         </div>
         <div className="rounded-2xl bg-white p-4">
           <dt className="text-xs font-semibold uppercase tracking-[0.12em] text-slate-500">
@@ -76,12 +84,16 @@ export function ManualPaymentNotice({
             {t("subscription.manual.proof")}
           </dt>
           <dd className="mt-1 text-sm font-medium text-slate-600">
-            {t("subscription.manual.proofLater")}
+            {paymentMethod === "MANUAL_CASH"
+              ? t("subscription.manual.cashActivation")
+              : t("subscription.manual.proofLater")}
           </dd>
         </div>
       </dl>
       <Button type="button" disabled className="mt-5 rounded-full">
-        {t("subscription.manual.uploadSoon")}
+        {paymentMethod === "MANUAL_CASH"
+          ? t("subscription.manual.cashButton")
+          : t("subscription.manual.uploadSoon")}
       </Button>
     </section>
   );

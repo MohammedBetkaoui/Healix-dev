@@ -55,6 +55,7 @@ export const subscriptionFr = {
   checkout: {
     accountType: "Type de compte",
     confirm: "Confirmer et continuer",
+    loading: "Préparation du paiement...",
     method: "Méthode de paiement",
     noPaymentMethod: "Aucune méthode sélectionnée",
     noPlan: "Aucun plan sélectionné",
@@ -134,6 +135,12 @@ export const subscriptionFr = {
     reference: "Référence",
     title: "Paiement manuel",
     uploadSoon: "Envoyer la preuve bientôt disponible",
+    cashActivation:
+      "L'administration activera votre abonnement après réception du paiement.",
+    cashButton: "Activation par l'administration",
+    cashDescription:
+      "Une demande de paiement cash sera créée. L'administration validera l'abonnement après réception.",
+    generatedLater: "Générée après confirmation",
   },
   mock: {
     changePlanSoon: "Le changement de plan sera disponible bientôt.",
@@ -143,9 +150,10 @@ export const subscriptionFr = {
   },
   payment: {
     methodLabels: {
-      BARIDIMOB: "BaridiMob / CCP",
-      CHARGILY: "Chargily Pay",
-      MANUAL_TRANSFER: "Paiement manuel",
+      BARIDIMOB_RECEIPT: "BaridiMob / CCP",
+      MANUAL_CASH: "Paiement cash",
+      MANUAL_POST_TRANSFER: "Virement CCP",
+      SYNTHETIC_CHARGILY: "Chargily Pay démo",
     },
     methodTitle: "Méthode de paiement",
     methods: {
@@ -158,11 +166,60 @@ export const subscriptionFr = {
         title: "Chargily Pay",
       },
       manual: {
-        description: "Virement ou paiement manuel avec preuve de paiement.",
-        title: "Paiement manuel",
+        description: "Virement CCP avec preuve de paiement.",
+        title: "Virement postal",
+      },
+      cash: {
+        description:
+          "Paiement main à main avec activation par l'administration.",
+        title: "Paiement cash",
       },
     },
     recommended: "Recommandé",
+  },
+  paymentFlow: {
+    acceptedFormats: "PDF, JPG ou PNG - 5 MB maximum",
+    amount: "Montant",
+    baridimobTitle: "Paiement par BaridiMob",
+    cardDemo: "Carte de test démo",
+    cardHolder: "Nom sur la carte",
+    cardNumber: "Numéro de carte",
+    ccp: "CCP HealixDZ",
+    dashboard: "Retour au dashboard",
+    demoNotice:
+      "Cette page simule un paiement Chargily Pay. Aucun vrai paiement ne sera effectué.",
+    expiry: "Expiration",
+    manualTitle: "Paiement manuel par virement postal",
+    loading: "Chargement...",
+    pay: "Payer en mode démo",
+    paymentStatus: "Statut du paiement",
+    proofUpload: "Téléverser la preuve",
+    psv: "PSV",
+    reference: "Référence",
+    rejected: "Paiement refusé.",
+    security:
+      "Ne saisissez jamais une vraie carte bancaire. Ce flux est strictement démo.",
+    selectFile: "Choisir un fichier",
+    sendReceipt: "Envoyer le reçu BaridiMob",
+    sendProof: "Envoyer la preuve",
+    statusTitle: "Suivi du paiement",
+    syntheticTitle: "Paiement sécurisé simulé",
+    testCardNumber: "1234 1234 1234 1234",
+    testCardExpiry: "09/2030",
+    testCardPsv: "353",
+    testCardHolder: "BARKAOUI MOURAD",
+    waitingAdmin:
+      "Votre paiement est en attente de vérification par l'administration.",
+    status: {
+      CANCELED: "Annulé",
+      CREATED: "Créé",
+      EXPIRED: "Expiré",
+      FAILED: "Échoué",
+      PAID: "Payé",
+      REJECTED: "Refusé",
+      WAITING_ADMIN_REVIEW: "En attente de validation admin",
+      WAITING_PAYMENT: "En attente de paiement",
+    },
   },
   plans: {
     doctor: {

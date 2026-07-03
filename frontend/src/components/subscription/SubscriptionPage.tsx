@@ -20,6 +20,7 @@ import { SubscriptionStatusCard } from "@/components/subscription/SubscriptionSt
 import { VerificationAccessBanner } from "@/components/subscription/VerificationAccessBanner";
 import { getSubscriptionPlansByAccountType } from "@/config/subscription-plans";
 import { getMockSubscriptionContext } from "@/data/subscription.mock";
+import { useCreatePaymentIntent } from "@/features/payments/hooks/use-create-payment-intent";
 import { useStoredLocale, useTranslation } from "@/lib/i18n";
 import {
   type AccountType,
@@ -75,6 +76,11 @@ export function SubscriptionPage({ accountType }: SubscriptionPageProps) {
   const [selectedPlanId, setSelectedPlanId] = useState<string | undefined>();
   const [paymentMethod, setPaymentMethod] = useState<PaymentMethod | undefined>();
   const [toastMessage, setToastMessage] = useState<string | null>(null);
+  const {
+    createIntent,
+    error: paymentError,
+    isLoading: isCreatingPaymentIntent,
+  } = useCreatePaymentIntent();
 
   const plans = useMemo(
     () => getSubscriptionPlansByAccountType(accountType),
@@ -199,14 +205,29 @@ export function SubscriptionPage({ accountType }: SubscriptionPageProps) {
               billingPeriod={billingPeriod}
               canCheckout={canCheckout}
               context={context}
-              onConfirm={() =>
-                showMockToast(t("subscription.mock.paymentRedirect"))
-              }
+              isLoading={isCreatingPaymentIntent}
+              onConfirm={() => {
+                if (!selectedPlan || !paymentMethod) {
+                  return;
+                }
+
+                void createIntent({
+                  billingPeriod,
+                  paymentMethod,
+                  planId: selectedPlan.id,
+                });
+              }}
               paymentMethod={paymentMethod}
               plan={selectedPlan}
               t={t}
             />
           </section>
+        ) : null}
+
+        {paymentError ? (
+          <p className="rounded-2xl border border-rose-100 bg-rose-50 p-4 text-sm font-medium text-rose-700">
+            {paymentError}
+          </p>
         ) : null}
 
         <SubscriptionFAQ t={t} />

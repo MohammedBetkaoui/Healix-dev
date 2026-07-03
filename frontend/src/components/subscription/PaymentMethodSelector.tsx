@@ -16,19 +16,25 @@ const paymentMethods = [
     badgeKey: "subscription.payment.recommended",
     descriptionKey: "subscription.payment.methods.chargily.description",
     icon: CreditCard,
-    id: "CHARGILY",
+    id: "SYNTHETIC_CHARGILY",
     titleKey: "subscription.payment.methods.chargily.title",
   },
   {
     descriptionKey: "subscription.payment.methods.manual.description",
     icon: Landmark,
-    id: "MANUAL_TRANSFER",
+    id: "MANUAL_POST_TRANSFER",
     titleKey: "subscription.payment.methods.manual.title",
+  },
+  {
+    descriptionKey: "subscription.payment.methods.cash.description",
+    icon: Banknote,
+    id: "MANUAL_CASH",
+    titleKey: "subscription.payment.methods.cash.title",
   },
   {
     descriptionKey: "subscription.payment.methods.baridimob.description",
     icon: Banknote,
-    id: "BARIDIMOB",
+    id: "BARIDIMOB_RECEIPT",
     titleKey: "subscription.payment.methods.baridimob.title",
   },
 ] as const;
@@ -44,7 +50,7 @@ export function PaymentMethodSelector({
       <h2 className="text-lg font-semibold text-slate-950">
         {t("subscription.payment.methodTitle")}
       </h2>
-      <div className="mt-4 grid gap-3 md:grid-cols-3">
+      <div className="mt-4 grid gap-3 md:grid-cols-2 xl:grid-cols-4">
         {paymentMethods.map((method) => {
           const Icon = method.icon;
           const selected = selectedMethod === method.id;

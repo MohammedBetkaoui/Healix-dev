@@ -15,6 +15,7 @@ type CheckoutSummaryProps = {
   billingPeriod: BillingPeriod;
   canCheckout: boolean;
   context: SubscriptionContext;
+  isLoading?: boolean;
   onConfirm: () => void;
   paymentMethod?: PaymentMethod;
   plan?: SubscriptionPlan;
@@ -50,6 +51,7 @@ export function CheckoutSummary({
   billingPeriod,
   canCheckout,
   context,
+  isLoading = false,
   onConfirm,
   paymentMethod,
   plan,
@@ -131,10 +133,12 @@ export function CheckoutSummary({
       <Button
         type="button"
         className="mt-5 w-full rounded-full"
-        disabled={!canCheckout}
+        disabled={!canCheckout || isLoading}
         onClick={onConfirm}
       >
-        {t("subscription.checkout.confirm")}
+        {isLoading
+          ? t("subscription.checkout.loading")
+          : t("subscription.checkout.confirm")}
       </Button>
       {/* Payment confirmation must be verified later by backend webhook. Never activate a subscription from frontend only. */}
     </section>
