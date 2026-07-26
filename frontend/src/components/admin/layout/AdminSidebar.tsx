@@ -7,6 +7,7 @@ import {
   Settings,
   ShieldCheck,
   Users,
+  UsersRound,
 } from "lucide-react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
@@ -37,6 +38,12 @@ const navItems: AdminNavItem[] = [
     icon: ShieldCheck,
     key: "verifications",
     labelKey: "admin.layout.nav.verifications",
+  },
+  {
+    href: adminRoutes.patients,
+    icon: UsersRound,
+    key: "patients",
+    labelKey: "admin.layout.nav.patients",
   },
   {
     href: adminRoutes.users,

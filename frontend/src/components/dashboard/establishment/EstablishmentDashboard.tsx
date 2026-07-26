@@ -83,7 +83,7 @@ const establishmentDistributionPoints: DashboardBarPoint[] = [
 const establishmentQuickActions: DashboardQuickAction[] = [
   {
     descriptionKey: "dashboard.establishment.quickActions.addPatient.description",
-    href: "#patients",
+    href: "/establishment/patients",
     icon: ClipboardPlus,
     key: "addPatient",
     labelKey: "dashboard.establishment.quickActions.addPatient.label",

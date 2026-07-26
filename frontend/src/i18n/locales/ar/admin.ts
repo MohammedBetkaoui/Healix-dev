@@ -352,6 +352,7 @@ export const adminAr = {
       auditLogs: "سجلات التدقيق",
       dashboard: "لوحة التحكم",
       logout: "تسجيل الخروج",
+      patients: "المرضى",
       settings: "الإعدادات",
       users: "المستخدمون",
       verifications: "طلبات التحقق",

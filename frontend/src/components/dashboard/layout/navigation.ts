@@ -30,7 +30,7 @@ export const establishmentNavSections: DashboardNavSection[] = [
         labelKey: "dashboard.sidebar.establishment.dashboard",
       },
       {
-        href: "#patients",
+        href: "/establishment/patients",
         icon: Users,
         key: "patients",
         labelKey: "dashboard.sidebar.establishment.patients",
@@ -144,7 +144,7 @@ export const doctorNavSections: DashboardNavSection[] = [
         labelKey: "dashboard.sidebar.doctor.dashboard",
       },
       {
-        href: "#patients",
+        href: "/doctor/patients",
         icon: Users,
         key: "patients",
         labelKey: "dashboard.sidebar.doctor.patients",

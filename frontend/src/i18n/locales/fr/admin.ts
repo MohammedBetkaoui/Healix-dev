@@ -368,6 +368,7 @@ export const adminFr = {
       auditLogs: "Audit logs",
       dashboard: "Tableau de bord",
       logout: "Déconnexion",
+      patients: "Patients",
       settings: "Paramètres",
       users: "Utilisateurs",
       verifications: "Demandes de vérification",
