@@ -20,7 +20,8 @@
 
   position: relative;
   min-height: 100svh;
-  overflow: clip;
+  overflow-x: clip;
+  overflow-y: visible;
   background:
     radial-gradient(circle at 10% 12%, rgba(255, 255, 255, 0.72), transparent 28rem),
     radial-gradient(circle at 92% 70%, rgba(31, 111, 92, 0.045), transparent 32rem),
@@ -66,8 +67,25 @@
   height: 100svh;
   min-width: 0;
   flex-direction: column;
+  overflow-x: hidden;
+  overflow-y: auto;
   padding: clamp(2.5rem, 4vw, 4.25rem) clamp(2.25rem, 4.6vw, 4.75rem) 2.5rem;
   border-inline-end: 1px solid var(--register-line);
+  scrollbar-color: rgba(173, 127, 60, 0.42) transparent;
+  scrollbar-width: thin;
+}
+
+.heroPanel::-webkit-scrollbar {
+  width: 0.42rem;
+}
+
+.heroPanel::-webkit-scrollbar-thumb {
+  border-radius: 999px;
+  background: rgba(173, 127, 60, 0.38);
+}
+
+.heroPanel::-webkit-scrollbar-track {
+  background: transparent;
 }
 
 .heroPanel::after {
@@ -1078,6 +1096,53 @@
 
   .localeSwitcher {
     inset-inline-end: 2.5rem;
+  }
+}
+
+@media (min-width: 961px) and (max-height: 980px) {
+  .heroPanel {
+    padding-block: clamp(2rem, 4vh, 3rem) 1.35rem;
+  }
+
+  .heroCopy {
+    margin-top: clamp(2.1rem, 4.6vh, 3.5rem);
+  }
+
+  .heroBadge {
+    padding: 0.34rem 0.68rem;
+    font-size: 0.64rem;
+  }
+
+  .heroTitle {
+    margin-top: 1.35rem;
+    font-size: clamp(2.6rem, 3.25vw, 3.5rem);
+    line-height: 1.02;
+  }
+
+  .heroSubtitle {
+    margin-top: 1rem;
+    line-height: 1.55;
+  }
+
+  .valuePoints {
+    margin-top: 1.45rem;
+  }
+
+  .valuePoint {
+    padding: 0.62rem 0.16rem;
+  }
+
+  .activationCard {
+    padding: 0.82rem 0.9rem;
+  }
+
+  .activationList {
+    margin-top: 0.72rem;
+  }
+
+  .demoCard {
+    margin-top: 0.58rem;
+    padding: 0.65rem 0.78rem;
   }
 }
 
