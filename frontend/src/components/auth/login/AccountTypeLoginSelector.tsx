@@ -1,12 +1,11 @@
 "use client";
 
-import { Building2, CheckCircle2, Stethoscope } from "lucide-react";
-
 import { cn } from "@/lib/utils";
 import { type LoginAccountType } from "@/types/auth";
 
+import styles from "./LoginPage.module.css";
+
 type AccountTypeLoginSelectorProps = {
-  direction: "ltr" | "rtl";
   error?: string;
   selectedType: LoginAccountType | "";
   onSelect: (type: LoginAccountType) => void;
@@ -16,76 +15,91 @@ type AccountTypeLoginSelectorProps = {
 const options = [
   {
     type: "ESTABLISHMENT" as const,
-    icon: Building2,
     labelKey: "login.accountType.establishment",
+    descriptionKey: "login.accountType.establishmentDescription",
+    icon: (
+      <svg viewBox="0 0 24 24" fill="none" aria-hidden="true">
+        <path d="M4 21V8l8-4.5L20 8v13M9 21v-6h6v6M8 10h1M12 10h1M16 10h1" stroke="currentColor" strokeWidth="1.65" strokeLinecap="round" strokeLinejoin="round" />
+      </svg>
+    ),
   },
   {
     type: "INDEPENDENT_DOCTOR" as const,
-    icon: Stethoscope,
     labelKey: "login.accountType.doctor",
+    descriptionKey: "login.accountType.doctorDescription",
+    icon: (
+      <svg viewBox="0 0 24 24" fill="none" aria-hidden="true">
+        <circle cx="12" cy="7" r="3.5" stroke="currentColor" strokeWidth="1.65" />
+        <path d="M5 21c.5-5 3-8 7-8s6.5 3 7 8M9 14.5l3 3 3-3" stroke="currentColor" strokeWidth="1.65" strokeLinecap="round" strokeLinejoin="round" />
+      </svg>
+    ),
   },
 ];
 
 export function AccountTypeLoginSelector({
-  direction,
   error,
   onSelect,
   selectedType,
   t,
 }: AccountTypeLoginSelectorProps) {
+  const selectedHint =
+    selectedType === "INDEPENDENT_DOCTOR" ? "doctor" : "establishment";
+
   return (
     <div>
-      <p className="text-sm font-medium text-slate-700">
-        {t("login.form.accountTypeLabel")}
-      </p>
-      <div className="mt-2 grid gap-3 sm:grid-cols-2">
-        {options.map(({ type, icon: Icon, labelKey }) => {
+      <div className={styles.sectionLabel}>
+        <span>{t("login.form.accountTypeLabel")}</span>
+        <span className={styles.optionalLabel}>{t("login.form.optional")}</span>
+      </div>
+      <div
+        className={styles.profileList}
+        role="radiogroup"
+        aria-label={t("login.form.accountTypeLabel")}
+        aria-describedby={error ? "loginAccountType-error" : undefined}
+      >
+        {options.map(({ type, icon, labelKey, descriptionKey }) => {
           const isSelected = selectedType === type;
 
           return (
             <button
               key={type}
               type="button"
-              aria-pressed={isSelected}
+              role="radio"
+              aria-checked={isSelected}
               onClick={() => onSelect(type)}
               className={cn(
-                "flex min-h-24 items-start gap-3 rounded-xl border p-4 text-start transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-500 focus-visible:ring-offset-2",
-                isSelected
-                  ? "border-cyan-300 bg-cyan-50/90 shadow-sm shadow-cyan-950/5"
-                  : "border-slate-200 bg-white/90 hover:border-cyan-200 hover:bg-cyan-50/50",
+                styles.profileOption,
+                isSelected && styles.profileOptionSelected,
               )}
             >
-              <span
-                className={cn(
-                  "flex h-10 w-10 shrink-0 items-center justify-center rounded-lg border",
-                  isSelected
-                    ? "border-cyan-200 bg-white text-cyan-700"
-                    : "border-slate-200 bg-slate-50 text-slate-600",
-                )}
-              >
-                <Icon className="h-5 w-5" aria-hidden="true" />
-              </span>
-              <span className="flex min-w-0 flex-1 items-start justify-between gap-3">
-                <span className="pt-1 text-sm font-semibold text-slate-900">
-                  {t(labelKey)}
+              <span className={styles.profileIcon}>{icon}</span>
+              <span>
+                <span className={styles.profileTitle}>{t(labelKey)}</span>
+                <span className={styles.profileDescription}>
+                  {t(descriptionKey)}
                 </span>
-                {isSelected ? (
-                  <CheckCircle2
-                    className={cn(
-                      "mt-1 h-5 w-5 shrink-0 text-cyan-700",
-                      direction === "rtl" && "order-first",
-                    )}
-                    aria-hidden="true"
-                  />
-                ) : null}
               </span>
+              <span
+                className={cn(styles.radio, isSelected && styles.radioSelected)}
+                aria-hidden="true"
+              />
             </button>
           );
         })}
       </div>
       {error ? (
-        <p className="mt-2 text-sm font-medium text-red-600">{error}</p>
+        <p id="loginAccountType-error" className={styles.fieldError}>
+          {error}
+        </p>
       ) : null}
+      <div className={styles.profileHint} aria-live="polite">
+        <p className={styles.profileHintTitle}>
+          {t(`login.accountType.${selectedHint}HintTitle`)}
+        </p>
+        <p className={styles.profileHintDescription}>
+          {t(`login.accountType.${selectedHint}HintDescription`)}
+        </p>
+      </div>
     </div>
   );
 }

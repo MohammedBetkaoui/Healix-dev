@@ -1,12 +1,11 @@
 "use client";
 
-import { ArrowRight, CheckCircle2, ShieldCheck } from "lucide-react";
 import Link from "next/link";
 
-import { cn } from "@/lib/utils";
 import { type AccountType } from "@/types/auth";
 
 import { type RegisterI18nProps } from "./RegisterPage";
+import styles from "./RegisterPage.module.css";
 
 type RegisterSuccessCardProps = RegisterI18nProps & {
   accountType?: AccountType;
@@ -14,7 +13,6 @@ type RegisterSuccessCardProps = RegisterI18nProps & {
 
 export function RegisterSuccessCard({
   accountType = "ESTABLISHMENT",
-  direction,
   t,
 }: RegisterSuccessCardProps) {
   const isDoctorAccount = accountType === "INDEPENDENT_DOCTOR";
@@ -29,36 +27,38 @@ export function RegisterSuccessCard({
     <div
       role="status"
       aria-live="polite"
-      className="rounded-lg border border-emerald-200 bg-emerald-50/85 p-5 text-emerald-950 shadow-lg shadow-emerald-950/5"
+      className={styles.successCard}
     >
-      <div className="flex items-start gap-3">
-        <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-lg bg-emerald-100 text-emerald-700">
-          <CheckCircle2 className="h-5 w-5" aria-hidden="true" />
+      <div className={styles.successHeader}>
+        <span className={styles.successIcon} aria-hidden="true">
+          <svg viewBox="0 0 24 24" fill="none">
+            <circle cx="12" cy="12" r="9" stroke="currentColor" strokeWidth="1.7" />
+            <path d="m8 12 2.6 2.6L16.5 9" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round" />
+          </svg>
         </span>
         <div>
-          <h2 className="text-lg font-semibold">{t(titleKey)}</h2>
-          <p className="mt-2 text-sm leading-7 text-emerald-900">
-            {t(descriptionKey)}
-          </p>
+          <h2 className={styles.successTitle}>{t(titleKey)}</h2>
+          <p className={styles.successDescription}>{t(descriptionKey)}</p>
         </div>
       </div>
 
-      <div className="mt-5 grid gap-3 sm:grid-cols-2">
+      <div className={styles.successActions}>
         <Link
           href="/demo"
-          className="inline-flex h-11 items-center justify-center gap-2 rounded-lg bg-[#0b3b5f] px-4 text-sm font-semibold text-white shadow-sm shadow-sky-950/15 transition-colors hover:bg-[#092f4d] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-500 focus-visible:ring-offset-2"
+          className={styles.successPrimary}
         >
-          <ArrowRight
-            className={cn("h-4 w-4", direction === "rtl" && "rotate-180")}
-            aria-hidden="true"
-          />
+          <svg viewBox="0 0 24 24" fill="none" aria-hidden="true">
+            <path d="M5 12h14M14 7l5 5-5 5" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round" />
+          </svg>
           {t("register.feedback.successCard.demoAction")}
         </Link>
         <Link
           href="/verification"
-          className="inline-flex h-11 items-center justify-center gap-2 rounded-lg border border-emerald-200 bg-white px-4 text-sm font-semibold text-emerald-900 shadow-sm transition-colors hover:bg-emerald-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500 focus-visible:ring-offset-2"
+          className={styles.successSecondary}
         >
-          <ShieldCheck className="h-4 w-4" aria-hidden="true" />
+          <svg viewBox="0 0 24 24" fill="none" aria-hidden="true">
+            <path d="M12 2.5 5 5.3v5.4c0 4.6 2.9 8 7 10.5 4.1-2.5 7-5.9 7-10.5V5.3L12 2.5Z" stroke="currentColor" strokeWidth="1.65" strokeLinejoin="round" />
+          </svg>
           {t("register.feedback.successCard.verificationAction")}
         </Link>
       </div>

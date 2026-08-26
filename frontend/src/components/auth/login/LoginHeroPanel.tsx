@@ -1,33 +1,33 @@
-import {
-  BrainCircuit,
-  LockKeyhole,
-  Microscope,
-  ShieldCheck,
-  Sparkles,
-} from "lucide-react";
+import styles from "./LoginPage.module.css";
 
-const heroCards = [
+const trustItems = [
   {
-    icon: LockKeyhole,
-    titleKey: "login.hero.cards.secureSpace.title",
-    descriptionKey: "login.hero.cards.secureSpace.description",
+    key: "sessions",
+    icon: (
+      <svg viewBox="0 0 24 24" fill="none" aria-hidden="true">
+        <rect x="5" y="10" width="14" height="10" rx="2" stroke="currentColor" strokeWidth="1.7" />
+        <path d="M8 10V7.5a4 4 0 0 1 8 0V10" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" />
+      </svg>
+    ),
   },
   {
-    icon: Sparkles,
-    titleKey: "login.hero.cards.demoMode.title",
-    descriptionKey: "login.hero.cards.demoMode.description",
+    key: "availability",
+    icon: (
+      <svg viewBox="0 0 24 24" fill="none" aria-hidden="true">
+        <path d="M3 12h4l2-5 4 10 2.5-7 2 3H21" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round" />
+      </svg>
+    ),
   },
   {
-    icon: ShieldCheck,
-    titleKey: "login.hero.cards.professionalVerification.title",
-    descriptionKey: "login.hero.cards.professionalVerification.description",
+    key: "audit",
+    icon: (
+      <svg viewBox="0 0 24 24" fill="none" aria-hidden="true">
+        <path d="M5 6h14v14H5zM4 3h16v3H4z" stroke="currentColor" strokeWidth="1.7" strokeLinejoin="round" />
+        <path d="M9 10h6M9 14h4" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" />
+      </svg>
+    ),
   },
-  {
-    icon: BrainCircuit,
-    titleKey: "login.hero.cards.medicalAi.title",
-    descriptionKey: "login.hero.cards.medicalAi.description",
-  },
-];
+] as const;
 
 type LoginHeroPanelProps = {
   t: (key: string) => string;
@@ -35,78 +35,60 @@ type LoginHeroPanelProps = {
 
 export function LoginHeroPanel({ t }: LoginHeroPanelProps) {
   return (
-    <aside className="relative overflow-hidden rounded-[28px] border border-white/20 bg-[#083453] p-6 text-white shadow-[0_30px_80px_rgba(8,52,83,0.24)] sm:p-8 lg:min-h-[calc(100vh-4rem)]">
-      <div
-        className="pointer-events-none absolute inset-0"
-        aria-hidden="true"
-      >
-        <div className="absolute inset-0 bg-[linear-gradient(135deg,rgba(34,211,238,0.18),transparent_35%),linear-gradient(220deg,rgba(16,185,129,0.14),transparent_42%)]" />
-        <div className="absolute inset-0 opacity-[0.1] [background-image:linear-gradient(rgba(255,255,255,0.85)_1px,transparent_1px),linear-gradient(90deg,rgba(255,255,255,0.85)_1px,transparent_1px)] [background-size:32px_32px]" />
-        <div className="absolute -start-16 top-16 h-56 w-56 rounded-full bg-cyan-300/18 blur-3xl" />
-        <div className="absolute bottom-10 end-0 h-56 w-56 rounded-full bg-emerald-300/14 blur-3xl" />
+    <aside className={styles.heroPanel}>
+      <div className={styles.brand} aria-label="HealixDz">
+        <span className={styles.brandMark} aria-hidden="true">
+          <svg viewBox="0 0 24 24" fill="none">
+            <path d="M2 12h4l2-7 4 14 3-9 2 4h5" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+          </svg>
+        </span>
+        <div>
+          <p className={styles.brandName}>
+            Healix<span className={styles.brandNameAccent}>Dz</span>
+          </p>
+          <p className={styles.brandSubtitle}>
+            {t("login.brandSubtitle")}
+          </p>
+        </div>
       </div>
 
-      <div className="relative z-10 flex h-full flex-col gap-8">
-        <div>
-          <div className="inline-flex items-center gap-3 rounded-full border border-white/15 bg-white/10 px-4 py-2 text-sm text-cyan-50 backdrop-blur">
-            <span className="text-base font-semibold">{t("common.brand")}</span>
-          </div>
-
-          <div className="mt-8 max-w-xl">
-            <h1 className="text-4xl font-semibold tracking-tight sm:text-5xl">
-              {t("login.hero.title")}
-            </h1>
-            <p className="mt-4 text-lg text-cyan-50/95">
-              {t("login.hero.subtitle")}
-            </p>
-            <p className="mt-5 max-w-xl text-sm leading-7 text-sky-100">
-              {t("login.hero.description")}
-            </p>
-          </div>
+      <div className={styles.heroCopy}>
+        <div className={styles.compliance}>
+          <span className={styles.complianceDot} aria-hidden="true" />
+          {t("login.hero.compliance")}
         </div>
 
-        <div className="relative rounded-[24px] border border-white/15 bg-white/[0.08] p-5 shadow-xl shadow-sky-950/20 backdrop-blur">
-          <div className="absolute inset-0 rounded-[24px] bg-[radial-gradient(circle_at_top_right,rgba(34,211,238,0.2),transparent_35%)]" />
-          <div className="relative grid gap-3 sm:grid-cols-2">
-            {heroCards.map(({ icon: Icon, titleKey, descriptionKey }) => (
-              <div
-                key={titleKey}
-                className="rounded-2xl border border-white/12 bg-white/[0.09] p-4"
-              >
-                <span className="flex h-10 w-10 items-center justify-center rounded-xl bg-white/12 text-cyan-100">
-                  <Icon className="h-5 w-5" aria-hidden="true" />
-                </span>
-                <p className="mt-4 text-sm font-semibold text-white">
-                  {t(titleKey)}
-                </p>
-                <p className="mt-2 text-sm leading-6 text-sky-100">
-                  {t(descriptionKey)}
-                </p>
-              </div>
-            ))}
-          </div>
-        </div>
+        <h1 className={styles.heroTitle}>
+          {t("login.hero.titleLead")} {" "}
+          <em className={styles.heroTitleAccent}>
+            {t("login.hero.titleAccent")}
+          </em>{" "}
+          {t("login.hero.titleEnd")}
+        </h1>
 
-        <div className="relative overflow-hidden rounded-[24px] border border-white/14 bg-white/[0.08] p-5 shadow-lg shadow-sky-950/20 backdrop-blur">
-          <div
-            className="pointer-events-none absolute inset-y-0 start-0 w-24 bg-[linear-gradient(90deg,rgba(16,185,129,0.12),transparent)]"
-            aria-hidden="true"
-          />
-          <div className="relative flex items-start gap-4">
-            <span className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-emerald-300/18 text-emerald-100">
-              <Microscope className="h-5 w-5" aria-hidden="true" />
-            </span>
+        <p className={styles.heroDescription}>
+          {t("login.hero.description")}
+        </p>
+      </div>
+
+      <dl className={styles.trustRail}>
+        {trustItems.map(({ icon, key }) => (
+          <div className={styles.trustItem} key={key}>
+            <span className={styles.trustIcon}>{icon}</span>
             <div>
-              <p className="text-sm font-semibold text-white">
-                {t("login.hero.trust.title")}
-              </p>
-              <p className="mt-2 text-sm leading-6 text-sky-100">
-                {t("login.hero.trust.description")}
-              </p>
+              <dt className={styles.trustLabel}>
+                {t(`login.hero.stats.${key}.label`)}
+              </dt>
+              <dd className={styles.trustValue}>
+                {t(`login.hero.stats.${key}.value`)}
+              </dd>
+              <dd className={styles.trustDescription}>
+                {t(`login.hero.stats.${key}.description`)}
+              </dd>
             </div>
           </div>
-        </div>
-      </div>
+        ))}
+      </dl>
     </aside>
   );
 }

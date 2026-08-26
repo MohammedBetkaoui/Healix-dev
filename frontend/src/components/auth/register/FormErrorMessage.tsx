@@ -1,3 +1,5 @@
+import styles from "./RegisterPage.module.css";
+
 type FormErrorMessageProps = {
   id: string;
   message?: string;
@@ -9,7 +11,7 @@ export function FormErrorMessage({ id, message }: FormErrorMessageProps) {
   }
 
   return (
-    <p id={id} className="mt-2 text-sm font-medium text-red-600">
+    <p id={id} className={styles.fieldError}>
       {message}
     </p>
   );

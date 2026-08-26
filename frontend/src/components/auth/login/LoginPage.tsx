@@ -1,46 +1,61 @@
 "use client";
 
-import { LanguageSwitcher } from "@/components/shared/LanguageSwitcher";
+import { locales } from "@/i18n";
 import { useStoredLocale, useTranslation } from "@/lib/i18n";
 import { cn } from "@/lib/utils";
 
 import { LoginForm } from "./LoginForm";
 import { LoginHeroPanel } from "./LoginHeroPanel";
-import { LoginSecurityNotice } from "./LoginSecurityNotice";
+import styles from "./LoginPage.module.css";
 
 export function LoginPage() {
   const { locale, setLocale } = useStoredLocale();
-  const { direction, isRtl, t } = useTranslation(locale);
+  const { direction, t } = useTranslation(locale);
 
   return (
     <main
       lang={locale}
       dir={direction}
-      className="min-h-screen bg-[linear-gradient(135deg,#f8fbfd_0%,#eef8fb_45%,#f7fbf8_100%)] px-4 py-6 text-start text-slate-950 sm:px-6 lg:px-8"
+      className={styles.page}
     >
-      <div
-        className="pointer-events-none fixed inset-0 opacity-[0.28]"
-        aria-hidden="true"
-      >
-        <div className="absolute inset-0 [background-image:linear-gradient(rgba(14,116,144,0.12)_1px,transparent_1px),linear-gradient(90deg,rgba(14,116,144,0.1)_1px,transparent_1px)] [background-size:42px_42px]" />
-      </div>
-
-      <div
-        className={cn(
-          "relative mx-auto mb-4 flex w-full max-w-7xl",
-          isRtl ? "justify-start" : "justify-end",
-        )}
-      >
-        <LanguageSwitcher locale={locale} onLocaleChange={setLocale} t={t} />
-      </div>
-
-      <div className="relative mx-auto grid w-full max-w-7xl gap-8 lg:grid-cols-[1fr_0.95fr]">
+      <div className={styles.shell}>
         <LoginHeroPanel t={t} />
 
-        <section className="flex flex-col gap-6 py-2 lg:py-8">
-          <LoginSecurityNotice t={t} />
+        <div className={styles.pulseDivider} aria-hidden="true">
+          <svg className={styles.pulseSvg} viewBox="0 0 58 1000" preserveAspectRatio="none">
+            <path
+              d="M29 0v360H18l6 32 8-80 7 134 6-86H29v640"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="1.4"
+              vectorEffect="non-scaling-stroke"
+            />
+            <circle className={styles.pulseDot} r="4" fill="#ad7f3c" />
+          </svg>
+        </div>
 
-          <section className="rounded-[28px] border border-white/75 bg-white/82 p-5 shadow-[0_24px_60px_rgba(8,52,83,0.08)] backdrop-blur sm:p-7">
+        <section className={styles.formColumn}>
+          <div
+            className={styles.localeSwitcher}
+            aria-label={t("common.languageSwitcher.label")}
+          >
+            {locales.map((availableLocale) => (
+              <button
+                key={availableLocale}
+                type="button"
+                aria-pressed={locale === availableLocale}
+                onClick={() => setLocale(availableLocale)}
+                className={cn(
+                  styles.localeButton,
+                  locale === availableLocale && styles.localeButtonActive,
+                )}
+              >
+                {availableLocale}
+              </button>
+            ))}
+          </div>
+
+          <section className={styles.formCard}>
             <LoginForm direction={direction} t={t} />
           </section>
         </section>

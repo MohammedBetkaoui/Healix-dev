@@ -4,6 +4,7 @@ export const registerAr = {
     description:
       "إنشاء حساب مؤسسة صحية أو طبيب مستقل على HealixDZ.",
   },
+  brandSubtitle: "المنصة الطبية الجزائرية",
   page: {
     lang: "ar",
     formAriaLabel: "استمارة التسجيل",
@@ -11,6 +12,9 @@ export const registerAr = {
       "بعد التسجيل، سيكون بإمكانك الوصول إلى الوضع التجريبي. سيتم تفعيل الوصول إلى البيانات الطبية الحقيقية بعد التحقق المهني واختيار اشتراك.",
   },
   hero: {
+    titleLead: "أنشئ فضاءً سريريًا،",
+    titleAccent: "دقيقًا",
+    titleEnd: "منذ اليوم الأول.",
     title: "نظام مستشفى ذكي",
     subtitle:
       "إدارة طبية، ذكاء اصطناعي لتحليل الصور الطبية، وتكامل HL7/FHIR في منصة واحدة.",
@@ -80,6 +84,7 @@ export const registerAr = {
     groupPractice: "عيادة جماعية",
   },
   forms: {
+    eyebrow: "الملف المهني",
     selectPlaceholder: "اختر",
     terms: {
       acceptTerms: "أوافق على شروط الاستخدام وسياسة الخصوصية",
@@ -89,6 +94,9 @@ export const registerAr = {
     signInPrompt: "لديك حساب بالفعل؟",
     signInLink: "تسجيل الدخول",
     establishment: {
+      title: "فضاء مؤسستك الصحية",
+      description:
+        "أدخل معلومات المؤسسة ومسؤول الحساب المهني.",
       submit: "إنشاء مساحة المؤسسة",
       loading: "جاري إنشاء الحساب...",
       fields: {
@@ -127,6 +135,9 @@ export const registerAr = {
       },
     },
     doctor: {
+      title: "فضاء الطبيب",
+      description:
+        "أنشئ حسابك المهني لممارسة طبية مستقلة.",
       submit: "إنشاء حساب الطبيب",
       loading: "جاري إنشاء الحساب...",
       fields: {

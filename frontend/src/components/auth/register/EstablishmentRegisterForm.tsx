@@ -1,12 +1,9 @@
 "use client";
 
 import { zodResolver } from "@hookform/resolvers/zod";
-import { CheckCircle2, Loader2 } from "lucide-react";
 import { type FocusEvent, useEffect, useMemo, useState } from "react";
 import { useForm, useWatch } from "react-hook-form";
 
-import { Button } from "@/components/ui/button";
-import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select } from "@/components/ui/select";
@@ -29,6 +26,7 @@ import { FormErrorMessage } from "./FormErrorMessage";
 import { PasswordInput } from "./PasswordInput";
 import { RegisterErrorAlert } from "./RegisterErrorAlert";
 import { type RegisterI18nProps } from "./RegisterPage";
+import styles from "./RegisterPage.module.css";
 import { RegisterSuccessCard } from "./RegisterSuccessCard";
 
 const defaultValues: EstablishmentRegisterFormValues = {
@@ -197,12 +195,12 @@ export function EstablishmentRegisterForm({
         <div
           role="status"
           aria-live="polite"
-          className={cn(
-            "fixed top-5 z-50 flex max-w-md items-start gap-3 rounded-lg border border-emerald-200 bg-white px-4 py-3 text-sm text-emerald-900 shadow-2xl shadow-sky-950/10",
-            direction === "rtl" ? "left-5" : "right-5",
-          )}
+          className={styles.toast}
         >
-          <CheckCircle2 className="mt-0.5 h-5 w-5 shrink-0" aria-hidden="true" />
+          <svg viewBox="0 0 24 24" fill="none" aria-hidden="true">
+            <circle cx="12" cy="12" r="9" stroke="currentColor" strokeWidth="1.7" />
+            <path d="m8 12 2.6 2.6L16.5 9" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round" />
+          </svg>
           <p>{toastMessage}</p>
         </div>
       ) : null}
@@ -215,7 +213,7 @@ export function EstablishmentRegisterForm({
           t={t}
         />
       ) : (
-        <form className="space-y-6" onSubmit={handleSubmit(onSubmit)} noValidate>
+        <form className={styles.form} onSubmit={handleSubmit(onSubmit)} noValidate>
           {registrationErrorMessage ? (
             <RegisterErrorAlert
               details={registrationErrorDetails}
@@ -224,14 +222,14 @@ export function EstablishmentRegisterForm({
             />
           ) : null}
 
-      <div className="grid gap-4 sm:grid-cols-2">
-        <div className="sm:col-span-2">
-          <Label htmlFor="establishmentName">
+      <div className={styles.fieldsGrid}>
+        <div className={styles.fullSpan}>
+          <Label htmlFor="establishmentName" className={styles.fieldLabel}>
             {t("register.forms.establishment.fields.establishmentName.label")}
           </Label>
           <Input
             id="establishmentName"
-            className="mt-2 text-start"
+            className={styles.fieldControl}
             dir={direction}
             placeholder={t(
               "register.forms.establishment.fields.establishmentName.placeholder",
@@ -249,12 +247,12 @@ export function EstablishmentRegisterForm({
         </div>
 
         <div>
-          <Label htmlFor="establishmentType">
+          <Label htmlFor="establishmentType" className={styles.fieldLabel}>
             {t("register.forms.establishment.fields.establishmentType.label")}
           </Label>
           <Select
             id="establishmentType"
-            className="mt-2 text-start"
+            className={styles.fieldControl}
             dir={direction}
             aria-invalid={Boolean(errors.establishmentType)}
             aria-describedby="establishmentType-error"
@@ -274,12 +272,12 @@ export function EstablishmentRegisterForm({
         </div>
 
         <div>
-          <Label htmlFor="establishmentWilaya">
+          <Label htmlFor="establishmentWilaya" className={styles.fieldLabel}>
             {t("register.forms.establishment.fields.wilaya.label")}
           </Label>
           <Select
             id="establishmentWilaya"
-            className="mt-2 text-start"
+            className={styles.fieldControl}
             dir={direction}
             aria-invalid={Boolean(errors.wilaya)}
             aria-describedby="establishmentWilaya-error"
@@ -298,13 +296,13 @@ export function EstablishmentRegisterForm({
           />
         </div>
 
-        <div className="sm:col-span-2">
-          <Label htmlFor="address">
+        <div className={styles.fullSpan}>
+          <Label htmlFor="address" className={styles.fieldLabel}>
             {t("register.forms.establishment.fields.address.label")}
           </Label>
           <Textarea
             id="address"
-            className="mt-2 text-start"
+            className={cn(styles.fieldControl, styles.textareaControl)}
             dir={direction}
             placeholder={t(
               "register.forms.establishment.fields.address.placeholder",
@@ -319,13 +317,13 @@ export function EstablishmentRegisterForm({
         </div>
 
         <div>
-          <Label htmlFor="professionalEmail">
+          <Label htmlFor="professionalEmail" className={styles.fieldLabel}>
             {t("register.forms.establishment.fields.professionalEmail.label")}
           </Label>
           <Input
             id="professionalEmail"
             type="email"
-            className="mt-2 text-start"
+            className={styles.fieldControl}
             dir={direction}
             placeholder={t(
               "register.forms.establishment.fields.professionalEmail.placeholder",
@@ -343,13 +341,13 @@ export function EstablishmentRegisterForm({
         </div>
 
         <div>
-          <Label htmlFor="establishmentPhone">
+          <Label htmlFor="establishmentPhone" className={styles.fieldLabel}>
             {t("register.forms.establishment.fields.phone.label")}
           </Label>
           <Input
             id="establishmentPhone"
             type="tel"
-            className="mt-2 text-start"
+            className={styles.fieldControl}
             dir={direction}
             placeholder={t(
               "register.forms.establishment.fields.phone.placeholder",
@@ -367,13 +365,13 @@ export function EstablishmentRegisterForm({
           />
         </div>
 
-        <div className="sm:col-span-2">
-          <Label htmlFor="managerFullName">
+        <div className={styles.fullSpan}>
+          <Label htmlFor="managerFullName" className={styles.fieldLabel}>
             {t("register.forms.establishment.fields.managerFullName.label")}
           </Label>
           <Input
             id="managerFullName"
-            className="mt-2 text-start"
+            className={styles.fieldControl}
             dir={direction}
             placeholder={t(
               "register.forms.establishment.fields.managerFullName.placeholder",
@@ -413,9 +411,10 @@ export function EstablishmentRegisterForm({
         />
       </div>
 
-      <div className="space-y-3 rounded-lg border border-slate-200 bg-white/75 p-4">
-        <label className="flex items-start gap-3 text-sm leading-6 text-slate-700">
-          <Checkbox
+      <div className={styles.termsPanel}>
+        <label className={styles.termLabel}>
+          <input
+            type="checkbox"
             aria-invalid={Boolean(errors.acceptTerms)}
             aria-describedby="establishmentTerms-error"
             {...register("acceptTerms")}
@@ -427,8 +426,9 @@ export function EstablishmentRegisterForm({
           message={errors.acceptTerms?.message}
         />
 
-        <label className="flex items-start gap-3 text-sm leading-6 text-slate-700">
-          <Checkbox
+        <label className={styles.termLabel}>
+          <input
+            type="checkbox"
             aria-invalid={Boolean(errors.acceptVerification)}
             aria-describedby="establishmentVerification-error"
             {...register("acceptVerification")}
@@ -442,22 +442,23 @@ export function EstablishmentRegisterForm({
       </div>
 
       <div>
-        <Button type="submit" size="lg" className="w-full" disabled={isBusy}>
+        <button type="submit" className={styles.submitButton} disabled={isBusy}>
           {isBusy ? (
-            <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" />
-          ) : null}
+            <span className={styles.spinner} aria-hidden="true" />
+          ) : (
+            <svg viewBox="0 0 24 24" fill="none" aria-hidden="true">
+              <path d="M5 12h14M14 7l5 5-5 5" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round" />
+            </svg>
+          )}
           {isBusy
             ? t("register.forms.establishment.loading")
             : t("register.forms.establishment.submit")}
-        </Button>
-        <p className="mt-4 text-center text-sm text-slate-600">
+        </button>
+        <p className={styles.signinPrompt}>
           <span>{t("register.forms.signInPrompt")}</span>{" "}
           <a
             href="/login"
-            className={cn(
-              "font-semibold text-cyan-700 underline-offset-4 hover:underline",
-              direction === "rtl" && "inline-block",
-            )}
+            className={styles.signinLink}
           >
             {t("register.forms.signInLink")}
           </a>

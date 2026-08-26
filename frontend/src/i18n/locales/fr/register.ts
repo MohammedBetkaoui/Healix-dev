@@ -4,6 +4,7 @@ export const registerFr = {
     description:
       "Créer un compte établissement de santé ou médecin indépendant sur HealixDZ.",
   },
+  brandSubtitle: "Plateforme médicale algérienne",
   page: {
     lang: "fr",
     formAriaLabel: "Formulaire d’inscription",
@@ -11,6 +12,9 @@ export const registerFr = {
       "Après inscription, vous aurez accès au mode démonstration. L’accès aux données médicales réelles sera activé après vérification professionnelle et choix d’un abonnement.",
   },
   hero: {
+    titleLead: "Créez un espace clinique,",
+    titleAccent: "précis",
+    titleEnd: "dès le premier jour.",
     title: "Système hospitalier intelligent",
     subtitle:
       "Gestion médicale, IA d’imagerie et interopérabilité HL7/FHIR dans une seule plateforme.",
@@ -81,6 +85,7 @@ export const registerFr = {
     groupPractice: "Cabinet de groupe",
   },
   forms: {
+    eyebrow: "Dossier professionnel",
     selectPlaceholder: "Sélectionner",
     terms: {
       acceptTerms:
@@ -91,6 +96,9 @@ export const registerFr = {
     signInPrompt: "Déjà un compte ?",
     signInLink: "Se connecter",
     establishment: {
+      title: "Votre espace établissement",
+      description:
+        "Renseignez les informations de votre structure et du responsable du compte.",
       submit: "Créer mon espace établissement",
       loading: "Création du compte...",
       fields: {
@@ -129,6 +137,9 @@ export const registerFr = {
       },
     },
     doctor: {
+      title: "Votre espace médecin",
+      description:
+        "Créez votre accès professionnel pour une activité libérale indépendante.",
       submit: "Créer mon compte médecin",
       loading: "Création du compte...",
       fields: {

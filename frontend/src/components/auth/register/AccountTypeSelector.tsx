@@ -1,11 +1,10 @@
 "use client";
 
-import { CheckCircle2, Hospital, Stethoscope } from "lucide-react";
-
 import { cn } from "@/lib/utils";
 import { type AccountType } from "@/types/auth";
 
 import { type RegisterI18nProps } from "./RegisterPage";
+import styles from "./RegisterPage.module.css";
 
 type AccountTypeSelectorProps = RegisterI18nProps & {
   selectedType: AccountType | null;
@@ -17,13 +16,22 @@ const accountTypes = [
     type: "ESTABLISHMENT" as const,
     titleKey: "register.accountType.establishment.title",
     descriptionKey: "register.accountType.establishment.description",
-    icon: Hospital,
+    icon: (
+      <svg viewBox="0 0 24 24" fill="none" aria-hidden="true">
+        <path d="M4 21V8l8-4.5L20 8v13M9 21v-6h6v6M8 10h1M12 10h1M16 10h1" stroke="currentColor" strokeWidth="1.65" strokeLinecap="round" strokeLinejoin="round" />
+      </svg>
+    ),
   },
   {
     type: "INDEPENDENT_DOCTOR" as const,
     titleKey: "register.accountType.independentDoctor.title",
     descriptionKey: "register.accountType.independentDoctor.description",
-    icon: Stethoscope,
+    icon: (
+      <svg viewBox="0 0 24 24" fill="none" aria-hidden="true">
+        <circle cx="12" cy="7" r="3.5" stroke="currentColor" strokeWidth="1.65" />
+        <path d="M5 21c.5-5 3-8 7-8s6.5 3 7 8M9 14.5l3 3 3-3" stroke="currentColor" strokeWidth="1.65" strokeLinecap="round" strokeLinejoin="round" />
+      </svg>
+    ),
   },
 ];
 
@@ -33,63 +41,52 @@ export function AccountTypeSelector({
   t,
 }: AccountTypeSelectorProps) {
   return (
-    <section aria-labelledby="account-type-title">
-      <div className="mb-4">
-        <p className="text-sm font-semibold uppercase tracking-[0.18em] text-cyan-700">
+    <section aria-labelledby="account-type-title" className={styles.accountSection}>
+      <div>
+        <p className={styles.sectionEyebrow}>
           {t("register.accountType.eyebrow")}
         </p>
         <h2
           id="account-type-title"
-          className="mt-2 text-2xl font-semibold tracking-tight text-slate-950"
+          className={styles.sectionTitle}
         >
           {t("register.accountType.title")}
         </h2>
-        <p className="mt-2 text-sm leading-6 text-slate-600">
+        <p className={styles.sectionDescription}>
           {t("register.accountType.description")}
         </p>
       </div>
 
-      <div className="grid gap-3 sm:grid-cols-2">
-        {accountTypes.map(({ type, titleKey, descriptionKey, icon: Icon }) => {
+      <div className={styles.accountGrid} role="radiogroup" aria-label={t("register.accountType.title")}>
+        {accountTypes.map(({ type, titleKey, descriptionKey, icon }) => {
           const isSelected = selectedType === type;
 
           return (
             <button
               key={type}
               type="button"
-              aria-pressed={isSelected}
+              role="radio"
+              aria-checked={isSelected}
               onClick={() => onSelect(type)}
               className={cn(
-                "group flex min-h-40 flex-col items-start rounded-lg border bg-white p-4 text-start shadow-sm transition hover:-translate-y-0.5 hover:border-cyan-300 hover:shadow-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-500 focus-visible:ring-offset-2",
-                isSelected
-                  ? "border-cyan-400 bg-cyan-50/80 shadow-cyan-950/10"
-                  : "border-slate-200",
+                styles.accountOption,
+                isSelected && styles.accountOptionSelected,
               )}
             >
-              <span className="flex w-full items-start justify-between gap-3">
-                <span
-                  className={cn(
-                    "flex h-11 w-11 items-center justify-center rounded-lg border",
-                    isSelected
-                      ? "border-cyan-200 bg-white text-cyan-700"
-                      : "border-slate-200 bg-slate-50 text-slate-600",
-                  )}
-                >
-                  <Icon className="h-5 w-5" aria-hidden="true" />
+              <span className={styles.accountIcon}>{icon}</span>
+              <span>
+                <span className={styles.accountTitle}>{t(titleKey)}</span>
+                <span className={styles.accountDescription}>
+                  {t(descriptionKey)}
                 </span>
-                {isSelected ? (
-                  <CheckCircle2
-                    className="h-5 w-5 text-cyan-700"
-                    aria-hidden="true"
-                  />
-                ) : null}
               </span>
-              <span className="mt-4 text-base font-semibold text-slate-950">
-                {t(titleKey)}
-              </span>
-              <span className="mt-2 text-sm leading-6 text-slate-600">
-                {t(descriptionKey)}
-              </span>
+              <span
+                className={cn(
+                  styles.accountRadio,
+                  isSelected && styles.accountRadioSelected,
+                )}
+                aria-hidden="true"
+              />
             </button>
           );
         })}

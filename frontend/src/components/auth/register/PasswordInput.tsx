@@ -1,9 +1,7 @@
 "use client";
 
-import { Eye, EyeOff } from "lucide-react";
 import { useState } from "react";
 
-import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { type Direction } from "@/lib/i18n";
@@ -14,6 +12,7 @@ import {
 import { cn } from "@/lib/utils";
 
 import { FormErrorMessage } from "./FormErrorMessage";
+import styles from "./RegisterPage.module.css";
 
 type PasswordInputProps = Omit<
   React.InputHTMLAttributes<HTMLInputElement>,
@@ -32,9 +31,9 @@ type PasswordInputProps = Omit<
 };
 
 const strengthStyles = {
-  weak: "bg-red-500",
-  medium: "bg-amber-500",
-  strong: "bg-emerald-500",
+  weak: styles.strengthWeak,
+  medium: styles.strengthMedium,
+  strong: styles.strengthStrong,
 };
 
 export function PasswordInput({
@@ -67,52 +66,59 @@ export function PasswordInput({
 
   return (
     <div>
-      <Label htmlFor={id}>{label}</Label>
-      <div className="relative mt-2">
+      <Label htmlFor={id} className={styles.fieldLabel}>{label}</Label>
+      <div className={styles.passwordShell}>
         <Input
           id={id}
           type={isVisible ? "text" : "password"}
           autoComplete="new-password"
           aria-invalid={Boolean(error)}
           aria-describedby={describedBy}
-          className={cn("pe-12 text-start", className)}
+          className={cn(
+            styles.fieldControl,
+            styles.passwordControl,
+            className,
+          )}
           dir={direction}
           maxLength={128}
           {...props}
         />
-        <Button
+        <button
           type="button"
-          variant="ghost"
-          size="icon"
           aria-label={isVisible ? hidePasswordLabel : showPasswordLabel}
-          className="absolute end-1 top-1/2 h-9 w-9 -translate-y-1/2 text-slate-500 hover:bg-slate-100"
+          className={styles.passwordToggle}
           onClick={() => setIsVisible((current) => !current)}
         >
           {isVisible ? (
-            <EyeOff className="h-4 w-4" aria-hidden="true" />
+            <svg viewBox="0 0 24 24" fill="none" aria-hidden="true">
+              <path d="M3 3l18 18M10.7 5.2c.4-.1.8-.2 1.3-.2 7 0 10 7 10 7a17 17 0 0 1-2.2 3.2M6.2 6.2C3.5 8.1 2 12 2 12s3 7 10 7c1.3 0 2.5-.2 3.5-.7M9.9 9.9a3 3 0 0 0 4.2 4.2" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" />
+            </svg>
           ) : (
-            <Eye className="h-4 w-4" aria-hidden="true" />
+            <svg viewBox="0 0 24 24" fill="none" aria-hidden="true">
+              <path d="M2 12s3-7 10-7 10 7 10 7-3 7-10 7S2 12 2 12Z" stroke="currentColor" strokeWidth="1.6" strokeLinejoin="round" />
+              <circle cx="12" cy="12" r="3" stroke="currentColor" strokeWidth="1.6" />
+            </svg>
           )}
-        </Button>
+        </button>
       </div>
       {showStrength ? (
         <>
-          <p id={hintId} className="mt-2 text-xs text-slate-500">
+          <p id={hintId} className={styles.passwordHint}>
             {hint}
           </p>
-          <div id={strengthId} className="mt-3" aria-live="polite">
-            <div className="flex h-1.5 gap-1" aria-hidden="true">
+          <div id={strengthId} className={styles.strength} aria-live="polite">
+            <div className={styles.strengthBars} aria-hidden="true">
               {[1, 2, 3, 4, 5].map((step) => (
                 <span
                   key={step}
                   className={cn(
-                    "h-full flex-1 rounded-full bg-slate-200",
+                    styles.strengthBar,
                     step <= strength.score && strengthStyles[strength.level],
                   )}
                 />
               ))}
             </div>
-            <p className="mt-1 text-xs font-medium text-slate-600">
+            <p className={styles.strengthText}>
               {strengthLabel} : {strengthLabels[strength.level]}
             </p>
           </div>

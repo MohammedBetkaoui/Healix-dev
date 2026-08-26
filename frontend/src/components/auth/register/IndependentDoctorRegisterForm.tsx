@@ -1,12 +1,9 @@
 "use client";
 
 import { zodResolver } from "@hookform/resolvers/zod";
-import { CheckCircle2, Loader2 } from "lucide-react";
 import { type FocusEvent, useEffect, useMemo, useState } from "react";
 import { useForm, useWatch } from "react-hook-form";
 
-import { Button } from "@/components/ui/button";
-import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select } from "@/components/ui/select";
@@ -32,6 +29,7 @@ import { FormErrorMessage } from "./FormErrorMessage";
 import { PasswordInput } from "./PasswordInput";
 import { RegisterErrorAlert } from "./RegisterErrorAlert";
 import { type RegisterI18nProps } from "./RegisterPage";
+import styles from "./RegisterPage.module.css";
 import { RegisterSuccessCard } from "./RegisterSuccessCard";
 
 const defaultValues: IndependentDoctorRegisterFormValues = {
@@ -206,12 +204,12 @@ export function IndependentDoctorRegisterForm({
         <div
           role="status"
           aria-live="polite"
-          className={cn(
-            "fixed top-5 z-50 flex max-w-md items-start gap-3 rounded-lg border border-emerald-200 bg-white px-4 py-3 text-sm text-emerald-900 shadow-2xl shadow-sky-950/10",
-            direction === "rtl" ? "left-5" : "right-5",
-          )}
+          className={styles.toast}
         >
-          <CheckCircle2 className="mt-0.5 h-5 w-5 shrink-0" aria-hidden="true" />
+          <svg viewBox="0 0 24 24" fill="none" aria-hidden="true">
+            <circle cx="12" cy="12" r="9" stroke="currentColor" strokeWidth="1.7" />
+            <path d="m8 12 2.6 2.6L16.5 9" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round" />
+          </svg>
           <p>{toastMessage}</p>
         </div>
       ) : null}
@@ -225,7 +223,7 @@ export function IndependentDoctorRegisterForm({
           t={t}
         />
       ) : (
-        <form className="space-y-6" onSubmit={handleSubmit(onSubmit)} noValidate>
+        <form className={styles.form} onSubmit={handleSubmit(onSubmit)} noValidate>
           {registrationErrorMessage ? (
             <RegisterErrorAlert
               details={registrationErrorDetails}
@@ -234,14 +232,14 @@ export function IndependentDoctorRegisterForm({
             />
           ) : null}
 
-          <div className="grid gap-4 sm:grid-cols-2">
-            <div className="sm:col-span-2">
-              <Label htmlFor="fullName">
+          <div className={styles.fieldsGrid}>
+            <div className={styles.fullSpan}>
+              <Label htmlFor="fullName" className={styles.fieldLabel}>
                 {t("register.forms.doctor.fields.fullName.label")}
               </Label>
               <Input
                 id="fullName"
-                className="mt-2 text-start"
+                className={styles.fieldControl}
                 dir={direction}
                 placeholder={t(
                   "register.forms.doctor.fields.fullName.placeholder",
@@ -259,12 +257,12 @@ export function IndependentDoctorRegisterForm({
             </div>
 
             <div>
-              <Label htmlFor="speciality">
+              <Label htmlFor="speciality" className={styles.fieldLabel}>
                 {t("register.forms.doctor.fields.speciality.label")}
               </Label>
               <Input
                 id="speciality"
-                className="mt-2 text-start"
+                className={styles.fieldControl}
                 dir={direction}
                 placeholder={t(
                   "register.forms.doctor.fields.speciality.placeholder",
@@ -282,12 +280,12 @@ export function IndependentDoctorRegisterForm({
             </div>
 
             <div>
-              <Label htmlFor="doctorWilaya">
+              <Label htmlFor="doctorWilaya" className={styles.fieldLabel}>
                 {t("register.forms.doctor.fields.wilaya.label")}
               </Label>
               <Select
                 id="doctorWilaya"
-                className="mt-2 text-start"
+                className={styles.fieldControl}
                 dir={direction}
                 aria-invalid={Boolean(errors.wilaya)}
                 aria-describedby="doctorWilaya-error"
@@ -306,13 +304,13 @@ export function IndependentDoctorRegisterForm({
               />
             </div>
 
-            <div className="sm:col-span-2">
-              <Label htmlFor="professionalAddress">
+            <div className={styles.fullSpan}>
+              <Label htmlFor="professionalAddress" className={styles.fieldLabel}>
                 {t("register.forms.doctor.fields.professionalAddress.label")}
               </Label>
               <Textarea
                 id="professionalAddress"
-                className="mt-2 text-start"
+                className={cn(styles.fieldControl, styles.textareaControl)}
                 dir={direction}
                 placeholder={t(
                   "register.forms.doctor.fields.professionalAddress.placeholder",
@@ -332,13 +330,13 @@ export function IndependentDoctorRegisterForm({
             </div>
 
             <div>
-              <Label htmlFor="doctorEmail">
+              <Label htmlFor="doctorEmail" className={styles.fieldLabel}>
                 {t("register.forms.doctor.fields.email.label")}
               </Label>
               <Input
                 id="doctorEmail"
                 type="email"
-                className="mt-2 text-start"
+                className={styles.fieldControl}
                 dir={direction}
                 placeholder={t("register.forms.doctor.fields.email.placeholder")}
                 autoComplete="email"
@@ -354,13 +352,13 @@ export function IndependentDoctorRegisterForm({
             </div>
 
             <div>
-              <Label htmlFor="doctorPhone">
+              <Label htmlFor="doctorPhone" className={styles.fieldLabel}>
                 {t("register.forms.doctor.fields.phone.label")}
               </Label>
               <Input
                 id="doctorPhone"
                 type="tel"
-                className="mt-2 text-start"
+                className={styles.fieldControl}
                 dir={direction}
                 placeholder={t("register.forms.doctor.fields.phone.placeholder")}
                 autoComplete="tel"
@@ -399,9 +397,10 @@ export function IndependentDoctorRegisterForm({
             />
           </div>
 
-          <div className="space-y-3 rounded-lg border border-slate-200 bg-white/75 p-4">
-            <label className="flex items-start gap-3 text-sm leading-6 text-slate-700">
-              <Checkbox
+          <div className={styles.termsPanel}>
+            <label className={styles.termLabel}>
+              <input
+                type="checkbox"
                 aria-invalid={Boolean(errors.acceptTerms)}
                 aria-describedby="doctorTerms-error"
                 {...register("acceptTerms")}
@@ -413,8 +412,9 @@ export function IndependentDoctorRegisterForm({
               message={errors.acceptTerms?.message}
             />
 
-            <label className="flex items-start gap-3 text-sm leading-6 text-slate-700">
-              <Checkbox
+            <label className={styles.termLabel}>
+              <input
+                type="checkbox"
                 aria-invalid={Boolean(errors.acceptVerification)}
                 aria-describedby="doctorVerification-error"
                 {...register("acceptVerification")}
@@ -428,22 +428,23 @@ export function IndependentDoctorRegisterForm({
           </div>
 
           <div>
-            <Button type="submit" size="lg" className="w-full" disabled={isBusy}>
+            <button type="submit" className={styles.submitButton} disabled={isBusy}>
               {isBusy ? (
-                <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" />
-              ) : null}
+                <span className={styles.spinner} aria-hidden="true" />
+              ) : (
+                <svg viewBox="0 0 24 24" fill="none" aria-hidden="true">
+                  <path d="M5 12h14M14 7l5 5-5 5" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round" />
+                </svg>
+              )}
               {isBusy
                 ? t("register.forms.doctor.loading")
                 : t("register.forms.doctor.submit")}
-            </Button>
-            <p className="mt-4 text-center text-sm text-slate-600">
+            </button>
+            <p className={styles.signinPrompt}>
               <span>{t("register.forms.signInPrompt")}</span>{" "}
               <a
                 href="/login"
-                className={cn(
-                  "font-semibold text-cyan-700 underline-offset-4 hover:underline",
-                  direction === "rtl" && "inline-block",
-                )}
+                className={styles.signinLink}
               >
                 {t("register.forms.signInLink")}
               </a>

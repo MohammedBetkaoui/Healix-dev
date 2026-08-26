@@ -1,18 +1,39 @@
 export const loginFr = {
   metadata: {
     title: "Connexion | HealixDZ",
-    description: "Connectez-vous a votre espace medical intelligent HealixDZ.",
+    description: "Connectez-vous à votre espace médical sécurisé HealixDZ.",
   },
+  brandSubtitle: "Plateforme médicale algérienne",
   page: {
     title: "Connexion",
-    subtitle:
-      "Choisissez votre type de compte et connectez-vous a votre espace.",
+    subtitle: "Accédez à votre espace médical sécurisé.",
   },
   hero: {
+    compliance: "Conforme Loi 18-07",
+    titleLead: "Un accès clinique,",
+    titleAccent: "calme",
+    titleEnd: "et strictement sécurisé.",
     title: "Bienvenue sur HealixDZ",
     subtitle: "Connectez-vous a votre espace medical intelligent.",
     description:
-      "Accedez a une plateforme securisee pour gerer vos donnees medicales, vos analyses IA, vos rapports et votre workflow professionnel.",
+      "Connectez-vous à HealixDz pour piloter les rendez-vous, les dossiers, les analyses assistées par IA et les opérations biomédicales, depuis un espace pensé pour le rythme d'une équipe soignante.",
+    stats: {
+      sessions: {
+        label: "Sessions",
+        value: "AES-256",
+        description: "Chiffrement",
+      },
+      availability: {
+        label: "Disponibilité",
+        value: "99,9 %",
+        description: "SLA clinique",
+      },
+      audit: {
+        label: "Audit",
+        value: "10 ans",
+        description: "Conservation",
+      },
+    },
     cards: {
       secureSpace: {
         title: "Espace securise",
@@ -38,21 +59,32 @@ export const loginFr = {
     },
   },
   form: {
-    accountTypeLabel: "Type de compte",
-    emailLabel: "Email",
-    emailPlaceholder: "nom@structure.dz",
+    eyebrow: "Authentification",
+    accountTypeLabel: "Profil",
+    optional: "Optionnel",
+    emailLabel: "Adresse e-mail",
+    emailPlaceholder: "admin@clinique.dz",
     passwordLabel: "Mot de passe",
     passwordPlaceholder: "Votre mot de passe",
-    rememberMe: "Se souvenir de moi",
-    forgotPassword: "Mot de passe oublie ?",
+    rememberMe: "Garder la session active",
+    forgotPassword: "Mot de passe oublié ?",
     submit: "Se connecter",
     loading: "Connexion en cours...",
+    ssoComingSoon: "SSO bientôt disponible",
     signUpPrompt: "Pas encore de compte ?",
-    signUpLink: "Creer un compte",
+    signUpLink: "Créer un accès",
   },
   accountType: {
-    establishment: "Etablissement de sante",
-    doctor: "Medecin independant",
+    establishment: "Établissement",
+    establishmentDescription: "Clinique, hôpital ou laboratoire",
+    establishmentHintTitle: "Établissement de santé",
+    establishmentHintDescription:
+      "Parcours dédié à la gestion d'une structure et de plusieurs praticiens.",
+    doctor: "Médecin indépendant",
+    doctorDescription: "Cabinet privé ou activité libérale",
+    doctorHintTitle: "Médecin indépendant",
+    doctorHintDescription:
+      "Accès personnel pour gérer votre cabinet et votre patientèle.",
   },
   feedback: {
     success: "Connexion reussie.",

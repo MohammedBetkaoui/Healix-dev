@@ -3,15 +3,37 @@ export const loginAr = {
     title: "تسجيل الدخول | HealixDZ",
     description: "سجّل الدخول إلى فضائك الطبي الذكي على HealixDZ.",
   },
+  brandSubtitle: "المنصة الطبية الجزائرية",
   page: {
     title: "تسجيل الدخول",
-    subtitle: "اختر نوع حسابك وسجّل الدخول إلى فضائك.",
+    subtitle: "ادخل إلى فضائك الطبي الآمن.",
   },
   hero: {
+    compliance: "متوافق مع القانون 18-07",
+    titleLead: "ولوج سريري،",
+    titleAccent: "هادئ",
+    titleEnd: "وآمن بدقة.",
     title: "مرحبًا بك في HealixDZ",
     subtitle: "سجّل الدخول إلى فضائك الطبي الذكي.",
     description:
-      "ادخل إلى منصة آمنة لإدارة البيانات الطبية، تحاليل الذكاء الاصطناعي، التقارير وسير العمل المهني.",
+      "سجّل الدخول إلى HealixDz لإدارة المواعيد والملفات والتحليلات المدعومة بالذكاء الاصطناعي والعمليات الطبية الحيوية، من فضاء صُمّم لوتيرة فرق الرعاية الصحية.",
+    stats: {
+      sessions: {
+        label: "الجلسات",
+        value: "AES-256",
+        description: "تشفير البيانات",
+      },
+      availability: {
+        label: "التوافر",
+        value: "99.9%",
+        description: "خدمة سريرية",
+      },
+      audit: {
+        label: "التدقيق",
+        value: "10 سنوات",
+        description: "مدة الاحتفاظ",
+      },
+    },
     cards: {
       secureSpace: {
         title: "فضاء آمن",
@@ -37,21 +59,32 @@ export const loginAr = {
     },
   },
   form: {
-    accountTypeLabel: "نوع الحساب",
+    eyebrow: "المصادقة",
+    accountTypeLabel: "الملف",
+    optional: "اختياري",
     emailLabel: "البريد الإلكتروني",
-    emailPlaceholder: "nom@structure.dz",
+    emailPlaceholder: "admin@clinique.dz",
     passwordLabel: "كلمة المرور",
     passwordPlaceholder: "كلمة المرور الخاصة بك",
-    rememberMe: "تذكرني",
+    rememberMe: "إبقاء الجلسة نشطة",
     forgotPassword: "هل نسيت كلمة المرور؟",
     submit: "تسجيل الدخول",
     loading: "جاري تسجيل الدخول...",
+    ssoComingSoon: "الدخول الموحّد متاح قريبًا",
     signUpPrompt: "ليس لديك حساب؟",
-    signUpLink: "إنشاء حساب",
+    signUpLink: "إنشاء حساب جديد",
   },
   accountType: {
     establishment: "مؤسسة صحية",
+    establishmentDescription: "عيادة، مستشفى أو مخبر",
+    establishmentHintTitle: "مؤسسة صحية",
+    establishmentHintDescription:
+      "مسار مخصص لإدارة المؤسسة وعدة ممارسين صحيين.",
     doctor: "طبيب مستقل",
+    doctorDescription: "عيادة خاصة أو نشاط حر",
+    doctorHintTitle: "طبيب مستقل",
+    doctorHintDescription:
+      "ولوج شخصي لإدارة عيادتك وملفات مرضاك.",
   },
   feedback: {
     success: "تم تسجيل الدخول بنجاح.",
