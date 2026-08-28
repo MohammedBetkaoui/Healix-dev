@@ -21,14 +21,14 @@ export function ActivityTable({
   title,
 }: ActivityTableProps) {
   return (
-    <section className="rounded-[26px] border border-slate-200/80 bg-white shadow-[0_12px_36px_rgba(15,23,42,0.04)]">
-      <div className="border-b border-slate-100 px-6 py-5">
-        <h2 className="text-lg font-semibold text-slate-950">{title}</h2>
+    <section className="overflow-hidden rounded-[1rem] rounded-bl-[0.4rem] border border-[var(--line)] bg-[var(--panel)]/94 shadow-[0_1px_2px_rgba(22,33,29,0.03),0_18px_40px_-28px_rgba(22,33,29,0.25)]">
+      <div className="border-b border-[var(--line-soft)] px-6 py-5">
+        <h2 className="font-[var(--font-auth-display)] text-[1.2rem] font-medium text-[var(--ink)]">{title}</h2>
       </div>
       <div className="overflow-x-auto">
         <table className="min-w-full text-sm">
           <thead>
-            <tr className="text-left text-xs uppercase tracking-[0.14em] text-slate-400">
+            <tr className="text-start font-[var(--font-auth-mono)] text-[0.66rem] uppercase tracking-[0.14em] text-[var(--ink-faint)]">
               {columns.map((column) => (
                 <th key={column.key} className="px-6 py-4 font-medium">
                   {column.label}
@@ -40,7 +40,7 @@ export function ActivityTable({
             {rows.map((row) => (
               <tr
                 key={row.id}
-                className="border-t border-slate-100 text-slate-600"
+                className="border-t border-[var(--line-soft)] text-[var(--ink-soft)] transition hover:bg-[var(--panel-soft)]/70"
               >
                 {columns.map((column) => (
                   <td
@@ -51,7 +51,7 @@ export function ActivityTable({
                     )}
                   >
                     {column.key === "type" || column.key === "action" ? (
-                      <span className="font-medium text-slate-950">
+                      <span className="font-medium text-[var(--ink)]">
                         {row.typeOrAction}
                       </span>
                     ) : null}
@@ -69,17 +69,17 @@ export function ActivityTable({
                           <Button
                             variant="ghost"
                             size="sm"
-                            className="h-8 rounded-full px-3 text-xs"
+                            className="h-8 rounded-full px-3 text-xs text-[var(--accent-dark)]"
                           >
                             {row.actionLabel}
                           </Button>
                         ) : null}
                         <button
                           type="button"
-                          className="inline-flex h-8 w-8 items-center justify-center rounded-full text-slate-400 transition hover:bg-slate-100 hover:text-slate-700"
+                          className="inline-flex h-8 w-8 items-center justify-center rounded-full text-[var(--ink-faint)] transition hover:bg-[var(--accent-soft)] hover:text-[var(--accent-dark)]"
                           aria-label="More"
                         >
-                          <MoreHorizontal className="h-4 w-4" />
+                          <MoreHorizontal className="h-4 w-4" strokeWidth={1.7} />
                         </button>
                       </div>
                     ) : null}

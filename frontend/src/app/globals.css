@@ -1,25 +1,48 @@
 @import "tailwindcss";
 
 :root {
-  --background: #f8fbfd;
-  --foreground: #0f172a;
-  --card: #ffffff;
-  --card-foreground: #0f172a;
+  /* HealixDz brand system — shared by every product surface. */
+  --bg: #f5f1e8;
+  --panel: #ffffff;
+  --ink: #16211d;
+  --ink-soft: #5b685f;
+  --ink-faint: #8a9590;
+  --line: #e1dbc9;
+  --accent: #1f6f5c;
+  --accent-dark: #123d32;
+  --accent-soft: #e1ede7;
+  --gold: #ad7f3c;
+  --gold-soft: #f1e6d0;
+  --positive: #3f7a5c;
+  --panel-soft: #fcfaf5;
+  --line-soft: #ebe5d7;
+  --accent-line: #bdd3c8;
+  --gold-line: #dfc89d;
+  --gold-muted: #d8c59a;
+  --gold-dark: #805a24;
+  --accent-deep: #0f352c;
+  --sidebar-scroll-thumb: #91afa4;
+  --sidebar-scroll-thumb-hover: #638f80;
+  --sidebar-scroll-track: #e7e1d3;
+
+  --background: var(--bg);
+  --foreground: var(--ink);
+  --card: var(--panel);
+  --card-foreground: var(--ink);
   --popover: #ffffff;
-  --popover-foreground: #0f172a;
-  --primary: #0b3b5f;
-  --primary-foreground: #ffffff;
-  --secondary: #e8f7fb;
-  --secondary-foreground: #0b3b5f;
-  --muted: #eef4f7;
-  --muted-foreground: #64748b;
-  --accent: #d9fbf4;
-  --accent-foreground: #065f46;
+  --popover-foreground: var(--ink);
+  --primary: var(--accent-dark);
+  --primary-foreground: #f5f1e8;
+  --secondary: var(--accent-soft);
+  --secondary-foreground: var(--accent-dark);
+  --muted: #efeadf;
+  --muted-foreground: var(--ink-soft);
+  --accent-foreground: var(--accent-dark);
   --destructive: #dc2626;
   --destructive-foreground: #ffffff;
-  --border: #dbe7ee;
-  --input: #dbe7ee;
-  --ring: #06b6d4;
+  --border: var(--line);
+  --input: var(--line);
+  --ring: var(--accent);
   --radius: 0.5rem;
 }
 
@@ -43,8 +66,21 @@
   --color-border: var(--border);
   --color-input: var(--input);
   --color-ring: var(--ring);
-  --font-sans: "Segoe UI", "Inter", ui-sans-serif, system-ui, sans-serif;
-  --font-mono: "Cascadia Mono", "SFMono-Regular", ui-monospace, monospace;
+  --color-healix-bg: var(--bg);
+  --color-healix-panel: var(--panel);
+  --color-healix-ink: var(--ink);
+  --color-healix-ink-soft: var(--ink-soft);
+  --color-healix-ink-faint: var(--ink-faint);
+  --color-healix-line: var(--line);
+  --color-healix-accent: var(--accent);
+  --color-healix-accent-dark: var(--accent-dark);
+  --color-healix-accent-soft: var(--accent-soft);
+  --color-healix-gold: var(--gold);
+  --color-healix-gold-soft: var(--gold-soft);
+  --color-healix-positive: var(--positive);
+  --font-sans: var(--font-auth-sans), sans-serif;
+  --font-mono: var(--font-auth-mono), monospace;
+  --font-display: var(--font-auth-display), serif;
   --radius-sm: calc(var(--radius) * 0.75);
   --radius-md: calc(var(--radius) * 0.875);
   --radius-lg: var(--radius);
@@ -53,10 +89,56 @@
 body {
   background: var(--background);
   color: var(--foreground);
-  font-family: "Segoe UI", "Inter", Arial, Helvetica, sans-serif;
+  font-family: var(--font-auth-sans), sans-serif;
 }
 
 ::selection {
-  background: rgba(34, 211, 238, 0.26);
-  color: #082f49;
+  background: var(--accent-soft);
+  color: var(--accent-dark);
+}
+
+.dashboard-sidebar-scroll {
+  overscroll-behavior-y: contain;
+  scroll-behavior: smooth;
+  scrollbar-color: var(--sidebar-scroll-thumb) transparent;
+  scrollbar-gutter: stable;
+  scrollbar-width: thin;
+}
+
+.dashboard-sidebar-scroll::-webkit-scrollbar {
+  width: 10px;
+}
+
+.dashboard-sidebar-scroll::-webkit-scrollbar-track {
+  background: linear-gradient(
+    90deg,
+    transparent 4px,
+    var(--sidebar-scroll-track) 4px,
+    var(--sidebar-scroll-track) 5px,
+    transparent 5px
+  );
+  margin-block: 10px;
+}
+
+.dashboard-sidebar-scroll::-webkit-scrollbar-thumb {
+  min-height: 64px;
+  border: 3px solid transparent;
+  border-radius: 999px;
+  background: var(--sidebar-scroll-thumb);
+  background-clip: padding-box;
+  transition: background-color 160ms ease;
+}
+
+.dashboard-sidebar-scroll::-webkit-scrollbar-thumb:hover {
+  border-width: 2px;
+  background: var(--sidebar-scroll-thumb-hover);
+  background-clip: padding-box;
+}
+
+.dashboard-sidebar-scroll::-webkit-scrollbar-button,
+.dashboard-sidebar-scroll::-webkit-scrollbar-corner {
+  display: none;
+  width: 0;
+  height: 0;
+  background: transparent;
 }

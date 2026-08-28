@@ -8,10 +8,10 @@ type StatusBadgeProps = {
 };
 
 const toneClasses: Record<DashboardStatusTone, string> = {
-  neutral: "bg-slate-100 text-slate-700",
-  success: "bg-emerald-50 text-emerald-700",
-  warning: "bg-amber-50 text-amber-700",
-  info: "bg-cyan-50 text-cyan-700",
+  neutral: "border-[var(--line)] bg-[var(--panel-soft)] text-[var(--ink-soft)]",
+  success: "border-[var(--accent-line)] bg-[var(--accent-soft)] text-[var(--accent-dark)]",
+  warning: "border-[var(--gold-line)] bg-[var(--gold-soft)] text-[var(--gold-dark)]",
+  info: "border-[var(--accent-line)] bg-[var(--accent-soft)] text-[var(--accent-dark)]",
 };
 
 export function StatusBadge({
@@ -21,7 +21,7 @@ export function StatusBadge({
   return (
     <span
       className={cn(
-        "inline-flex items-center rounded-full px-2.5 py-1 text-xs font-medium",
+        "inline-flex items-center rounded-full border px-2.5 py-1 font-[var(--font-auth-mono)] text-[0.66rem] font-medium tracking-[0.03em]",
         toneClasses[tone],
       )}
     >

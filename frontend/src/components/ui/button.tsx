@@ -12,11 +12,12 @@ export type ButtonProps = React.ButtonHTMLAttributes<HTMLButtonElement> & {
 
 const variants: Record<ButtonVariant, string> = {
   default:
-    "bg-[#0b3b5f] text-white shadow-sm shadow-sky-950/15 hover:bg-[#092f4d]",
-  secondary: "bg-cyan-50 text-[#0b3b5f] hover:bg-cyan-100",
+    "bg-[var(--accent-dark)] text-[var(--bg)] shadow-[0_10px_22px_-12px_rgba(18,61,50,0.72)] hover:bg-[var(--accent-deep)]",
+  secondary:
+    "border border-[var(--accent-line)] bg-[var(--accent-soft)] text-[var(--accent-dark)] hover:bg-[#d5e6dd]",
   outline:
-    "border border-slate-200 bg-white text-slate-800 shadow-sm hover:bg-slate-50",
-  ghost: "text-slate-700 hover:bg-slate-100",
+    "border border-[var(--line)] bg-[var(--panel)] text-[var(--ink)] shadow-[0_8px_18px_-16px_rgba(22,33,29,0.65)] hover:bg-[var(--panel-soft)]",
+  ghost: "text-[var(--ink-soft)] hover:bg-[var(--accent-soft)] hover:text-[var(--accent-dark)]",
 };
 
 const sizes: Record<ButtonSize, string> = {
@@ -35,7 +36,7 @@ export const Button = React.forwardRef<HTMLButtonElement, ButtonProps>(
       ref={ref}
       type={type}
       className={cn(
-        "inline-flex items-center justify-center gap-2 rounded-lg font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-500 focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-60",
+        "inline-flex items-center justify-center gap-2 rounded-lg font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--accent)] focus-visible:ring-offset-2 focus-visible:ring-offset-[var(--bg)] disabled:pointer-events-none disabled:opacity-60",
         variants[variant],
         sizes[size],
         className,

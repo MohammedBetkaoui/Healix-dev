@@ -34,14 +34,14 @@ type DashboardSidebarProps = {
 
 function badgeClasses(tone: DashboardNavBadgeTone) {
   if (tone === "red") {
-    return "border border-red-200 bg-red-50 text-red-500";
+    return "border border-[#e4c5bc] bg-[#fbefeb] text-[#a9463a]";
   }
 
   if (tone === "purple") {
-    return "border border-violet-200 bg-violet-50 text-violet-500";
+    return "border border-[var(--gold-line)] bg-[var(--gold-soft)] text-[var(--gold-dark)]";
   }
 
-  return "border border-blue-200 bg-blue-50 text-blue-500";
+  return "border border-[var(--accent-line)] bg-[var(--accent-soft)] text-[var(--accent-dark)]";
 }
 
 type NavRowProps = {
@@ -68,18 +68,18 @@ function NavRow({
     ? `${t(item.labelKey)}...`
     : t(item.labelKey);
   const rowClasses = cn(
-    "group relative flex min-h-11 w-full items-center gap-3 rounded-xl px-3 text-sm font-medium transition",
+    "group relative flex min-h-11 w-full items-center gap-3 rounded-[0.78rem] rounded-bl-[0.28rem] border border-transparent px-3 text-sm font-medium transition",
     isCollapsed && "lg:justify-center lg:gap-0 lg:px-0",
     active
-      ? "bg-blue-50 text-blue-500"
-      : "text-slate-700 hover:bg-slate-50 hover:text-slate-950",
+      ? "border-[var(--accent-line)] bg-[var(--accent-soft)] text-[var(--accent-dark)] shadow-[0_10px_22px_-20px_rgba(18,61,50,0.72)]"
+      : "text-[var(--ink-soft)] hover:bg-[var(--panel-soft)] hover:text-[var(--ink)]",
   );
   const rowContent = (
     <>
       {active ? (
         <span
           className={cn(
-            "absolute top-1/2 h-4 -translate-y-1/2 rounded-full bg-blue-500 shadow-[0_0_10px_rgba(59,130,246,0.35)]",
+            "absolute top-1/2 h-4 -translate-y-1/2 rounded-full bg-[var(--accent)] shadow-[0_0_10px_rgba(31,111,92,0.24)]",
             direction === "rtl" ? "right-0 w-0.5" : "left-0 w-0.5",
           )}
           aria-hidden="true"
@@ -90,7 +90,9 @@ function NavRow({
         strokeWidth={1.7}
         className={cn(
           "shrink-0 transition",
-          active ? "text-blue-500" : "text-slate-500 group-hover:text-slate-900",
+          active
+            ? "text-[var(--accent-dark)]"
+            : "text-[var(--ink-faint)] group-hover:text-[var(--ink)]",
         )}
       />
       <span
@@ -155,7 +157,7 @@ export function DashboardSidebar({
     <>
       <div
         className={cn(
-          "fixed inset-0 z-30 bg-slate-950/24 transition lg:hidden",
+          "fixed inset-0 z-30 bg-[#16211d]/30 transition lg:hidden",
           isOpen ? "pointer-events-auto opacity-100" : "pointer-events-none opacity-0",
         )}
         onClick={onClose}
@@ -164,11 +166,11 @@ export function DashboardSidebar({
 
       <aside
         className={cn(
-          "fixed inset-y-0 z-40 flex w-[272px] shrink-0 flex-col bg-white shadow-[0_24px_80px_rgba(15,23,42,0.14)] transition-[transform,width] duration-300 lg:sticky lg:inset-auto lg:top-0 lg:z-0 lg:h-screen lg:translate-x-0 lg:self-start lg:shadow-none",
+          "fixed inset-y-0 z-40 flex w-[272px] shrink-0 flex-col bg-[var(--bg)] shadow-[0_24px_80px_rgba(22,33,29,0.16)] transition-[transform,width] duration-300 lg:sticky lg:inset-auto lg:top-0 lg:z-0 lg:h-screen lg:translate-x-0 lg:self-start lg:shadow-none",
           isCollapsed ? "lg:w-[88px]" : "lg:w-[272px]",
           direction === "rtl"
-            ? "right-0 border-l border-slate-200/70 lg:right-auto"
-            : "left-0 border-r border-slate-200/70 lg:left-auto",
+            ? "right-0 border-l border-[var(--line)] lg:right-auto"
+            : "left-0 border-r border-[var(--line)] lg:left-auto",
           isOpen
             ? "translate-x-0"
             : direction === "rtl"
@@ -176,7 +178,7 @@ export function DashboardSidebar({
               : "-translate-x-full",
         )}
       >
-        <div className="border-b border-slate-200/70 px-4 py-4">
+        <div className="border-b border-[var(--line)] px-4 py-4">
           <div
             className={cn(
               "flex items-start justify-between gap-3",
@@ -189,19 +191,19 @@ export function DashboardSidebar({
                 isCollapsed && "lg:justify-center lg:gap-0",
               )}
             >
-              <span className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-[linear-gradient(135deg,#3b82f6_0%,#7c3aed_100%)] text-white shadow-[0_12px_30px_rgba(59,130,246,0.28)]">
-                <Activity size={18} strokeWidth={2.4} />
+              <span className="relative flex h-12 w-12 shrink-0 items-center justify-center rounded-[0.92rem] rounded-bl-[0.3rem] bg-[var(--accent-dark)] text-[#f1ead9] shadow-[0_14px_28px_-18px_rgba(18,61,50,0.86)] after:absolute after:-right-1 after:-top-1 after:h-2.5 after:w-2.5 after:rounded-full after:border-2 after:border-[var(--bg)] after:bg-[var(--gold)] after:content-['']">
+                <Activity size={19} strokeWidth={2} />
               </span>
               <div className={cn("min-w-0", isCollapsed && "lg:hidden")}>
                 <div className="flex items-center gap-2">
-                  <p className="truncate text-[1.05rem] font-semibold tracking-tight text-slate-950">
-                    HealixDZ
+                  <p className="truncate font-[var(--font-auth-mono)] text-[1.02rem] font-medium tracking-[0.01em] text-[var(--ink)]">
+                    Healix<span className="text-[var(--accent)]">Dz</span>
                   </p>
-                  <span className="rounded-md border border-blue-200 bg-blue-50 px-1.5 py-0.5 text-[10px] font-bold tracking-[0.08em] text-blue-500">
+                  <span className="rounded-[0.35rem] border border-[var(--gold-line)] bg-[var(--gold-soft)] px-1.5 py-0.5 font-[var(--font-auth-mono)] text-[9px] font-medium tracking-[0.08em] text-[var(--gold-dark)]">
                     PRO
                   </span>
                 </div>
-                <p className="truncate text-xs text-slate-400">
+                <p className="truncate text-xs text-[var(--ink-faint)]">
                   {user.workspaceSubtitle}
                 </p>
               </div>
@@ -209,7 +211,7 @@ export function DashboardSidebar({
             <Button
               variant="outline"
               size="icon"
-              className="hidden h-9 w-9 rounded-xl border-slate-200 bg-white text-slate-600 shadow-sm transition hover:bg-slate-50 hover:text-slate-950 lg:inline-flex"
+              className="hidden h-9 w-9 rounded-[0.72rem] rounded-bl-[0.24rem] border-[var(--line)] bg-[var(--panel)] text-[var(--ink-soft)] transition hover:bg-[var(--accent-soft)] hover:text-[var(--accent-dark)] lg:inline-flex"
               onClick={onToggleCollapse}
               aria-label={
                 isCollapsed
@@ -230,7 +232,7 @@ export function DashboardSidebar({
             <Button
               variant="ghost"
               size="icon"
-              className="rounded-full lg:hidden"
+              className="rounded-full text-[var(--ink-soft)] lg:hidden"
               onClick={onClose}
               aria-label="Close"
             >
@@ -239,7 +241,12 @@ export function DashboardSidebar({
           </div>
         </div>
 
-        <div className={cn("flex-1 overflow-y-auto px-4 py-5", isCollapsed && "lg:px-3")}>
+        <div
+          className={cn(
+            "dashboard-sidebar-scroll flex-1 overflow-y-auto px-4 py-5",
+            isCollapsed && "lg:px-3",
+          )}
+        >
           {navSections.map((section) => (
             <section
               key={section.key}
@@ -247,7 +254,7 @@ export function DashboardSidebar({
             >
               <p
                 className={cn(
-                  "px-3 pb-2 text-[10px] font-bold tracking-[0.18em] text-slate-400",
+                  "px-3 pb-2 font-[var(--font-auth-mono)] text-[10px] font-medium uppercase tracking-[0.18em] text-[var(--ink-faint)]",
                   isCollapsed && "lg:sr-only",
                 )}
               >
@@ -273,23 +280,23 @@ export function DashboardSidebar({
           ))}
         </div>
 
-        <div className="mt-auto border-t border-slate-200/70 px-4 py-3">
+        <div className="mt-auto border-t border-[var(--line)] px-4 py-3">
           <div
             className={cn(
               "flex items-center gap-3",
               isCollapsed && "lg:justify-center lg:gap-0",
             )}
           >
-            <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-[linear-gradient(135deg,#10b981_0%,#3b82f6_100%)] text-sm font-semibold text-white shadow-[0_10px_24px_rgba(16,185,129,0.18)]">
+            <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-[0.78rem] rounded-bl-[0.24rem] border border-[var(--accent-deep)] bg-[var(--accent-dark)] text-sm font-semibold text-[var(--bg)] shadow-[0_10px_24px_-17px_rgba(18,61,50,0.75)]">
               {user.initials}
             </span>
             <div className={cn("min-w-0 flex-1", isCollapsed && "lg:hidden")}>
-              <p className="truncate text-sm font-medium text-slate-950">
+              <p className="truncate text-sm font-medium text-[var(--ink)]">
                 {user.name}
               </p>
               <div className="flex items-center gap-1.5">
-                <span className="h-1.5 w-1.5 rounded-full bg-emerald-400 shadow-[0_0_8px_rgba(16,185,129,0.7)]" />
-                <p className="truncate text-xs text-slate-500">
+                <span className="h-1.5 w-1.5 rounded-full bg-[var(--positive)] shadow-[0_0_8px_rgba(63,122,92,0.4)]" />
+                <p className="truncate text-xs text-[var(--ink-soft)]">
                   {user.footerSubtitle}
                 </p>
               </div>
@@ -297,7 +304,7 @@ export function DashboardSidebar({
             <button
               type="button"
               className={cn(
-                "inline-flex h-9 w-9 items-center justify-center rounded-full text-slate-400 transition hover:bg-slate-100 hover:text-slate-700",
+                "inline-flex h-9 w-9 items-center justify-center rounded-full text-[var(--ink-faint)] transition hover:bg-[var(--accent-soft)] hover:text-[var(--accent-dark)]",
                 isCollapsed && "lg:hidden",
               )}
               aria-label={t("dashboard.sidebar.establishment.settings")}

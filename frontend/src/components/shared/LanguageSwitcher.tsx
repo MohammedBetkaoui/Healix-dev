@@ -25,22 +25,18 @@ export function LanguageSwitcher({
   return (
     <div
       className={cn(
-        "inline-flex items-center gap-1 border border-white/70 bg-white/75 shadow-sm shadow-sky-950/5 backdrop-blur",
-        isCompact ? "rounded-xl p-0.5" : "rounded-lg p-1",
+        "inline-flex items-center border border-[var(--line)] bg-[var(--panel)]",
+        isCompact
+          ? "h-11 gap-0.5 rounded-full p-1"
+          : "gap-1 rounded-[0.9rem] rounded-bl-[0.32rem] p-1 shadow-[0_10px_24px_-22px_rgba(22,33,29,0.65)] backdrop-blur",
       )}
       aria-label={t("common.languageSwitcher.label")}
     >
-      <span
-        className={cn(
-          "flex items-center justify-center text-cyan-800",
-          isCompact ? "h-8 w-8 rounded-lg" : "h-9 w-9 rounded-md",
-        )}
-      >
-        <Languages
-          className={cn(isCompact ? "h-3.5 w-3.5" : "h-4 w-4")}
-          aria-hidden="true"
-        />
-      </span>
+      {isCompact ? null : (
+        <span className="flex h-9 w-9 items-center justify-center rounded-md text-[var(--accent-dark)]">
+          <Languages className="h-4 w-4" strokeWidth={1.8} aria-hidden="true" />
+        </span>
+      )}
       {locales.map((availableLocale) => {
         const isActive = locale === availableLocale;
 
@@ -53,9 +49,13 @@ export function LanguageSwitcher({
             aria-pressed={isActive}
             onClick={() => onLocaleChange(availableLocale)}
             className={cn(
-              "rounded-md shadow-none",
-              isCompact ? "h-8 px-2 text-xs" : "h-9 px-3",
-              !isActive && "text-slate-600 hover:bg-cyan-50 hover:text-cyan-800",
+              "shadow-none",
+              isCompact
+                ? "h-8 rounded-full px-3 text-xs"
+                : "h-9 rounded-[0.55rem] px-3",
+              isActive
+                ? "bg-[var(--accent-dark)] text-[var(--bg)] hover:bg-[var(--accent-deep)]"
+                : "text-[var(--ink-soft)] hover:bg-[var(--accent-soft)] hover:text-[var(--accent-dark)]",
             )}
           >
             {t(`common.languageSwitcher.languages.${availableLocale}`)}

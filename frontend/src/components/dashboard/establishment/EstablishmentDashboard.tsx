@@ -174,7 +174,7 @@ export function EstablishmentDashboard() {
         workspaceSubtitle: "Clinique El Shifa",
       }}
     >
-      <section className="space-y-6">
+      <section className="space-y-6 xl:space-y-7">
         <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
           {establishmentStats.map((item) => (
             <StatCard
@@ -234,16 +234,19 @@ export function EstablishmentDashboard() {
               statusLabel={accountStatus.statusLabel}
               title={accountStatus.cardTitle}
             />
-            <section className="rounded-[26px] border border-slate-200/80 bg-white p-6 shadow-[0_12px_36px_rgba(15,23,42,0.04)]">
+            <section className="rounded-[1rem] rounded-bl-[0.4rem] border border-[var(--line)] bg-[var(--panel)]/94 p-6 shadow-[0_1px_2px_rgba(22,33,29,0.03),0_18px_40px_-28px_rgba(22,33,29,0.25)]">
               <div className="mb-5 flex items-center gap-3">
-                <span className="flex h-11 w-11 items-center justify-center rounded-full bg-slate-100 text-slate-700">
-                  <FileStack className="h-5 w-5" />
+                <span className="flex h-11 w-11 items-center justify-center rounded-[0.76rem] rounded-bl-[0.22rem] border border-[var(--gold-line)] bg-[var(--gold-soft)] text-[var(--gold)]">
+                  <FileStack className="h-5 w-5" strokeWidth={1.7} aria-hidden="true" />
                 </span>
                 <div>
-                  <h2 className="text-lg font-semibold text-slate-950">
+                  <p className="font-[var(--font-auth-mono)] text-[0.63rem] font-medium uppercase tracking-[0.12em] text-[var(--gold)]">
+                    HealixDz
+                  </p>
+                  <h2 className="font-[var(--font-auth-display)] text-[1.2rem] font-medium text-[var(--ink)]">
                     {t("dashboard.establishment.quickActions.title")}
                   </h2>
-                  <p className="mt-1 text-sm text-slate-500">
+                  <p className="mt-1 text-sm text-[var(--ink-soft)]">
                     {t("dashboard.common.accountStatus.statusCardDescription")}
                   </p>
                 </div>
