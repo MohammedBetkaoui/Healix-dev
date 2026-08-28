@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useCallback, useMemo, useState } from "react";
 
 import {
   doctorNavSections,
@@ -8,10 +8,7 @@ import {
 } from "@/components/dashboard/layout/navigation";
 import { DashboardShell } from "@/components/dashboard/layout/DashboardShell";
 import { BillingToggle } from "@/components/subscription/BillingToggle";
-import { CheckoutSummary } from "@/components/subscription/CheckoutSummary";
-import { ManualPaymentNotice } from "@/components/subscription/ManualPaymentNotice";
-import { PaymentMethodSelector } from "@/components/subscription/PaymentMethodSelector";
-import { PaymentSecurityNotice } from "@/components/subscription/PaymentSecurityNotice";
+import { PaymentCheckoutModal } from "@/components/subscription/PaymentCheckoutModal";
 import { PlanComparisonTable } from "@/components/subscription/PlanComparisonTable";
 import { PricingGrid } from "@/components/subscription/PricingGrid";
 import { SubscriptionFAQ } from "@/components/subscription/SubscriptionFAQ";
@@ -70,11 +67,12 @@ function getDashboardUser(accountType: AccountType) {
 
 export function SubscriptionPage({ accountType }: SubscriptionPageProps) {
   const { locale } = useStoredLocale();
-  const { t } = useTranslation(locale);
+  const { direction, t } = useTranslation(locale);
   const [billingPeriod, setBillingPeriod] =
     useState<BillingPeriod>("MONTHLY");
   const [selectedPlanId, setSelectedPlanId] = useState<string | undefined>();
   const [paymentMethod, setPaymentMethod] = useState<PaymentMethod | undefined>();
+  const [isPaymentModalOpen, setIsPaymentModalOpen] = useState(false);
   const [toastMessage, setToastMessage] = useState<string | null>(null);
   const {
     createIntent,
@@ -113,8 +111,21 @@ export function SubscriptionPage({ accountType }: SubscriptionPageProps) {
       return;
     }
 
+    const nextPlan = plans.find((plan) => plan.id === planId);
     setSelectedPlanId(planId);
+    setPaymentMethod(undefined);
+
+    if (nextPlan?.custom) {
+      showMockToast(t("subscription.pricing.contactTeam"));
+      return;
+    }
+
+    setIsPaymentModalOpen(true);
   };
+
+  const handleClosePaymentModal = useCallback(() => {
+    setIsPaymentModalOpen(false);
+  }, []);
 
   const showMockToast = (message: string) => {
     setToastMessage(message);
@@ -133,7 +144,7 @@ export function SubscriptionPage({ accountType }: SubscriptionPageProps) {
         {toastMessage ? (
           <div
             role="status"
-            className="fixed end-6 top-6 z-50 max-w-sm rounded-2xl border border-emerald-100 bg-white p-4 text-sm font-medium text-emerald-800 shadow-2xl"
+            className="fixed end-6 top-6 z-50 max-w-sm rounded-[1rem] border border-[var(--accent-line)] bg-[var(--panel)] p-4 text-sm font-medium text-[var(--accent-dark)] shadow-[0_22px_52px_-28px_rgba(22,33,29,0.65)]"
           >
             {toastMessage}
           </div>
@@ -183,54 +194,34 @@ export function SubscriptionPage({ accountType }: SubscriptionPageProps) {
           t={t}
         />
 
-        {selectedPlan ? (
-          <section className="grid gap-6 xl:grid-cols-[1fr_0.8fr]">
-            <div className="space-y-6">
-              <PaymentMethodSelector
-                disabled={!canSelectPlan || Boolean(selectedPlan.custom)}
-                onChange={setPaymentMethod}
-                selectedMethod={paymentMethod}
-                t={t}
-              />
-              <ManualPaymentNotice
-                billingPeriod={billingPeriod}
-                paymentMethod={paymentMethod}
-                plan={selectedPlan}
-                t={t}
-              />
-              <PaymentSecurityNotice t={t} />
-            </div>
-            <CheckoutSummary
-              accountType={accountType}
-              billingPeriod={billingPeriod}
-              canCheckout={canCheckout}
-              context={context}
-              isLoading={isCreatingPaymentIntent}
-              onConfirm={() => {
-                if (!selectedPlan || !paymentMethod) {
-                  return;
-                }
-
-                void createIntent({
-                  billingPeriod,
-                  paymentMethod,
-                  planId: selectedPlan.id,
-                });
-              }}
-              paymentMethod={paymentMethod}
-              plan={selectedPlan}
-              t={t}
-            />
-          </section>
-        ) : null}
-
-        {paymentError ? (
-          <p className="rounded-2xl border border-rose-100 bg-rose-50 p-4 text-sm font-medium text-rose-700">
-            {paymentError}
-          </p>
-        ) : null}
-
         <SubscriptionFAQ t={t} />
+
+        <PaymentCheckoutModal
+          accountType={accountType}
+          billingPeriod={billingPeriod}
+          canCheckout={canCheckout}
+          context={context}
+          direction={direction}
+          error={paymentError}
+          isLoading={isCreatingPaymentIntent}
+          isOpen={isPaymentModalOpen}
+          onClose={handleClosePaymentModal}
+          onConfirm={() => {
+            if (!selectedPlan || !paymentMethod) {
+              return;
+            }
+
+            void createIntent({
+              billingPeriod,
+              paymentMethod,
+              planId: selectedPlan.id,
+            });
+          }}
+          onPaymentMethodChange={setPaymentMethod}
+          paymentMethod={paymentMethod}
+          plan={selectedPlan}
+          t={t}
+        />
       </div>
     </DashboardShell>
   );

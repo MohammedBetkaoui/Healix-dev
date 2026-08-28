@@ -28,19 +28,19 @@ export function PricingGrid({
     <section>
       <div className="mb-4 flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between">
         <div>
-          <h2 className="text-xl font-semibold text-slate-950">
+          <h2 className="font-[var(--font-auth-display)] text-[1.65rem] font-medium text-[var(--ink)]">
             {t("subscription.pricing.title")}
           </h2>
-          <p className="mt-1 text-sm text-slate-500">
+          <p className="mt-1 text-sm text-[var(--ink-soft)]">
             {t("subscription.pricing.subtitle")}
           </p>
         </div>
       </div>
       <div
         className={cn(
-          "grid gap-4",
+          "grid auto-rows-fr items-stretch gap-5 pt-2",
           plans.length >= 4
-            ? "md:grid-cols-2 2xl:grid-cols-4"
+            ? "md:grid-cols-2 min-[1500px]:grid-cols-4"
             : "md:grid-cols-2 xl:grid-cols-3",
         )}
       >

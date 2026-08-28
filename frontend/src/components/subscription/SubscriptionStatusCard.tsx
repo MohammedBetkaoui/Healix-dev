@@ -31,20 +31,20 @@ export function SubscriptionStatusCard({
   }
 
   return (
-    <section className="rounded-[24px] border border-emerald-100 bg-white p-5 shadow-[0_12px_36px_rgba(15,23,42,0.04)]">
+    <section className="rounded-[1.15rem] border border-[var(--accent-line)] bg-[var(--panel)] p-5 shadow-[0_16px_38px_-30px_rgba(22,33,29,0.46)]">
       <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
         <div className="flex items-start gap-4">
-          <span className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-emerald-50 text-emerald-700">
-            <CalendarDays className="h-5 w-5" aria-hidden="true" />
+          <span className="flex h-12 w-12 shrink-0 items-center justify-center rounded-[0.82rem] border border-[var(--accent-line)] bg-[var(--accent-soft)] text-[var(--accent-dark)]">
+            <CalendarDays className="h-5 w-5" strokeWidth={1.7} aria-hidden="true" />
           </span>
           <div>
-            <p className="text-sm font-semibold text-emerald-700">
+            <p className="font-[var(--font-auth-mono)] text-[0.66rem] font-medium uppercase tracking-[0.12em] text-[var(--accent-dark)]">
               {t("subscription.current.active")}
             </p>
-            <h2 className="mt-1 text-xl font-semibold text-slate-950">
+            <h2 className="mt-1 font-[var(--font-auth-display)] text-2xl font-medium text-[var(--ink)]">
               {t("subscription.current.plan")}: {t(currentPlan.name)}
             </h2>
-            <p className="mt-2 text-sm text-slate-500">
+            <p className="mt-2 text-sm text-[var(--ink-soft)]">
               {t("subscription.current.period", {
                 end: formatAdminDateTime(context.currentPeriodEnd, locale),
                 start: formatAdminDateTime(context.currentPeriodStart, locale),
@@ -54,7 +54,7 @@ export function SubscriptionStatusCard({
         </div>
         <div className="flex flex-col gap-2 sm:flex-row">
           <Button type="button" variant="outline" onClick={onChangePlan}>
-            <Repeat2 className="h-4 w-4" aria-hidden="true" />
+            <Repeat2 className="h-4 w-4" strokeWidth={1.7} aria-hidden="true" />
             {t("subscription.current.changePlan")}
           </Button>
           <Button type="button" onClick={onRenew}>

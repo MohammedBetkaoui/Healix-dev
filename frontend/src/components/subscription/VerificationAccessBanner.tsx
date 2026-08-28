@@ -62,24 +62,24 @@ export function VerificationAccessBanner({
   return (
     <section
       className={cn(
-        "rounded-[24px] border p-5 shadow-[0_12px_36px_rgba(15,23,42,0.04)]",
+        "rounded-[1.15rem] border p-5 shadow-[0_16px_38px_-30px_rgba(22,33,29,0.46)]",
         bannerKey === "active" || bannerKey === "verified"
-          ? "border-emerald-100 bg-emerald-50/60"
+          ? "border-[var(--accent-line)] bg-[var(--accent-soft)]/65"
           : bannerKey === "suspended" || bannerKey === "rejected"
-            ? "border-red-100 bg-red-50/60"
-            : "border-amber-100 bg-amber-50/60",
+            ? "border-[#e4c5bc] bg-[#fbefeb]"
+            : "border-[var(--gold-line)] bg-[var(--gold-soft)]/70",
       )}
     >
       <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
         <div className="flex items-start gap-4">
-          <span className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-white text-[#0b3b5f] shadow-sm">
-            <Icon className="h-5 w-5" aria-hidden="true" />
+          <span className="flex h-12 w-12 shrink-0 items-center justify-center rounded-[0.82rem] rounded-bl-[0.26rem] border border-[var(--line)] bg-[var(--panel)] text-[var(--accent-dark)]">
+            <Icon className="h-5 w-5" strokeWidth={1.7} aria-hidden="true" />
           </span>
           <div>
-            <h2 className="text-base font-semibold text-slate-950">
+            <h2 className="text-base font-medium text-[var(--ink)]">
               {t(`subscription.access.${bannerKey}.title`)}
             </h2>
-            <p className="mt-2 max-w-4xl text-sm leading-6 text-slate-600">
+            <p className="mt-2 max-w-4xl text-sm leading-6 text-[var(--ink-soft)]">
               {t(`subscription.access.${bannerKey}.description`)}
             </p>
           </div>
@@ -87,7 +87,7 @@ export function VerificationAccessBanner({
         {canGoToVerification ? (
           <Link
             href={verificationHref}
-            className="inline-flex h-11 items-center justify-center rounded-full bg-[#0b3b5f] px-5 text-sm font-semibold text-white shadow-sm shadow-sky-950/15 transition hover:bg-[#092f4d]"
+            className="inline-flex h-11 items-center justify-center rounded-[0.72rem] bg-[var(--accent-dark)] px-5 text-sm font-medium text-[var(--bg)] shadow-[0_10px_22px_-12px_rgba(18,61,50,0.72)] transition hover:bg-[var(--accent-deep)]"
           >
             {t(`subscription.access.${bannerKey}.action`)}
           </Link>

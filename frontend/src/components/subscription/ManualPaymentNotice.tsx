@@ -40,16 +40,16 @@ export function ManualPaymentNotice({
   const price = billingPeriod === "ANNUAL" ? plan?.annualPrice : plan?.monthlyPrice;
 
   return (
-    <section className="rounded-[24px] border border-amber-100 bg-amber-50/60 p-5 shadow-[0_12px_36px_rgba(15,23,42,0.04)]">
+    <section className="rounded-[1.15rem] border border-[var(--gold-line)] bg-[var(--gold-soft)]/65 p-5 shadow-[0_16px_38px_-30px_rgba(22,33,29,0.46)]">
       <div className="flex items-start gap-3">
-        <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-white text-amber-700 shadow-sm">
-          <FileClock className="h-5 w-5" aria-hidden="true" />
+        <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-[0.78rem] border border-[var(--gold-line)] bg-[var(--panel)] text-[var(--gold-dark)]">
+          <FileClock className="h-5 w-5" strokeWidth={1.7} aria-hidden="true" />
         </span>
         <div>
-          <h2 className="text-lg font-semibold text-slate-950">
+          <h2 className="font-[var(--font-auth-display)] text-2xl font-medium text-[var(--ink)]">
             {t("subscription.manual.title")}
           </h2>
-          <p className="mt-2 text-sm leading-6 text-slate-600">
+          <p className="mt-2 text-sm leading-6 text-[var(--ink-soft)]">
             {paymentMethod === "MANUAL_CASH"
               ? t("subscription.manual.cashDescription")
               : t("subscription.manual.description")}
@@ -57,40 +57,40 @@ export function ManualPaymentNotice({
         </div>
       </div>
       <dl className="mt-5 grid gap-3 sm:grid-cols-2">
-        <div className="rounded-2xl bg-white p-4">
-          <dt className="text-xs font-semibold uppercase tracking-[0.12em] text-slate-500">
+        <div className="rounded-[0.85rem] border border-[var(--line)] bg-[var(--panel)] p-4">
+          <dt className="font-[var(--font-auth-mono)] text-[0.62rem] font-medium uppercase tracking-[0.13em] text-[var(--ink-faint)]">
             {t("subscription.manual.beneficiary")}
           </dt>
-          <dd className="mt-1 font-semibold text-slate-950">HealixDZ</dd>
+          <dd className="mt-1 font-medium text-[var(--ink)]">HealixDZ</dd>
         </div>
-        <div className="rounded-2xl bg-white p-4">
-          <dt className="text-xs font-semibold uppercase tracking-[0.12em] text-slate-500">
+        <div className="rounded-[0.85rem] border border-[var(--line)] bg-[var(--panel)] p-4">
+          <dt className="font-[var(--font-auth-mono)] text-[0.62rem] font-medium uppercase tracking-[0.13em] text-[var(--ink-faint)]">
             {t("subscription.manual.reference")}
           </dt>
-          <dd className="mt-1 font-semibold text-slate-950">
+          <dd className="mt-1 font-medium text-[var(--ink)]">
             {t("subscription.manual.generatedLater")}
           </dd>
         </div>
-        <div className="rounded-2xl bg-white p-4">
-          <dt className="text-xs font-semibold uppercase tracking-[0.12em] text-slate-500">
+        <div className="rounded-[0.85rem] border border-[var(--line)] bg-[var(--panel)] p-4">
+          <dt className="font-[var(--font-auth-mono)] text-[0.62rem] font-medium uppercase tracking-[0.13em] text-[var(--ink-faint)]">
             {t("subscription.manual.amount")}
           </dt>
-          <dd className="mt-1 font-semibold text-slate-950">
+          <dd className="mt-1 font-[var(--font-auth-display)] text-lg font-medium text-[var(--ink)]">
             {formatPrice(price, t)}
           </dd>
         </div>
-        <div className="rounded-2xl bg-white p-4">
-          <dt className="text-xs font-semibold uppercase tracking-[0.12em] text-slate-500">
+        <div className="rounded-[0.85rem] border border-[var(--line)] bg-[var(--panel)] p-4">
+          <dt className="font-[var(--font-auth-mono)] text-[0.62rem] font-medium uppercase tracking-[0.13em] text-[var(--ink-faint)]">
             {t("subscription.manual.proof")}
           </dt>
-          <dd className="mt-1 text-sm font-medium text-slate-600">
+          <dd className="mt-1 text-sm font-medium text-[var(--ink-soft)]">
             {paymentMethod === "MANUAL_CASH"
               ? t("subscription.manual.cashActivation")
               : t("subscription.manual.proofLater")}
           </dd>
         </div>
       </dl>
-      <Button type="button" disabled className="mt-5 rounded-full">
+      <Button type="button" disabled className="mt-5 rounded-[0.72rem]">
         {paymentMethod === "MANUAL_CASH"
           ? t("subscription.manual.cashButton")
           : t("subscription.manual.uploadSoon")}
