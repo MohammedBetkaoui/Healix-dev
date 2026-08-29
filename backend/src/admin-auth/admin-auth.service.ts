@@ -104,8 +104,7 @@ export class AdminAuthService {
       configService.get<string>('ADMIN_COOKIE_SECURE'),
     );
     this.adminGatePath =
-      configService.get<string>('ADMIN_GATE_PATH') ??
-      '/hzdz-control-gate-2026';
+      configService.get<string>('ADMIN_GATE_PATH') ?? '/hzdz-control-gate-2026';
   }
 
   async login(
@@ -118,12 +117,22 @@ export class AdminAuthService {
     const authUser = await this.usersService.findAuthUserByEmail(email);
 
     if (!authUser) {
-      await this.logAdminLoginFailed(null, email, context, 'invalid_credentials');
+      await this.logAdminLoginFailed(
+        null,
+        email,
+        context,
+        'invalid_credentials',
+      );
       throw new UnauthorizedException(INVALID_ADMIN_LOGIN_MESSAGE);
     }
 
     if (!this.isAdminRole(authUser.role)) {
-      await this.logAdminLoginFailed(authUser.id, email, context, 'invalid_role');
+      await this.logAdminLoginFailed(
+        authUser.id,
+        email,
+        context,
+        'invalid_role',
+      );
       throw new UnauthorizedException(INVALID_ADMIN_LOGIN_MESSAGE);
     }
 
@@ -137,22 +146,31 @@ export class AdminAuthService {
       throw new UnauthorizedException(INVALID_ADMIN_LOGIN_MESSAGE);
     }
 
-    const passwordMatches = await bcrypt.compare(password, authUser.passwordHash);
+    const passwordMatches = await bcrypt.compare(
+      password,
+      authUser.passwordHash,
+    );
 
     if (!passwordMatches) {
-      await this.logAdminLoginFailed(authUser.id, email, context, 'invalid_credentials');
+      await this.logAdminLoginFailed(
+        authUser.id,
+        email,
+        context,
+        'invalid_credentials',
+      );
       throw new UnauthorizedException(INVALID_ADMIN_LOGIN_MESSAGE);
     }
 
     try {
-      const session = await this.prisma.$transaction(async (transaction) => {
-        const { accessToken, refreshToken, refreshTokenExpiresAt } =
-          await this.createSignedTokens(authUser);
+      const { accessToken, refreshToken, refreshTokenExpiresAt } =
+        await this.createSignedTokens(authUser);
+      const refreshTokenHash = await this.hashSecret(refreshToken);
 
+      const session = await this.prisma.$transaction(async (transaction) => {
         await transaction.refreshToken.create({
           data: {
             userId: authUser.id,
-            tokenHash: await this.hashSecret(refreshToken),
+            tokenHash: refreshTokenHash,
             userAgent: context.userAgent,
             ipAddress: context.ipAddress,
             expiresAt: refreshTokenExpiresAt,
@@ -244,19 +262,20 @@ export class AdminAuthService {
       throw new UnauthorizedException('Session administrateur invalide.');
     }
 
+    const { accessToken, refreshToken, refreshTokenExpiresAt } =
+      await this.createSignedTokens(authUser);
+    const refreshTokenHash = await this.hashSecret(refreshToken);
+
     const session = await this.prisma.$transaction(async (transaction) => {
       await transaction.refreshToken.update({
         where: { id: matchedToken.id },
         data: { revokedAt: new Date() },
       });
 
-      const { accessToken, refreshToken, refreshTokenExpiresAt } =
-        await this.createSignedTokens(authUser);
-
       await transaction.refreshToken.create({
         data: {
           userId: authUser.id,
-          tokenHash: await this.hashSecret(refreshToken),
+          tokenHash: refreshTokenHash,
           userAgent: context.userAgent,
           ipAddress: context.ipAddress,
           expiresAt: refreshTokenExpiresAt,
@@ -386,7 +405,9 @@ export class AdminAuthService {
   }
 
   private isAdminRole(role: string): boolean {
-    return role === UserRole.SUPER_ADMIN || role === UserRole.ADMIN_VERIFICATION;
+    return (
+      role === UserRole.SUPER_ADMIN || role === UserRole.ADMIN_VERIFICATION
+    );
   }
 
   private async createSignedTokens(
@@ -484,7 +505,10 @@ export class AdminAuthService {
     response.cookie(
       'admin_refresh_token',
       refreshToken,
-      getAdminRefreshCookieOptions(this.cookieSecure, this.refreshTokenMaxAgeMs),
+      getAdminRefreshCookieOptions(
+        this.cookieSecure,
+        this.refreshTokenMaxAgeMs,
+      ),
     );
   }
 

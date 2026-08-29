@@ -12,11 +12,15 @@ import { PrismaClient } from '@prisma/client';
 const LOCAL_DATABASE_HOSTS = new Set(['localhost', '::1', '[::1]']);
 
 type PrismaMariaDbConnection = {
+  socketTimeoutMs: number;
   target: string;
   url: string;
 };
 
-function getPositiveInteger(value: string | undefined, fallback: number): number {
+function getPositiveInteger(
+  value: string | undefined,
+  fallback: number,
+): number {
   const numericValue = Number(value);
 
   if (!Number.isFinite(numericValue) || numericValue <= 0) {
@@ -48,11 +52,15 @@ function resolvePrismaMariaDbUrl(
   try {
     url = new URL(databaseUrl);
   } catch {
-    throw new Error('DATABASE_URL must be a valid MySQL/MariaDB connection URL.');
+    throw new Error(
+      'DATABASE_URL must be a valid MySQL/MariaDB connection URL.',
+    );
   }
 
   if (!['mysql:', 'mariadb:'].includes(url.protocol)) {
-    throw new Error('DATABASE_URL must use the mysql:// or mariadb:// protocol.');
+    throw new Error(
+      'DATABASE_URL must use the mysql:// or mariadb:// protocol.',
+    );
   }
 
   url.protocol = 'mariadb:';
@@ -77,7 +85,7 @@ function resolvePrismaMariaDbUrl(
     url,
     'socketTimeout',
     configService.get<string>('DATABASE_SOCKET_TIMEOUT_MS'),
-    30_000,
+    10_000,
   );
   setDefaultSearchParam(
     url,
@@ -100,8 +108,13 @@ function resolvePrismaMariaDbUrl(
 
   const database = decodeURIComponent(url.pathname.replace(/^\//, ''));
   const port = url.port || '3306';
+  const socketTimeoutMs = getPositiveInteger(
+    url.searchParams.get('socketTimeout') ?? undefined,
+    10_000,
+  );
 
   return {
+    socketTimeoutMs,
     target: `${url.hostname}:${port}/${database || '<database>'}`,
     url: url.toString(),
   };
@@ -132,9 +145,28 @@ export class PrismaService
 
     const connection = resolvePrismaMariaDbUrl(databaseUrl, configService);
     const adapter = new PrismaMariaDb(connection.url);
+    const transactionMaxWaitMs = getPositiveInteger(
+      configService.get<string>('DATABASE_TRANSACTION_MAX_WAIT_MS'),
+      10_000,
+    );
+    const configuredTransactionTimeoutMs = getPositiveInteger(
+      configService.get<string>('DATABASE_TRANSACTION_TIMEOUT_MS'),
+      15_000,
+    );
+    // The driver must report a dead socket before Prisma's transaction timer
+    // attempts a rollback. Otherwise an adapter rollback can reject outside the
+    // request promise and terminate Node.js.
+    const transactionTimeoutMs = Math.max(
+      configuredTransactionTimeoutMs,
+      connection.socketTimeoutMs + 5_000,
+    );
 
     super({
       adapter,
+      transactionOptions: {
+        maxWait: transactionMaxWaitMs,
+        timeout: transactionTimeoutMs,
+      },
     });
 
     this.databaseTarget = connection.target;

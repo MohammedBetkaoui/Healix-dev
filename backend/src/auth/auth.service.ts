@@ -236,14 +236,15 @@ export class AuthService {
     this.assertAccountCanLogin(authUser.accountStatus);
 
     try {
-      const session = await this.prisma.$transaction(async (transaction) => {
-        const { accessToken, refreshToken, refreshTokenExpiresAt } =
-          await this.createSignedTokens(authUser);
+      const { accessToken, refreshToken, refreshTokenExpiresAt } =
+        await this.createSignedTokens(authUser);
+      const refreshTokenHash = await this.hashSecret(refreshToken);
 
+      const session = await this.prisma.$transaction(async (transaction) => {
         await transaction.refreshToken.create({
           data: {
             userId: authUser.id,
-            tokenHash: await this.hashSecret(refreshToken),
+            tokenHash: refreshTokenHash,
             userAgent: context.userAgent,
             ipAddress: context.ipAddress,
             expiresAt: refreshTokenExpiresAt,
@@ -321,19 +322,20 @@ export class AuthService {
       throw new UnauthorizedException('Session invalide.');
     }
 
+    const { accessToken, refreshToken, refreshTokenExpiresAt } =
+      await this.createSignedTokens(authUser);
+    const refreshTokenHash = await this.hashSecret(refreshToken);
+
     const session = await this.prisma.$transaction(async (transaction) => {
       await transaction.refreshToken.update({
         where: { id: matchedToken.id },
         data: { revokedAt: new Date() },
       });
 
-      const { accessToken, refreshToken, refreshTokenExpiresAt } =
-        await this.createSignedTokens(authUser);
-
       await transaction.refreshToken.create({
         data: {
           userId: authUser.id,
-          tokenHash: await this.hashSecret(refreshToken),
+          tokenHash: refreshTokenHash,
           userAgent: context.userAgent,
           ipAddress: context.ipAddress,
           expiresAt: refreshTokenExpiresAt,
@@ -419,14 +421,14 @@ export class AuthService {
     });
 
     try {
+      const passwordHash = await this.hashPassword(input.password);
+
       return await this.prisma.$transaction(async (transaction) => {
         await this.usersService.ensureEmailAndPhoneAvailable(
           input.professionalEmail,
           input.phone,
           transaction,
         );
-
-        const passwordHash = await this.hashPassword(input.password);
 
         const user = await this.usersService.createUser(
           {
@@ -502,14 +504,14 @@ export class AuthService {
     });
 
     try {
+      const passwordHash = await this.hashPassword(input.password);
+
       return await this.prisma.$transaction(async (transaction) => {
         await this.usersService.ensureEmailAndPhoneAvailable(
           input.email,
           input.phone,
           transaction,
         );
-
-        const passwordHash = await this.hashPassword(input.password);
 
         const user = await this.usersService.createUser(
           {

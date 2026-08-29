@@ -1,151 +1,230 @@
 "use client";
 
-import { useEffect, useMemo } from "react";
 import { zodResolver } from "@hookform/resolvers/zod";
-import { X, UserPlus } from "lucide-react";
+import { ArrowUpRight, FileWarning, ShieldCheck, UserPlus, X } from "lucide-react";
+import { useMemo, useState } from "react";
 import { useForm } from "react-hook-form";
 
 import { Button } from "@/components/ui/button";
+import {
+  findPotentialPatientDuplicate,
+  formatAlgerianPhone,
+  formatPatientDate,
+  maskPatientName,
+  type PotentialPatientDuplicate,
+} from "@/features/patients/patient-registry";
+import { type Locale } from "@/i18n";
 import { type Direction, type TranslationFunction } from "@/lib/i18n";
 import { cn } from "@/lib/utils";
 import { type Patient, type PatientFormValues } from "@/types/patient";
 
 import { PatientFormFields } from "./PatientFormFields";
-import {
-  createPatientFormSchema,
-  createPatientFromForm,
-  getPatientFormValues,
-} from "./patient-form";
+import { createPatientFormSchema, createPatientFromForm, getPatientFormValues } from "./patient-form";
 
 type AddPatientModalProps = {
   direction: Direction;
+  existingPatients: Patient[];
   isOpen: boolean;
+  locale: Locale;
   onClose: () => void;
   onCreate: (patient: Patient) => void;
+  onOpenPatient: (patient: Patient) => void;
   t: TranslationFunction;
 };
 
-function createEmptyPatient(): Patient {
-  const createdAt = new Date().toISOString().slice(0, 10);
-  const nextNumber = Math.floor(700000 + Math.random() * 99999);
+function createEmptyPatient(sequence: number): Patient {
+  const now = new Date().toISOString();
+  const createdAt = now.slice(0, 10);
+  const recordNumber = String(700000 + sequence).padStart(6, "0");
 
   return {
+    administrativeStatus: "ACTIVE",
     address: "",
     aiAnalyses: [],
-    assignedDoctor: "Dr Mohamed Benali",
+    assignedDoctor: "",
+    audit: [{
+      action: "Création du registre patient",
+      actor: "Utilisateur connecté",
+      at: now,
+      id: `audit-create-${recordNumber}`,
+      organization: "Organisation active",
+    }],
     birthDate: "",
     bloodGroup: "O+",
+    commune: "",
+    consents: [],
     consultations: [],
+    doctorRegistrationNumber: "",
     documents: [],
     email: "",
     emergencyContactName: "",
     emergencyContactPhone: "",
     firstName: "",
+    firstNameAr: "",
     gender: "MALE",
-    id: `HLX-${nextNumber}`,
-    internalId: `patient_${nextNumber}`,
+    hospitalRecordNumber: "",
+    id: `PAT-2026-${recordNumber}`,
+    insurance: "UNINSURED",
+    insuredNumber: "",
+    internalId: `patient_${recordNumber}`,
     lastName: "",
-    lastVisit: createdAt,
-    medicalSummary: {
-      allergies: [],
-      chronicDiseases: [],
-      currentMedications: [],
-      history: [],
-      notes: "",
-    },
+    lastNameAr: "",
+    lastVisit: "",
+    medicalSummary: { allergies: [], chronicDiseases: [], currentMedications: [], history: [], notes: "" },
+    nationalId: "",
+    nextVisit: "",
     phone: "",
     registeredAt: createdAt,
+    sector: "PRIVATE",
+    smsEnabled: true,
     status: "NEW",
     timeline: [],
+    wilaya: "",
+    wilayaCode: "",
   };
 }
 
 export function AddPatientModal({
   direction,
+  existingPatients,
   isOpen,
+  locale,
   onClose,
   onCreate,
+  onOpenPatient,
   t,
 }: AddPatientModalProps) {
   const schema = useMemo(() => createPatientFormSchema(t), [t]);
+  const [duplicate, setDuplicate] = useState<PotentialPatientDuplicate>();
+  const [pendingValues, setPendingValues] = useState<PatientFormValues>();
+  const [justification, setJustification] = useState("");
   const {
     formState: { errors, isSubmitting },
     handleSubmit,
     register,
     reset,
+    watch,
   } = useForm<PatientFormValues>({
     defaultValues: getPatientFormValues(),
     resolver: zodResolver(schema),
   });
 
-  useEffect(() => {
-    if (isOpen) {
-      reset(getPatientFormValues());
-    }
-  }, [isOpen, reset]);
-
-  if (!isOpen) {
-    return null;
-  }
-
-  const submit = (values: PatientFormValues) => {
-    onCreate(createPatientFromForm(values, createEmptyPatient()));
+  const closeModal = () => {
+    reset(getPatientFormValues());
+    setDuplicate(undefined);
+    setPendingValues(undefined);
+    setJustification("");
     onClose();
   };
 
+  if (!isOpen) return null;
+
+  const createPatient = (values: PatientFormValues, overrideReason?: string) => {
+    const patient = createPatientFromForm(values, createEmptyPatient(existingPatients.length + 1));
+    if (overrideReason) {
+      patient.audit.push({
+        action: `Création forcée après alerte de doublon · Justification : ${overrideReason}`,
+        actor: "Utilisateur connecté",
+        at: new Date().toISOString(),
+        id: `audit-duplicate-${patient.id}`,
+        organization: "Organisation active",
+      });
+    }
+    onCreate(patient);
+    closeModal();
+  };
+
+  const submit = (values: PatientFormValues) => {
+    const match = findPotentialPatientDuplicate(values, existingPatients);
+    if (match) {
+      setDuplicate(match);
+      setPendingValues(values);
+      return;
+    }
+    createPatient(values);
+  };
+
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/35 p-4 backdrop-blur-sm">
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-[rgba(22,33,29,0.46)] p-3 backdrop-blur-[2px] sm:p-6" role="presentation">
       <div
+        aria-labelledby="add-patient-title"
+        aria-modal="true"
         className={cn(
-          "max-h-[92vh] w-full max-w-4xl overflow-hidden rounded-[28px] border border-slate-200 bg-white shadow-[0_24px_90px_rgba(15,23,42,0.22)]",
+          "max-h-[94vh] w-full max-w-5xl overflow-hidden rounded-[1.25rem] rounded-bl-[0.45rem] border border-[var(--line)] bg-[var(--panel)] shadow-[0_30px_90px_-34px_rgba(22,33,29,0.62)]",
           direction === "rtl" && "text-right",
         )}
+        dir={direction}
+        role="dialog"
       >
-        <div className="flex items-start justify-between gap-4 border-b border-slate-200 px-6 py-5">
+        <header className="flex items-start justify-between gap-5 border-b border-[var(--line)] px-5 py-5 sm:px-7">
           <div className="flex items-start gap-3">
-            <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-cyan-50 text-[#0b3b5f]">
-              <UserPlus className="h-5 w-5" />
+            <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-[0.78rem] rounded-bl-[0.24rem] border border-[var(--accent-line)] bg-[var(--accent-soft)] text-[var(--accent-dark)]">
+              <UserPlus className="h-5 w-5" strokeWidth={1.7} aria-hidden="true" />
             </span>
             <div>
-              <h2 className="text-xl font-semibold text-slate-950">
-                {t("patients.modal.addTitle")}
-              </h2>
-              <p className="mt-1 text-sm text-slate-500">
-                {t("patients.modal.addSubtitle")}
-              </p>
+              <p className="font-[var(--font-auth-mono)] text-[0.65rem] uppercase tracking-[0.13em] text-[var(--gold)]">{t("patients.modal.kicker")}</p>
+              <h2 id="add-patient-title" className="mt-1 font-[var(--font-auth-display)] text-2xl font-medium text-[var(--ink)]">{t("patients.modal.addTitle")}</h2>
+              <p className="mt-1 text-sm text-[var(--ink-soft)]">{t("patients.modal.addSubtitle")}</p>
             </div>
           </div>
-          <Button
-            variant="ghost"
-            size="icon"
-            className="rounded-full"
-            onClick={onClose}
-            aria-label={t("patients.actions.close")}
-          >
-            <X className="h-4 w-4" />
+          <Button variant="ghost" size="icon" className="shrink-0 rounded-full text-[var(--ink-faint)]" onClick={closeModal} aria-label={t("patients.actions.close")}>
+            <X className="h-4 w-4" strokeWidth={1.7} />
           </Button>
-        </div>
+        </header>
 
-        <form
-          className="max-h-[calc(92vh-92px)] overflow-y-auto px-6 py-6"
-          onSubmit={handleSubmit(submit)}
-        >
-          <PatientFormFields
-            direction={direction}
-            errors={errors}
-            register={register}
-            t={t}
-          />
-          <div className="mt-8 flex flex-col-reverse gap-3 border-t border-slate-100 pt-5 sm:flex-row sm:justify-end">
-            <Button variant="outline" onClick={onClose}>
-              {t("patients.actions.cancel")}
+        <form className="max-h-[calc(94vh-110px)] overflow-y-auto px-5 py-6 sm:px-7" onSubmit={handleSubmit(submit)}>
+          <PatientFormFields direction={direction} errors={errors} register={register} t={t} watch={watch} />
+          <footer className="mt-8 flex flex-col-reverse gap-3 border-t border-[var(--line)] pt-5 sm:flex-row sm:justify-end">
+            <Button className="rounded-full border-[var(--line)] bg-transparent px-5 text-[var(--ink-soft)]" type="button" variant="outline" onClick={closeModal}>{t("patients.actions.cancel")}</Button>
+            <Button className="rounded-full px-6" type="submit" disabled={isSubmitting}>
+              <ShieldCheck className="me-2 h-4 w-4" strokeWidth={1.7} aria-hidden="true" />
+              {t("patients.actions.createRegistry")}
             </Button>
-            <Button type="submit" disabled={isSubmitting}>
-              {t("patients.actions.save")}
-            </Button>
-          </div>
+          </footer>
         </form>
       </div>
+
+      {duplicate && pendingValues ? (
+        <div className="fixed inset-0 z-[60] flex items-center justify-center bg-[rgba(18,61,50,0.52)] p-4" role="presentation">
+          <section aria-labelledby="duplicate-title" aria-modal="true" className="w-full max-w-xl rounded-[1.15rem] rounded-bl-[0.4rem] border border-[var(--gold-line)] bg-[var(--panel)] p-6 shadow-[0_30px_90px_-32px_rgba(22,33,29,0.7)]" dir={direction} role="alertdialog">
+            <div className="flex items-start gap-3">
+              <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-[0.78rem] border border-[var(--gold-line)] bg-[var(--gold-soft)] text-[var(--gold)]">
+                <FileWarning className="h-5 w-5" strokeWidth={1.7} aria-hidden="true" />
+              </span>
+              <div>
+                <p className="font-[var(--font-auth-mono)] text-[0.64rem] uppercase tracking-[0.12em] text-[var(--gold)]">{t("patients.duplicate.kicker")}</p>
+                <h3 id="duplicate-title" className="mt-1 font-[var(--font-auth-display)] text-2xl font-medium text-[var(--ink)]">{t("patients.duplicate.title")}</h3>
+                <p className="mt-2 text-sm leading-6 text-[var(--ink-soft)]">{t("patients.duplicate.description")}</p>
+              </div>
+            </div>
+
+            <div className="my-5 rounded-[0.9rem] border border-[var(--line)] bg-[#fcfbf8] p-4">
+              <div className="flex flex-wrap items-start justify-between gap-3">
+                <div>
+                  <p className="font-medium text-[var(--ink)]">{maskPatientName(duplicate.patient, locale)}</p>
+                  <p className="mt-1 font-[var(--font-auth-mono)] text-[0.68rem] text-[var(--ink-faint)]">{duplicate.patient.id}</p>
+                </div>
+                <span className="rounded-full border border-[var(--gold-line)] bg-[var(--gold-soft)] px-3 py-1 font-[var(--font-auth-mono)] text-[0.62rem] text-[var(--gold)]">{t("patients.duplicate.match")}</span>
+              </div>
+              <dl className="mt-4 grid gap-3 text-sm sm:grid-cols-2">
+                <div><dt className="text-xs text-[var(--ink-faint)]">{t("patients.table.columns.birthDate")}</dt><dd className="mt-1 text-[var(--ink-soft)]">{formatPatientDate(duplicate.patient.birthDate, locale)}</dd></div>
+                <div><dt className="text-xs text-[var(--ink-faint)]">{t("patients.table.columns.phone")}</dt><dd className="mt-1 text-[var(--ink-soft)]">{formatAlgerianPhone(duplicate.patient.phone)}</dd></div>
+              </dl>
+            </div>
+
+            <label className="block text-sm font-medium text-[var(--ink)]" htmlFor="duplicate-justification">{t("patients.duplicate.justification")}</label>
+            <textarea id="duplicate-justification" className="mt-2 min-h-24 w-full rounded-[0.75rem] border border-[var(--line)] bg-[#fcfbf8] p-3 text-sm text-[var(--ink)] outline-none focus:border-[var(--accent)]" value={justification} onChange={(event) => setJustification(event.target.value)} placeholder={t("patients.duplicate.justificationPlaceholder")} />
+            <p className="mt-1 text-xs text-[var(--ink-faint)]">{t("patients.duplicate.auditNote")}</p>
+
+            <div className="mt-6 flex flex-col gap-3 sm:flex-row sm:justify-end">
+              <Button type="button" variant="outline" className="rounded-full border-[var(--accent-line)] text-[var(--accent-dark)]" onClick={() => onOpenPatient(duplicate.patient)}>
+                {t("patients.duplicate.openRecord")}<ArrowUpRight className="ms-2 h-4 w-4" strokeWidth={1.7} />
+              </Button>
+              <Button type="button" className="rounded-full bg-[var(--gold)] px-5 text-white hover:bg-[#946b32]" disabled={justification.trim().length < 10} onClick={() => createPatient(pendingValues, justification.trim())}>{t("patients.duplicate.createAnyway")}</Button>
+            </div>
+          </section>
+        </div>
+      ) : null}
     </div>
   );
 }

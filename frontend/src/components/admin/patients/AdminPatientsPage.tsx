@@ -15,12 +15,16 @@ import { cn } from "@/lib/utils";
 import { type Patient, type PatientFilterState } from "@/types/patient";
 
 const initialFilters: PatientFilterState = {
+  administrativeStatus: "",
   ageGroup: "",
   bloodGroup: "",
   gender: "",
+  insurance: "",
   lastVisit: "",
   registeredAt: "",
+  sector: "",
   status: "",
+  wilaya: "",
 };
 
 function formatDate(value: string, locale: string) {

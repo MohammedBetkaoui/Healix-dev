@@ -40,6 +40,7 @@ export function EditPatientModal({
     handleSubmit,
     register,
     reset,
+    watch,
   } = useForm<PatientFormValues>({
     defaultValues: getPatientFormValues(patient ?? undefined),
     resolver: zodResolver(schema),
@@ -102,6 +103,7 @@ export function EditPatientModal({
             errors={errors}
             register={register}
             t={t}
+            watch={watch}
           />
           <div className="mt-8 flex flex-col-reverse gap-3 border-t border-slate-100 pt-5 sm:flex-row sm:justify-end">
             <Button variant="outline" onClick={onClose}>

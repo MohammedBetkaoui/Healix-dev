@@ -6,6 +6,16 @@ export type PatientGender = "MALE" | "FEMALE";
 
 export type PatientStatus = "ACTIVE" | "FOLLOW_UP" | "NEW" | "URGENT";
 
+export type PatientAdministrativeStatus = "ACTIVE" | "INACTIVE" | "DECEASED";
+
+export type PatientInsurance = "CNAS" | "CASNOS" | "UNINSURED" | "PRIVATE";
+
+export type PatientSector = "PRIVATE" | "PUBLIC" | "CONVENTIONED";
+
+export type PatientConsentType = "HEALTH_DATA" | "DIAGNOSTIC_AI" | "RESEARCH";
+
+export type PatientConsentStatus = "SIGNED" | "NOT_GRANTED";
+
 export type PatientBloodGroup =
   | "A+"
   | "A-"
@@ -68,51 +78,93 @@ export type PatientTimelineEvent = {
   title: string;
 };
 
+export type PatientConsent = {
+  documentName?: string;
+  recordedAt: string;
+  recordedBy: string;
+  status: PatientConsentStatus;
+  type: PatientConsentType;
+};
+
+export type PatientAuditEntry = {
+  action: string;
+  actor: string;
+  at: string;
+  id: string;
+  organization: string;
+};
+
 export type Patient = {
+  administrativeStatus: PatientAdministrativeStatus;
   address: string;
   aiAnalyses: PatientAiAnalysis[];
   assignedDoctor: string;
   birthDate: string;
   bloodGroup: PatientBloodGroup;
+  commune: string;
+  consents: PatientConsent[];
+  audit: PatientAuditEntry[];
+  doctorRegistrationNumber: string;
   documents: PatientDocument[];
   email: string;
   emergencyContactName: string;
   emergencyContactPhone: string;
   firstName: string;
+  firstNameAr: string;
   gender: PatientGender;
   id: string;
+  hospitalRecordNumber: string;
+  insurance: PatientInsurance;
+  insuredNumber: string;
   internalId: string;
   lastName: string;
+  lastNameAr: string;
   lastVisit: string;
   medicalSummary: PatientMedicalSummary;
+  nationalId: string;
+  nextVisit: string;
   phone: string;
   registeredAt: string;
+  sector: PatientSector;
+  smsEnabled: boolean;
   status: PatientStatus;
   timeline: PatientTimelineEvent[];
   consultations: PatientConsultation[];
+  wilaya: string;
+  wilayaCode: string;
 };
 
 export type PatientFilterState = {
+  administrativeStatus: string;
   ageGroup: string;
   bloodGroup: string;
   gender: string;
+  insurance: string;
   lastVisit: string;
   registeredAt: string;
+  sector: string;
   status: string;
+  wilaya: string;
 };
 
 export type PatientFormValues = {
-  address: string;
-  allergies: string;
   birthDate: string;
-  bloodGroup: PatientBloodGroup | "";
-  chronicDiseases: string;
+  commune: string;
+  doctorRegistrationNumber: string;
   email: string;
-  emergencyContactName: string;
-  emergencyContactPhone: string;
   firstName: string;
-  gender: PatientGender | "";
-  history: string;
+  firstNameAr: string;
+  gender: string;
+  healthDataConsent: boolean;
+  hospitalRecordNumber: string;
+  insurance: string;
+  insuredNumber: string;
   lastName: string;
+  lastNameAr: string;
+  nationalId: string;
   phone: string;
+  referringDoctor: string;
+  sector: string;
+  smsEnabled: boolean;
+  wilaya: string;
 };
