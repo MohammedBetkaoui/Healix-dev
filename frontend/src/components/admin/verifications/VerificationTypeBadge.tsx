@@ -8,7 +8,7 @@ type VerificationTypeBadgeProps = {
 
 export function VerificationTypeBadge({ t, type }: VerificationTypeBadgeProps) {
   return (
-    <span className="inline-flex rounded-full border border-cyan-200 bg-cyan-50 px-2.5 py-1 text-xs font-semibold text-cyan-700">
+    <span className="inline-flex rounded-full border border-[var(--accent-line)] bg-secondary px-2.5 py-1 text-xs font-semibold text-[var(--accent-dark)]">
       {t(`admin.badges.type.${type}`)}
     </span>
   );

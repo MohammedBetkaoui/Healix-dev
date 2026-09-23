@@ -37,7 +37,7 @@ export function DoctorVerificationNavigation({
   const NextIcon = direction === "rtl" ? ArrowLeft : ArrowRight;
 
   return (
-    <section className="sticky bottom-4 z-10 rounded-[24px] border border-slate-200/80 bg-white/92 p-4 shadow-[0_18px_48px_rgba(15,23,42,0.08)] backdrop-blur">
+    <section className="sticky bottom-4 z-10 rounded-xl border border-border/80 bg-card/92 p-4 shadow-sm backdrop-blur">
       <div
         className={cn(
           "flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between",
@@ -62,7 +62,7 @@ export function DoctorVerificationNavigation({
           >
             {isSubmitting ? (
               <span className="inline-flex items-center gap-2">
-                <span className="h-4 w-4 animate-spin rounded-full border-2 border-white/40 border-t-white" />
+                <span className="h-4 w-4 animate-spin rounded-full border-2 border-card/40 border-t-white" />
                 {submittingLabel}
               </span>
             ) : (

@@ -62,23 +62,23 @@ export function EditPatientModal({
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/35 p-4 backdrop-blur-sm">
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-[#0f172a]/35 p-4 backdrop-blur-sm">
       <div
         className={cn(
-          "max-h-[92vh] w-full max-w-4xl overflow-hidden rounded-[28px] border border-slate-200 bg-white shadow-[0_24px_90px_rgba(15,23,42,0.22)]",
+          "max-h-[92vh] w-full max-w-4xl overflow-hidden rounded-xl border border-border bg-card shadow-sm",
           direction === "rtl" && "text-right",
         )}
       >
-        <div className="flex items-start justify-between gap-4 border-b border-slate-200 px-6 py-5">
+        <div className="flex items-start justify-between gap-4 border-b border-border px-6 py-5">
           <div className="flex items-start gap-3">
-            <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-slate-100 text-[#0b3b5f]">
+            <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-muted text-[var(--accent-dark)]">
               <Edit3 className="h-5 w-5" />
             </span>
             <div>
-              <h2 className="text-xl font-semibold text-slate-950">
+              <h2 className="text-xl font-semibold text-foreground">
                 {t("patients.modal.editTitle")}
               </h2>
-              <p className="mt-1 text-sm text-slate-500">
+              <p className="mt-1 text-sm text-muted-foreground">
                 {t("patients.modal.editSubtitle")}
               </p>
             </div>
@@ -105,7 +105,7 @@ export function EditPatientModal({
             t={t}
             watch={watch}
           />
-          <div className="mt-8 flex flex-col-reverse gap-3 border-t border-slate-100 pt-5 sm:flex-row sm:justify-end">
+          <div className="mt-8 flex flex-col-reverse gap-3 border-t border-border pt-5 sm:flex-row sm:justify-end">
             <Button variant="outline" onClick={onClose}>
               {t("patients.actions.cancel")}
             </Button>

@@ -28,8 +28,8 @@ const quickActions = [
 
 export function AdminQuickActions({ t }: AdminQuickActionsProps) {
   return (
-    <section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
-      <h2 className="text-lg font-semibold text-slate-950">
+    <section className="rounded-2xl border border-border bg-card p-5 shadow-sm">
+      <h2 className="text-lg font-semibold text-foreground">
         {t("admin.dashboard.quickActions")}
       </h2>
       <div className="mt-5 grid gap-3">
@@ -40,9 +40,9 @@ export function AdminQuickActions({ t }: AdminQuickActionsProps) {
             <Link
               key={action.labelKey}
               href={action.href}
-              className="flex items-center gap-3 rounded-xl border border-slate-200 bg-slate-50 p-4 text-sm font-semibold text-slate-800 transition hover:border-cyan-200 hover:bg-cyan-50"
+              className="flex items-center gap-3 rounded-xl border border-border bg-muted p-4 text-sm font-semibold text-foreground transition hover:border-[var(--accent-line)] hover:bg-secondary"
             >
-              <span className="flex h-10 w-10 items-center justify-center rounded-xl bg-white text-[#0b3b5f] shadow-sm">
+              <span className="flex h-10 w-10 items-center justify-center rounded-xl bg-card text-[var(--accent-dark)] shadow-sm">
                 <Icon className="h-4 w-4" aria-hidden="true" />
               </span>
               {t(action.labelKey)}

@@ -9,10 +9,10 @@ type AdminAuditActionBadgeProps = {
 };
 
 const toneStyles = {
-  danger: "border-red-200 bg-red-50 text-red-700",
-  info: "border-cyan-200 bg-cyan-50 text-cyan-700",
-  success: "border-emerald-200 bg-emerald-50 text-emerald-700",
-  warning: "border-amber-200 bg-amber-50 text-amber-700",
+  danger: "border-[var(--danger-line)] bg-[var(--danger-soft)] text-[var(--danger-ink)]",
+  info: "border-[var(--accent-line)] bg-secondary text-[var(--accent-dark)]",
+  success: "border-[var(--success-line)] bg-[var(--success-soft)] text-[var(--success-ink)]",
+  warning: "border-[var(--warning-line)] bg-[var(--warning-soft)] text-[var(--warning-ink)]",
 };
 
 export function AdminAuditActionBadge({

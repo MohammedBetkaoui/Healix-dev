@@ -74,10 +74,10 @@ const establishmentActivityPoints: DashboardLinePoint[] = [
 ];
 
 const establishmentDistributionPoints: DashboardBarPoint[] = [
-  { label: "Brain MRI", primary: 42, secondary: 18 },
-  { label: "Cardiology", primary: 31, secondary: 15 },
+  { label: "Brain MRI", primary: 42, secondary: 18, specialty: "brain" },
+  { label: "Cardiology", primary: 31, secondary: 15, specialty: "cardiology" },
   { label: "Reports", primary: 24, secondary: 14 },
-  { label: "Pending", primary: 12, secondary: 8 },
+  { label: "Pending", primary: 12, secondary: 8, statusTone: "warning" },
 ];
 
 const establishmentQuickActions: DashboardQuickAction[] = [
@@ -189,6 +189,7 @@ export function EstablishmentDashboard() {
               icon={item.icon}
               label={t(item.labelKey)}
               tone={item.tone}
+              statusTone={item.key === "account" ? accountStatus.statusTone : undefined}
               value={
                 item.key === "account" ? accountStatus.statusLabel : item.value
               }
@@ -232,15 +233,16 @@ export function EstablishmentDashboard() {
               description={accountStatus.cardDescription}
               demoLabel={accountStatus.footerLabel}
               statusLabel={accountStatus.statusLabel}
+              statusTone={accountStatus.statusTone}
               title={accountStatus.cardTitle}
             />
-            <section className="rounded-[1rem] rounded-bl-[0.4rem] border border-[var(--line)] bg-[var(--panel)]/94 p-6 shadow-[0_1px_2px_rgba(22,33,29,0.03),0_18px_40px_-28px_rgba(22,33,29,0.25)]">
+            <section className="rounded-xl border border-[var(--line)] bg-[var(--panel)]/94 p-6 shadow-sm">
               <div className="mb-5 flex items-center gap-3">
-                <span className="flex h-11 w-11 items-center justify-center rounded-[0.76rem] rounded-bl-[0.22rem] border border-[var(--gold-line)] bg-[var(--gold-soft)] text-[var(--gold)]">
+                <span className="flex h-11 w-11 items-center justify-center rounded-[0.76rem] border border-[var(--accent-line)] bg-[var(--accent-soft)] text-[var(--accent)]">
                   <FileStack className="h-5 w-5" strokeWidth={1.7} aria-hidden="true" />
                 </span>
                 <div>
-                  <p className="font-[var(--font-auth-mono)] text-[0.63rem] font-medium uppercase tracking-[0.12em] text-[var(--gold)]">
+                  <p className="font-[var(--font-auth-mono)] text-[0.63rem] font-medium uppercase tracking-[0.12em] text-[var(--accent)]">
                     HealixDz
                   </p>
                   <h2 className="font-[var(--font-auth-display)] text-[1.2rem] font-medium text-[var(--ink)]">

@@ -32,12 +32,12 @@ export function AdminMobileSidebar({
       <button
         type="button"
         aria-label={t("admin.actions.close")}
-        className="absolute inset-0 bg-slate-950/30 backdrop-blur-sm"
+        className="absolute inset-0 bg-[#0f172a]/30 backdrop-blur-sm"
         onClick={onClose}
       />
       <div
         className={cn(
-          "absolute top-0 h-full w-[82vw] max-w-[320px] bg-white",
+          "dashboard-chrome absolute top-0 h-full w-[82vw] max-w-[320px]",
           direction === "rtl" ? "right-0" : "left-0",
         )}
       >

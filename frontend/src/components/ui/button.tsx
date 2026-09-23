@@ -12,11 +12,11 @@ export type ButtonProps = React.ButtonHTMLAttributes<HTMLButtonElement> & {
 
 const variants: Record<ButtonVariant, string> = {
   default:
-    "bg-[var(--accent-dark)] text-[var(--bg)] shadow-[0_10px_22px_-12px_rgba(18,61,50,0.72)] hover:bg-[var(--accent-deep)]",
+    "bg-primary text-primary-foreground shadow-sm hover:bg-[var(--action-hover)]",
   secondary:
-    "border border-[var(--accent-line)] bg-[var(--accent-soft)] text-[var(--accent-dark)] hover:bg-[#d5e6dd]",
+    "border border-[var(--accent-line)] bg-[var(--accent-soft)] text-[var(--accent-dark)] hover:bg-secondary",
   outline:
-    "border border-[var(--line)] bg-[var(--panel)] text-[var(--ink)] shadow-[0_8px_18px_-16px_rgba(22,33,29,0.65)] hover:bg-[var(--panel-soft)]",
+    "border border-[var(--line)] bg-[var(--panel)] text-[var(--ink)] shadow-sm hover:bg-[var(--panel-soft)]",
   ghost: "text-[var(--ink-soft)] hover:bg-[var(--accent-soft)] hover:text-[var(--accent-dark)]",
 };
 

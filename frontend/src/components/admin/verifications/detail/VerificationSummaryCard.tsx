@@ -25,10 +25,10 @@ export function VerificationSummaryCard({
   ];
 
   return (
-    <section className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
+    <section className="rounded-2xl border border-border bg-card p-6 shadow-sm">
       <div className="flex flex-col gap-4 md:flex-row md:items-start md:justify-between">
         <div>
-          <h2 className="text-xl font-semibold text-slate-950">
+          <h2 className="text-xl font-semibold text-foreground">
             {t("admin.detail.info.summary")}
           </h2>
           <div className="mt-3 flex flex-wrap gap-2">
@@ -40,11 +40,11 @@ export function VerificationSummaryCard({
       </div>
       <dl className="mt-6 grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
         {rows.map(([label, value]) => (
-          <div key={label} className="rounded-xl border border-slate-100 bg-slate-50 p-4">
-            <dt className="text-xs font-semibold uppercase tracking-[0.12em] text-slate-500">
+          <div key={label} className="rounded-xl border border-border bg-muted p-4">
+            <dt className="text-xs font-semibold uppercase tracking-[0.12em] text-muted-foreground">
               {label}
             </dt>
-            <dd className="mt-2 text-sm font-medium text-slate-900">{value}</dd>
+            <dd className="mt-2 text-sm font-medium text-foreground">{value}</dd>
           </div>
         ))}
       </dl>

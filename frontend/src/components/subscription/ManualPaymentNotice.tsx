@@ -40,9 +40,9 @@ export function ManualPaymentNotice({
   const price = billingPeriod === "ANNUAL" ? plan?.annualPrice : plan?.monthlyPrice;
 
   return (
-    <section className="rounded-[1.15rem] border border-[var(--gold-line)] bg-[var(--gold-soft)]/65 p-5 shadow-[0_16px_38px_-30px_rgba(22,33,29,0.46)]">
+    <section className="rounded-xl border border-[var(--accent-line)] bg-[var(--accent-soft)]/65 p-5 shadow-sm">
       <div className="flex items-start gap-3">
-        <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-[0.78rem] border border-[var(--gold-line)] bg-[var(--panel)] text-[var(--gold-dark)]">
+        <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-[0.78rem] border border-[var(--accent-line)] bg-[var(--panel)] text-[var(--accent-dark)]">
           <FileClock className="h-5 w-5" strokeWidth={1.7} aria-hidden="true" />
         </span>
         <div>

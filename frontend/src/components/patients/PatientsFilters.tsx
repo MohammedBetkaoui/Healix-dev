@@ -38,7 +38,7 @@ function SelectFilter({
 }) {
   return (
     <label className="space-y-2">
-      <span className="text-xs font-semibold uppercase tracking-[0.12em] text-slate-400">
+      <span className="text-xs font-semibold uppercase tracking-[0.12em] text-muted-foreground">
         {label}
       </span>
       <Select
@@ -60,10 +60,10 @@ export function PatientsFilters({
   t,
 }: PatientsFiltersProps) {
   return (
-    <section className="rounded-[26px] border border-slate-200/80 bg-white p-5 shadow-[0_12px_36px_rgba(15,23,42,0.04)]">
+    <section className="rounded-xl border border-border/80 bg-card p-5 shadow-sm">
       <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
-        <div className="flex items-center gap-2 text-sm font-semibold text-slate-700">
-          <span className="flex h-9 w-9 items-center justify-center rounded-xl bg-slate-50 text-[#0b3b5f] ring-1 ring-slate-200">
+        <div className="flex items-center gap-2 text-sm font-semibold text-foreground">
+          <span className="flex h-9 w-9 items-center justify-center rounded-xl bg-muted text-[var(--accent-dark)] ring-1 ring-border">
             <SlidersHorizontal className="h-4 w-4" />
           </span>
           {t("patients.actions.viewRecord")}

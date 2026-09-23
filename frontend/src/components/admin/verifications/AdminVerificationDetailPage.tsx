@@ -139,10 +139,10 @@ function AdminDecisionResult({
   return (
     <section
       className={cn(
-        "rounded-2xl border bg-white p-6 shadow-sm",
-        isApproved && "border-emerald-200 bg-emerald-50/60",
-        isRejected && "border-red-200 bg-red-50/60",
-        !isApproved && !isRejected && "border-slate-200",
+        "rounded-2xl border bg-card p-6 shadow-sm",
+        isApproved && "border-[var(--success-line)] bg-[var(--success-soft)]/60",
+        isRejected && "border-[var(--danger-line)] bg-[var(--danger-soft)]/60",
+        !isApproved && !isRejected && "border-border",
       )}
     >
       <div className="flex items-start gap-4">
@@ -150,26 +150,26 @@ function AdminDecisionResult({
           className={cn(
             "flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl border",
             isApproved &&
-              "border-emerald-200 bg-white text-emerald-700 shadow-sm",
-            isRejected && "border-red-200 bg-white text-red-700 shadow-sm",
+              "border-[var(--success-line)] bg-card text-[var(--success-ink)] shadow-sm",
+            isRejected && "border-[var(--danger-line)] bg-card text-[var(--danger-ink)] shadow-sm",
             !isApproved &&
               !isRejected &&
-              "border-slate-200 bg-slate-50 text-slate-600",
+              "border-border bg-muted text-muted-foreground",
           )}
         >
           <Icon size={22} strokeWidth={1.8} />
         </span>
         <div className="min-w-0">
-          <h2 className="text-lg font-semibold text-slate-950">{title}</h2>
-          <p className="mt-2 text-sm leading-6 text-slate-600">
+          <h2 className="text-lg font-semibold text-foreground">{title}</h2>
+          <p className="mt-2 text-sm leading-6 text-muted-foreground">
             {description}
           </p>
           {isRejected && reason ? (
-            <div className="mt-4 rounded-xl border border-red-100 bg-white p-4">
-              <p className="text-xs font-semibold uppercase tracking-[0.12em] text-red-700">
+            <div className="mt-4 rounded-xl border border-[var(--danger-line)] bg-card p-4">
+              <p className="text-xs font-semibold uppercase tracking-[0.12em] text-[var(--danger-ink)]">
                 {t("admin.detail.decision.savedReason")}
               </p>
-              <p className="mt-2 text-sm leading-6 text-slate-700">{reason}</p>
+              <p className="mt-2 text-sm leading-6 text-foreground">{reason}</p>
             </div>
           ) : null}
         </div>
@@ -328,33 +328,33 @@ export function AdminVerificationDetailPage({
     >
       <div className="space-y-6">
         {isLoading ? (
-          <div className="rounded-2xl border border-slate-200 bg-white p-10 text-sm text-slate-600 shadow-sm">
+          <div className="rounded-2xl border border-border bg-card p-10 text-sm text-muted-foreground shadow-sm">
             {t("admin.detail.loading")}
           </div>
         ) : error || !detail ? (
-          <div className="rounded-2xl border border-red-100 bg-red-50 p-5 text-sm font-medium text-red-700">
+          <div className="rounded-2xl border border-[var(--danger-line)] bg-[var(--danger-soft)] p-5 text-sm font-medium text-[var(--danger-ink)]">
             {t("admin.detail.error")}
           </div>
         ) : (
           <>
-        <div className="flex flex-col gap-4 rounded-2xl border border-slate-200 bg-white p-6 shadow-sm md:flex-row md:items-start md:justify-between">
+        <div className="flex flex-col gap-4 rounded-2xl border border-border bg-card p-6 shadow-sm md:flex-row md:items-start md:justify-between">
           <div>
             <Link
               href={adminRoutes.verifications}
-              className="text-sm font-semibold text-cyan-700 hover:text-cyan-800"
+              className="text-sm font-semibold text-[var(--accent-dark)] hover:text-[var(--accent-dark)]"
             >
               {t("admin.actions.back")}
             </Link>
-            <h2 className="mt-3 text-2xl font-semibold text-slate-950">
+            <h2 className="mt-3 text-2xl font-semibold text-foreground">
               {detail.requesterName}
             </h2>
-            <p className="mt-2 max-w-3xl text-sm leading-6 text-slate-600">
+            <p className="mt-2 max-w-3xl text-sm leading-6 text-muted-foreground">
               {t("admin.detail.page.subtitle")}
             </p>
           </div>
           <div className="flex flex-wrap items-center gap-2">
             <VerificationStatusBadge status={status ?? detail.status} t={t} />
-            <span className="rounded-full border border-slate-200 bg-slate-50 px-3 py-1 text-xs font-semibold text-slate-600">
+            <span className="rounded-full border border-border bg-muted px-3 py-1 text-xs font-semibold text-muted-foreground">
               {t("admin.detail.header.completeness")} {detail.completenessScore}%
             </span>
           </div>
@@ -363,7 +363,7 @@ export function AdminVerificationDetailPage({
         {feedback ? (
           <div
             role="status"
-            className="rounded-2xl border border-emerald-200 bg-emerald-50 p-4 text-sm font-medium text-emerald-800"
+            className="rounded-2xl border border-[var(--success-line)] bg-[var(--success-soft)] p-4 text-sm font-medium text-[var(--success-ink)]"
           >
             {feedback}
           </div>

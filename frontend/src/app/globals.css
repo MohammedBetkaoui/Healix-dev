@@ -1,6 +1,19 @@
 @import "tailwindcss";
 
 :root {
+  --action-hover: #0f352c;
+  --success: #10b981;
+  --success-soft: #ecfdf5;
+  --success-line: #a7f3d0;
+  --success-ink: #047857;
+  --warning: #f59e0b;
+  --warning-soft: #fffbeb;
+  --warning-line: #fde68a;
+  --warning-ink: #92400e;
+  --danger: #ef4444;
+  --danger-soft: #fef2f2;
+  --danger-line: #fecaca;
+  --danger-ink: #b91c1c;
   /* HealixDz brand system — shared by every product surface. */
   --bg: #f5f1e8;
   --panel: #ffffff;

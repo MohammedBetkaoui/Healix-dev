@@ -17,9 +17,9 @@ const faqItems = [
 
 export function SubscriptionFAQ({ t }: SubscriptionFAQProps) {
   return (
-    <section className="rounded-[1.2rem] border border-[var(--line)] bg-[var(--panel)] p-5 shadow-[0_16px_38px_-30px_rgba(22,33,29,0.48)]">
+    <section className="rounded-xl border border-[var(--line)] bg-[var(--panel)] p-5 shadow-sm">
       <div className="flex items-center gap-3">
-        <span className="flex h-11 w-11 items-center justify-center rounded-[0.78rem] rounded-bl-[0.25rem] border border-[var(--accent-line)] bg-[var(--accent-soft)] text-[var(--accent-dark)]">
+        <span className="flex h-11 w-11 items-center justify-center rounded-[0.78rem] border border-[var(--accent-line)] bg-[var(--accent-soft)] text-[var(--accent-dark)]">
           <HelpCircle className="h-5 w-5" strokeWidth={1.7} aria-hidden="true" />
         </span>
         <div>
@@ -35,7 +35,7 @@ export function SubscriptionFAQ({ t }: SubscriptionFAQProps) {
         {faqItems.map((item) => (
           <details
             key={item}
-            className="group self-start rounded-[1rem] border border-[var(--line)] bg-[var(--panel)] open:shadow-[0_14px_30px_-26px_rgba(22,33,29,0.7)]"
+            className="group self-start rounded-xl border border-[var(--line)] bg-[var(--panel)] open:shadow-sm"
           >
             <summary className="flex cursor-pointer list-none items-center justify-between gap-4 px-4 py-4 text-sm font-medium text-[var(--ink)] transition hover:bg-[var(--panel-soft)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-[var(--accent)] [&::-webkit-details-marker]:hidden">
               {t(`subscription.faq.items.${item}.question`)}

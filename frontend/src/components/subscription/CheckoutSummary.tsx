@@ -61,7 +61,7 @@ export function CheckoutSummary({
   const saving = billingPeriod === "ANNUAL" ? getAnnualSaving(plan) : 0;
 
   return (
-    <section className="rounded-[1.15rem] border border-[var(--line)] bg-[var(--panel)] p-5 shadow-[0_16px_38px_-30px_rgba(22,33,29,0.48)]">
+    <section className="rounded-xl border border-[var(--line)] bg-[var(--panel)] p-5 shadow-sm">
       <div className="flex items-start gap-3">
         <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-[0.78rem] border border-[var(--accent-line)] bg-[var(--accent-soft)] text-[var(--accent-dark)]">
           <ReceiptText className="h-5 w-5" strokeWidth={1.7} aria-hidden="true" />
@@ -104,7 +104,7 @@ export function CheckoutSummary({
         {saving > 0 ? (
           <div className="flex justify-between gap-4">
             <dt className="py-3 text-[var(--ink-faint)]">{t("subscription.checkout.saving")}</dt>
-            <dd className="py-3 font-medium text-[var(--positive)]">
+            <dd className="py-3 font-medium text-[var(--ink)]">
               {formatPrice(saving, t)}
             </dd>
           </div>

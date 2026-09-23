@@ -145,12 +145,12 @@ export function AddPatientModal({
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-[rgba(22,33,29,0.46)] p-3 backdrop-blur-[2px] sm:p-6" role="presentation">
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-[#0f172a]/50 p-3 backdrop-blur-[2px] sm:p-6" role="presentation">
       <div
         aria-labelledby="add-patient-title"
         aria-modal="true"
         className={cn(
-          "max-h-[94vh] w-full max-w-5xl overflow-hidden rounded-[1.25rem] rounded-bl-[0.45rem] border border-[var(--line)] bg-[var(--panel)] shadow-[0_30px_90px_-34px_rgba(22,33,29,0.62)]",
+          "max-h-[94vh] w-full max-w-5xl overflow-hidden rounded-xl border border-[var(--line)] bg-[var(--panel)] shadow-sm",
           direction === "rtl" && "text-right",
         )}
         dir={direction}
@@ -158,11 +158,11 @@ export function AddPatientModal({
       >
         <header className="flex items-start justify-between gap-5 border-b border-[var(--line)] px-5 py-5 sm:px-7">
           <div className="flex items-start gap-3">
-            <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-[0.78rem] rounded-bl-[0.24rem] border border-[var(--accent-line)] bg-[var(--accent-soft)] text-[var(--accent-dark)]">
+            <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-[0.78rem] border border-[var(--accent-line)] bg-[var(--accent-soft)] text-[var(--accent-dark)]">
               <UserPlus className="h-5 w-5" strokeWidth={1.7} aria-hidden="true" />
             </span>
             <div>
-              <p className="font-[var(--font-auth-mono)] text-[0.65rem] uppercase tracking-[0.13em] text-[var(--gold)]">{t("patients.modal.kicker")}</p>
+              <p className="font-[var(--font-auth-mono)] text-[0.65rem] uppercase tracking-[0.13em] text-[var(--accent)]">{t("patients.modal.kicker")}</p>
               <h2 id="add-patient-title" className="mt-1 font-[var(--font-auth-display)] text-2xl font-medium text-[var(--ink)]">{t("patients.modal.addTitle")}</h2>
               <p className="mt-1 text-sm text-[var(--ink-soft)]">{t("patients.modal.addSubtitle")}</p>
             </div>
@@ -185,26 +185,26 @@ export function AddPatientModal({
       </div>
 
       {duplicate && pendingValues ? (
-        <div className="fixed inset-0 z-[60] flex items-center justify-center bg-[rgba(18,61,50,0.52)] p-4" role="presentation">
-          <section aria-labelledby="duplicate-title" aria-modal="true" className="w-full max-w-xl rounded-[1.15rem] rounded-bl-[0.4rem] border border-[var(--gold-line)] bg-[var(--panel)] p-6 shadow-[0_30px_90px_-32px_rgba(22,33,29,0.7)]" dir={direction} role="alertdialog">
+        <div className="fixed inset-0 z-[60] flex items-center justify-center bg-[#0f172a]/60 p-4" role="presentation">
+          <section aria-labelledby="duplicate-title" aria-modal="true" className="w-full max-w-xl rounded-xl border border-[var(--accent-line)] bg-[var(--panel)] p-6 shadow-sm" dir={direction} role="alertdialog">
             <div className="flex items-start gap-3">
-              <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-[0.78rem] border border-[var(--gold-line)] bg-[var(--gold-soft)] text-[var(--gold)]">
+              <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-[0.78rem] border border-[var(--accent-line)] bg-[var(--accent-soft)] text-[var(--accent)]">
                 <FileWarning className="h-5 w-5" strokeWidth={1.7} aria-hidden="true" />
               </span>
               <div>
-                <p className="font-[var(--font-auth-mono)] text-[0.64rem] uppercase tracking-[0.12em] text-[var(--gold)]">{t("patients.duplicate.kicker")}</p>
+                <p className="font-[var(--font-auth-mono)] text-[0.64rem] uppercase tracking-[0.12em] text-[var(--accent)]">{t("patients.duplicate.kicker")}</p>
                 <h3 id="duplicate-title" className="mt-1 font-[var(--font-auth-display)] text-2xl font-medium text-[var(--ink)]">{t("patients.duplicate.title")}</h3>
                 <p className="mt-2 text-sm leading-6 text-[var(--ink-soft)]">{t("patients.duplicate.description")}</p>
               </div>
             </div>
 
-            <div className="my-5 rounded-[0.9rem] border border-[var(--line)] bg-[#fcfbf8] p-4">
+            <div className="my-5 rounded-[0.9rem] border border-[var(--line)] bg-muted p-4">
               <div className="flex flex-wrap items-start justify-between gap-3">
                 <div>
                   <p className="font-medium text-[var(--ink)]">{maskPatientName(duplicate.patient, locale)}</p>
                   <p className="mt-1 font-[var(--font-auth-mono)] text-[0.68rem] text-[var(--ink-faint)]">{duplicate.patient.id}</p>
                 </div>
-                <span className="rounded-full border border-[var(--gold-line)] bg-[var(--gold-soft)] px-3 py-1 font-[var(--font-auth-mono)] text-[0.62rem] text-[var(--gold)]">{t("patients.duplicate.match")}</span>
+                <span className="rounded-full border border-[var(--accent-line)] bg-[var(--accent-soft)] px-3 py-1 font-[var(--font-auth-mono)] text-[0.62rem] text-[var(--accent)]">{t("patients.duplicate.match")}</span>
               </div>
               <dl className="mt-4 grid gap-3 text-sm sm:grid-cols-2">
                 <div><dt className="text-xs text-[var(--ink-faint)]">{t("patients.table.columns.birthDate")}</dt><dd className="mt-1 text-[var(--ink-soft)]">{formatPatientDate(duplicate.patient.birthDate, locale)}</dd></div>
@@ -213,14 +213,14 @@ export function AddPatientModal({
             </div>
 
             <label className="block text-sm font-medium text-[var(--ink)]" htmlFor="duplicate-justification">{t("patients.duplicate.justification")}</label>
-            <textarea id="duplicate-justification" className="mt-2 min-h-24 w-full rounded-[0.75rem] border border-[var(--line)] bg-[#fcfbf8] p-3 text-sm text-[var(--ink)] outline-none focus:border-[var(--accent)]" value={justification} onChange={(event) => setJustification(event.target.value)} placeholder={t("patients.duplicate.justificationPlaceholder")} />
+            <textarea id="duplicate-justification" className="mt-2 min-h-24 w-full rounded-[0.75rem] border border-[var(--line)] bg-muted p-3 text-sm text-[var(--ink)] outline-none focus:border-[var(--accent)]" value={justification} onChange={(event) => setJustification(event.target.value)} placeholder={t("patients.duplicate.justificationPlaceholder")} />
             <p className="mt-1 text-xs text-[var(--ink-faint)]">{t("patients.duplicate.auditNote")}</p>
 
             <div className="mt-6 flex flex-col gap-3 sm:flex-row sm:justify-end">
               <Button type="button" variant="outline" className="rounded-full border-[var(--accent-line)] text-[var(--accent-dark)]" onClick={() => onOpenPatient(duplicate.patient)}>
                 {t("patients.duplicate.openRecord")}<ArrowUpRight className="ms-2 h-4 w-4" strokeWidth={1.7} />
               </Button>
-              <Button type="button" className="rounded-full bg-[var(--gold)] px-5 text-white hover:bg-[#946b32]" disabled={justification.trim().length < 10} onClick={() => createPatient(pendingValues, justification.trim())}>{t("patients.duplicate.createAnyway")}</Button>
+              <Button type="button" className="rounded-full bg-primary px-5 text-white hover:bg-secondary" disabled={justification.trim().length < 10} onClick={() => createPatient(pendingValues, justification.trim())}>{t("patients.duplicate.createAnyway")}</Button>
             </div>
           </section>
         </div>

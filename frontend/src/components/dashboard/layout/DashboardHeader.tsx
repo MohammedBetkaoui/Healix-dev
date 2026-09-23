@@ -9,6 +9,7 @@ import { type Locale } from "@/i18n";
 import { type Direction, type TranslationFunction } from "@/lib/i18n";
 import { cn } from "@/lib/utils";
 import { type DashboardUserSummary } from "@/types/dashboard";
+import { DashboardThemeControl } from "./DashboardThemeControl";
 
 type DashboardHeaderProps = {
   breadcrumbLabel?: string;
@@ -43,10 +44,10 @@ export function DashboardHeader({
 
   return (
     <header
-      className="relative z-20 bg-transparent"
+      className="dashboard-chrome relative z-20 border-b border-[var(--line)]"
       aria-label={`${title} · ${user.workspaceSubtitle}`}
     >
-      <div className="mx-auto flex w-full max-w-[1500px] flex-col gap-4 px-4 pb-1 pt-6 sm:px-6 lg:flex-row lg:items-center lg:justify-between lg:px-8 lg:pt-7">
+      <div className="mx-auto flex w-full max-w-[1500px] flex-col gap-4 px-4 py-5 sm:px-6 lg:flex-row lg:items-center lg:justify-between lg:px-8">
         <div className="flex min-w-0 items-start gap-3">
           <Button
             variant="outline"
@@ -72,7 +73,7 @@ export function DashboardHeader({
                 {t("dashboard.common.header.secureWorkspace")}
               </span>
             </div>
-            <h1 className="mt-1.5 truncate font-[var(--font-auth-display)] text-[1.85rem] font-medium leading-[1.05] text-[var(--ink)] sm:text-[2rem]">
+            <h1 className="mt-1.5 break-words font-[var(--font-auth-display)] text-2xl font-semibold leading-snug text-[var(--ink)] sm:text-[1.85rem]">
               {title}
             </h1>
           </div>
@@ -80,7 +81,7 @@ export function DashboardHeader({
 
         <div
           className={cn(
-            "hidden shrink-0 items-center gap-2.5 sm:flex",
+            "flex shrink-0 flex-wrap items-center gap-2.5",
             direction === "rtl" ? "justify-start" : "justify-end",
           )}
         >
@@ -93,6 +94,7 @@ export function DashboardHeader({
             <span className="whitespace-nowrap">{formattedDate}</span>
           </div>
 
+          <DashboardThemeControl t={t} />
           <LanguageSwitcher
             locale={locale}
             onLocaleChange={onLocaleChange}

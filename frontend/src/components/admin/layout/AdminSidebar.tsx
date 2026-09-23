@@ -86,22 +86,22 @@ export function AdminSidebar({
   };
 
   return (
-    <aside className="flex h-full w-[280px] flex-col border-slate-200 bg-white shadow-sm">
-      <div className="border-b border-slate-200 p-5">
+    <aside className="dashboard-chrome flex h-full w-full lg:w-[280px] flex-col border-[var(--line)]">
+      <div className="border-b border-border p-5">
         <div className="flex items-center gap-3">
-          <span className="flex h-12 w-12 items-center justify-center rounded-2xl bg-[#0b3b5f] text-white shadow-sm">
+          <span className="flex h-12 w-12 items-center justify-center rounded-2xl bg-primary text-white shadow-sm">
             <ShieldCheck className="h-6 w-6" aria-hidden="true" />
           </span>
           <div className="min-w-0">
             <div className="flex items-center gap-2">
-              <p className="truncate text-base font-semibold text-slate-950">
-                {t("admin.layout.brand")}
+              <p className="truncate text-base font-semibold text-foreground">
+                HealixDZ
               </p>
-              <span className="rounded-md border border-cyan-200 bg-cyan-50 px-2 py-0.5 text-[10px] font-bold uppercase tracking-[0.12em] text-cyan-700">
+              <span className="rounded-md border border-[var(--accent-line)] bg-secondary px-2 py-0.5 text-[10px] font-bold uppercase tracking-[0.12em] text-[var(--accent-dark)]">
                 {t("admin.layout.adminBadge")}
               </span>
             </div>
-            <p className="mt-1 truncate text-xs text-slate-500">
+            <p className="mt-1 truncate text-xs text-muted-foreground">
               {displayName}
             </p>
           </div>
@@ -119,7 +119,7 @@ export function AdminSidebar({
                 key={item.key}
                 type="button"
                 disabled
-                className="flex h-11 w-full items-center gap-3 rounded-xl px-3 text-sm font-medium text-slate-400"
+                className="flex h-11 w-full items-center gap-3 rounded-xl px-3 text-sm font-medium text-muted-foreground"
               >
                 <Icon className="h-4 w-4" aria-hidden="true" />
                 <span className="flex-1 text-start">{t(item.labelKey)}</span>
@@ -132,11 +132,12 @@ export function AdminSidebar({
               key={item.key}
               href={item.href}
               onClick={onNavigate}
+              aria-current={isActive ? "page" : undefined}
               className={cn(
                 "group relative flex h-11 items-center gap-3 rounded-xl px-3 text-sm font-medium transition-colors",
                 isActive
-                  ? "bg-[#0b3b5f] text-white shadow-sm shadow-slate-950/10"
-                  : "text-slate-600 hover:bg-slate-50 hover:text-slate-950",
+                  ? "bg-primary text-white shadow-sm shadow-slate-950/10"
+                  : "text-muted-foreground hover:bg-muted hover:text-foreground",
               )}
             >
               <Icon className="h-4 w-4" aria-hidden="true" />
@@ -144,7 +145,7 @@ export function AdminSidebar({
               {isActive ? (
                 <span
                   className={cn(
-                    "absolute top-1/2 h-5 w-1 -translate-y-1/2 rounded-full bg-cyan-300",
+                    "absolute top-1/2 h-5 w-1 -translate-y-1/2 rounded-full bg-primary",
                     direction === "rtl" ? "-right-1" : "-left-1",
                   )}
                 />
@@ -154,12 +155,12 @@ export function AdminSidebar({
         })}
       </nav>
 
-      <div className="border-t border-slate-200 p-4">
-        <div className="rounded-2xl border border-cyan-100 bg-cyan-50/70 p-4">
-          <p className="text-sm font-semibold text-[#0b3b5f]">
+      <div className="border-t border-border p-4">
+        <div className="rounded-2xl border border-[var(--accent-line)] bg-secondary/70 p-4">
+          <p className="text-sm font-semibold text-[var(--accent-dark)]">
             {t("admin.layout.secureAccess")}
           </p>
-          <p className="mt-1 text-xs leading-5 text-slate-600">
+          <p className="mt-1 text-xs leading-5 text-muted-foreground">
             {t("admin.layout.secureAccessDescription")}
           </p>
         </div>
@@ -167,7 +168,7 @@ export function AdminSidebar({
           type="button"
           variant="ghost"
           disabled={adminLogoutMutation.isPending}
-          className="mt-3 w-full justify-start text-slate-600"
+          className="mt-3 w-full justify-start text-muted-foreground"
           onClick={handleLogout}
         >
           <LogOut className="h-4 w-4" aria-hidden="true" />

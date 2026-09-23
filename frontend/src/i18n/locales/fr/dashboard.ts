@@ -1,5 +1,11 @@
 export const dashboardFr = {
   common: {
+    theme: {
+      label: "Thème d’affichage",
+      system: "Système",
+      light: "Clair",
+      dark: "Sombre",
+    },
     roles: {
       establishment: "Établissement de santé",
       doctor: "Médecin indépendant",

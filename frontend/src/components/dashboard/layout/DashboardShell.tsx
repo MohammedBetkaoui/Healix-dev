@@ -43,7 +43,7 @@ export function DashboardShell({
     <main
       lang={locale}
       dir={direction}
-      className="relative isolate min-h-screen overflow-x-clip bg-[var(--bg)] font-[var(--font-auth-sans)] text-[var(--ink)] before:fixed before:inset-0 before:-z-10 before:bg-[repeating-linear-gradient(103deg,rgba(71,63,47,0.024)_0,rgba(71,63,47,0.024)_1px,transparent_1px,transparent_8px)] before:opacity-70 before:content-[''] after:fixed after:inset-0 after:-z-20 after:bg-[radial-gradient(circle_at_8%_10%,rgba(255,255,255,0.76),transparent_28rem),radial-gradient(circle_at_92%_78%,rgba(31,111,92,0.075),transparent_34rem)] after:content-['']"
+      className="dashboard-theme relative isolate min-h-screen overflow-x-clip"
     >
       <div className="min-h-screen lg:flex lg:flex-row">
         <DashboardSidebar

@@ -43,39 +43,39 @@ type DetailItemProps = {
 
 const toneStyles = {
   danger: {
-    badge: "border-red-200 bg-red-50 text-red-700",
-    icon: "bg-red-50 text-red-700",
-    panel: "border-red-100 bg-red-50/50",
+    badge: "border-[var(--danger-line)] bg-[var(--danger-soft)] text-[var(--danger-ink)]",
+    icon: "bg-[var(--danger-soft)] text-[var(--danger-ink)]",
+    panel: "border-[var(--danger-line)] bg-[var(--danger-soft)]/50",
   },
   info: {
-    badge: "border-cyan-200 bg-cyan-50 text-cyan-700",
-    icon: "bg-cyan-50 text-cyan-700",
-    panel: "border-cyan-100 bg-cyan-50/50",
+    badge: "border-[var(--accent-line)] bg-secondary text-[var(--accent-dark)]",
+    icon: "bg-secondary text-[var(--accent-dark)]",
+    panel: "border-[var(--accent-line)] bg-secondary/50",
   },
   success: {
-    badge: "border-emerald-200 bg-emerald-50 text-emerald-700",
-    icon: "bg-emerald-50 text-emerald-700",
-    panel: "border-emerald-100 bg-emerald-50/50",
+    badge: "border-[var(--success-line)] bg-[var(--success-soft)] text-[var(--success-ink)]",
+    icon: "bg-[var(--success-soft)] text-[var(--success-ink)]",
+    panel: "border-[var(--success-line)] bg-[var(--success-soft)]/50",
   },
   warning: {
-    badge: "border-amber-200 bg-amber-50 text-amber-700",
-    icon: "bg-amber-50 text-amber-700",
-    panel: "border-amber-100 bg-amber-50/50",
+    badge: "border-[var(--warning-line)] bg-[var(--warning-soft)] text-[var(--warning-ink)]",
+    icon: "bg-[var(--warning-soft)] text-[var(--warning-ink)]",
+    panel: "border-[var(--warning-line)] bg-[var(--warning-soft)]/50",
   },
 };
 
 function DetailItem({ icon: Icon, label, value }: DetailItemProps) {
   return (
-    <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
+    <div className="rounded-2xl border border-border bg-card p-4 shadow-sm">
       <div className="flex items-start gap-3">
-        <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-slate-50 text-slate-600">
+        <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-muted text-muted-foreground">
           <Icon className="h-4 w-4" aria-hidden="true" />
         </span>
         <div className="min-w-0">
-          <p className="text-xs font-semibold uppercase tracking-[0.12em] text-slate-500">
+          <p className="text-xs font-semibold uppercase tracking-[0.12em] text-muted-foreground">
             {label}
           </p>
-          <p className="mt-1 break-words text-sm font-medium leading-6 text-slate-900">
+          <p className="mt-1 break-words text-sm font-medium leading-6 text-foreground">
             {value}
           </p>
         </div>
@@ -109,10 +109,10 @@ export function AdminAuditLogDetailModal({
       <button
         type="button"
         aria-label={t("admin.actions.close")}
-        className="absolute inset-0 bg-slate-950/35 backdrop-blur-sm"
+        className="absolute inset-0 bg-[#0f172a]/35 backdrop-blur-sm"
         onClick={onClose}
       />
-      <div className="relative max-h-[92vh] w-full max-w-4xl overflow-hidden rounded-3xl border border-slate-200 bg-white shadow-2xl">
+      <div className="relative max-h-[92vh] w-full max-w-4xl overflow-hidden rounded-3xl border border-border bg-card shadow-2xl">
         <Button
           type="button"
           variant="ghost"
@@ -141,13 +141,13 @@ export function AdminAuditLogDetailModal({
                   <ShieldCheck className="h-6 w-6" aria-hidden="true" />
                 </span>
                 <div>
-                  <p className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">
+                  <p className="text-xs font-semibold uppercase tracking-[0.16em] text-muted-foreground">
                     {t("admin.audit.detailTitle")}
                   </p>
-                  <h2 className="mt-2 text-2xl font-semibold text-slate-950">
+                  <h2 className="mt-2 text-2xl font-semibold text-foreground">
                     {actionLabel}
                   </h2>
-                  <p className="mt-2 max-w-2xl text-sm leading-6 text-slate-600">
+                  <p className="mt-2 max-w-2xl text-sm leading-6 text-muted-foreground">
                     {getAuditActionDescription(log, t)}
                   </p>
                 </div>
@@ -198,34 +198,34 @@ export function AdminAuditLogDetailModal({
             />
           </div>
 
-          <section className="mt-4 rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
+          <section className="mt-4 rounded-2xl border border-border bg-card p-4 shadow-sm">
             <div className="flex items-start gap-3">
-              <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-slate-50 text-slate-600">
+              <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-muted text-muted-foreground">
                 <Monitor className="h-4 w-4" aria-hidden="true" />
               </span>
               <div className="min-w-0">
-                <p className="text-xs font-semibold uppercase tracking-[0.12em] text-slate-500">
+                <p className="text-xs font-semibold uppercase tracking-[0.12em] text-muted-foreground">
                   {t("admin.audit.detail.device")}
                 </p>
-                <p className="mt-1 break-words text-sm leading-6 text-slate-700">
+                <p className="mt-1 break-words text-sm leading-6 text-foreground">
                   {log.userAgent ?? t("admin.audit.detail.unknownDevice")}
                 </p>
               </div>
             </div>
           </section>
 
-          <section className="mt-6 rounded-2xl border border-slate-200 bg-slate-50 p-5">
+          <section className="mt-6 rounded-2xl border border-border bg-muted p-5">
             <div className="flex flex-col gap-1 sm:flex-row sm:items-center sm:justify-between">
               <div>
-                <h3 className="text-base font-semibold text-slate-950">
+                <h3 className="text-base font-semibold text-foreground">
                   {t("admin.audit.detail.contextTitle")}
                 </h3>
-                <p className="mt-1 text-sm text-slate-500">
+                <p className="mt-1 text-sm text-muted-foreground">
                   {t("admin.audit.detail.contextDescription")}
                 </p>
               </div>
               {log.entityId ? (
-                <span className="mt-2 rounded-full border border-slate-200 bg-white px-3 py-1 text-xs font-medium text-slate-600 sm:mt-0">
+                <span className="mt-2 rounded-full border border-border bg-card px-3 py-1 text-xs font-medium text-muted-foreground sm:mt-0">
                   {t("admin.audit.detail.entityId")}: {log.entityId}
                 </span>
               ) : null}
@@ -236,19 +236,19 @@ export function AdminAuditLogDetailModal({
                 {metadataEntries.map((entry) => (
                   <div
                     key={entry.label}
-                    className="rounded-xl border border-slate-200 bg-white p-3"
+                    className="rounded-xl border border-border bg-card p-3"
                   >
-                    <p className="text-xs font-semibold uppercase tracking-[0.12em] text-slate-500">
+                    <p className="text-xs font-semibold uppercase tracking-[0.12em] text-muted-foreground">
                       {entry.label}
                     </p>
-                    <p className="mt-1 break-words text-sm font-medium text-slate-900">
+                    <p className="mt-1 break-words text-sm font-medium text-foreground">
                       {entry.value}
                     </p>
                   </div>
                 ))}
               </div>
             ) : (
-              <p className="mt-4 rounded-xl border border-dashed border-slate-200 bg-white p-4 text-sm text-slate-500">
+              <p className="mt-4 rounded-xl border border-dashed border-border bg-card p-4 text-sm text-muted-foreground">
                 {t("admin.audit.detail.noMetadata")}
               </p>
             )}

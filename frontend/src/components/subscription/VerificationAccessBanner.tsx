@@ -62,17 +62,17 @@ export function VerificationAccessBanner({
   return (
     <section
       className={cn(
-        "rounded-[1.15rem] border p-5 shadow-[0_16px_38px_-30px_rgba(22,33,29,0.46)]",
+        "rounded-xl border p-5 shadow-sm",
         bannerKey === "active" || bannerKey === "verified"
-          ? "border-[var(--accent-line)] bg-[var(--accent-soft)]/65"
+          ? "border-[var(--success-line)] bg-[var(--success-soft)]"
           : bannerKey === "suspended" || bannerKey === "rejected"
-            ? "border-[#e4c5bc] bg-[#fbefeb]"
-            : "border-[var(--gold-line)] bg-[var(--gold-soft)]/70",
+            ? "border-[var(--danger-line)] bg-[var(--danger-soft)]"
+            : "border-[var(--warning-line)] bg-[var(--warning-soft)]",
       )}
     >
       <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
         <div className="flex items-start gap-4">
-          <span className="flex h-12 w-12 shrink-0 items-center justify-center rounded-[0.82rem] rounded-bl-[0.26rem] border border-[var(--line)] bg-[var(--panel)] text-[var(--accent-dark)]">
+          <span className="flex h-12 w-12 shrink-0 items-center justify-center rounded-[0.82rem] border border-[var(--line)] bg-[var(--panel)] text-[var(--accent-dark)]">
             <Icon className="h-5 w-5" strokeWidth={1.7} aria-hidden="true" />
           </span>
           <div>
@@ -87,7 +87,7 @@ export function VerificationAccessBanner({
         {canGoToVerification ? (
           <Link
             href={verificationHref}
-            className="inline-flex h-11 items-center justify-center rounded-[0.72rem] bg-[var(--accent-dark)] px-5 text-sm font-medium text-[var(--bg)] shadow-[0_10px_22px_-12px_rgba(18,61,50,0.72)] transition hover:bg-[var(--accent-deep)]"
+            className="inline-flex h-11 items-center justify-center rounded-[0.72rem] bg-primary px-5 text-sm font-medium text-primary-foreground shadow-sm transition hover:bg-[var(--action-hover)]"
           >
             {t(`subscription.access.${bannerKey}.action`)}
           </Link>

@@ -21,7 +21,7 @@ export function ActivityTable({
   title,
 }: ActivityTableProps) {
   return (
-    <section className="overflow-hidden rounded-[1rem] rounded-bl-[0.4rem] border border-[var(--line)] bg-[var(--panel)]/94 shadow-[0_1px_2px_rgba(22,33,29,0.03),0_18px_40px_-28px_rgba(22,33,29,0.25)]">
+    <section className="overflow-hidden rounded-xl border border-[var(--line)] bg-[var(--panel)]/94 shadow-sm">
       <div className="border-b border-[var(--line-soft)] px-6 py-5">
         <h2 className="font-[var(--font-auth-display)] text-[1.2rem] font-medium text-[var(--ink)]">{title}</h2>
       </div>

@@ -47,14 +47,14 @@ export function AdminUserFilters({
   t,
 }: AdminUserFiltersProps) {
   return (
-    <section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+    <section className="rounded-2xl border border-border bg-card p-5 shadow-sm">
       <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
         <div className="xl:col-span-2">
           <Label htmlFor="userSearch">{t("admin.users.filters.search")}</Label>
           <Input
             id="userSearch"
             type="search"
-            className="mt-2 rounded-xl border-slate-200"
+            className="mt-2 rounded-xl border-border"
             value={filters.search}
             onChange={(event) =>
               onChange({ ...filters, search: event.target.value })
@@ -65,7 +65,7 @@ export function AdminUserFilters({
           <Label htmlFor="userRole">{t("admin.users.filters.role")}</Label>
           <select
             id="userRole"
-            className="mt-2 h-11 w-full rounded-xl border border-slate-200 bg-white px-3 text-sm"
+            className="mt-2 h-11 w-full rounded-xl border border-border bg-card px-3 text-sm"
             value={filters.role}
             onChange={(event) =>
               onChange({
@@ -86,7 +86,7 @@ export function AdminUserFilters({
           <Label htmlFor="userStatus">{t("admin.users.filters.status")}</Label>
           <select
             id="userStatus"
-            className="mt-2 h-11 w-full rounded-xl border border-slate-200 bg-white px-3 text-sm"
+            className="mt-2 h-11 w-full rounded-xl border border-border bg-card px-3 text-sm"
             value={filters.status}
             onChange={(event) =>
               onChange({
@@ -107,7 +107,7 @@ export function AdminUserFilters({
           <Label htmlFor="userWilaya">{t("admin.users.filters.wilaya")}</Label>
           <Input
             id="userWilaya"
-            className="mt-2 rounded-xl border-slate-200"
+            className="mt-2 rounded-xl border-border"
             value={filters.wilaya}
             onChange={(event) =>
               onChange({ ...filters, wilaya: event.target.value })

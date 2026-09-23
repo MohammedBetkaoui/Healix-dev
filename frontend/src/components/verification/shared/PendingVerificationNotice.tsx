@@ -16,15 +16,15 @@ export function PendingVerificationNotice({
   title,
 }: PendingVerificationNoticeProps) {
   return (
-    <section className="rounded-[24px] border border-cyan-100 bg-cyan-50/50 p-6 shadow-[0_12px_36px_rgba(15,23,42,0.04)]">
+    <section className="rounded-xl border border-[var(--warning-line)] bg-[var(--warning-soft)] p-6 shadow-sm">
       <div className="flex flex-col gap-5 lg:flex-row lg:items-center lg:justify-between">
         <div className="flex items-start gap-4">
-          <span className="flex h-12 w-12 shrink-0 items-center justify-center rounded-full bg-white text-cyan-700 shadow-sm">
+          <span className="flex h-12 w-12 shrink-0 items-center justify-center rounded-full bg-card text-[var(--warning-ink)] shadow-sm">
             <Clock3 className="h-5 w-5" />
           </span>
           <div>
-            <h2 className="text-lg font-semibold text-slate-950">{title}</h2>
-            <p className="mt-2 max-w-4xl text-sm leading-6 text-slate-600">
+            <h2 className="text-lg font-semibold text-foreground">{title}</h2>
+            <p className="mt-2 max-w-4xl text-sm leading-6 text-muted-foreground">
               {description}
             </p>
           </div>

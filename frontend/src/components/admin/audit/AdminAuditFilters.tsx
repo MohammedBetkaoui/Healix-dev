@@ -54,14 +54,14 @@ export function AdminAuditFilters({
   t,
 }: AdminAuditFiltersProps) {
   return (
-    <section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+    <section className="rounded-2xl border border-border bg-card p-5 shadow-sm">
       <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
         <div className="xl:col-span-2">
           <Label htmlFor="auditSearch">{t("admin.audit.filters.search")}</Label>
           <Input
             id="auditSearch"
             type="search"
-            className="mt-2 rounded-xl border-slate-200"
+            className="mt-2 rounded-xl border-border"
             value={filters.search}
             onChange={(event) =>
               onChange({ ...filters, search: event.target.value })
@@ -72,7 +72,7 @@ export function AdminAuditFilters({
           <Label htmlFor="auditAction">{t("admin.audit.filters.action")}</Label>
           <select
             id="auditAction"
-            className="mt-2 h-11 w-full rounded-xl border border-slate-200 bg-white px-3 text-sm"
+            className="mt-2 h-11 w-full rounded-xl border border-border bg-card px-3 text-sm"
             value={filters.action}
             onChange={(event) =>
               onChange({
@@ -93,7 +93,7 @@ export function AdminAuditFilters({
           <Label htmlFor="auditRole">{t("admin.audit.filters.role")}</Label>
           <select
             id="auditRole"
-            className="mt-2 h-11 w-full rounded-xl border border-slate-200 bg-white px-3 text-sm"
+            className="mt-2 h-11 w-full rounded-xl border border-border bg-card px-3 text-sm"
             value={filters.role}
             onChange={(event) =>
               onChange({
@@ -114,7 +114,7 @@ export function AdminAuditFilters({
           <Label htmlFor="auditStatus">{t("admin.audit.filters.status")}</Label>
           <select
             id="auditStatus"
-            className="mt-2 h-11 w-full rounded-xl border border-slate-200 bg-white px-3 text-sm"
+            className="mt-2 h-11 w-full rounded-xl border border-border bg-card px-3 text-sm"
             value={filters.status}
             onChange={(event) =>
               onChange({
@@ -135,7 +135,7 @@ export function AdminAuditFilters({
           <Label htmlFor="auditIp">{t("admin.audit.filters.ip")}</Label>
           <Input
             id="auditIp"
-            className="mt-2 rounded-xl border-slate-200"
+            className="mt-2 rounded-xl border-border"
             value={filters.ipAddress}
             onChange={(event) =>
               onChange({ ...filters, ipAddress: event.target.value })

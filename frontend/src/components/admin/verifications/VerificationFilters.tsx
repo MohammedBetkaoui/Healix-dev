@@ -47,7 +47,7 @@ export function VerificationFilters({
   t,
 }: VerificationFiltersProps) {
   return (
-    <section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+    <section className="rounded-2xl border border-border bg-card p-5 shadow-sm">
       <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
         <div className="xl:col-span-2">
           <Label htmlFor="verificationSearch">
@@ -56,7 +56,7 @@ export function VerificationFilters({
           <Input
             id="verificationSearch"
             type="search"
-            className="mt-2 rounded-xl border-slate-200"
+            className="mt-2 rounded-xl border-border"
             value={filters.search}
             onChange={(event) =>
               onChange({ ...filters, search: event.target.value })
@@ -70,7 +70,7 @@ export function VerificationFilters({
           </Label>
           <select
             id="verificationType"
-            className="mt-2 h-11 w-full rounded-xl border border-slate-200 bg-white px-3 text-sm"
+            className="mt-2 h-11 w-full rounded-xl border border-border bg-card px-3 text-sm"
             value={filters.type}
             onChange={(event) =>
               onChange({
@@ -94,7 +94,7 @@ export function VerificationFilters({
           </Label>
           <select
             id="verificationStatus"
-            className="mt-2 h-11 w-full rounded-xl border border-slate-200 bg-white px-3 text-sm"
+            className="mt-2 h-11 w-full rounded-xl border border-border bg-card px-3 text-sm"
             value={filters.status}
             onChange={(event) =>
               onChange({
@@ -118,7 +118,7 @@ export function VerificationFilters({
           </Label>
           <Input
             id="verificationWilaya"
-            className="mt-2 rounded-xl border-slate-200"
+            className="mt-2 rounded-xl border-border"
             value={filters.wilaya}
             onChange={(event) =>
               onChange({ ...filters, wilaya: event.target.value })
@@ -133,7 +133,7 @@ export function VerificationFilters({
           <Input
             id="verificationSubmittedFrom"
             type="date"
-            className="mt-2 rounded-xl border-slate-200"
+            className="mt-2 rounded-xl border-border"
             value={filters.submittedFrom}
             onChange={(event) =>
               onChange({ ...filters, submittedFrom: event.target.value })
@@ -148,7 +148,7 @@ export function VerificationFilters({
           <Input
             id="verificationSubmittedTo"
             type="date"
-            className="mt-2 rounded-xl border-slate-200"
+            className="mt-2 rounded-xl border-border"
             value={filters.submittedTo}
             onChange={(event) =>
               onChange({ ...filters, submittedTo: event.target.value })
@@ -162,7 +162,7 @@ export function VerificationFilters({
           </Label>
           <select
             id="verificationDocuments"
-            className="mt-2 h-11 w-full rounded-xl border border-slate-200 bg-white px-3 text-sm"
+            className="mt-2 h-11 w-full rounded-xl border border-border bg-card px-3 text-sm"
             value={filters.documentsComplete}
             onChange={(event) =>
               onChange({
@@ -184,7 +184,7 @@ export function VerificationFilters({
           </Label>
           <select
             id="verificationPriority"
-            className="mt-2 h-11 w-full rounded-xl border border-slate-200 bg-white px-3 text-sm"
+            className="mt-2 h-11 w-full rounded-xl border border-border bg-card px-3 text-sm"
             value={filters.priority}
             onChange={(event) =>
               onChange({

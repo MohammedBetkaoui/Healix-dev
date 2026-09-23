@@ -103,21 +103,21 @@ export function VerificationDocumentModal({
       <button
         type="button"
         aria-label={t("admin.actions.close")}
-        className="absolute inset-0 bg-slate-950/40 backdrop-blur-sm"
+        className="absolute inset-0 bg-[#0f172a]/40 backdrop-blur-sm"
         onClick={onClose}
       />
 
-      <div className="relative flex w-full max-w-4xl flex-col rounded-3xl border border-slate-200 bg-white shadow-2xl overflow-hidden max-h-[90vh]">
+      <div className="relative flex w-full max-w-4xl flex-col rounded-3xl border border-border bg-card shadow-2xl overflow-hidden max-h-[90vh]">
         {/* Header */}
-        <div className="flex items-center gap-3 border-b border-slate-100 px-6 py-4 shrink-0">
-          <span className="flex h-10 w-10 items-center justify-center rounded-xl bg-cyan-50 text-cyan-700 shrink-0">
+        <div className="flex items-center gap-3 border-b border-border px-6 py-4 shrink-0">
+          <span className="flex h-10 w-10 items-center justify-center rounded-xl bg-secondary text-[var(--accent-dark)] shrink-0">
             <FileText className="h-5 w-5" aria-hidden="true" />
           </span>
           <div className="min-w-0 flex-1">
-            <h2 className="truncate text-base font-semibold text-slate-950">
+            <h2 className="truncate text-base font-semibold text-foreground">
               {document.title}
             </h2>
-            <p className="truncate text-xs text-slate-400 italic">
+            <p className="truncate text-xs text-muted-foreground italic">
               {document.originalName ? `${document.originalName} · ` : ""}
               {document.size}
             </p>
@@ -145,17 +145,17 @@ export function VerificationDocumentModal({
         </div>
 
         {/* Viewer body */}
-        <div className="flex min-h-120 flex-1 items-center justify-center overflow-auto bg-slate-50">
+        <div className="flex min-h-120 flex-1 items-center justify-center overflow-auto bg-muted">
           {isLoading && (
-            <div className="flex flex-col items-center gap-3 text-slate-500">
-              <Loader2 className="h-8 w-8 animate-spin text-cyan-600" />
+            <div className="flex flex-col items-center gap-3 text-muted-foreground">
+              <Loader2 className="h-8 w-8 animate-spin text-[var(--accent-dark)]" />
               <span className="text-sm">{t("admin.detail.modal.loading")}</span>
             </div>
           )}
 
           {isCurrentViewer && viewer.status === "error" && (
-            <div className="flex flex-col items-center gap-3 rounded-2xl bg-red-50 px-8 py-10 text-center">
-              <p className="font-semibold text-red-700">
+            <div className="flex flex-col items-center gap-3 rounded-2xl bg-[var(--danger-soft)] px-8 py-10 text-center">
+              <p className="font-semibold text-[var(--danger-ink)]">
                 {t("admin.detail.modal.error")}
               </p>
             </div>
@@ -176,12 +176,12 @@ export function VerificationDocumentModal({
                 className="h-[70vh] w-full border-0"
               />
             ) : (
-              <div className="flex flex-col items-center gap-3 rounded-2xl bg-slate-100 px-10 py-12 text-center">
-                <FileText className="h-12 w-12 text-slate-400" />
-                <p className="font-semibold text-slate-700">
+              <div className="flex flex-col items-center gap-3 rounded-2xl bg-muted px-10 py-12 text-center">
+                <FileText className="h-12 w-12 text-muted-foreground" />
+                <p className="font-semibold text-foreground">
                   {t("admin.detail.modal.unsupportedFormat")}
                 </p>
-                <p className="text-sm text-slate-500">
+                <p className="text-sm text-muted-foreground">
                   {t("admin.detail.modal.unsupportedFormatHint")}
                 </p>
                 <Button

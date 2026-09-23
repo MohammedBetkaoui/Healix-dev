@@ -29,24 +29,28 @@ export function AdminDashboardPage() {
   const stats = [
     {
       badge: "PENDING",
+      badgeLabel: t("admin.badges.status.PENDING_VERIFICATION"),
       icon: Clock,
       label: t("admin.dashboard.stats.pending"),
       value: statsData?.pendingVerifications ?? 0,
     },
     {
       badge: "VERIFIED",
+      badgeLabel: t("admin.badges.status.VERIFIED"),
       icon: CheckCircle,
       label: t("admin.dashboard.stats.verified"),
       value: statsData?.verifiedRequests ?? 0,
     },
     {
       badge: "REJECTED",
+      badgeLabel: t("admin.badges.status.REJECTED"),
       icon: XCircle,
       label: t("admin.dashboard.stats.rejected"),
       value: statsData?.rejectedRequests ?? 0,
     },
     {
       badge: "TOTAL",
+      badgeLabel: t("admin.common.all"),
       icon: Users,
       label: t("admin.dashboard.stats.registeredUsers"),
       value: statsData?.totalUsers ?? 0,
@@ -77,14 +81,14 @@ export function AdminDashboardPage() {
     >
       <div className="space-y-6">
         <section>
-          <p className="max-w-3xl text-sm leading-6 text-slate-600">
+          <p className="max-w-3xl text-sm leading-6 text-muted-foreground">
             {t("admin.dashboard.page.subtitle")}
           </p>
         </section>
 
         {isLoading ? (
-          <div className="flex items-center gap-3 rounded-2xl border border-slate-200 bg-white p-5 text-sm text-slate-600 shadow-sm">
-            <Loader2 className="h-4 w-4 animate-spin text-cyan-700" />
+          <div className="flex items-center gap-3 rounded-2xl border border-border bg-card p-5 text-sm text-muted-foreground shadow-sm">
+            <Loader2 className="h-4 w-4 animate-spin text-[var(--accent-dark)]" />
             {t("admin.dashboard.loading")}
           </div>
         ) : null}
@@ -92,7 +96,7 @@ export function AdminDashboardPage() {
         {isError ? (
           <div
             role="alert"
-            className="rounded-2xl border border-red-200 bg-red-50 p-5 text-sm text-red-700"
+            className="rounded-2xl border border-[var(--danger-line)] bg-[var(--danger-soft)] p-5 text-sm text-[var(--danger-ink)]"
           >
             {t("admin.dashboard.error")}
           </div>
@@ -110,8 +114,8 @@ export function AdminDashboardPage() {
             t={t}
           />
           <div className="space-y-6">
-            <section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
-              <h2 className="text-lg font-semibold text-slate-950">
+            <section className="rounded-2xl border border-border bg-card p-5 shadow-sm">
+              <h2 className="text-lg font-semibold text-foreground">
                 {t("admin.dashboard.distribution.title")}
               </h2>
               <div className="mt-6 space-y-4">
@@ -120,9 +124,9 @@ export function AdminDashboardPage() {
                     <span>{t("admin.dashboard.distribution.establishments")}</span>
                     <span className="font-semibold">{establishmentPercent}%</span>
                   </div>
-                  <div className="mt-2 h-2 rounded-full bg-slate-100">
+                  <div className="mt-2 h-2 rounded-full bg-muted">
                     <div
-                      className="h-2 rounded-full bg-[#0b3b5f]"
+                      className="h-2 rounded-full bg-[var(--chart-primary)]"
                       style={{ width: `${establishmentPercent}%` }}
                     />
                   </div>
@@ -132,9 +136,9 @@ export function AdminDashboardPage() {
                     <span>{t("admin.dashboard.distribution.doctors")}</span>
                     <span className="font-semibold">{doctorPercent}%</span>
                   </div>
-                  <div className="mt-2 h-2 rounded-full bg-slate-100">
+                  <div className="mt-2 h-2 rounded-full bg-muted">
                     <div
-                      className="h-2 rounded-full bg-cyan-400"
+                      className="h-2 rounded-full bg-[var(--chart-secondary)]"
                       style={{ width: `${doctorPercent}%` }}
                     />
                   </div>

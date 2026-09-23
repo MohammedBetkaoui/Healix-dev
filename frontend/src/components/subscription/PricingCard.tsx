@@ -42,20 +42,20 @@ export function PricingCard({
   return (
     <article
       className={cn(
-        "relative flex h-full flex-col rounded-[1.2rem] border border-[var(--line)] bg-[var(--panel)] p-5 shadow-[0_16px_38px_-30px_rgba(22,33,29,0.5)] transition-[border-color,box-shadow,transform] duration-200",
+        "relative flex h-full flex-col rounded-xl border border-[var(--line)] bg-[var(--panel)] p-5 shadow-sm transition-[border-color,box-shadow,transform] duration-200",
         selected &&
           "ring-2 ring-[var(--accent-line)] ring-offset-2 ring-offset-[var(--bg)]",
         plan.recommended &&
-          "border-2 border-[var(--accent)] bg-[linear-gradient(180deg,var(--accent-soft)_0%,var(--panel)_31%)] shadow-[0_24px_54px_-34px_rgba(18,61,50,0.72)] min-[1500px]:-translate-y-2",
+          "border-2 border-[var(--accent)] bg-[linear-gradient(180deg,var(--accent-soft)_0%,var(--panel)_31%)] shadow-sm min-[1500px]:-translate-y-2",
         disabled && "opacity-75",
       )}
     >
       <div className="flex min-h-12 items-start justify-between gap-3">
-        <span className="flex h-12 w-12 shrink-0 items-center justify-center rounded-[0.85rem] rounded-bl-[0.28rem] border border-[var(--accent-line)] bg-[var(--accent-soft)] text-[var(--accent-dark)]">
+        <span className="flex h-12 w-12 shrink-0 items-center justify-center rounded-[0.85rem] border border-[var(--accent-line)] bg-[var(--accent-soft)] text-[var(--accent-dark)]">
           <Icon className="h-5 w-5" strokeWidth={1.7} aria-hidden="true" />
         </span>
         {plan.badge ? (
-          <span className="rounded-full border border-[var(--gold-line)] bg-[var(--gold-soft)] px-3 py-1 font-[var(--font-auth-mono)] text-[0.64rem] font-medium tracking-[0.04em] text-[var(--gold-dark)]">
+          <span className="rounded-full border border-[var(--accent-line)] bg-[var(--accent-soft)] px-3 py-1 font-[var(--font-auth-mono)] text-[0.64rem] font-medium tracking-[0.04em] text-[var(--accent-dark)]">
             {t(plan.badge)}
           </span>
         ) : null}

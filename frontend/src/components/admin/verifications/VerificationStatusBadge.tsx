@@ -8,12 +8,12 @@ type VerificationStatusBadgeProps = {
 };
 
 const statusStyles: Record<VerificationStatus, string> = {
-  DRAFT: "border-slate-200 bg-slate-50 text-slate-600",
-  NOT_STARTED: "border-slate-200 bg-white text-slate-600",
-  PENDING_VERIFICATION: "border-amber-200 bg-amber-50 text-amber-700",
-  REJECTED: "border-red-200 bg-red-50 text-red-700",
-  SUSPENDED: "border-slate-300 bg-slate-100 text-slate-700",
-  VERIFIED: "border-emerald-200 bg-emerald-50 text-emerald-700",
+  DRAFT: "border-border bg-muted text-muted-foreground",
+  NOT_STARTED: "border-border bg-card text-muted-foreground",
+  PENDING_VERIFICATION: "border-[var(--warning-line)] bg-[var(--warning-soft)] text-[var(--warning-ink)]",
+  REJECTED: "border-[var(--danger-line)] bg-[var(--danger-soft)] text-[var(--danger-ink)]",
+  SUSPENDED: "border-border bg-muted text-foreground",
+  VERIFIED: "border-[var(--success-line)] bg-[var(--success-soft)] text-[var(--success-ink)]",
 };
 
 export function VerificationStatusBadge({

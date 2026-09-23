@@ -8,13 +8,13 @@ type AdminUserStatusBadgeProps = {
 };
 
 const statusStyles: Record<RegisteredUserStatus, string> = {
-  ACTIVE: "border-emerald-200 bg-emerald-50 text-emerald-700",
-  BASIC_ACCOUNT: "border-cyan-200 bg-cyan-50 text-cyan-700",
-  PAYMENT_PENDING: "border-amber-200 bg-amber-50 text-amber-700",
-  PENDING_VERIFICATION: "border-amber-200 bg-amber-50 text-amber-700",
-  REJECTED: "border-red-200 bg-red-50 text-red-700",
-  SUSPENDED: "border-slate-300 bg-slate-100 text-slate-700",
-  VERIFIED_NO_PLAN: "border-amber-200 bg-amber-50 text-amber-700",
+  ACTIVE: "border-[var(--success-line)] bg-[var(--success-soft)] text-[var(--success-ink)]",
+  BASIC_ACCOUNT: "border-[var(--accent-line)] bg-secondary text-[var(--accent-dark)]",
+  PAYMENT_PENDING: "border-[var(--warning-line)] bg-[var(--warning-soft)] text-[var(--warning-ink)]",
+  PENDING_VERIFICATION: "border-[var(--warning-line)] bg-[var(--warning-soft)] text-[var(--warning-ink)]",
+  REJECTED: "border-[var(--danger-line)] bg-[var(--danger-soft)] text-[var(--danger-ink)]",
+  SUSPENDED: "border-border bg-muted text-foreground",
+  VERIFIED_NO_PLAN: "border-[var(--warning-line)] bg-[var(--warning-soft)] text-[var(--warning-ink)]",
 };
 
 export function AdminUserStatusBadge({

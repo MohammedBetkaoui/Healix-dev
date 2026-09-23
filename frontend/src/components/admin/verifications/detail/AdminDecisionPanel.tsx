@@ -47,8 +47,8 @@ export function AdminDecisionPanel({
   };
 
   return (
-    <section className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
-      <h2 className="text-lg font-semibold text-slate-950">
+    <section className="rounded-2xl border border-border bg-card p-6 shadow-sm">
+      <h2 className="text-lg font-semibold text-foreground">
         {t("admin.detail.decision.title")}
       </h2>
       <div className="mt-5 space-y-4">
@@ -58,12 +58,12 @@ export function AdminDecisionPanel({
           </Label>
           <Textarea
             id="rejectionReason"
-            className="mt-2 rounded-xl border-slate-200"
+            className="mt-2 rounded-xl border-border"
             value={rejectionReason}
             onChange={(event) => setRejectionReason(event.target.value)}
           />
         </div>
-        <label className="flex items-start gap-3 text-sm text-slate-700">
+        <label className="flex items-start gap-3 text-sm text-foreground">
           <Checkbox
             checked={confirmed}
             onChange={(event) => setConfirmed(event.target.checked)}
@@ -71,7 +71,7 @@ export function AdminDecisionPanel({
           <span>{t("admin.detail.decision.confirmation")}</span>
         </label>
         {error ? (
-          <p role="alert" className="rounded-xl bg-red-50 p-3 text-sm text-red-700">
+          <p role="alert" className="rounded-xl bg-[var(--danger-soft)] p-3 text-sm text-[var(--danger-ink)]">
             {error}
           </p>
         ) : null}

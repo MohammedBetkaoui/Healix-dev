@@ -54,7 +54,7 @@ export function LanguageSwitcher({
                 ? "h-8 rounded-full px-3 text-xs"
                 : "h-9 rounded-[0.55rem] px-3",
               isActive
-                ? "bg-[var(--accent-dark)] text-[var(--bg)] hover:bg-[var(--accent-deep)]"
+                ? "bg-primary text-primary-foreground hover:bg-[var(--action-hover)]"
                 : "text-[var(--ink-soft)] hover:bg-[var(--accent-soft)] hover:text-[var(--accent-dark)]",
             )}
           >

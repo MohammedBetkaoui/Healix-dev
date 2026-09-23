@@ -23,13 +23,13 @@ export function PatientsSearch({
     <div className="relative">
       <Search
         className={cn(
-          "pointer-events-none absolute top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400",
+          "pointer-events-none absolute top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground",
           direction === "rtl" ? "right-3" : "left-3",
         )}
       />
       <Input
         className={cn(
-          "h-12 rounded-2xl border-slate-200 bg-white text-sm shadow-sm",
+          "h-12 rounded-2xl border-border bg-card text-sm shadow-sm",
           direction === "rtl" ? "pr-10 text-right" : "pl-10",
         )}
         value={search}

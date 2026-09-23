@@ -54,9 +54,9 @@ export function DoctorSubmissionStep({
 
   return (
     <section className="space-y-6">
-      <div className="rounded-[24px] border border-slate-200/80 bg-white p-6 shadow-[0_12px_36px_rgba(15,23,42,0.04)]">
+      <div className="rounded-xl border border-border/80 bg-card p-6 shadow-sm">
         <div className="mb-5">
-          <h2 className="text-lg font-semibold text-slate-950">
+          <h2 className="text-lg font-semibold text-foreground">
             {t("doctorVerification.submission.summaryTitle")}
           </h2>
         </div>
@@ -90,10 +90,10 @@ export function DoctorSubmissionStep({
           ].map((item) => (
             <div
               key={item.label}
-              className="rounded-[18px] border border-slate-200 bg-slate-50/70 p-4"
+              className="rounded-xl border border-border bg-muted/70 p-4"
             >
-              <p className="text-sm text-slate-500">{item.label}</p>
-              <p className="mt-2 text-sm font-semibold text-slate-950">
+              <p className="text-sm text-muted-foreground">{item.label}</p>
+              <p className="mt-2 text-sm font-semibold text-foreground">
                 {item.value ??
                   (item.done
                     ? t("doctorVerification.submission.completed")
@@ -103,30 +103,30 @@ export function DoctorSubmissionStep({
           ))}
         </div>
 
-        <div className="mt-5 rounded-[18px] border border-slate-200 bg-white p-4">
-          <p className="text-sm font-semibold text-slate-950">
+        <div className="mt-5 rounded-xl border border-border bg-card p-4">
+          <p className="text-sm font-semibold text-foreground">
             {t("doctorVerification.submission.missingDocuments")}
           </p>
           {missingRequiredDocuments.length > 0 ? (
-            <ul className="mt-3 list-inside list-disc space-y-1 text-sm text-slate-500">
+            <ul className="mt-3 list-inside list-disc space-y-1 text-sm text-muted-foreground">
               {missingRequiredDocuments.map((document) => (
                 <li key={document.type}>{t(document.titleKey)}</li>
               ))}
             </ul>
           ) : (
-            <p className="mt-2 text-sm text-emerald-700">
+            <p className="mt-2 text-sm text-[var(--success-ink)]">
               {t("doctorVerification.submission.noneMissing")}
             </p>
           )}
         </div>
       </div>
 
-      <section className="rounded-[24px] border border-slate-200/80 bg-white p-6 shadow-[0_12px_36px_rgba(15,23,42,0.04)]">
+      <section className="rounded-xl border border-border/80 bg-card p-6 shadow-sm">
         <div className="mb-5">
-          <h2 className="text-lg font-semibold text-slate-950">
+          <h2 className="text-lg font-semibold text-foreground">
             {t("doctorVerification.documents.title")}
           </h2>
-          <p className="mt-1 text-sm leading-6 text-slate-500">
+          <p className="mt-1 text-sm leading-6 text-muted-foreground">
             {t("doctorVerification.documents.subtitle")}
           </p>
         </div>
@@ -167,7 +167,7 @@ export function DoctorSubmissionStep({
           })}
         </div>
 
-        <div className="mt-5 rounded-[18px] border border-slate-200 bg-slate-50/70 p-4">
+        <div className="mt-5 rounded-xl border border-border bg-muted/70 p-4">
           <div className="flex items-start gap-3">
             <Checkbox
               id="confirmAuthenticity"
@@ -177,7 +177,7 @@ export function DoctorSubmissionStep({
             />
             <Label
               htmlFor="confirmAuthenticity"
-              className="text-sm font-medium leading-6 text-slate-700"
+              className="text-sm font-medium leading-6 text-foreground"
             >
               {t("doctorVerification.submission.confirm")}
             </Label>

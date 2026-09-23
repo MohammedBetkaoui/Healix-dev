@@ -2,7 +2,16 @@ import { type LucideIcon } from "lucide-react";
 
 import { type AccountType } from "./auth";
 
-export type DashboardThemeMode = "light" | "soft";
+export type DashboardThemeMode = "light" | "dark" | "system";
+
+export type DashboardSpecialty =
+  | "brain"
+  | "cardiology"
+  | "pathology"
+  | "radiology"
+  | "pulmonology"
+  | "dermatology"
+  | "ophthalmology";
 
 export type DashboardNavBadgeTone = "red" | "purple" | "blue";
 
@@ -43,9 +52,11 @@ export type DashboardBarPoint = {
   label: string;
   primary: number;
   secondary?: number;
+  specialty?: DashboardSpecialty;
+  statusTone?: "warning";
 };
 
-export type DashboardStatusTone = "neutral" | "success" | "warning" | "info";
+export type DashboardStatusTone = "neutral" | "success" | "warning" | "danger" | "info";
 
 export type DashboardActivityColumnKey =
   | "type"

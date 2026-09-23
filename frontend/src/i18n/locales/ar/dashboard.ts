@@ -1,5 +1,11 @@
 export const dashboardAr = {
   common: {
+    theme: {
+      label: "مظهر الواجهة",
+      system: "النظام",
+      light: "فاتح",
+      dark: "داكن",
+    },
     roles: {
       establishment: "مؤسسة صحية",
       doctor: "طبيب مستقل",

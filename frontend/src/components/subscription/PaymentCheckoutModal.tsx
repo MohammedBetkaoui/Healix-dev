@@ -129,7 +129,7 @@ export function PaymentCheckoutModal({
 
   return createPortal(
     <div
-      className="fixed inset-0 z-[80] flex items-center justify-center bg-[#16211d]/48 p-3 sm:p-6"
+      className="fixed inset-0 z-[80] flex items-center justify-center bg-[#0f172a]/48 p-3 sm:p-6"
       dir={direction}
       onMouseDown={(event) => {
         if (event.target === event.currentTarget) {
@@ -139,16 +139,17 @@ export function PaymentCheckoutModal({
     >
       <div
         ref={dialogRef}
+        lang={direction === "rtl" ? "ar" : "fr"}
         role="dialog"
         aria-modal="true"
         aria-labelledby="payment-modal-title"
         aria-describedby="payment-modal-description"
         tabIndex={-1}
-        className="flex max-h-[calc(100dvh-1.5rem)] w-full max-w-6xl flex-col overflow-hidden rounded-[1.35rem] rounded-bl-[0.45rem] border border-[var(--line)] bg-[var(--bg)] shadow-[0_34px_90px_-28px_rgba(18,61,50,0.62)] outline-none sm:max-h-[calc(100dvh-3rem)]"
+        className="dashboard-theme flex max-h-[calc(100dvh-1.5rem)] w-full max-w-6xl flex-col overflow-hidden rounded-xl border border-[var(--line)] shadow-xl outline-none sm:max-h-[calc(100dvh-3rem)]"
       >
         <header className="flex shrink-0 items-start justify-between gap-4 border-b border-[var(--line)] bg-[var(--panel)] px-5 py-4 sm:px-7 sm:py-5">
           <div className="flex min-w-0 items-start gap-3 sm:gap-4">
-            <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-[0.8rem] rounded-bl-[0.28rem] border border-[var(--accent-line)] bg-[var(--accent-soft)] text-[var(--accent-dark)]">
+            <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-[0.8rem] border border-[var(--accent-line)] bg-[var(--accent-soft)] text-[var(--accent-dark)]">
               <CreditCard
                 className="h-5 w-5"
                 strokeWidth={1.7}
@@ -156,7 +157,7 @@ export function PaymentCheckoutModal({
               />
             </span>
             <div className="min-w-0">
-              <p className="font-[var(--font-auth-mono)] text-[0.62rem] font-medium uppercase tracking-[0.14em] text-[var(--gold-dark)]">
+              <p className="font-[var(--font-auth-mono)] text-[0.62rem] font-medium uppercase tracking-[0.14em] text-[var(--accent-dark)]">
                 {t("subscription.header.eyebrow")}
               </p>
               <h2
@@ -218,7 +219,7 @@ export function PaymentCheckoutModal({
               {error ? (
                 <p
                   role="alert"
-                  className="mt-4 rounded-[0.9rem] border border-[#e4c5bc] bg-[#fbefeb] p-4 text-sm font-medium text-[#a9463a]"
+                  className="mt-4 rounded-[0.9rem] border border-[var(--danger-line)] bg-[var(--danger-soft)] p-4 text-sm font-medium text-[var(--danger-ink)]"
                 >
                   {error}
                 </p>

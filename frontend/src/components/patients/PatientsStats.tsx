@@ -30,20 +30,20 @@ function StatItem({ item }: { item: PatientStatItem }) {
   const Icon = item.icon;
 
   return (
-    <article className="rounded-[24px] border border-slate-200/80 bg-white p-5 shadow-[0_12px_36px_rgba(15,23,42,0.04)]">
+    <article className="rounded-xl border border-border/80 bg-card p-5 shadow-sm">
       <div className="flex items-start justify-between gap-4">
-        <span className="flex h-12 w-12 items-center justify-center rounded-2xl bg-slate-50 text-[#0b3b5f] ring-1 ring-slate-200">
+        <span className="flex h-12 w-12 items-center justify-center rounded-2xl bg-muted text-[var(--accent-dark)] ring-1 ring-border">
           <Icon className="h-5 w-5" />
         </span>
-        <span className="rounded-full bg-emerald-50 px-2.5 py-1 text-xs font-semibold text-emerald-700">
+        <span className="rounded-full bg-secondary px-2.5 py-1 text-xs font-semibold text-[var(--accent-dark)]">
           {item.trend}
         </span>
       </div>
-      <p className="mt-5 text-3xl font-semibold tracking-tight text-slate-950">
+      <p className="mt-5 text-3xl font-semibold tracking-tight text-foreground">
         {item.value}
       </p>
-      <h3 className="mt-2 text-sm font-semibold text-slate-700">{item.title}</h3>
-      <p className="mt-1 text-sm text-slate-500">{item.description}</p>
+      <h3 className="mt-2 text-sm font-semibold text-foreground">{item.title}</h3>
+      <p className="mt-1 text-sm text-muted-foreground">{item.description}</p>
     </article>
   );
 }

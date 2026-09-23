@@ -1,0 +1,156 @@
+/* Clinical dashboard palette, sourced from healixdz_palette_marque.html.
+   Brand and specialty colors stay distinct from workflow status colors. */
+.dashboard-theme {
+  --brand-navy: #0f2942;
+  --brand-action: #2563eb;
+  --bg: #f8fafc;
+  --panel: #ffffff;
+  --panel-soft: #f1f5f9;
+  --ink: #0f172a;
+  --ink-soft: #64748b;
+  --ink-faint: #64748b;
+  --line: #e2e8f0;
+  --line-soft: #e2e8f0;
+  --accent: #2563eb;
+  --accent-dark: #1d4ed8;
+  --accent-deep: #1e40af;
+  --accent-soft: #eff6ff;
+  --accent-line: #bfdbfe;
+  --action-hover: #1d4ed8;
+  --chart-primary: #2563eb;
+  --chart-secondary: #94a3b8;
+
+  --success: #10b981;
+  --success-soft: #ecfdf5;
+  --success-line: #a7f3d0;
+  --success-ink: #047857;
+  --warning: #f59e0b;
+  --warning-soft: #fffbeb;
+  --warning-line: #fde68a;
+  --warning-ink: #92400e;
+  --danger: #ef4444;
+  --danger-soft: #fef2f2;
+  --danger-line: #fecaca;
+  --danger-ink: #b91c1c;
+  --positive: var(--success-ink);
+
+  --specialty-brain: #6366f1;
+  --specialty-cardiology: #be123c;
+  --specialty-pathology: #8b5cf6;
+  --specialty-radiology: #06b6d4;
+  --specialty-pulmonology: #0d9488;
+  --specialty-dermatology: #ea580c;
+  --specialty-ophthalmology: #a16207;
+
+  /* Compatibility for shared components; decorative gold becomes brand blue. */
+  --gold: var(--accent);
+  --gold-dark: var(--accent-dark);
+  --gold-soft: var(--accent-soft);
+  --gold-line: var(--accent-line);
+  --gold-muted: var(--chart-secondary);
+  --font-auth-sans: var(--font-dashboard-inter), var(--font-auth-arabic), sans-serif;
+  --font-auth-display: var(--font-auth-sans);
+  --sidebar-scroll-thumb: #46627d;
+  --sidebar-scroll-thumb-hover: #7892ad;
+  --sidebar-scroll-track: #254258;
+  color-scheme: light;
+  background: var(--bg);
+  color: var(--ink);
+  font-family: var(--font-auth-sans);
+  font-variant-numeric: tabular-nums;
+}
+
+[data-dashboard-theme="dark"] .dashboard-theme {
+  --bg: #0b1220;
+  --panel: #111e30;
+  --panel-soft: #18283d;
+  --ink: #f1f5f9;
+  --ink-soft: #a8b8cc;
+  --ink-faint: #94a3b8;
+  --line: #30435c;
+  --line-soft: #25364c;
+  --accent: #60a5fa;
+  --accent-dark: #93c5fd;
+  --accent-deep: #bfdbfe;
+  --accent-soft: #172e50;
+  --accent-line: #315687;
+  --chart-primary: #60a5fa;
+  --chart-secondary: #94a3b8;
+  --success-soft: #0e302b;
+  --success-line: #16634e;
+  --success-ink: #6ee7b7;
+  --warning-soft: #34291a;
+  --warning-line: #77551d;
+  --warning-ink: #fcd34d;
+  --danger-soft: #3b202a;
+  --danger-line: #7f3541;
+  --danger-ink: #fca5a5;
+  color-scheme: dark;
+}
+
+.dashboard-theme[lang="ar"] {
+  --font-auth-sans: var(--font-auth-arabic), var(--font-dashboard-inter), sans-serif;
+  --font-auth-display: var(--font-auth-sans);
+}
+
+/* Consistent navy navigation and header in both themes. */
+.dashboard-theme .dashboard-chrome {
+  --bg: var(--brand-navy);
+  --panel: #17354f;
+  --panel-soft: #1d405e;
+  --ink: #f8fafc;
+  --ink-soft: #cbd5e1;
+  --ink-faint: #a8bdd2;
+  --line: #304d68;
+  --line-soft: #254258;
+  --accent: #93c5fd;
+  --accent-dark: #bfdbfe;
+  --accent-deep: #dbeafe;
+  --accent-soft: #1e4573;
+  --accent-line: #3d6899;
+  color-scheme: dark;
+  background: var(--brand-navy);
+  color: var(--ink);
+}
+
+/* Rebind semantic aliases at each scope so chrome and dialogs inherit them. */
+.dashboard-theme,
+.dashboard-theme .dashboard-chrome {
+  --background: var(--bg);
+  --foreground: var(--ink);
+  --card: var(--panel);
+  --card-foreground: var(--ink);
+  --popover: var(--panel);
+  --popover-foreground: var(--ink);
+  --primary: var(--brand-action);
+  --primary-foreground: #ffffff;
+  --secondary: var(--accent-soft);
+  --secondary-foreground: var(--accent-dark);
+  --muted: var(--panel-soft);
+  --muted-foreground: var(--ink-soft);
+  --accent-foreground: var(--accent-dark);
+  --destructive: var(--danger-ink);
+  --destructive-foreground: #ffffff;
+  --border: var(--line);
+  --input: var(--line);
+  --ring: var(--accent);
+}
+
+.dashboard-theme :where(h1, h2, h3) {
+  letter-spacing: -0.025em;
+}
+
+.dashboard-theme[lang="ar"] :where(h1, h2, h3) {
+  letter-spacing: normal;
+  line-height: 1.6;
+}
+
+.dashboard-theme :where(a, button, select, input, textarea):focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 3px;
+}
+
+.dashboard-theme ::selection {
+  background: var(--accent-soft);
+  color: var(--accent-dark);
+}

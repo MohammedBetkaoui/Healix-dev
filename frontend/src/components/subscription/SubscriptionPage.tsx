@@ -144,7 +144,7 @@ export function SubscriptionPage({ accountType }: SubscriptionPageProps) {
         {toastMessage ? (
           <div
             role="status"
-            className="fixed end-6 top-6 z-50 max-w-sm rounded-[1rem] border border-[var(--accent-line)] bg-[var(--panel)] p-4 text-sm font-medium text-[var(--accent-dark)] shadow-[0_22px_52px_-28px_rgba(22,33,29,0.65)]"
+            className="fixed end-6 top-6 z-50 max-w-sm rounded-xl border border-[var(--accent-line)] bg-[var(--panel)] p-4 text-sm font-medium text-[var(--accent-dark)] shadow-sm"
           >
             {toastMessage}
           </div>

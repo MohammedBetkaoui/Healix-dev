@@ -26,17 +26,17 @@ export function AdminDecisionChecklist({ t }: AdminDecisionChecklistProps) {
   );
 
   return (
-    <section className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
-      <h2 className="text-lg font-semibold text-slate-950">
+    <section className="rounded-2xl border border-border bg-card p-6 shadow-sm">
+      <h2 className="text-lg font-semibold text-foreground">
         {t("admin.detail.checklist.title")}
       </h2>
       <div className="mt-5 space-y-3">
         {checklistItems.map((item) => (
           <div
             key={item}
-            className="flex flex-col gap-3 rounded-xl border border-slate-100 bg-slate-50 p-4 md:flex-row md:items-center md:justify-between"
+            className="flex flex-col gap-3 rounded-xl border border-border bg-muted p-4 md:flex-row md:items-center md:justify-between"
           >
-            <p className="text-sm font-medium text-slate-800">
+            <p className="text-sm font-medium text-foreground">
               {t(`admin.detail.checklist.${item}`)}
             </p>
             <div className="flex flex-wrap gap-2">
@@ -47,8 +47,8 @@ export function AdminDecisionChecklist({ t }: AdminDecisionChecklistProps) {
                   className={cn(
                     "rounded-full border px-3 py-1.5 text-xs font-semibold transition",
                     values[item] === value
-                      ? "border-[#0b3b5f] bg-[#0b3b5f] text-white"
-                      : "border-slate-200 bg-white text-slate-600 hover:border-cyan-200",
+                      ? "border-primary bg-primary text-white"
+                      : "border-border bg-card text-muted-foreground hover:border-[var(--accent-line)]",
                   )}
                   onClick={() => setValues({ ...values, [item]: value })}
                 >

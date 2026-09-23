@@ -67,7 +67,7 @@ export function PlanComparisonTable({
   t,
 }: PlanComparisonTableProps) {
   return (
-    <section className="rounded-[1.2rem] border border-[var(--line)] bg-[var(--panel)] p-5 shadow-[0_16px_38px_-30px_rgba(22,33,29,0.48)]">
+    <section className="rounded-xl border border-[var(--line)] bg-[var(--panel)] p-5 shadow-sm">
       <div className="mb-5">
         <h2 className="font-[var(--font-auth-display)] text-[1.65rem] font-medium text-[var(--ink)]">
           {t("subscription.comparison.title")}
@@ -109,7 +109,7 @@ export function PlanComparisonTable({
                   <div className="flex flex-wrap items-center gap-2">
                     {t(plan.name)}
                     {plan.badge ? (
-                      <span className="rounded-full border border-[var(--gold-line)] bg-[var(--gold-soft)] px-2 py-0.5 font-[var(--font-auth-mono)] text-[0.58rem] font-medium text-[var(--gold-dark)]">
+                      <span className="rounded-full border border-[var(--accent-line)] bg-[var(--accent-soft)] px-2 py-0.5 font-[var(--font-auth-mono)] text-[0.58rem] font-medium text-[var(--accent-dark)]">
                         {t(plan.badge)}
                       </span>
                     ) : null}
@@ -135,9 +135,9 @@ export function PlanComparisonTable({
           <article
             key={plan.id}
             className={cn(
-              "rounded-[1rem] border border-[var(--line)] bg-[var(--panel-soft)] p-4",
+              "rounded-xl border border-[var(--line)] bg-[var(--panel-soft)] p-4",
               plan.recommended &&
-                "border-[var(--accent)] bg-[var(--accent-soft)]/45 shadow-[0_16px_34px_-28px_rgba(18,61,50,0.7)]",
+                "border-[var(--accent)] bg-[var(--accent-soft)]/45 shadow-sm",
             )}
           >
             <div className="flex items-start justify-between gap-3">

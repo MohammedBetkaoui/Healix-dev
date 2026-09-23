@@ -28,12 +28,12 @@ export function RequiredDocumentsSection({
   t,
 }: RequiredDocumentsSectionProps) {
   return (
-    <section className="rounded-[24px] border border-slate-200/80 bg-white p-6 shadow-[0_12px_36px_rgba(15,23,42,0.04)]">
+    <section className="rounded-xl border border-border/80 bg-card p-6 shadow-sm">
       <div className="mb-5">
-        <h2 className="text-lg font-semibold text-slate-950">
+        <h2 className="text-lg font-semibold text-foreground">
           {t("verification.documents.title")}
         </h2>
-        <p className="mt-1 text-sm text-slate-500">
+        <p className="mt-1 text-sm text-muted-foreground">
           {t("verification.documents.subtitle")}
         </p>
       </div>

@@ -2,6 +2,7 @@ import { BadgeCheck, ShieldCheck } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
+import { type DashboardStatusTone } from "@/types/dashboard";
 
 import { StatusBadge } from "./StatusBadge";
 
@@ -11,6 +12,7 @@ type AccountStatusCardProps = {
   description: string;
   demoLabel: string;
   statusLabel: string;
+  statusTone?: DashboardStatusTone;
   title: string;
 };
 
@@ -20,23 +22,24 @@ export function AccountStatusCard({
   description,
   demoLabel,
   statusLabel,
+  statusTone = "neutral",
   title,
 }: AccountStatusCardProps) {
   return (
     <section
       className={cn(
-        "rounded-[1rem] rounded-bl-[0.4rem] border border-[var(--line)] bg-[var(--panel)]/94 shadow-[0_1px_2px_rgba(22,33,29,0.03),0_18px_40px_-28px_rgba(22,33,29,0.25)]",
+        "rounded-xl border border-[var(--line)] bg-[var(--panel)]/94 shadow-sm",
         compact ? "p-4" : "p-6",
       )}
     >
       <div className="flex items-start gap-4">
-        <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-[0.78rem] rounded-bl-[0.24rem] border border-[var(--accent-line)] bg-[var(--accent-soft)] text-[var(--accent-dark)]">
+        <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-[0.78rem] border border-[var(--accent-line)] bg-[var(--accent-soft)] text-[var(--accent-dark)]">
           <ShieldCheck className="h-5 w-5" strokeWidth={1.7} aria-hidden="true" />
         </span>
         <div className="min-w-0 flex-1">
           <div className="flex flex-wrap items-center gap-2">
             <p className="font-[var(--font-auth-display)] text-[1.05rem] font-medium text-[var(--ink)]">{title}</p>
-            <StatusBadge label={statusLabel} tone="info" />
+            <StatusBadge label={statusLabel} tone={statusTone} />
           </div>
           <p
             className={cn(
@@ -47,7 +50,7 @@ export function AccountStatusCard({
             {description}
           </p>
           <div className="mt-4 flex items-center justify-between gap-3">
-            <span className="inline-flex items-center gap-2 text-xs font-medium text-[var(--positive)]">
+            <span className="inline-flex items-center gap-2 text-xs font-medium text-[var(--ink-soft)]">
               <BadgeCheck className="h-4 w-4" strokeWidth={1.7} aria-hidden="true" />
               {demoLabel}
             </span>
@@ -55,7 +58,7 @@ export function AccountStatusCard({
               <Button
                 size={compact ? "sm" : "default"}
                 className={cn(
-                  "rounded-[0.7rem] rounded-bl-[0.24rem]",
+                  "rounded-[0.7rem]",
                   compact && "h-9 px-4 text-xs",
                 )}
               >

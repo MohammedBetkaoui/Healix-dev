@@ -104,18 +104,18 @@ function matchesPeriod(value: string, period: string) {
 
 function statusClasses(status: Patient["status"]) {
   if (status === "URGENT") {
-    return "border-red-200 bg-red-50 text-red-700";
+    return "border-[var(--danger-line)] bg-[var(--danger-soft)] text-[var(--danger-ink)]";
   }
 
   if (status === "FOLLOW_UP") {
-    return "border-blue-200 bg-blue-50 text-blue-700";
+    return "border-[var(--accent-line)] bg-secondary text-[var(--accent-dark)]";
   }
 
   if (status === "NEW") {
-    return "border-amber-200 bg-amber-50 text-amber-700";
+    return "border-[var(--warning-line)] bg-[var(--warning-soft)] text-[var(--warning-ink)]";
   }
 
-  return "border-emerald-200 bg-emerald-50 text-emerald-700";
+  return "border-[var(--success-line)] bg-[var(--success-soft)] text-[var(--success-ink)]";
 }
 
 export function AdminPatientsPage() {
@@ -189,11 +189,11 @@ export function AdminPatientsPage() {
           t={t}
         />
 
-        <section className="rounded-[26px] border border-slate-200/80 bg-white p-5 shadow-[0_12px_36px_rgba(15,23,42,0.04)]">
+        <section className="rounded-xl border border-border/80 bg-card p-5 shadow-sm">
           <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_280px]">
             <div className="space-y-3">
-              <div className="flex items-center gap-2 text-sm font-semibold text-slate-700">
-                <span className="flex h-9 w-9 items-center justify-center rounded-xl bg-slate-50 text-[#0b3b5f] ring-1 ring-slate-200">
+              <div className="flex items-center gap-2 text-sm font-semibold text-foreground">
+                <span className="flex h-9 w-9 items-center justify-center rounded-xl bg-muted text-[var(--accent-dark)] ring-1 ring-border">
                   <Search className="h-4 w-4" />
                 </span>
                 {t("patients.actions.viewRecord")}
@@ -205,8 +205,8 @@ export function AdminPatientsPage() {
                 t={t}
               />
             </div>
-            <div className="rounded-2xl border border-slate-200 bg-slate-50/80 p-4 text-sm text-slate-600">
-              <p className="font-semibold text-slate-900">{t("patients.page.title")}</p>
+            <div className="rounded-2xl border border-border bg-muted/80 p-4 text-sm text-muted-foreground">
+              <p className="font-semibold text-foreground">{t("patients.page.title")}</p>
               <p className="mt-2 leading-6">{t("patients.security.note")}</p>
             </div>
           </div>
@@ -227,14 +227,14 @@ export function AdminPatientsPage() {
           t={t}
         />
 
-        <section className="overflow-hidden rounded-[28px] border border-slate-200/80 bg-white shadow-[0_18px_54px_rgba(15,23,42,0.05)]">
-          <div className="border-b border-slate-200/70 px-6 py-4">
+        <section className="overflow-hidden rounded-xl border border-border/80 bg-card shadow-sm">
+          <div className="border-b border-border/70 px-6 py-4">
             <div className="flex flex-wrap items-center justify-between gap-3">
               <div>
-                <h2 className="text-lg font-semibold text-slate-950">
+                <h2 className="text-lg font-semibold text-foreground">
                   {t("patients.page.title")}
                 </h2>
-                <p className="mt-1 text-sm text-slate-500">
+                <p className="mt-1 text-sm text-muted-foreground">
                   {t("patients.states.results", { count: filteredPatients.length })}
                 </p>
               </div>
@@ -245,13 +245,13 @@ export function AdminPatientsPage() {
           </div>
 
           {filteredPatients.length === 0 ? (
-            <div className="px-6 py-12 text-center text-sm text-slate-500">
+            <div className="px-6 py-12 text-center text-sm text-muted-foreground">
               {t("patients.states.empty")}
             </div>
           ) : (
             <div className="overflow-x-auto">
-              <table className="min-w-full divide-y divide-slate-200 text-sm">
-                <thead className="bg-slate-50 text-xs uppercase tracking-[0.12em] text-slate-500">
+              <table className="min-w-full divide-y divide-border text-sm">
+                <thead className="bg-muted text-xs uppercase tracking-[0.12em] text-muted-foreground">
                   <tr>
                     <th className="px-5 py-4 text-start">
                       {t("patients.table.columns.fullName")}
@@ -280,25 +280,25 @@ export function AdminPatientsPage() {
                     </th>
                   </tr>
                 </thead>
-                <tbody className="divide-y divide-slate-100">
+                <tbody className="divide-y divide-border">
                   {filteredPatients.map((patient) => (
                     <tr key={patient.id} className="align-top">
                       <td className="px-5 py-4">
-                        <div className="font-semibold text-slate-950">
+                        <div className="font-semibold text-foreground">
                           {patient.firstName} {patient.lastName}
                         </div>
-                        <div className="mt-1 text-xs text-slate-500">{patient.email}</div>
+                        <div className="mt-1 text-xs text-muted-foreground">{patient.email}</div>
                       </td>
-                      <td className="px-5 py-4 text-slate-600">{patient.id}</td>
-                      <td className="px-5 py-4 text-slate-600">
+                      <td className="px-5 py-4 text-muted-foreground">{patient.id}</td>
+                      <td className="px-5 py-4 text-muted-foreground">
                         {t(`patients.genders.${patient.gender}`)}
                       </td>
-                      <td className="px-5 py-4 text-slate-600">
+                      <td className="px-5 py-4 text-muted-foreground">
                         {formatDate(patient.birthDate, locale)}
                       </td>
-                      <td className="px-5 py-4 text-slate-600">
+                      <td className="px-5 py-4 text-muted-foreground">
                         <div className="flex items-start gap-2">
-                          <Stethoscope className="mt-0.5 h-4 w-4 shrink-0 text-cyan-700" />
+                          <Stethoscope className="mt-0.5 h-4 w-4 shrink-0 text-[var(--accent-dark)]" />
                           <span>{patient.assignedDoctor}</span>
                         </div>
                       </td>
@@ -312,15 +312,15 @@ export function AdminPatientsPage() {
                           {t(`patients.statuses.${patient.status}`)}
                         </span>
                       </td>
-                      <td className="px-5 py-4 text-slate-600">
+                      <td className="px-5 py-4 text-muted-foreground">
                         <div className="flex items-start gap-2">
-                          <CalendarDays className="mt-0.5 h-4 w-4 shrink-0 text-slate-400" />
+                          <CalendarDays className="mt-0.5 h-4 w-4 shrink-0 text-muted-foreground" />
                           <span>{formatDate(patient.lastVisit, locale)}</span>
                         </div>
                       </td>
-                      <td className="px-5 py-4 text-slate-600">
+                      <td className="px-5 py-4 text-muted-foreground">
                         <div className="flex items-start gap-2">
-                          <Phone className="mt-0.5 h-4 w-4 shrink-0 text-slate-400" />
+                          <Phone className="mt-0.5 h-4 w-4 shrink-0 text-muted-foreground" />
                           <span>{patient.phone}</span>
                         </div>
                       </td>

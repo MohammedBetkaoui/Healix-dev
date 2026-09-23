@@ -43,11 +43,12 @@ export function AdminShell({ breadcrumb, children, titleKey }: AdminShellProps) 
   if (adminSessionLoading) {
     return (
       <div
+        lang={locale}
         dir={direction}
-        className="flex min-h-screen items-center justify-center bg-[#f6f8fb] px-6"
+        className="dashboard-theme flex min-h-screen items-center justify-center px-6"
       >
-        <div className="flex items-center gap-3 rounded-2xl border border-slate-200 bg-white px-5 py-4 text-sm text-slate-600 shadow-sm">
-          <Loader2 className="h-4 w-4 animate-spin text-cyan-700" />
+        <div className="flex items-center gap-3 rounded-2xl border border-border bg-card px-5 py-4 text-sm text-muted-foreground shadow-sm">
+          <Loader2 className="h-4 w-4 animate-spin text-[var(--accent-dark)]" />
           {t("adminAuth.dashboard.loading")}
         </div>
       </div>
@@ -56,9 +57,10 @@ export function AdminShell({ breadcrumb, children, titleKey }: AdminShellProps) 
 
   return (
     <div
+      lang={locale}
       dir={direction}
       className={cn(
-        "min-h-screen bg-[#f6f8fb] text-slate-950",
+        "dashboard-theme min-h-screen",
         direction === "rtl" ? "text-right" : "text-left",
       )}
     >
@@ -66,8 +68,8 @@ export function AdminShell({ breadcrumb, children, titleKey }: AdminShellProps) 
         className={cn(
           "fixed top-0 z-40 hidden h-screen lg:block",
           direction === "rtl"
-            ? "right-0 border-l border-slate-200"
-            : "left-0 border-r border-slate-200",
+            ? "right-0 border-l border-border"
+            : "left-0 border-r border-border",
         )}
       >
         <AdminSidebar adminName={admin?.fullName} direction={direction} t={t} />

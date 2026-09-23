@@ -16,7 +16,7 @@ export function BillingToggle({
   const options: BillingPeriod[] = ["MONTHLY", "ANNUAL"];
 
   return (
-    <section className="flex flex-col gap-4 rounded-[1.15rem] border border-[var(--line)] bg-[var(--panel)] p-5 shadow-[0_16px_38px_-30px_rgba(22,33,29,0.48)] sm:flex-row sm:items-center sm:justify-between">
+    <section className="flex flex-col gap-4 rounded-xl border border-[var(--line)] bg-[var(--panel)] p-5 shadow-sm sm:flex-row sm:items-center sm:justify-between">
       <div>
         <p className="font-[var(--font-auth-mono)] text-[0.68rem] font-medium uppercase tracking-[0.14em] text-[var(--ink)]">
           {t("subscription.billing.title")}
@@ -39,13 +39,13 @@ export function BillingToggle({
             className={cn(
               "rounded-full px-4 py-2 text-sm font-medium transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--accent)] focus-visible:ring-offset-2 focus-visible:ring-offset-[var(--panel-soft)]",
               billingPeriod === option
-                ? "bg-[var(--accent-dark)] text-[var(--bg)] shadow-[0_8px_18px_-12px_rgba(18,61,50,0.8)]"
+                ? "bg-primary text-primary-foreground shadow-sm"
                 : "text-[var(--ink-soft)] hover:bg-[var(--accent-soft)] hover:text-[var(--accent-dark)]",
             )}
           >
             {t(`subscription.billing.${option.toLowerCase()}`)}
             {option === "ANNUAL" ? (
-              <span className="ms-2 rounded-full border border-[var(--gold-line)] bg-[var(--gold-soft)] px-2 py-0.5 font-[var(--font-auth-mono)] text-[10px] font-medium text-[var(--gold-dark)]">
+              <span className="ms-2 rounded-full border border-[var(--accent-line)] bg-[var(--accent-soft)] px-2 py-0.5 font-[var(--font-auth-mono)] text-[10px] font-medium text-[var(--accent-dark)]">
                 {t("subscription.billing.freeMonths")}
               </span>
             ) : null}

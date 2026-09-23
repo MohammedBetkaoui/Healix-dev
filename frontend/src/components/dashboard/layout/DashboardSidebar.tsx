@@ -34,11 +34,11 @@ type DashboardSidebarProps = {
 
 function badgeClasses(tone: DashboardNavBadgeTone) {
   if (tone === "red") {
-    return "border border-[#e4c5bc] bg-[#fbefeb] text-[#a9463a]";
+    return "border border-[var(--danger-line)] bg-[var(--danger-soft)] text-[var(--danger-ink)]";
   }
 
   if (tone === "purple") {
-    return "border border-[var(--gold-line)] bg-[var(--gold-soft)] text-[var(--gold-dark)]";
+    return "border border-[var(--accent-line)] bg-[var(--accent-soft)] text-[var(--accent-dark)]";
   }
 
   return "border border-[var(--accent-line)] bg-[var(--accent-soft)] text-[var(--accent-dark)]";
@@ -68,10 +68,10 @@ function NavRow({
     ? `${t(item.labelKey)}...`
     : t(item.labelKey);
   const rowClasses = cn(
-    "group relative flex min-h-11 w-full items-center gap-3 rounded-[0.78rem] rounded-bl-[0.28rem] border border-transparent px-3 text-sm font-medium transition",
+    "group relative flex min-h-11 w-full items-center gap-3 rounded-[0.78rem] border border-transparent px-3 text-sm font-medium transition",
     isCollapsed && "lg:justify-center lg:gap-0 lg:px-0",
     active
-      ? "border-[var(--accent-line)] bg-[var(--accent-soft)] text-[var(--accent-dark)] shadow-[0_10px_22px_-20px_rgba(18,61,50,0.72)]"
+      ? "border-primary bg-primary text-primary-foreground shadow-sm"
       : "text-[var(--ink-soft)] hover:bg-[var(--panel-soft)] hover:text-[var(--ink)]",
   );
   const rowContent = (
@@ -79,7 +79,7 @@ function NavRow({
       {active ? (
         <span
           className={cn(
-            "absolute top-1/2 h-4 -translate-y-1/2 rounded-full bg-[var(--accent)] shadow-[0_0_10px_rgba(31,111,92,0.24)]",
+            "absolute top-1/2 h-4 -translate-y-1/2 rounded-full bg-[var(--accent)] shadow-sm",
             direction === "rtl" ? "right-0 w-0.5" : "left-0 w-0.5",
           )}
           aria-hidden="true"
@@ -91,7 +91,7 @@ function NavRow({
         className={cn(
           "shrink-0 transition",
           active
-            ? "text-[var(--accent-dark)]"
+            ? "text-primary-foreground"
             : "text-[var(--ink-faint)] group-hover:text-[var(--ink)]",
         )}
       />
@@ -133,7 +133,7 @@ function NavRow({
   }
 
   return (
-    <Link href={item.href} className={rowClasses} title={label} aria-label={label}>
+    <Link href={item.href} className={rowClasses} title={label} aria-label={label} aria-current={active ? "page" : undefined}>
       {rowContent}
     </Link>
   );
@@ -157,7 +157,7 @@ export function DashboardSidebar({
     <>
       <div
         className={cn(
-          "fixed inset-0 z-30 bg-[#16211d]/30 transition lg:hidden",
+          "fixed inset-0 z-30 bg-[#0f172a]/30 transition lg:hidden",
           isOpen ? "pointer-events-auto opacity-100" : "pointer-events-none opacity-0",
         )}
         onClick={onClose}
@@ -166,7 +166,7 @@ export function DashboardSidebar({
 
       <aside
         className={cn(
-          "fixed inset-y-0 z-40 flex w-[272px] shrink-0 flex-col bg-[var(--bg)] shadow-[0_24px_80px_rgba(22,33,29,0.16)] transition-[transform,width] duration-300 lg:sticky lg:inset-auto lg:top-0 lg:z-0 lg:h-screen lg:translate-x-0 lg:self-start lg:shadow-none",
+          "dashboard-chrome fixed inset-y-0 z-40 flex w-[272px] shrink-0 flex-col shadow-xl transition-[transform,width] duration-300 lg:sticky lg:inset-auto lg:top-0 lg:z-0 lg:h-screen lg:translate-x-0 lg:self-start lg:shadow-none",
           isCollapsed ? "lg:w-[88px]" : "lg:w-[272px]",
           direction === "rtl"
             ? "right-0 border-l border-[var(--line)] lg:right-auto"
@@ -191,7 +191,7 @@ export function DashboardSidebar({
                 isCollapsed && "lg:justify-center lg:gap-0",
               )}
             >
-              <span className="relative flex h-12 w-12 shrink-0 items-center justify-center rounded-[0.92rem] rounded-bl-[0.3rem] bg-[var(--accent-dark)] text-[#f1ead9] shadow-[0_14px_28px_-18px_rgba(18,61,50,0.86)] after:absolute after:-right-1 after:-top-1 after:h-2.5 after:w-2.5 after:rounded-full after:border-2 after:border-[var(--bg)] after:bg-[var(--gold)] after:content-['']">
+              <span className="relative flex h-12 w-12 shrink-0 items-center justify-center rounded-[0.92rem] bg-primary text-white shadow-sm ">
                 <Activity size={19} strokeWidth={2} />
               </span>
               <div className={cn("min-w-0", isCollapsed && "lg:hidden")}>
@@ -199,7 +199,7 @@ export function DashboardSidebar({
                   <p className="truncate font-[var(--font-auth-mono)] text-[1.02rem] font-medium tracking-[0.01em] text-[var(--ink)]">
                     Healix<span className="text-[var(--accent)]">Dz</span>
                   </p>
-                  <span className="rounded-[0.35rem] border border-[var(--gold-line)] bg-[var(--gold-soft)] px-1.5 py-0.5 font-[var(--font-auth-mono)] text-[9px] font-medium tracking-[0.08em] text-[var(--gold-dark)]">
+                  <span className="rounded-[0.35rem] border border-[var(--accent-line)] bg-[var(--accent-soft)] px-1.5 py-0.5 font-[var(--font-auth-mono)] text-[9px] font-medium tracking-[0.08em] text-[var(--accent-dark)]">
                     PRO
                   </span>
                 </div>
@@ -211,7 +211,7 @@ export function DashboardSidebar({
             <Button
               variant="outline"
               size="icon"
-              className="hidden h-9 w-9 rounded-[0.72rem] rounded-bl-[0.24rem] border-[var(--line)] bg-[var(--panel)] text-[var(--ink-soft)] transition hover:bg-[var(--accent-soft)] hover:text-[var(--accent-dark)] lg:inline-flex"
+              className="hidden h-9 w-9 rounded-[0.72rem] border-[var(--line)] bg-[var(--panel)] text-[var(--ink-soft)] transition hover:bg-[var(--accent-soft)] hover:text-[var(--accent-dark)] lg:inline-flex"
               onClick={onToggleCollapse}
               aria-label={
                 isCollapsed
@@ -287,7 +287,7 @@ export function DashboardSidebar({
               isCollapsed && "lg:justify-center lg:gap-0",
             )}
           >
-            <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-[0.78rem] rounded-bl-[0.24rem] border border-[var(--accent-deep)] bg-[var(--accent-dark)] text-sm font-semibold text-[var(--bg)] shadow-[0_10px_24px_-17px_rgba(18,61,50,0.75)]">
+            <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-[0.78rem] border border-[var(--accent-deep)] bg-primary text-sm font-semibold text-primary-foreground shadow-sm">
               {user.initials}
             </span>
             <div className={cn("min-w-0 flex-1", isCollapsed && "lg:hidden")}>
@@ -295,7 +295,6 @@ export function DashboardSidebar({
                 {user.name}
               </p>
               <div className="flex items-center gap-1.5">
-                <span className="h-1.5 w-1.5 rounded-full bg-[var(--positive)] shadow-[0_0_8px_rgba(63,122,92,0.4)]" />
                 <p className="truncate text-xs text-[var(--ink-soft)]">
                   {user.footerSubtitle}
                 </p>

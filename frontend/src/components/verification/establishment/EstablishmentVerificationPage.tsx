@@ -455,7 +455,7 @@ export function EstablishmentVerificationPage() {
           role="status"
           aria-live="polite"
           className={cn(
-            "fixed top-5 z-50 flex max-w-md items-start gap-3 rounded-xl border border-emerald-200 bg-white px-4 py-3 text-sm text-emerald-900 shadow-2xl shadow-sky-950/10",
+            "fixed top-5 z-50 flex max-w-md items-start gap-3 rounded-xl border border-[var(--success-line)] bg-card px-4 py-3 text-sm text-[var(--success-ink)] shadow-2xl shadow-sky-950/10",
             direction === "rtl" ? "left-5" : "right-5",
           )}
         >
@@ -466,7 +466,7 @@ export function EstablishmentVerificationPage() {
 
       <section className="space-y-6">
         <div>
-          <p className="text-sm text-slate-500">{t("verification.page.subtitle")}</p>
+          <p className="text-sm text-muted-foreground">{t("verification.page.subtitle")}</p>
         </div>
 
         <VerificationStatusCard
@@ -547,7 +547,7 @@ export function EstablishmentVerificationPage() {
             <div id="verification-info-section" className="space-y-6">
           {isPrefillLoading ? (
             <div
-              className="flex items-center gap-2 rounded-2xl border border-cyan-100 bg-cyan-50/70 px-4 py-3 text-sm text-cyan-900"
+              className="flex items-center gap-2 rounded-2xl border border-[var(--accent-line)] bg-secondary/70 px-4 py-3 text-sm text-[var(--accent-dark)]"
               role="status"
             >
               <Loader2 className="h-4 w-4 animate-spin" />
@@ -557,7 +557,7 @@ export function EstablishmentVerificationPage() {
 
           {isPrefillError ? (
             <div
-              className="rounded-2xl border border-red-100 bg-red-50 px-4 py-3 text-sm text-red-700"
+              className="rounded-2xl border border-[var(--danger-line)] bg-[var(--danger-soft)] px-4 py-3 text-sm text-[var(--danger-ink)]"
               role="alert"
             >
               {t("verification.form.prefillError")}
@@ -566,7 +566,7 @@ export function EstablishmentVerificationPage() {
 
           {apiErrorMessage ? (
             <div
-              className="rounded-2xl border border-red-100 bg-red-50 px-4 py-3 text-sm text-red-700"
+              className="rounded-2xl border border-[var(--danger-line)] bg-[var(--danger-soft)] px-4 py-3 text-sm text-[var(--danger-ink)]"
               role="alert"
             >
               {apiErrorMessage}
@@ -618,18 +618,18 @@ export function EstablishmentVerificationPage() {
             title={t("verification.submit.infoCompleted")}
           />
 
-          <section className="rounded-[24px] border border-cyan-100 bg-cyan-50/50 p-6 shadow-[0_12px_36px_rgba(15,23,42,0.04)]">
+          <section className="rounded-xl border border-[var(--accent-line)] bg-secondary/50 p-6 shadow-sm">
             <div className="flex items-start gap-4">
-              <span className="flex h-12 w-12 shrink-0 items-center justify-center rounded-full bg-white text-cyan-700 shadow-sm">
+              <span className="flex h-12 w-12 shrink-0 items-center justify-center rounded-full bg-card text-[var(--accent-dark)] shadow-sm">
                 <ShieldCheck className="h-5 w-5" />
               </span>
               <div>
-                <h2 className="text-lg font-semibold text-slate-950">
+                <h2 className="text-lg font-semibold text-foreground">
                   {status === "PENDING_VERIFICATION"
                     ? t("verification.status.pendingTitle")
                     : t("verification.status.current")}
                 </h2>
-                <p className="mt-2 text-sm leading-6 text-slate-600">
+                <p className="mt-2 text-sm leading-6 text-muted-foreground">
                   {status === "PENDING_VERIFICATION"
                     ? t("verification.status.pendingDescription")
                     : t("verification.status.notStarted")}

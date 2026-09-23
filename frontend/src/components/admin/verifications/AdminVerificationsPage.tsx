@@ -112,7 +112,7 @@ export function AdminVerificationsPage() {
       titleKey="admin.verifications.page.title"
     >
       <div className="space-y-6">
-        <p className="max-w-3xl text-sm leading-6 text-slate-600">
+        <p className="max-w-3xl text-sm leading-6 text-muted-foreground">
           {t("admin.verifications.page.subtitle")}
         </p>
         <VerificationFilters
@@ -122,11 +122,11 @@ export function AdminVerificationsPage() {
           t={t}
         />
         {isLoading ? (
-          <div className="rounded-2xl border border-slate-200 bg-white p-10 text-sm text-slate-600 shadow-sm">
+          <div className="rounded-2xl border border-border bg-card p-10 text-sm text-muted-foreground shadow-sm">
             {t("admin.verifications.loading")}
           </div>
         ) : error ? (
-          <div className="rounded-2xl border border-red-100 bg-red-50 p-5 text-sm font-medium text-red-700">
+          <div className="rounded-2xl border border-[var(--danger-line)] bg-[var(--danger-soft)] p-5 text-sm font-medium text-[var(--danger-ink)]">
             {t("admin.verifications.error")}
           </div>
         ) : (
@@ -136,8 +136,8 @@ export function AdminVerificationsPage() {
               requests={filteredRequests}
               t={t}
             />
-            <div className="flex flex-col gap-3 rounded-2xl border border-slate-200 bg-white p-4 shadow-sm sm:flex-row sm:items-center sm:justify-between">
-              <p className="text-sm text-slate-500">
+            <div className="flex flex-col gap-3 rounded-2xl border border-border bg-card p-4 shadow-sm sm:flex-row sm:items-center sm:justify-between">
+              <p className="text-sm text-muted-foreground">
                 {t("admin.verifications.pagination", {
                   page: data?.meta.page ?? page,
                   total: data?.meta.total ?? 0,

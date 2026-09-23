@@ -1,5 +1,6 @@
 "use client";
 
+import { useId } from "react";
 import { type DashboardBarPoint, type DashboardLinePoint } from "@/types/dashboard";
 
 type UsageChartProps =
@@ -66,60 +67,59 @@ function buildAreaPath(
 }
 
 export function UsageChart(props: UsageChartProps) {
+  const gradientId = useId();
   if (props.type === "bar") {
-    const maxValue = Math.max(...props.data.map((entry) => entry.primary), 1);
+    const maxValue = Math.max(...props.data.flatMap((entry) => [entry.primary, entry.secondary ?? 0]), 1);
 
     return (
-      <section className="relative overflow-hidden rounded-[1rem] rounded-bl-[0.4rem] border border-[var(--line)] bg-[var(--panel)]/94 p-6 shadow-[0_1px_2px_rgba(22,33,29,0.03),0_18px_40px_-28px_rgba(22,33,29,0.25)]">
-        <svg
-          viewBox="0 0 120 34"
-          className="pointer-events-none absolute right-5 top-5 h-9 w-28 text-[var(--gold)] opacity-[0.16]"
-          fill="none"
-          aria-hidden="true"
-        >
-          <path d="M1 18h28l7-10 9 20 9-25 10 25 8-10h47" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
-        </svg>
-        <div className="relative mb-6 pe-20">
+      <section className="relative overflow-hidden rounded-xl border border-[var(--line)] bg-[var(--panel)]/94 p-6 shadow-sm">
+        <div className="mb-6">
           <h2 className="font-[var(--font-auth-display)] text-[1.2rem] font-medium text-[var(--ink)]">{props.title}</h2>
           <p className="mt-1 text-sm text-[var(--ink-soft)]">{props.subtitle}</p>
         </div>
-        <div className="relative flex h-[252px] items-end justify-between gap-3 border-b border-dashed border-[var(--line)] bg-[repeating-linear-gradient(to_bottom,transparent_0,transparent_62px,rgba(225,219,201,0.68)_63px)] px-2 pt-2">
+        <div className="relative flex h-[252px] items-end justify-between gap-3 border-b border-dashed border-[var(--line)] px-2 pt-2">
           {props.data.map((entry) => {
+            const color = entry.specialty
+              ? `var(--specialty-${entry.specialty})`
+              : entry.statusTone === "warning" ? "var(--warning)" : "var(--chart-primary)";
             const secondaryHeight = entry.secondary
               ? `${(entry.secondary / maxValue) * 100}%`
               : "0%";
 
             return (
-              <div key={entry.label} className="flex flex-1 flex-col items-center gap-3">
-                <div className="flex h-full w-full items-end justify-center gap-2">
+              <div key={entry.label} className="flex min-w-0 flex-1 flex-col items-center gap-3">
+                <div className="flex h-52 w-full items-end justify-center gap-2">
                   <div
-                    className="w-full max-w-8 rounded-t-[0.45rem] bg-[var(--accent-dark)] shadow-[0_8px_18px_-12px_rgba(18,61,50,0.65)]"
-                    style={{ height: `${(entry.primary / maxValue) * 100}%` }}
+                    className="w-full max-w-8 rounded-t-sm"
+                    style={{ height: `${(entry.primary / maxValue) * 100}%`, backgroundColor: color }}
+                    title={`${props.legendPrimary}: ${entry.primary}`}
                   />
                   {entry.secondary ? (
                     <div
-                      className="w-full max-w-8 rounded-t-[0.45rem] bg-[var(--gold-muted)]"
+                      className="w-full max-w-8 rounded-t-sm bg-[var(--chart-secondary)]"
                       style={{ height: secondaryHeight }}
+                      title={`${props.legendSecondary ?? ""}: ${entry.secondary}`}
                     />
                   ) : null}
                 </div>
-                <span className="font-[var(--font-auth-mono)] text-[0.62rem] font-medium text-[var(--ink-faint)]">{entry.label}</span>
+                <span className="inline-flex items-center gap-1.5 text-center text-[0.65rem] font-medium text-[var(--ink-soft)]"><span className="h-2 w-2 shrink-0 rounded-full" style={{ backgroundColor: color }} aria-hidden="true" />{entry.label}</span>
               </div>
             );
           })}
         </div>
         <div className="mt-6 flex flex-wrap gap-4 text-xs text-[var(--ink-soft)]">
           <span className="inline-flex items-center gap-2">
-            <span className="h-2.5 w-2.5 rounded-full bg-[var(--accent-dark)]" />
+            <span className="h-2.5 w-2.5 rounded-sm border border-[var(--ink-soft)]" />
             {props.legendPrimary}
           </span>
           {props.legendSecondary ? (
             <span className="inline-flex items-center gap-2">
-              <span className="h-2.5 w-2.5 rounded-full bg-[var(--gold-muted)]" />
+              <span className="h-2.5 w-2.5 rounded-sm bg-[var(--chart-secondary)]" />
               {props.legendSecondary}
             </span>
           ) : null}
         </div>
+        <ChartDataTable {...props} />
       </section>
     );
   }
@@ -147,7 +147,7 @@ export function UsageChart(props: UsageChartProps) {
   const areaPath = buildAreaPath(props.data, height, width, sharedMaxValue);
 
   return (
-    <section className="rounded-[1rem] rounded-bl-[0.4rem] border border-[var(--line)] bg-[var(--panel)]/94 p-6 shadow-[0_1px_2px_rgba(22,33,29,0.03),0_18px_40px_-28px_rgba(22,33,29,0.25)]">
+    <section className="rounded-xl border border-[var(--line)] bg-[var(--panel)]/94 p-6 shadow-sm">
       <div className="mb-6 flex flex-wrap items-start justify-between gap-4">
         <div>
           <h2 className="font-[var(--font-auth-display)] text-[1.2rem] font-medium text-[var(--ink)]">{props.title}</h2>
@@ -157,7 +157,7 @@ export function UsageChart(props: UsageChartProps) {
           {props.periodLabel}
         </div>
       </div>
-      <div className="rounded-[0.9rem] rounded-bl-[0.32rem] border border-[var(--line-soft)] bg-[linear-gradient(180deg,var(--panel)_0%,var(--panel-soft)_100%)] p-4">
+      <div className="rounded-[0.9rem] border border-[var(--line-soft)] bg-[linear-gradient(180deg,var(--panel)_0%,var(--panel-soft)_100%)] p-4">
         <svg
           viewBox={`0 0 ${width} ${height}`}
           className="h-[240px] w-full"
@@ -165,8 +165,8 @@ export function UsageChart(props: UsageChartProps) {
           aria-hidden="true"
         >
           <defs>
-            <linearGradient id="healix-area-gradient" x1="0" y1="0" x2="0" y2="1">
-              <stop offset="0%" stopColor="var(--accent)" stopOpacity="0.16" />
+            <linearGradient id={gradientId} x1="0" y1="0" x2="0" y2="1">
+              <stop offset="0%" stopColor="var(--chart-primary)" stopOpacity="0.16" />
               <stop offset="100%" stopColor="var(--accent-soft)" stopOpacity="0.18" />
             </linearGradient>
           </defs>
@@ -181,11 +181,12 @@ export function UsageChart(props: UsageChartProps) {
               strokeDasharray="4 6"
             />
           ))}
-          <path d={areaPath} fill="url(#healix-area-gradient)" />
+          <path d={areaPath} fill={`url(#${gradientId})`} />
           <polyline
             fill="none"
             points={secondaryPoints}
-            stroke="var(--gold)"
+            stroke="var(--chart-secondary)"
+            strokeDasharray="6 5"
             strokeLinecap="round"
             strokeLinejoin="round"
             strokeWidth="2"
@@ -193,7 +194,7 @@ export function UsageChart(props: UsageChartProps) {
           <polyline
             fill="none"
             points={primaryPoints}
-            stroke="var(--accent-dark)"
+            stroke="var(--chart-primary)"
             strokeLinecap="round"
             strokeLinejoin="round"
             strokeWidth="2.5"
@@ -207,14 +208,25 @@ export function UsageChart(props: UsageChartProps) {
       </div>
       <div className="mt-6 flex flex-wrap gap-4 text-xs text-[var(--ink-soft)]">
         <span className="inline-flex items-center gap-2">
-          <span className="h-2.5 w-2.5 rounded-full bg-[var(--accent-dark)]" />
+          <span className="h-2.5 w-2.5 rounded-full bg-[var(--chart-primary)]" />
           {props.legendPrimary}
         </span>
         <span className="inline-flex items-center gap-2">
-          <span className="h-2.5 w-2.5 rounded-full bg-[var(--gold)]" />
+          <span className="h-0 w-4 border-t-2 border-dashed border-[var(--chart-secondary)]" />
           {props.legendSecondary}
         </span>
       </div>
+      <ChartDataTable {...props} />
     </section>
+  );
+}
+
+function ChartDataTable(props: UsageChartProps) {
+  return (
+    <table className="sr-only">
+      <caption>{props.title}</caption>
+      <thead><tr><th scope="col">{props.subtitle}</th><th scope="col">{props.legendPrimary}</th>{props.legendSecondary ? <th scope="col">{props.legendSecondary}</th> : null}</tr></thead>
+      <tbody>{props.data.map((entry) => <tr key={entry.label}><th scope="row">{entry.label}</th><td>{entry.primary}</td>{props.legendSecondary ? <td>{entry.secondary ?? 0}</td> : null}</tr>)}</tbody>
+    </table>
   );
 }

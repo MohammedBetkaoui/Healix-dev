@@ -1,4 +1,5 @@
 import { type TranslationFunction } from "@/lib/i18n";
+import { type DashboardStatusTone } from "@/types/dashboard";
 
 type DashboardAccountStatusKey =
   | "active"
@@ -24,6 +25,7 @@ export type DashboardAccountStatusPresentation = {
   footerLabel: string;
   statHint: string;
   statusLabel: string;
+  statusTone: DashboardStatusTone;
 };
 
 const accountStatusKeyByValue: Record<string, DashboardAccountStatusKey> = {
@@ -68,6 +70,14 @@ export function getDashboardAccountStatusPresentation({
       : t(`dashboard.common.accountStatus.statusLabels.${key}`);
 
   return {
+    statusTone:
+      key === "active" || key === "verified"
+        ? "success"
+        : key === "pending" || key === "paymentPending"
+          ? "warning"
+          : key === "rejected" || key === "suspended"
+            ? "danger"
+            : "neutral",
     actionLabel: actionEnabledStatuses.has(key)
       ? t(
           key === "rejected"

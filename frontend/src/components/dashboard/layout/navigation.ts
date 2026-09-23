@@ -60,7 +60,7 @@ export const establishmentNavSections: DashboardNavSection[] = [
     titleKey: "dashboard.sidebar.sections.ai",
     items: [
       {
-        badge: { text: "IA", tone: "purple" },
+        badge: { text: "IA", tone: "blue" },
         href: "#analyses",
         icon: BrainCircuit,
         key: "analyses",
@@ -85,14 +85,14 @@ export const establishmentNavSections: DashboardNavSection[] = [
     titleKey: "dashboard.sidebar.sections.communication",
     items: [
       {
-        badge: { text: "3", tone: "red" },
+        badge: { text: "3", tone: "blue" },
         href: "#messages",
         icon: MessageSquare,
         key: "messages",
         labelKey: "dashboard.sidebar.establishment.messages",
       },
       {
-        badge: { text: "7", tone: "red" },
+        badge: { text: "7", tone: "blue" },
         href: "#notifications",
         icon: Bell,
         key: "notifications",
@@ -174,7 +174,7 @@ export const doctorNavSections: DashboardNavSection[] = [
     titleKey: "dashboard.sidebar.sections.ai",
     items: [
       {
-        badge: { text: "IA", tone: "purple" },
+        badge: { text: "IA", tone: "blue" },
         href: "#analyses",
         icon: Brain,
         key: "analyses",
@@ -199,14 +199,14 @@ export const doctorNavSections: DashboardNavSection[] = [
     titleKey: "dashboard.sidebar.sections.communication",
     items: [
       {
-        badge: { text: "3", tone: "red" },
+        badge: { text: "3", tone: "blue" },
         href: "#messages",
         icon: MessageSquare,
         key: "messages",
         labelKey: "dashboard.sidebar.doctor.messages",
       },
       {
-        badge: { text: "7", tone: "red" },
+        badge: { text: "7", tone: "blue" },
         href: "#notifications",
         icon: Bell,
         key: "notifications",

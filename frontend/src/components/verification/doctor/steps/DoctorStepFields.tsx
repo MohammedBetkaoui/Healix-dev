@@ -154,11 +154,11 @@ export function StepCard({
   title: string;
 }) {
   return (
-    <section className="rounded-[24px] border border-slate-200/80 bg-white p-6 shadow-[0_12px_36px_rgba(15,23,42,0.04)]">
+    <section className="rounded-xl border border-border/80 bg-card p-6 shadow-sm">
       <div className="mb-5">
-        <h2 className="text-lg font-semibold text-slate-950">{title}</h2>
+        <h2 className="text-lg font-semibold text-foreground">{title}</h2>
         {subtitle ? (
-          <p className="mt-1 text-sm leading-6 text-slate-500">{subtitle}</p>
+          <p className="mt-1 text-sm leading-6 text-muted-foreground">{subtitle}</p>
         ) : null}
       </div>
       <div className="grid gap-4 md:grid-cols-2">{children}</div>

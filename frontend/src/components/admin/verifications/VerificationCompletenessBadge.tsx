@@ -12,12 +12,12 @@ export function VerificationCompletenessBadge({
   const isComplete = score >= 90;
 
   return (
-    <span className="inline-flex items-center gap-2 rounded-full border border-slate-200 bg-white px-2.5 py-1 text-xs font-semibold text-slate-700">
+    <span className="inline-flex items-center gap-2 rounded-full border border-border bg-card px-2.5 py-1 text-xs font-semibold text-foreground">
       <span
         className={
           isComplete
-            ? "h-2 w-2 rounded-full bg-emerald-500"
-            : "h-2 w-2 rounded-full bg-amber-500"
+            ? "h-2 w-2 rounded-full bg-[var(--success)]"
+            : "h-2 w-2 rounded-full bg-[var(--warning)]"
         }
       />
       {score}% ·{" "}

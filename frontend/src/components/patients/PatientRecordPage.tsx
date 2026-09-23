@@ -75,7 +75,7 @@ const tabs: RecordTab[] = [
 
 function EmptyTab({ label }: { label: string }) {
   return (
-    <div className="relative overflow-hidden rounded-[1rem] border border-[var(--line)] bg-[var(--panel)] px-6 py-14 text-center">
+    <div className="relative overflow-hidden rounded-xl border border-[var(--line)] bg-[var(--panel)] px-6 py-14 text-center">
       <svg className="mx-auto h-10 w-32 text-[var(--line)]" viewBox="0 0 128 40" fill="none" aria-hidden="true"><path d="M0 21h35l5-13 8 27 8-20 7 12 6-6h59" stroke="currentColor" strokeWidth="1.5" /></svg>
       <p className="mt-4 text-sm text-[var(--ink-faint)]">{label}</p>
     </div>
@@ -115,10 +115,10 @@ export function PatientRecordPage({ accountType, patientId }: PatientRecordPageP
   return (
     <DashboardShell {...shellProps} activeKey="patients" breadcrumbLabel={name} titleKey={accountType === "ESTABLISHMENT" ? "patients.page.title" : "patients.page.doctorTitle"}>
       <div className="space-y-5">
-        <section className="sticky top-3 z-20 rounded-[1.05rem] rounded-bl-[0.38rem] border border-[var(--line)] bg-[rgba(255,255,255,0.97)] p-4 shadow-[0_18px_46px_-30px_rgba(22,33,29,0.48)] backdrop-blur-sm">
+        <section className="sticky top-3 z-20 rounded-xl border border-[var(--line)] bg-card p-4 shadow-sm backdrop-blur-sm">
           <div className="flex flex-col gap-4 xl:flex-row xl:items-center xl:justify-between">
             <div className="flex min-w-0 items-start gap-3">
-              <span className="flex h-12 w-12 shrink-0 items-center justify-center rounded-[0.8rem] rounded-bl-[0.24rem] border border-[var(--accent-line)] bg-[var(--accent-soft)] text-[var(--accent-dark)]"><UserRound className="h-5 w-5" strokeWidth={1.7} /></span>
+              <span className="flex h-12 w-12 shrink-0 items-center justify-center rounded-[0.8rem] border border-[var(--accent-line)] bg-[var(--accent-soft)] text-[var(--accent-dark)]"><UserRound className="h-5 w-5" strokeWidth={1.7} /></span>
               <div className="min-w-0">
                 <div className="flex flex-wrap items-center gap-2"><h1 className="font-[var(--font-auth-display)] text-2xl font-medium text-[var(--ink)]">{name}</h1><span className="rounded-full border border-[var(--accent-line)] bg-[var(--accent-soft)] px-2.5 py-1 font-[var(--font-auth-mono)] text-[0.58rem] text-[var(--accent-dark)]">{localized.record}</span></div>
                 <p className="mt-0.5 text-sm text-[var(--ink-faint)]" lang={locale === "ar" ? "fr" : "ar"}>{secondaryName}</p>
@@ -126,8 +126,8 @@ export function PatientRecordPage({ accountType, patientId }: PatientRecordPageP
               </div>
             </div>
 
-            <div className={cn("rounded-[0.75rem] border px-3 py-2", patient.medicalSummary.allergies.length ? "border-[var(--gold-line)] bg-[var(--gold-soft)]" : "border-[var(--line)] bg-[#faf8f2]")}>
-              <div className="flex items-center gap-2"><AlertTriangle className={cn("h-4 w-4", patient.medicalSummary.allergies.length ? "text-[var(--gold)]" : "text-[var(--ink-faint)]")} strokeWidth={1.7} /><span className="font-[var(--font-auth-mono)] text-[0.6rem] uppercase tracking-[0.1em] text-[var(--ink-soft)]">{localized.allergyTitle}</span></div>
+            <div className={cn("rounded-[0.75rem] border px-3 py-2", patient.medicalSummary.allergies.length ? "border-[var(--warning-line)] bg-[var(--warning-soft)]" : "border-[var(--line)] bg-muted")}>
+              <div className="flex items-center gap-2"><AlertTriangle className={cn("h-4 w-4", patient.medicalSummary.allergies.length ? "text-[var(--warning-ink)]" : "text-[var(--ink-faint)]")} strokeWidth={1.7} /><span className="font-[var(--font-auth-mono)] text-[0.6rem] uppercase tracking-[0.1em] text-[var(--ink-soft)]">{localized.allergyTitle}</span></div>
               <p className="mt-1 text-xs font-medium text-[var(--ink)]">{patient.medicalSummary.allergies.join(" · ") || localized.allergyNone}</p>
             </div>
 
@@ -147,7 +147,7 @@ export function PatientRecordPage({ accountType, patientId }: PatientRecordPageP
 
         {activeTab === "summary" ? (
           <div className="grid gap-5 xl:grid-cols-[minmax(0,1.35fr)_minmax(320px,.65fr)]">
-            <section className="rounded-[1rem] border border-[var(--line)] bg-[var(--panel)] p-5">
+            <section className="rounded-xl border border-[var(--line)] bg-[var(--panel)] p-5">
               <div className="flex items-center gap-3"><span className="flex h-10 w-10 items-center justify-center rounded-[0.72rem] border border-[var(--accent-line)] bg-[var(--accent-soft)] text-[var(--accent-dark)]"><Stethoscope className="h-4 w-4" strokeWidth={1.7} /></span><div><p className="font-[var(--font-auth-mono)] text-[0.62rem] uppercase tracking-[0.11em] text-[var(--ink-faint)]">{localized.tabs.consultations}</p><h2 className="mt-1 font-[var(--font-auth-display)] text-xl font-medium text-[var(--ink)]">{patient.assignedDoctor}</h2></div></div>
               <dl className="mt-5 grid gap-4 border-t border-[var(--line)] pt-5 sm:grid-cols-2">
                 <div><dt className="font-[var(--font-auth-mono)] text-[0.6rem] uppercase tracking-[0.1em] text-[var(--ink-faint)]">{t("patients.table.columns.lastVisit")}</dt><dd className="mt-1 text-sm text-[var(--ink)]">{formatPatientDate(patient.lastVisit, locale)}</dd></div>
@@ -155,22 +155,22 @@ export function PatientRecordPage({ accountType, patientId }: PatientRecordPageP
               </dl>
             </section>
 
-            <section className="rounded-[1rem] border border-[var(--gold-line)] bg-[#fffdf8] p-5">
-              <div className="flex items-center gap-3"><span className="flex h-10 w-10 items-center justify-center rounded-[0.72rem] border border-[var(--gold-line)] bg-[var(--gold-soft)] text-[var(--gold)]"><BrainCircuit className="h-4 w-4" strokeWidth={1.7} /></span><div><p className="font-[var(--font-auth-mono)] text-[0.6rem] uppercase tracking-[0.1em] text-[var(--gold)]">{localized.aiKicker}</p><p className="mt-1 text-sm font-medium text-[var(--ink)]">IRM · Healix Vision 2.1 · {patient.aiAnalyses[0]?.score ?? 0}%</p></div></div>
-              <p className="mt-4 border-s-2 border-[var(--gold)] ps-3 text-xs leading-5 text-[var(--ink-soft)]">{localized.aiDisclaimer}</p>
+            <section className="rounded-xl border border-[var(--accent-line)] bg-muted p-5">
+              <div className="flex items-center gap-3"><span className="flex h-10 w-10 items-center justify-center rounded-[0.72rem] border border-[var(--accent-line)] bg-[var(--accent-soft)] text-[var(--accent)]"><BrainCircuit className="h-4 w-4" strokeWidth={1.7} /></span><div><p className="font-[var(--font-auth-mono)] text-[0.6rem] uppercase tracking-[0.1em] text-[var(--accent)]">{localized.aiKicker}</p><p className="mt-1 text-sm font-medium text-[var(--ink)]">IRM · Healix Vision 2.1 · {patient.aiAnalyses[0]?.score ?? 0}%</p></div></div>
+              <p className="mt-4 border-s-2 border-[var(--specialty-brain)] ps-3 text-xs leading-5 text-[var(--ink-soft)]">{localized.aiDisclaimer}</p>
             </section>
           </div>
         ) : null}
 
         {activeTab === "consents" ? (
-          <section className="rounded-[1rem] border border-[var(--line)] bg-[var(--panel)] p-5">
+          <section className="rounded-xl border border-[var(--line)] bg-[var(--panel)] p-5">
             <div className="flex items-center gap-3"><ShieldCheck className="h-5 w-5 text-[var(--accent-dark)]" strokeWidth={1.7} /><h2 className="font-[var(--font-auth-display)] text-xl font-medium text-[var(--ink)]">{localized.consentTitle}</h2></div>
-            <div className="mt-5 divide-y divide-[var(--line)]">{patient.consents.map((consent) => <div key={consent.type} className="grid gap-3 py-4 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-center"><div><p className="text-sm font-medium text-[var(--ink)]">{consent.type.replaceAll("_", " ")}</p><p className="mt-1 text-xs text-[var(--ink-faint)]">{consent.documentName || t("patients.common.none")}</p></div><div className="sm:text-end"><span className={cn("rounded-full border px-2.5 py-1 font-[var(--font-auth-mono)] text-[0.6rem]", consent.status === "SIGNED" ? "border-[var(--accent-line)] bg-[var(--accent-soft)] text-[var(--accent-dark)]" : "border-[var(--line)] bg-[#eeebe4] text-[var(--ink-soft)]")}>{consent.status}</span><p className="mt-2 text-xs text-[var(--ink-faint)]">{formatPatientDateTime(consent.recordedAt, locale)}</p></div></div>)}</div>
+            <div className="mt-5 divide-y divide-[var(--line)]">{patient.consents.map((consent) => <div key={consent.type} className="grid gap-3 py-4 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-center"><div><p className="text-sm font-medium text-[var(--ink)]">{consent.type.replaceAll("_", " ")}</p><p className="mt-1 text-xs text-[var(--ink-faint)]">{consent.documentName || t("patients.common.none")}</p></div><div className="sm:text-end"><span className={cn("rounded-full border px-2.5 py-1 font-[var(--font-auth-mono)] text-[0.6rem]", consent.status === "SIGNED" ? "border-[var(--success-line)] bg-[var(--success-soft)] text-[var(--success-ink)]" : "border-[var(--line)] bg-muted text-[var(--ink-soft)]")}>{consent.status}</span><p className="mt-2 text-xs text-[var(--ink-faint)]">{formatPatientDateTime(consent.recordedAt, locale)}</p></div></div>)}</div>
           </section>
         ) : null}
 
         {activeTab === "audit" ? (
-          <section className="rounded-[1rem] border border-[var(--line)] bg-[var(--panel)] p-5">
+          <section className="rounded-xl border border-[var(--line)] bg-[var(--panel)] p-5">
             <div className="flex items-center gap-3"><History className="h-5 w-5 text-[var(--accent-dark)]" strokeWidth={1.7} /><h2 className="font-[var(--font-auth-display)] text-xl font-medium text-[var(--ink)]">{localized.auditTitle}</h2></div>
             <div className="mt-5 divide-y divide-[var(--line)]">{patient.audit.map((entry) => <article key={entry.id} className="grid gap-2 py-4 sm:grid-cols-[minmax(0,1fr)_auto]"><div><p className="text-sm font-medium text-[var(--ink)]">{entry.action}</p><p className="mt-1 text-xs text-[var(--ink-soft)]">{entry.actor} · {entry.organization}</p></div><time className="font-[var(--font-auth-mono)] text-[0.62rem] text-[var(--ink-faint)]">{formatPatientDateTime(entry.at, locale)}</time></article>)}</div>
           </section>

@@ -46,7 +46,7 @@ export function PaymentMethodSelector({
   t,
 }: PaymentMethodSelectorProps) {
   return (
-    <section className="rounded-[1.15rem] border border-[var(--line)] bg-[var(--panel)] p-5 shadow-[0_16px_38px_-30px_rgba(22,33,29,0.48)]">
+    <section className="rounded-xl border border-[var(--line)] bg-[var(--panel)] p-5 shadow-sm">
       <h2 className="font-[var(--font-auth-display)] text-2xl font-medium text-[var(--ink)]">
         {t("subscription.payment.methodTitle")}
       </h2>
@@ -62,7 +62,7 @@ export function PaymentMethodSelector({
               disabled={disabled}
               onClick={() => onChange(method.id)}
               className={cn(
-                "rounded-[1rem] border p-4 text-start transition",
+                "rounded-xl border p-4 text-start transition",
                 selected
                   ? "border-[var(--accent)] bg-[var(--accent-soft)]/70 ring-2 ring-[var(--accent-line)]"
                   : "border-[var(--line)] bg-[var(--panel)] hover:border-[var(--accent-line)] hover:bg-[var(--panel-soft)]",
@@ -74,7 +74,7 @@ export function PaymentMethodSelector({
                   <Icon className="h-5 w-5" strokeWidth={1.7} aria-hidden="true" />
                 </span>
                 {"badgeKey" in method ? (
-                  <span className="rounded-full border border-[var(--gold-line)] bg-[var(--gold-soft)] px-2.5 py-1 font-[var(--font-auth-mono)] text-[0.62rem] font-medium text-[var(--gold-dark)]">
+                  <span className="rounded-full border border-[var(--accent-line)] bg-[var(--accent-soft)] px-2.5 py-1 font-[var(--font-auth-mono)] text-[0.62rem] font-medium text-[var(--accent-dark)]">
                     {t(method.badgeKey)}
                   </span>
                 ) : null}

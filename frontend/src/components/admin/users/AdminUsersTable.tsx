@@ -17,17 +17,17 @@ type AdminUsersTableProps = {
 export function AdminUsersTable({ locale, t, users }: AdminUsersTableProps) {
   if (users.length === 0) {
     return (
-      <div className="rounded-2xl border border-dashed border-slate-300 bg-white p-10 text-center text-sm text-slate-500">
+      <div className="rounded-2xl border border-dashed border-border bg-card p-10 text-center text-sm text-muted-foreground">
         {t("admin.common.noResults")}
       </div>
     );
   }
 
   return (
-    <section className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
+    <section className="overflow-hidden rounded-2xl border border-border bg-card shadow-sm">
       <div className="overflow-x-auto">
-        <table className="min-w-full divide-y divide-slate-200 text-sm">
-          <thead className="bg-slate-50 text-xs uppercase tracking-[0.12em] text-slate-500">
+        <table className="min-w-full divide-y divide-border text-sm">
+          <thead className="bg-muted text-xs uppercase tracking-[0.12em] text-muted-foreground">
             <tr>
               <th className="px-5 py-4 text-start">{t("admin.users.table.name")}</th>
               <th className="px-5 py-4 text-start">{t("admin.users.table.email")}</th>
@@ -39,14 +39,14 @@ export function AdminUsersTable({ locale, t, users }: AdminUsersTableProps) {
               <th className="px-5 py-4 text-start">{t("admin.users.table.action")}</th>
             </tr>
           </thead>
-          <tbody className="divide-y divide-slate-100">
+          <tbody className="divide-y divide-border">
             {users.map((user) => (
               <tr key={user.id}>
-                <td className="px-5 py-4 font-semibold text-slate-950">
+                <td className="px-5 py-4 font-semibold text-foreground">
                   {user.fullName}
                 </td>
-                <td className="px-5 py-4 text-slate-600">{user.email}</td>
-                <td className="px-5 py-4 text-slate-600">{user.phone}</td>
+                <td className="px-5 py-4 text-muted-foreground">{user.email}</td>
+                <td className="px-5 py-4 text-muted-foreground">{user.phone}</td>
                 <td className="px-5 py-4">
                   <AdminUserRoleBadge role={user.role} t={t} />
                 </td>
@@ -56,7 +56,7 @@ export function AdminUsersTable({ locale, t, users }: AdminUsersTableProps) {
                 <td className="px-5 py-4">
                   <VerificationStatusBadge status={user.verificationStatus} t={t} />
                 </td>
-                <td className="px-5 py-4 text-slate-600">
+                <td className="px-5 py-4 text-muted-foreground">
                   {formatAdminDateTime(user.createdAt, locale)}
                 </td>
                 <td className="px-5 py-4">

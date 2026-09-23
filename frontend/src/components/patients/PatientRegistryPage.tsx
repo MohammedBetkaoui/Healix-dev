@@ -120,9 +120,9 @@ function getDisplayName(patient: Patient, locale: "fr" | "ar") {
 }
 
 function statusClass(status: Patient["administrativeStatus"]) {
-  if (status === "ACTIVE") return "border-[var(--accent-line)] bg-[var(--accent-soft)] text-[var(--accent-dark)]";
-  if (status === "DECEASED") return "border-[var(--line)] bg-[#e9e5dc] text-[var(--ink-soft)]";
-  return "border-[var(--gold-line)] bg-[var(--gold-soft)] text-[#76552a]";
+  if (status === "ACTIVE") return "border-[var(--success-line)] bg-[var(--success-soft)] text-[var(--success-ink)]";
+  if (status === "DECEASED") return "border-[var(--line)] bg-muted text-[var(--ink-soft)]";
+  return "border-[var(--line)] bg-muted text-[var(--ink-soft)]";
 }
 
 function RegistrySelect({ label, value, onChange, children }: {
@@ -145,7 +145,7 @@ function PatientActions({ patient, onOpen, label }: { label: string; onOpen: () 
       <summary className="flex h-9 w-9 cursor-pointer list-none items-center justify-center rounded-full text-[var(--ink-faint)] transition hover:bg-[var(--accent-soft)] hover:text-[var(--accent-dark)]" aria-label={`${label} ${patient.id}`}>
         <MoreHorizontal className="h-4 w-4" strokeWidth={1.7} aria-hidden="true" />
       </summary>
-      <div className="absolute end-0 z-20 mt-1 w-44 rounded-[0.7rem] border border-[var(--line)] bg-[var(--panel)] p-1.5 shadow-[0_18px_40px_-24px_rgba(22,33,29,0.48)]">
+      <div className="absolute end-0 z-20 mt-1 w-44 rounded-[0.7rem] border border-[var(--line)] bg-[var(--panel)] p-1.5 shadow-sm">
         <button className="w-full rounded-[0.5rem] px-3 py-2 text-start text-sm text-[var(--ink-soft)] hover:bg-[var(--accent-soft)] hover:text-[var(--accent-dark)]" type="button" onClick={onOpen}>{label}</button>
       </div>
     </details>
@@ -239,7 +239,7 @@ export function PatientRegistryPage({ accountType }: PatientRegistryPageProps) {
   return (
     <DashboardShell {...shellProps} activeKey="patients" breadcrumbLabel={t("patients.page.breadcrumb")}>
       <div className="space-y-5">
-        {notice ? <div className="fixed end-6 top-24 z-40 rounded-[0.8rem] border border-[var(--accent-line)] bg-[var(--panel)] px-4 py-3 text-sm text-[var(--accent-dark)] shadow-[0_18px_42px_-24px_rgba(22,33,29,0.55)]">{notice}</div> : null}
+        {notice ? <div className="fixed end-6 top-24 z-40 rounded-[0.8rem] border border-[var(--accent-line)] bg-[var(--panel)] px-4 py-3 text-sm text-[var(--accent-dark)] shadow-sm">{notice}</div> : null}
 
         <section className="flex flex-col gap-5 xl:flex-row xl:items-end xl:justify-between">
           <div>
@@ -248,7 +248,7 @@ export function PatientRegistryPage({ accountType }: PatientRegistryPageProps) {
             </span>
             <h1 className="mt-3 font-[var(--font-auth-display)] text-[2rem] font-medium leading-tight text-[var(--ink)] sm:text-[2.35rem]">{copy.title}</h1>
             <div className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1 text-sm text-[var(--ink-soft)]">
-              <span className="font-medium text-[var(--ink)]">{copy.count}</span><span aria-hidden="true" className="h-1 w-1 rounded-full bg-[var(--gold)]" /><span>{copy.newThisMonth}</span>
+              <span className="font-medium text-[var(--ink)]">{copy.count}</span><span aria-hidden="true" className="h-1 w-1 rounded-full bg-primary" /><span>{copy.newThisMonth}</span>
             </div>
           </div>
           <div className="flex flex-wrap gap-2">
@@ -259,7 +259,7 @@ export function PatientRegistryPage({ accountType }: PatientRegistryPageProps) {
             <div className="relative">
               <Button className={cn("rounded-full border-[var(--line)] bg-[var(--panel)] px-4 text-[var(--ink-soft)] shadow-none", showColumns && "border-[var(--accent-line)] bg-[var(--accent-soft)] text-[var(--accent-dark)]")} variant="outline" onClick={() => setShowColumns((value) => !value)}><Columns3 className="me-2 h-4 w-4" strokeWidth={1.7} />{copy.actions.columns}</Button>
               {showColumns ? (
-                <div className="absolute end-0 top-12 z-30 w-64 rounded-[0.85rem] border border-[var(--line)] bg-[var(--panel)] p-2 shadow-[0_22px_48px_-28px_rgba(22,33,29,0.52)]">
+                <div className="absolute end-0 top-12 z-30 w-64 rounded-[0.85rem] border border-[var(--line)] bg-[var(--panel)] p-2 shadow-sm">
                   {(Object.keys(initialColumns) as OptionalColumn[]).map((key) => (
                     <label key={key} className="flex cursor-pointer items-center gap-3 rounded-[0.55rem] px-3 py-2 text-sm text-[var(--ink-soft)] hover:bg-[var(--accent-soft)]">
                       <input className="h-4 w-4 accent-[var(--accent)]" type="checkbox" checked={columns[key]} onChange={() => setColumns((current) => ({ ...current, [key]: !current[key] }))} />{copy.columns[key]}
@@ -272,16 +272,16 @@ export function PatientRegistryPage({ accountType }: PatientRegistryPageProps) {
           </div>
         </section>
 
-        <section className="rounded-[1rem] rounded-bl-[0.38rem] border border-[var(--line)] bg-[var(--panel)] p-4 shadow-[0_18px_42px_-32px_rgba(22,33,29,0.32)]">
+        <section className="rounded-xl border border-[var(--line)] bg-[var(--panel)] p-4 shadow-sm">
           <div className="relative">
             <Search className="pointer-events-none absolute start-4 top-3.5 h-4 w-4 text-[var(--ink-faint)]" strokeWidth={1.7} aria-hidden="true" />
-            <input className="h-11 w-full rounded-[0.7rem] border border-[var(--line)] bg-[#fcfbf8] pe-4 ps-11 text-sm text-[var(--ink)] outline-none placeholder:text-[var(--ink-faint)] focus:border-[var(--accent)] focus:ring-2 focus:ring-[var(--accent-soft)]" value={search} onChange={(event) => { setSearch(event.target.value); setVisibleCount(8); }} placeholder={copy.searchPlaceholder} type="search" />
+            <input className="h-11 w-full rounded-[0.7rem] border border-[var(--line)] bg-muted pe-4 ps-11 text-sm text-[var(--ink)] outline-none placeholder:text-[var(--ink-faint)] focus:border-[var(--accent)] focus:ring-2 focus:ring-[var(--accent-soft)]" value={search} onChange={(event) => { setSearch(event.target.value); setVisibleCount(8); }} placeholder={copy.searchPlaceholder} type="search" />
           </div>
-          <p className="mt-2 flex items-start gap-2 text-xs leading-5 text-[var(--ink-faint)]"><Info className="mt-0.5 h-3.5 w-3.5 shrink-0 text-[var(--gold)]" strokeWidth={1.7} />{copy.searchHelp}</p>
+          <p className="mt-2 flex items-start gap-2 text-xs leading-5 text-[var(--ink-faint)]"><Info className="mt-0.5 h-3.5 w-3.5 shrink-0 text-[var(--accent)]" strokeWidth={1.7} />{copy.searchHelp}</p>
         </section>
 
         {showFilters ? (
-          <section className="rounded-[1rem] border border-[var(--line)] bg-[#faf8f2] p-4">
+          <section className="rounded-xl border border-[var(--line)] bg-muted p-4">
             <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5">
               <RegistrySelect label={t("patients.filters.gender")} value={filters.gender} onChange={(value) => updateFilter("gender", value)}><option value="">{t("patients.filters.all")}</option>{patientGenderValues.map((value) => <option key={value} value={value}>{t(`patients.genders.${value}`)}</option>)}</RegistrySelect>
               <RegistrySelect label={t("patients.filters.administrativeStatus")} value={filters.administrativeStatus} onChange={(value) => updateFilter("administrativeStatus", value)}><option value="">{t("patients.filters.all")}</option>{patientAdministrativeStatusValues.map((value) => <option key={value} value={value}>{t(`patients.administrativeStatuses.${value}`)}</option>)}</RegistrySelect>
@@ -293,19 +293,19 @@ export function PatientRegistryPage({ accountType }: PatientRegistryPageProps) {
           </section>
         ) : null}
 
-        <section className="overflow-hidden rounded-[1.05rem] rounded-bl-[0.38rem] border border-[var(--line)] bg-[var(--panel)] shadow-[0_22px_54px_-38px_rgba(22,33,29,0.4)]">
+        <section className="overflow-hidden rounded-xl border border-[var(--line)] bg-[var(--panel)] shadow-sm">
           <header className="flex flex-wrap items-center justify-between gap-3 border-b border-[var(--line)] px-5 py-4">
             <div><h2 className="font-[var(--font-auth-display)] text-xl font-medium text-[var(--ink)]">{copy.title}</h2><p className="mt-1 text-xs text-[var(--ink-faint)]">{copy.loaded(Math.min(visiblePatients.length, filteredPatients.length), filteredPatients.length)}</p></div>
-            <span className="rounded-full border border-[var(--line)] bg-[#faf8f2] px-3 py-1.5 font-[var(--font-auth-mono)] text-[0.64rem] text-[var(--ink-soft)]">{filteredPatients.length} {t("patients.states.resultsLabel")}</span>
+            <span className="rounded-full border border-[var(--line)] bg-muted px-3 py-1.5 font-[var(--font-auth-mono)] text-[0.64rem] text-[var(--ink-soft)]">{filteredPatients.length} {t("patients.states.resultsLabel")}</span>
           </header>
 
           {visiblePatients.length === 0 ? <div className="px-6 py-16 text-center text-sm text-[var(--ink-faint)]">{copy.empty}</div> : null}
 
           <div className="divide-y divide-[var(--line)] xl:hidden">
             {visiblePatients.map((patient) => (
-              <article key={patient.id} className="cursor-pointer p-5 transition hover:bg-[#faf8f2]" role="link" tabIndex={0} onClick={() => openPatient(patient)} onKeyDown={(event) => openPatientFromKeyboard(event, patient)}>
+              <article key={patient.id} className="cursor-pointer p-5 transition hover:bg-muted" role="link" tabIndex={0} onClick={() => openPatient(patient)} onKeyDown={(event) => openPatientFromKeyboard(event, patient)}>
                 <div className="flex items-start gap-3">
-                  <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-[0.72rem] rounded-bl-[0.22rem] border border-[var(--accent-line)] bg-[var(--accent-soft)] font-[var(--font-auth-display)] text-base font-medium text-[var(--accent-dark)]">{getInitials(patient, locale)}</span>
+                  <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-[0.72rem] border border-[var(--accent-line)] bg-[var(--accent-soft)] font-[var(--font-auth-display)] text-base font-medium text-[var(--accent-dark)]">{getInitials(patient, locale)}</span>
                   <div className="min-w-0 flex-1"><p className="truncate font-medium text-[var(--ink)]">{getDisplayName(patient, locale)}</p><p className="mt-1 font-[var(--font-auth-mono)] text-[0.66rem] text-[var(--ink-faint)]" dir="ltr">{patient.id}</p></div>
                   <span className={cn("rounded-full border px-2.5 py-1 font-[var(--font-auth-mono)] text-[0.6rem]", statusClass(patient.administrativeStatus))}>{t(`patients.administrativeStatuses.${patient.administrativeStatus}`)}</span>
                   <PatientActions patient={patient} label={t("patients.actions.viewRecord")} onOpen={() => openPatient(patient)} />
@@ -321,7 +321,7 @@ export function PatientRegistryPage({ accountType }: PatientRegistryPageProps) {
 
           <div className="hidden overflow-x-auto xl:block">
             <table className="min-w-[1450px] w-full text-[0.78rem]">
-              <thead><tr className="border-b border-[var(--line)] bg-[#faf8f2] font-[var(--font-auth-mono)] text-[0.6rem] uppercase tracking-[0.11em] text-[var(--ink-faint)]">
+              <thead><tr className="border-b border-[var(--line)] bg-muted font-[var(--font-auth-mono)] text-[0.6rem] uppercase tracking-[0.11em] text-[var(--ink-faint)]">
                 <th className="px-4 py-3.5 text-start font-medium">{t("patients.table.columns.patient")}</th><th className="px-4 py-3.5 text-start font-medium">{t("patients.table.columns.id")}</th>
                 {columns.nin ? <th className="px-4 py-3.5 text-start font-medium">{copy.columns.nin}</th> : null}
                 <th className="px-4 py-3.5 text-start font-medium">{t("patients.table.columns.ageBirth")}</th>
@@ -335,14 +335,14 @@ export function PatientRegistryPage({ accountType }: PatientRegistryPageProps) {
               </tr></thead>
               <tbody>
                 {visiblePatients.map((patient) => (
-                  <tr key={patient.id} className="cursor-pointer border-b border-[var(--line-soft)] align-middle transition last:border-0 hover:bg-[#faf8f2]" tabIndex={0} onClick={() => openPatient(patient)} onKeyDown={(event) => openPatientFromKeyboard(event, patient)}>
-                    <td className="px-4 py-4"><div className="flex items-center gap-3"><span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-[0.62rem] rounded-bl-[0.2rem] border border-[var(--accent-line)] bg-[var(--accent-soft)] font-[var(--font-auth-display)] text-sm font-medium text-[var(--accent-dark)]">{getInitials(patient, locale)}</span><div><p className="whitespace-nowrap font-medium text-[var(--ink)]">{getDisplayName(patient, locale)}</p><p className="mt-0.5 whitespace-nowrap text-[0.68rem] text-[var(--ink-faint)]" lang={locale === "ar" ? "fr" : "ar"}>{locale === "ar" ? `${patient.firstName} ${patient.lastName}` : `${patient.firstNameAr} ${patient.lastNameAr}`}</p></div></div></td>
+                  <tr key={patient.id} className="cursor-pointer border-b border-[var(--line-soft)] align-middle transition last:border-0 hover:bg-muted" tabIndex={0} onClick={() => openPatient(patient)} onKeyDown={(event) => openPatientFromKeyboard(event, patient)}>
+                    <td className="px-4 py-4"><div className="flex items-center gap-3"><span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-[0.62rem] border border-[var(--accent-line)] bg-[var(--accent-soft)] font-[var(--font-auth-display)] text-sm font-medium text-[var(--accent-dark)]">{getInitials(patient, locale)}</span><div><p className="whitespace-nowrap font-medium text-[var(--ink)]">{getDisplayName(patient, locale)}</p><p className="mt-0.5 whitespace-nowrap text-[0.68rem] text-[var(--ink-faint)]" lang={locale === "ar" ? "fr" : "ar"}>{locale === "ar" ? `${patient.firstName} ${patient.lastName}` : `${patient.firstNameAr} ${patient.lastNameAr}`}</p></div></div></td>
                     <td className="whitespace-nowrap px-4 py-4 font-[var(--font-auth-mono)] text-[0.66rem] text-[var(--ink-soft)]" dir="ltr">{patient.id}</td>
                     {columns.nin ? <td className="whitespace-nowrap px-4 py-4 font-[var(--font-auth-mono)] text-[0.66rem] text-[var(--ink-soft)]" dir="ltr">{patient.nationalId || "—"}</td> : null}
                     <td className="whitespace-nowrap px-4 py-4 text-[var(--ink-soft)]"><span className="font-medium text-[var(--ink)]">{getPatientAge(patient.birthDate)} {t("patients.common.years")}</span><span className="mt-0.5 block text-[0.68rem] text-[var(--ink-faint)]">{formatPatientDate(patient.birthDate, locale)}</span></td>
                     {columns.gender ? <td className="px-4 py-4 text-[var(--ink-soft)]">{t(`patients.genders.${patient.gender}`)}</td> : null}
                     <td className="whitespace-nowrap px-4 py-4"><span className="flex items-center gap-1.5 text-[var(--ink-soft)]" dir="ltr"><Phone className="h-3.5 w-3.5 text-[var(--ink-faint)]" strokeWidth={1.7} />{formatAlgerianPhone(patient.phone)}</span><span className={cn("mt-1 inline-flex items-center gap-1 font-[var(--font-auth-mono)] text-[0.58rem]", patient.smsEnabled ? "text-[var(--accent)]" : "text-[var(--ink-faint)]")}><MessageSquareText className="h-3 w-3" strokeWidth={1.7} />{patient.smsEnabled ? t("patients.sms.enabled") : t("patients.sms.disabled")}</span></td>
-                    {columns.insurance ? <td className="px-4 py-4"><span className="rounded-full border border-[var(--gold-line)] bg-[var(--gold-soft)] px-2.5 py-1 text-[0.65rem] font-medium text-[#76552a]">{t(`patients.insurances.${patient.insurance}`)}</span><span className="mt-1 block text-[0.64rem] text-[var(--ink-faint)]">{t(`patients.sectors.${patient.sector}`)}</span></td> : null}
+                    {columns.insurance ? <td className="px-4 py-4"><span className="rounded-full border border-[var(--accent-line)] bg-[var(--accent-soft)] px-2.5 py-1 text-[0.65rem] font-medium text-[var(--accent-dark)]">{t(`patients.insurances.${patient.insurance}`)}</span><span className="mt-1 block text-[0.64rem] text-[var(--ink-faint)]">{t(`patients.sectors.${patient.sector}`)}</span></td> : null}
                     {columns.location ? <td className="whitespace-nowrap px-4 py-4 text-[var(--ink-soft)]"><span className="font-medium text-[var(--ink)]">{patient.wilayaCode} · {patient.wilaya}</span><span className="mt-0.5 block text-[0.68rem] text-[var(--ink-faint)]">{patient.commune}</span></td> : null}
                     {columns.doctor ? <td className="whitespace-nowrap px-4 py-4 text-[var(--ink-soft)]"><span className="font-medium text-[var(--ink)]">{patient.assignedDoctor}</span><span className="mt-0.5 block font-[var(--font-auth-mono)] text-[0.6rem] text-[var(--ink-faint)]">{patient.doctorRegistrationNumber}</span></td> : null}
                     {columns.visits ? <td className="whitespace-nowrap px-4 py-4 text-[var(--ink-soft)]"><span className="flex items-center gap-1.5"><CalendarDays className="h-3.5 w-3.5 text-[var(--ink-faint)]" strokeWidth={1.7} />{formatPatientDate(patient.lastVisit, locale, t("patients.common.none"))}</span><span className="mt-1 block text-[0.64rem] text-[var(--ink-faint)]">{t("patients.table.nextShort")} · {formatPatientDate(patient.nextVisit, locale, t("patients.common.none"))}</span></td> : null}
@@ -354,10 +354,10 @@ export function PatientRegistryPage({ accountType }: PatientRegistryPageProps) {
             </table>
           </div>
 
-          {visibleCount < filteredPatients.length ? <div className="border-t border-[var(--line)] p-4 text-center"><Button className="rounded-full border-[var(--accent-line)] bg-[var(--accent-soft)] px-5 text-[var(--accent-dark)] shadow-none hover:bg-[#d5e6dd]" variant="outline" onClick={() => setVisibleCount((count) => count + 8)}>{copy.loadMore}</Button></div> : null}
+          {visibleCount < filteredPatients.length ? <div className="border-t border-[var(--line)] p-4 text-center"><Button className="rounded-full border-[var(--accent-line)] bg-[var(--accent-soft)] px-5 text-[var(--accent-dark)] shadow-none hover:bg-secondary" variant="outline" onClick={() => setVisibleCount((count) => count + 8)}>{copy.loadMore}</Button></div> : null}
         </section>
 
-        <aside className="flex items-start gap-2 px-1 text-[0.7rem] leading-5 text-[var(--ink-faint)]"><Info className="mt-0.5 h-3.5 w-3.5 shrink-0 text-[var(--gold)]" strokeWidth={1.7} />{copy.demo}</aside>
+        <aside className="flex items-start gap-2 px-1 text-[0.7rem] leading-5 text-[var(--ink-faint)]"><Info className="mt-0.5 h-3.5 w-3.5 shrink-0 text-[var(--accent)]" strokeWidth={1.7} />{copy.demo}</aside>
       </div>
 
       <AddPatientModal direction={direction} existingPatients={patients} isOpen={isAddOpen} locale={locale} onClose={() => setAddOpen(false)} onCreate={(patient) => { setCreatedPatients((current) => [patient, ...current]); setNotice(t("patients.states.patientAdded")); window.setTimeout(() => setNotice(""), 3200); }} onOpenPatient={openPatient} t={t} />

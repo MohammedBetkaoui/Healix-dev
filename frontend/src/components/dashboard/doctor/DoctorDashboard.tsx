@@ -73,10 +73,10 @@ const doctorActivityPoints: DashboardLinePoint[] = [
 ];
 
 const doctorDistributionPoints: DashboardBarPoint[] = [
-  { label: "Brain", primary: 26, secondary: 12 },
-  { label: "Cardiology", primary: 19, secondary: 10 },
+  { label: "Brain", primary: 26, secondary: 12, specialty: "brain" },
+  { label: "Cardiology", primary: 19, secondary: 10, specialty: "cardiology" },
   { label: "Reports", primary: 21, secondary: 11 },
-  { label: "Pending", primary: 9, secondary: 6 },
+  { label: "Pending", primary: 9, secondary: 6, statusTone: "warning" },
 ];
 
 const doctorQuickActions: DashboardQuickAction[] = [
@@ -184,6 +184,7 @@ export function DoctorDashboard() {
               icon={item.icon}
               label={t(item.labelKey)}
               tone={item.tone}
+              statusTone={item.key === "account" ? accountStatus.statusTone : undefined}
               value={
                 item.key === "account" ? accountStatus.statusLabel : item.value
               }
@@ -227,18 +228,19 @@ export function DoctorDashboard() {
               description={accountStatus.cardDescription}
               demoLabel={accountStatus.footerLabel}
               statusLabel={accountStatus.statusLabel}
+              statusTone={accountStatus.statusTone}
               title={accountStatus.cardTitle}
             />
-            <section className="rounded-[26px] border border-slate-200/80 bg-white p-6 shadow-[0_12px_36px_rgba(15,23,42,0.04)]">
+            <section className="rounded-xl border border-border/80 bg-card p-6 shadow-sm">
               <div className="mb-5 flex items-center gap-3">
-                <span className="flex h-11 w-11 items-center justify-center rounded-full bg-slate-100 text-slate-700">
+                <span className="flex h-11 w-11 items-center justify-center rounded-full bg-muted text-foreground">
                   <Stethoscope className="h-5 w-5" />
                 </span>
                 <div>
-                  <h2 className="text-lg font-semibold text-slate-950">
+                  <h2 className="text-lg font-semibold text-foreground">
                     {t("dashboard.doctor.quickActions.title")}
                   </h2>
-                  <p className="mt-1 text-sm text-slate-500">
+                  <p className="mt-1 text-sm text-muted-foreground">
                     {t("dashboard.common.accountStatus.statusCardDescription")}
                   </p>
                 </div>

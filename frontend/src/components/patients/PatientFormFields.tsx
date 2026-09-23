@@ -24,7 +24,7 @@ type PatientFormFieldsProps = {
 };
 
 function FieldError({ message }: { message?: string }) {
-  return message ? <p className="font-[var(--font-auth-mono)] text-[0.68rem] text-[#8a5524]">{message}</p> : null;
+  return message ? <p className="font-[var(--font-auth-mono)] text-[0.68rem] text-[var(--accent-dark)]">{message}</p> : null;
 }
 
 function Field({
@@ -41,7 +41,7 @@ function Field({
   return (
     <div className="space-y-2">
       <Label className="text-[0.78rem] font-medium text-[var(--ink)]">
-        {label} {required ? <span className="text-[var(--gold)]">*</span> : null}
+        {label} {required ? <span className="text-[var(--accent)]">*</span> : null}
       </Label>
       {children}
       <FieldError message={error} />
@@ -49,12 +49,12 @@ function Field({
   );
 }
 
-const fieldClass = "h-11 rounded-[0.7rem] border-[var(--line)] bg-[#fcfbf8] text-[var(--ink)] placeholder:text-[var(--ink-faint)] focus-visible:border-[var(--accent)] focus-visible:ring-[var(--accent-soft)]";
+const fieldClass = "h-11 rounded-[0.7rem] border-[var(--line)] bg-muted text-[var(--ink)] placeholder:text-[var(--ink-faint)] focus-visible:border-[var(--accent)] focus-visible:ring-[var(--accent-soft)]";
 
 function SectionHeading({ index, title }: { index: string; title: string }) {
   return (
     <div className="flex items-center gap-3 border-b border-[var(--line-soft)] pb-3">
-      <span className="flex h-7 w-7 items-center justify-center rounded-full border border-[var(--gold-line)] bg-[var(--gold-soft)] font-[var(--font-auth-mono)] text-[0.68rem] text-[var(--gold)]">{index}</span>
+      <span className="flex h-7 w-7 items-center justify-center rounded-full border border-[var(--accent-line)] bg-[var(--accent-soft)] font-[var(--font-auth-mono)] text-[0.68rem] text-[var(--accent)]">{index}</span>
       <h3 className="font-[var(--font-auth-mono)] text-[0.68rem] font-medium uppercase tracking-[0.12em] text-[var(--ink-soft)]">{title}</h3>
     </div>
   );
@@ -156,7 +156,7 @@ export function PatientFormFields({
             <Input className={fieldClass} type="email" {...register("email")} />
           </Field>
         </div>
-        <label className="flex cursor-pointer items-start gap-3 rounded-[0.8rem] border border-[var(--line)] bg-[#fcfbf8] p-4">
+        <label className="flex cursor-pointer items-start gap-3 rounded-[0.8rem] border border-[var(--line)] bg-muted p-4">
           <input className="mt-0.5 h-4 w-4 accent-[var(--accent)]" type="checkbox" {...register("smsEnabled")} />
           <span>
             <span className="block text-sm font-medium text-[var(--ink)]">{t("patients.modal.fields.smsEnabled")}</span>
@@ -165,7 +165,7 @@ export function PatientFormFields({
         </label>
       </section>
 
-      <section className="rounded-[1rem] rounded-bl-[0.35rem] border border-[var(--accent-line)] bg-[var(--accent-soft)] p-5">
+      <section className="rounded-xl border border-[var(--accent-line)] bg-[var(--accent-soft)] p-5">
         <div className="flex items-center justify-between gap-4">
           <SectionHeading index="04" title={t("patients.modal.sections.consent")} />
           <span className="shrink-0 rounded-full border border-[var(--accent-line)] bg-[var(--panel)] px-3 py-1 font-[var(--font-auth-mono)] text-[0.62rem] text-[var(--accent-dark)]">LOI 18-07</span>
