@@ -72,6 +72,7 @@ export type DashboardActivityColumn = {
 };
 
 export type DashboardActivityRow = {
+  actionHref?: string;
   actionLabel?: string;
   date: string;
   id: string;

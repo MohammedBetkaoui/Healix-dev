@@ -1,4 +1,7 @@
+import { clinicalWorkspaceFr } from "./clinical-workspace";
+
 export const dashboardFr = {
+  clinical: clinicalWorkspaceFr,
   common: {
     theme: {
       label: "Thème d’affichage",

@@ -1,15 +1,14 @@
 "use client";
 
-import { useMemo } from "react";
-import { CalendarDays, Menu } from "lucide-react";
-
+import { useEffect, useRef } from "react";
+import { Bell, ChevronDown, Menu, ShieldCheck } from "lucide-react";
+import Link from "next/link";
 import { LanguageSwitcher } from "@/components/shared/LanguageSwitcher";
-import { Button } from "@/components/ui/button";
 import { type Locale } from "@/i18n";
 import { type Direction, type TranslationFunction } from "@/lib/i18n";
-import { cn } from "@/lib/utils";
-import { type DashboardUserSummary } from "@/types/dashboard";
+import { type DashboardNavSection, type DashboardUserSummary } from "@/types/dashboard";
 import { DashboardThemeControl } from "./DashboardThemeControl";
+import { WorkspaceSearch } from "./WorkspaceSearch";
 
 type DashboardHeaderProps = {
   breadcrumbLabel?: string;
@@ -17,91 +16,73 @@ type DashboardHeaderProps = {
   locale: Locale;
   onLocaleChange: (locale: Locale) => void;
   onMenuOpen: () => void;
+  isMenuOpen: boolean;
+  navSections: DashboardNavSection[];
   t: TranslationFunction;
   title: string;
   user: DashboardUserSummary;
 };
 
-export function DashboardHeader({
-  breadcrumbLabel,
-  direction,
-  locale,
-  onLocaleChange,
-  onMenuOpen,
-  t,
-  title,
-  user,
-}: DashboardHeaderProps) {
-  const formattedDate = useMemo(
-    () =>
-      new Intl.DateTimeFormat(locale === "ar" ? "ar-DZ" : "fr-DZ", {
-        day: "2-digit",
-        month: "short",
-        weekday: "short",
-      }).format(new Date()),
-    [locale],
-  );
+export function DashboardHeader({ breadcrumbLabel, locale, onLocaleChange, onMenuOpen, isMenuOpen, navSections, t, title, user }: DashboardHeaderProps) {
+  const headerRef = useRef<HTMLElement>(null);
+  const accountPath = user.accountType === "ESTABLISHMENT" ? "/establishment" : "/doctor";
+
+  useEffect(() => {
+    const closeOutside = (event: PointerEvent) => {
+      headerRef.current?.querySelectorAll<HTMLDetailsElement>("details[open]").forEach((details) => {
+        if (event.target instanceof Node && !details.contains(event.target)) details.open = false;
+      });
+    };
+    const closeEscape = (event: KeyboardEvent) => {
+      if (event.key !== "Escape") return;
+      headerRef.current?.querySelectorAll<HTMLDetailsElement>("details[open]").forEach((details) => {
+        details.open = false;
+        details.querySelector("summary")?.focus();
+      });
+    };
+    document.addEventListener("pointerdown", closeOutside);
+    document.addEventListener("keydown", closeEscape);
+    return () => {
+      document.removeEventListener("pointerdown", closeOutside);
+      document.removeEventListener("keydown", closeEscape);
+    };
+  }, []);
 
   return (
-    <header
-      className="dashboard-chrome relative z-20 border-b border-[var(--line)]"
-      aria-label={`${title} · ${user.workspaceSubtitle}`}
-    >
-      <div className="mx-auto flex w-full max-w-[1500px] flex-col gap-4 px-4 py-5 sm:px-6 lg:flex-row lg:items-center lg:justify-between lg:px-8">
-        <div className="flex min-w-0 items-start gap-3">
-          <Button
-            variant="outline"
-            size="icon"
-            className="mt-0.5 shrink-0 rounded-full border-[var(--line)] bg-[var(--panel)] text-[var(--accent-dark)] lg:hidden"
-            onClick={onMenuOpen}
-            aria-label={t("dashboard.common.actions.menu")}
-          >
-            <Menu className="h-4 w-4" strokeWidth={1.8} />
-          </Button>
-
-          <div className="min-w-0">
-            <div className="flex flex-wrap items-center gap-2 text-[0.76rem] leading-none text-[var(--ink-faint)]">
-              <span className="truncate">
-                {t("dashboard.common.breadcrumb.pages")} /{" "}
-                {breadcrumbLabel ?? t("dashboard.common.breadcrumb.dashboard")}
-              </span>
-              <span className="inline-flex items-center gap-1.5 rounded-full bg-[var(--accent-soft)] px-2.5 py-1.5 font-[var(--font-auth-mono)] text-[0.62rem] font-medium tracking-[0.02em] text-[var(--accent-dark)]">
-                <span
-                  className="h-1.5 w-1.5 rounded-full bg-[var(--accent)]"
-                  aria-hidden="true"
-                />
-                {t("dashboard.common.header.secureWorkspace")}
-              </span>
-            </div>
-            <h1 className="mt-1.5 break-words font-[var(--font-auth-display)] text-2xl font-semibold leading-snug text-[var(--ink)] sm:text-[1.85rem]">
-              {title}
-            </h1>
-          </div>
+    <header ref={headerRef} className="clinical-header" aria-label={title}>
+      <div className="clinical-header-inner">
+        <button type="button" className="clinical-icon-button clinical-mobile-only shrink-0" onClick={onMenuOpen}
+          aria-label={t("dashboard.common.actions.menu")} aria-expanded={isMenuOpen} aria-controls="clinical-sidebar">
+          <Menu size={20} strokeWidth={1.8} />
+        </button>
+        <div className="clinical-header-context hidden min-w-0 shrink-0 md:block">
+          <p className="text-[.68rem] text-[var(--text-secondary)]">{t(user.roleKey)}</p>
+          <p className="mt-0.5 text-sm font-medium">{breadcrumbLabel ?? title}</p>
         </div>
-
-        <div
-          className={cn(
-            "flex shrink-0 flex-wrap items-center gap-2.5",
-            direction === "rtl" ? "justify-start" : "justify-end",
-          )}
-        >
-          <div className="hidden h-11 items-center gap-2.5 rounded-full border border-[var(--line)] bg-[var(--panel)] px-4 text-[0.78rem] font-medium text-[var(--ink-soft)] md:flex">
-            <CalendarDays
-              className="h-4 w-4 text-[var(--ink-faint)]"
-              strokeWidth={1.7}
-              aria-hidden="true"
-            />
-            <span className="whitespace-nowrap">{formattedDate}</span>
+        <div className="min-w-0 flex-1"><WorkspaceSearch sections={navSections} t={t} /></div>
+        <LanguageSwitcher locale={locale} onLocaleChange={onLocaleChange} t={t} variant="compact" />
+        <details className="relative shrink-0">
+          <summary className="clinical-icon-button" aria-label={t("dashboard.clinical.notifications")} title={t("dashboard.clinical.notifications")}>
+            <Bell size={18} strokeWidth={1.8} />
+          </summary>
+          <div className="clinical-popover">
+            <h2 className="mb-2 text-sm font-semibold">{t("dashboard.clinical.notifications")}</h2>
+            <p className="clinical-caption">{t("dashboard.clinical.notificationsNotice")}</p>
           </div>
-
-          <DashboardThemeControl t={t} />
-          <LanguageSwitcher
-            locale={locale}
-            onLocaleChange={onLocaleChange}
-            t={t}
-            variant="compact"
-          />
-        </div>
+        </details>
+        <details className="relative shrink-0">
+          <summary className="clinical-icon-button gap-1" aria-label={t("dashboard.clinical.userMenu")} title={t("dashboard.clinical.userMenu")}>
+            <span className="flex h-8 w-8 items-center justify-center rounded-md bg-[var(--medical-soft)] text-[.65rem] font-semibold text-[var(--medical)]">{user.initials}</span>
+            <ChevronDown size={12} className="hidden xl:block" />
+          </summary>
+          <div className="clinical-popover">
+            <p className="break-words text-sm font-semibold">{user.name}</p>
+            <p className="clinical-caption mb-4 mt-1">{t(user.roleKey)}</p>
+            <DashboardThemeControl t={t} />
+            <Link href={accountPath + "/verification"} className="clinical-link mt-3 flex"><ShieldCheck size={16} strokeWidth={1.8} />{t("dashboard.clinical.actions.verification")}</Link>
+            <Link href={accountPath + "/subscription"} className="clinical-link">{t("dashboard.clinical.actions.subscription")}</Link>
+          </div>
+        </details>
       </div>
     </header>
   );

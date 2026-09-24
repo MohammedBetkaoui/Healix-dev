@@ -1,4 +1,7 @@
+import { clinicalWorkspaceAr } from "./clinical-workspace";
+
 export const dashboardAr = {
+  clinical: clinicalWorkspaceAr,
   common: {
     theme: {
       label: "مظهر الواجهة",

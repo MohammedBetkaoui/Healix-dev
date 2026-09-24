@@ -1,24 +1,13 @@
 "use client";
 
-import {
-  Activity,
-  PanelLeftClose,
-  PanelLeftOpen,
-  Settings,
-  X,
-} from "lucide-react";
-import Link from "next/link";
+import { useEffect, useRef } from "react";
+import { Activity, PanelLeftClose, PanelLeftOpen, X } from "lucide-react";
+import { WorkspaceLink as Link } from "./WorkspaceLink";
 
-import { Button } from "@/components/ui/button";
 import { useLogout } from "@/features/auth/hooks/use-logout";
 import { type Direction, type TranslationFunction } from "@/lib/i18n";
 import { cn } from "@/lib/utils";
-import {
-  type DashboardNavBadgeTone,
-  type DashboardNavItem,
-  type DashboardNavSection,
-  type DashboardUserSummary,
-} from "@/types/dashboard";
+import { type DashboardNavItem, type DashboardNavSection, type DashboardUserSummary } from "@/types/dashboard";
 
 type DashboardSidebarProps = {
   activeKey: string;
@@ -32,285 +21,111 @@ type DashboardSidebarProps = {
   user: DashboardUserSummary;
 };
 
-function badgeClasses(tone: DashboardNavBadgeTone) {
-  if (tone === "red") {
-    return "border border-[var(--danger-line)] bg-[var(--danger-soft)] text-[var(--danger-ink)]";
-  }
-
-  if (tone === "purple") {
-    return "border border-[var(--accent-line)] bg-[var(--accent-soft)] text-[var(--accent-dark)]";
-  }
-
-  return "border border-[var(--accent-line)] bg-[var(--accent-soft)] text-[var(--accent-dark)]";
-}
-
-type NavRowProps = {
-  active: boolean;
-  direction: Direction;
-  isCollapsed: boolean;
-  isLogoutLoading: boolean;
-  item: DashboardNavItem;
-  onLogout: () => void;
-  t: TranslationFunction;
-};
-
-function NavRow({
-  active,
-  direction,
-  isCollapsed,
-  isLogoutLoading,
-  item,
-  onLogout,
-  t,
-}: NavRowProps) {
+function NavRow({ item, active, collapsed, onNavigate, t }: {
+  item: DashboardNavItem; active: boolean; collapsed: boolean; onNavigate: () => void; t: TranslationFunction;
+}) {
   const Icon = item.icon;
-  const label = isLogoutLoading && item.key === "logout"
-    ? `${t(item.labelKey)}...`
-    : t(item.labelKey);
-  const rowClasses = cn(
-    "group relative flex min-h-11 w-full items-center gap-3 rounded-[0.78rem] border border-transparent px-3 text-sm font-medium transition",
-    isCollapsed && "lg:justify-center lg:gap-0 lg:px-0",
-    active
-      ? "border-primary bg-primary text-primary-foreground shadow-sm"
-      : "text-[var(--ink-soft)] hover:bg-[var(--panel-soft)] hover:text-[var(--ink)]",
-  );
-  const rowContent = (
-    <>
-      {active ? (
-        <span
-          className={cn(
-            "absolute top-1/2 h-4 -translate-y-1/2 rounded-full bg-[var(--accent)] shadow-sm",
-            direction === "rtl" ? "right-0 w-0.5" : "left-0 w-0.5",
-          )}
-          aria-hidden="true"
-        />
-      ) : null}
-      <Icon
-        size={16}
-        strokeWidth={1.7}
-        className={cn(
-          "shrink-0 transition",
-          active
-            ? "text-primary-foreground"
-            : "text-[var(--ink-faint)] group-hover:text-[var(--ink)]",
-        )}
-      />
-      <span
-        className={cn(
-          "min-w-0 flex-1 truncate text-start",
-          isCollapsed && "lg:hidden",
-        )}
-      >
-        {label}
-      </span>
-      {item.badge ? (
-        <span
-          className={cn(
-            "inline-flex min-w-7 items-center justify-center rounded-md px-1.5 py-0.5 text-[10px] font-bold tracking-[0.08em]",
-            isCollapsed && "lg:hidden",
-            badgeClasses(item.badge.tone),
-          )}
-        >
-          {item.badge.text}
-        </span>
-      ) : null}
-    </>
-  );
-
-  if (item.key === "logout") {
-    return (
-      <button
-        type="button"
-        className={rowClasses}
-        disabled={isLogoutLoading}
-        onClick={onLogout}
-        title={label}
-        aria-label={label}
-      >
-        {rowContent}
-      </button>
-    );
-  }
-
+  const label = t(item.labelKey);
   return (
-    <Link href={item.href} className={rowClasses} title={label} aria-label={label} aria-current={active ? "page" : undefined}>
-      {rowContent}
+    <Link href={item.href} className={cn("clinical-nav-row", collapsed && "lg:justify-center lg:px-0")}
+      title={label} aria-label={label} aria-current={active ? "page" : undefined} onClick={onNavigate}>
+      <Icon size={17} strokeWidth={1.8} aria-hidden="true" className="shrink-0" />
+      <span className={cn("min-w-0 flex-1 truncate", collapsed && "lg:hidden")}>{label}</span>
     </Link>
   );
 }
 
-export function DashboardSidebar({
-  activeKey,
-  direction,
-  isCollapsed,
-  isOpen,
-  navSections,
-  onClose,
-  onToggleCollapse,
-  t,
-  user,
-}: DashboardSidebarProps) {
+export function DashboardSidebar({ activeKey, direction, isCollapsed, isOpen, navSections, onClose, onToggleCollapse, t, user }: DashboardSidebarProps) {
   const { isLoading: isLogoutLoading, logout } = useLogout();
+  const asideRef = useRef<HTMLElement>(null);
   const CollapseIcon = isCollapsed ? PanelLeftOpen : PanelLeftClose;
+  const logoutItem = navSections.flatMap((section) => section.items).find((item) => item.key === "logout");
+
+  useEffect(() => {
+    if (!isOpen) return;
+    const aside = asideRef.current;
+    if (!aside) return;
+    const previousFocus = document.activeElement instanceof HTMLElement ? document.activeElement : null;
+    const previousOverflow = document.body.style.overflow;
+    const desktop = window.matchMedia("(min-width: 1024px)");
+    const closeOnDesktop = () => { if (desktop.matches) onClose(); };
+    const focusables = () => Array.from(aside.querySelectorAll<HTMLElement>('a[href], button:not(:disabled)'))
+      .filter((element) => element.getClientRects().length > 0);
+    document.body.style.overflow = "hidden";
+    focusables()[0]?.focus();
+    const handleKey = (event: KeyboardEvent) => {
+      if (event.key === "Escape") onClose();
+      if (event.key !== "Tab") return;
+      const items = focusables();
+      const first = items[0];
+      const last = items[items.length - 1];
+      if (event.shiftKey && document.activeElement === first) { event.preventDefault(); last?.focus(); }
+      else if (!event.shiftKey && document.activeElement === last) { event.preventDefault(); first?.focus(); }
+    };
+    aside.addEventListener("keydown", handleKey);
+    desktop.addEventListener("change", closeOnDesktop);
+    closeOnDesktop();
+    return () => {
+      document.body.style.overflow = previousOverflow;
+      aside.removeEventListener("keydown", handleKey);
+      desktop.removeEventListener("change", closeOnDesktop);
+      previousFocus?.focus();
+    };
+  }, [isOpen, onClose]);
 
   return (
     <>
-      <div
-        className={cn(
-          "fixed inset-0 z-30 bg-[#0f172a]/30 transition lg:hidden",
-          isOpen ? "pointer-events-auto opacity-100" : "pointer-events-none opacity-0",
-        )}
-        onClick={onClose}
-        aria-hidden="true"
-      />
-
-      <aside
-        className={cn(
-          "dashboard-chrome fixed inset-y-0 z-40 flex w-[272px] shrink-0 flex-col shadow-xl transition-[transform,width] duration-300 lg:sticky lg:inset-auto lg:top-0 lg:z-0 lg:h-screen lg:translate-x-0 lg:self-start lg:shadow-none",
-          isCollapsed ? "lg:w-[88px]" : "lg:w-[272px]",
-          direction === "rtl"
-            ? "right-0 border-l border-[var(--line)] lg:right-auto"
-            : "left-0 border-r border-[var(--line)] lg:left-auto",
-          isOpen
-            ? "translate-x-0"
-            : direction === "rtl"
-              ? "translate-x-full"
-              : "-translate-x-full",
-        )}
-      >
+      {isOpen ? <button type="button" tabIndex={-1} className="fixed inset-0 z-30 bg-[var(--scrim)] lg:hidden"
+        onClick={onClose} aria-label={t("dashboard.clinical.close")} /> : null}
+      <aside ref={asideRef} id="clinical-sidebar" data-collapsed={isCollapsed}
+        role={isOpen ? "dialog" : undefined} aria-modal={isOpen ? true : undefined}
+        aria-label={t("dashboard.clinical.navigation")}
+        className={cn("dashboard-chrome clinical-sidebar fixed inset-y-0 z-40 flex flex-col transition-[transform,width] duration-200 lg:sticky lg:top-0 lg:z-0 lg:h-dvh lg:translate-x-0 lg:self-start lg:visible",
+          direction === "rtl" ? "right-0" : "left-0",
+          isOpen ? "visible translate-x-0" : direction === "rtl" ? "invisible translate-x-full" : "invisible -translate-x-full")}>
         <div className="border-b border-[var(--line)] px-4 py-4">
-          <div
-            className={cn(
-              "flex items-start justify-between gap-3",
-              isCollapsed && "lg:flex-col lg:items-center lg:justify-start lg:gap-2",
-            )}
-          >
-            <div
-              className={cn(
-                "flex min-w-0 items-center gap-3",
-                isCollapsed && "lg:justify-center lg:gap-0",
-              )}
-            >
-              <span className="relative flex h-12 w-12 shrink-0 items-center justify-center rounded-[0.92rem] bg-primary text-white shadow-sm ">
-                <Activity size={19} strokeWidth={2} />
-              </span>
-              <div className={cn("min-w-0", isCollapsed && "lg:hidden")}>
-                <div className="flex items-center gap-2">
-                  <p className="truncate font-[var(--font-auth-mono)] text-[1.02rem] font-medium tracking-[0.01em] text-[var(--ink)]">
-                    Healix<span className="text-[var(--accent)]">Dz</span>
-                  </p>
-                  <span className="rounded-[0.35rem] border border-[var(--accent-line)] bg-[var(--accent-soft)] px-1.5 py-0.5 font-[var(--font-auth-mono)] text-[9px] font-medium tracking-[0.08em] text-[var(--accent-dark)]">
-                    PRO
-                  </span>
-                </div>
-                <p className="truncate text-xs text-[var(--ink-faint)]">
-                  {user.workspaceSubtitle}
-                </p>
-              </div>
-            </div>
-            <Button
-              variant="outline"
-              size="icon"
-              className="hidden h-9 w-9 rounded-[0.72rem] border-[var(--line)] bg-[var(--panel)] text-[var(--ink-soft)] transition hover:bg-[var(--accent-soft)] hover:text-[var(--accent-dark)] lg:inline-flex"
-              onClick={onToggleCollapse}
-              aria-label={
-                isCollapsed
-                  ? t("dashboard.sidebar.expand")
-                  : t("dashboard.sidebar.collapse")
-              }
-              title={
-                isCollapsed
-                  ? t("dashboard.sidebar.expand")
-                  : t("dashboard.sidebar.collapse")
-              }
-            >
-              <CollapseIcon
-                className={cn("h-4 w-4", direction === "rtl" && "rotate-180")}
-                strokeWidth={1.8}
-              />
-            </Button>
-            <Button
-              variant="ghost"
-              size="icon"
-              className="rounded-full text-[var(--ink-soft)] lg:hidden"
-              onClick={onClose}
-              aria-label="Close"
-            >
-              <X className="h-4 w-4" />
-            </Button>
-          </div>
-        </div>
-
-        <div
-          className={cn(
-            "dashboard-sidebar-scroll flex-1 overflow-y-auto px-4 py-5",
-            isCollapsed && "lg:px-3",
-          )}
-        >
-          {navSections.map((section) => (
-            <section
-              key={section.key}
-              className={cn("mb-6 last:mb-0", isCollapsed && "lg:mb-3")}
-            >
-              <p
-                className={cn(
-                  "px-3 pb-2 font-[var(--font-auth-mono)] text-[10px] font-medium uppercase tracking-[0.18em] text-[var(--ink-faint)]",
-                  isCollapsed && "lg:sr-only",
-                )}
-              >
-                {t(section.titleKey)}
-              </p>
-              <div className="space-y-0.5">
-                {section.items.map((item) => (
-                  <NavRow
-                    key={item.key}
-                    active={item.key === activeKey}
-                    direction={direction}
-                    isCollapsed={isCollapsed}
-                    isLogoutLoading={isLogoutLoading}
-                    item={item}
-                    onLogout={() => {
-                      void logout();
-                    }}
-                    t={t}
-                  />
-                ))}
-              </div>
-            </section>
-          ))}
-        </div>
-
-        <div className="mt-auto border-t border-[var(--line)] px-4 py-3">
-          <div
-            className={cn(
-              "flex items-center gap-3",
-              isCollapsed && "lg:justify-center lg:gap-0",
-            )}
-          >
-            <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-[0.78rem] border border-[var(--accent-deep)] bg-primary text-sm font-semibold text-primary-foreground shadow-sm">
-              {user.initials}
-            </span>
-            <div className={cn("min-w-0 flex-1", isCollapsed && "lg:hidden")}>
-              <p className="truncate text-sm font-medium text-[var(--ink)]">
-                {user.name}
-              </p>
-              <div className="flex items-center gap-1.5">
-                <p className="truncate text-xs text-[var(--ink-soft)]">
-                  {user.footerSubtitle}
-                </p>
-              </div>
-            </div>
-            <button
-              type="button"
-              className={cn(
-                "inline-flex h-9 w-9 items-center justify-center rounded-full text-[var(--ink-faint)] transition hover:bg-[var(--accent-soft)] hover:text-[var(--accent-dark)]",
-                isCollapsed && "lg:hidden",
-              )}
-              aria-label={t("dashboard.sidebar.establishment.settings")}
-            >
-              <Settings size={16} strokeWidth={1.7} />
+          <div className={cn("flex items-center gap-2", isCollapsed && "lg:flex-col")}>
+            <span className="healix-mark" aria-hidden="true"><Activity size={22} strokeWidth={1.8} /></span>
+            <p className={cn("min-w-0 flex-1 text-lg font-semibold tracking-tight", isCollapsed && "lg:hidden")} dir="ltr">
+              Healix<span className="text-[var(--medical)]">Dz</span>
+            </p>
+            <button type="button" className="clinical-icon-button clinical-desktop-only" onClick={onToggleCollapse}
+              aria-label={t(isCollapsed ? "dashboard.sidebar.expand" : "dashboard.sidebar.collapse")}
+              title={t(isCollapsed ? "dashboard.sidebar.expand" : "dashboard.sidebar.collapse")} aria-expanded={!isCollapsed}>
+              <CollapseIcon size={17} strokeWidth={1.8} className="clinical-directional" />
+            </button>
+            <button type="button" className="clinical-icon-button clinical-mobile-only" onClick={onClose} aria-label={t("dashboard.clinical.close")}>
+              <X size={18} strokeWidth={1.8} />
             </button>
           </div>
+          <div className={cn("mt-4 border-s-2 border-[var(--accent-line)] ps-3", isCollapsed && "lg:hidden")}>
+            <p className="truncate text-sm font-medium" title={user.workspaceSubtitle}>{user.workspaceSubtitle}</p>
+            <p className="mt-1 text-xs text-[var(--ink-faint)]">{t(user.roleKey)}</p>
+          </div>
+        </div>
+        <nav className={cn("dashboard-sidebar-scroll flex-1 overflow-y-auto px-3 py-4", isCollapsed && "lg:px-2")}>
+          {navSections.map((section) => (
+            <section key={section.key} className="mb-4 last:mb-0">
+              <h2 className={cn("clinical-nav-heading", isCollapsed && "lg:sr-only")}>{t(section.titleKey)}</h2>
+              {section.items.filter((item) => item.key !== "logout").map((item) => (
+                <NavRow key={item.key} item={item} active={item.key === activeKey} collapsed={isCollapsed} onNavigate={onClose} t={t} />
+              ))}
+            </section>
+          ))}
+        </nav>
+        <div className="mt-auto border-t border-[var(--line)] p-3">
+          <div className={cn("mb-2 flex items-center gap-3 px-2 py-1", isCollapsed && "lg:justify-center lg:px-0")}>
+            <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-md bg-[var(--panel-soft)] text-xs font-semibold">{user.initials}</span>
+            <div className={cn("min-w-0", isCollapsed && "lg:hidden")}>
+              <p className="truncate text-xs font-medium" title={user.name}>{user.name}</p>
+              <p className="mt-1 truncate text-[.65rem] text-[var(--ink-faint)]">{user.footerSubtitle}</p>
+            </div>
+          </div>
+          {logoutItem ? <button type="button" className={cn("clinical-nav-row w-full disabled:opacity-60", isCollapsed && "lg:justify-center")}
+            disabled={isLogoutLoading} onClick={() => { void logout(); }} aria-label={t(logoutItem.labelKey)} title={t(logoutItem.labelKey)}>
+            <logoutItem.icon size={17} strokeWidth={1.8} aria-hidden="true" />
+            <span className={cn(isCollapsed && "lg:hidden")}>{t(logoutItem.labelKey)}{isLogoutLoading ? "…" : ""}</span>
+          </button> : null}
         </div>
       </aside>
     </>

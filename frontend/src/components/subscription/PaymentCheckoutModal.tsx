@@ -145,7 +145,7 @@ export function PaymentCheckoutModal({
         aria-labelledby="payment-modal-title"
         aria-describedby="payment-modal-description"
         tabIndex={-1}
-        className="dashboard-theme flex max-h-[calc(100dvh-1.5rem)] w-full max-w-6xl flex-col overflow-hidden rounded-xl border border-[var(--line)] shadow-xl outline-none sm:max-h-[calc(100dvh-3rem)]"
+        className="dashboard-theme clinical-theme flex max-h-[calc(100dvh-1.5rem)] w-full max-w-6xl flex-col overflow-hidden rounded-xl border border-[var(--line)] shadow-xl outline-none sm:max-h-[calc(100dvh-3rem)]"
       >
         <header className="flex shrink-0 items-start justify-between gap-4 border-b border-[var(--line)] bg-[var(--panel)] px-5 py-4 sm:px-7 sm:py-5">
           <div className="flex min-w-0 items-start gap-3 sm:gap-4">
