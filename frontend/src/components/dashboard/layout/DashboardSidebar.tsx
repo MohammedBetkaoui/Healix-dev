@@ -1,8 +1,10 @@
 "use client";
 
 import { useEffect, useRef } from "react";
-import { Activity, PanelLeftClose, PanelLeftOpen, X } from "lucide-react";
+import { PanelLeftClose, PanelLeftOpen, X } from "lucide-react";
 import { WorkspaceLink as Link } from "./WorkspaceLink";
+
+import { HealixLogo } from "@/components/shared/HealixLogo";
 
 import { useLogout } from "@/features/auth/hooks/use-logout";
 import { type Direction, type TranslationFunction } from "@/lib/i18n";
@@ -40,6 +42,8 @@ export function DashboardSidebar({ activeKey, direction, isCollapsed, isOpen, na
   const asideRef = useRef<HTMLElement>(null);
   const CollapseIcon = isCollapsed ? PanelLeftOpen : PanelLeftClose;
   const logoutItem = navSections.flatMap((section) => section.items).find((item) => item.key === "logout");
+  // Navbar ouverte (étendue ou drawer mobile) -> logo avec titre, sinon logo sans titre.
+  const showFullLogo = !isCollapsed || isOpen;
 
   useEffect(() => {
     if (!isOpen) return;
@@ -84,11 +88,14 @@ export function DashboardSidebar({ activeKey, direction, isCollapsed, isOpen, na
           direction === "rtl" ? "right-0" : "left-0",
           isOpen ? "visible translate-x-0" : direction === "rtl" ? "invisible translate-x-full" : "invisible -translate-x-full")}>
         <div className="border-b border-[var(--line)] px-4 py-4">
-          <div className={cn("flex items-center gap-2", isCollapsed && "lg:flex-col")}>
-            <span className="healix-mark" aria-hidden="true"><Activity size={22} strokeWidth={1.8} /></span>
-            <p className={cn("min-w-0 flex-1 text-lg font-semibold tracking-tight", isCollapsed && "lg:hidden")} dir="ltr">
-              Healix<span className="text-[var(--medical)]">Dz</span>
-            </p>
+          <div className={cn("flex items-center gap-2", isCollapsed && !isOpen && "lg:justify-center lg:flex-col")}>
+            {showFullLogo ? (
+              <span className={cn("min-w-0 flex-1", isCollapsed && "lg:hidden")}>
+                <HealixLogo variant="full" priority />
+              </span>
+            ) : (
+              <HealixLogo variant="mark" priority />
+            )}
             <button type="button" className="clinical-icon-button clinical-desktop-only" onClick={onToggleCollapse}
               aria-label={t(isCollapsed ? "dashboard.sidebar.expand" : "dashboard.sidebar.collapse")}
               title={t(isCollapsed ? "dashboard.sidebar.expand" : "dashboard.sidebar.collapse")} aria-expanded={!isCollapsed}>

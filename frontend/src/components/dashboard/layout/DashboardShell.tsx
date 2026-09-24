@@ -93,7 +93,7 @@ export function DashboardShell({
               user={{ ...user, accountType }}
             />
             <DashboardContent>
-              {activeKey === "verification" || (activeKey === "dashboard" && accountType !== "ESTABLISHMENT") ? (
+              {activeKey === "verification" ? (
                 <h1 className="mb-5 text-xl font-semibold text-[var(--text-primary)]">{t(titleKey)}</h1>
               ) : null}
               {children}

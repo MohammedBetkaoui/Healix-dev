@@ -65,13 +65,13 @@ export const establishmentNavSections: DashboardNavSection[] = [
 export const doctorNavSections: DashboardNavSection[] = [
   {
     key: "clinic",
-    titleKey: "dashboard.sidebar.sections.clinic",
+    titleKey: "dashboard.clinical.nav.clinical",
     items: [
       {
         href: "/doctor/dashboard",
         icon: LayoutDashboard,
         key: "dashboard",
-        labelKey: "dashboard.sidebar.doctor.dashboard",
+        labelKey: "dashboard.clinical.nav.overview",
       },
       {
         href: "/doctor/patients",
@@ -101,7 +101,7 @@ export const doctorNavSections: DashboardNavSection[] = [
   },
   {
     key: "ai",
-    titleKey: "dashboard.sidebar.sections.ai",
+    titleKey: "dashboard.clinical.nav.intelligence",
     items: [
       {
         badge: { text: "IA", tone: "blue" },
@@ -126,7 +126,7 @@ export const doctorNavSections: DashboardNavSection[] = [
   },
   {
     key: "communication",
-    titleKey: "dashboard.sidebar.sections.communication",
+    titleKey: "dashboard.clinical.nav.collaboration",
     items: [
       {
         badge: { text: "3", tone: "blue" },
@@ -146,7 +146,7 @@ export const doctorNavSections: DashboardNavSection[] = [
   },
   {
     key: "account",
-    titleKey: "dashboard.sidebar.sections.account",
+    titleKey: "dashboard.clinical.nav.management",
     items: [
       {
         href: "/doctor/verification",

@@ -4,7 +4,13 @@ import type { TranslationFunction } from "@/lib/i18n";
 import type { DashboardAccountStatusPresentation } from "./account-status-presentation";
 import { StatusBadge } from "./StatusBadge";
 
-export function WorkspaceStatus({ status, isError, onRetry, t }: { status: DashboardAccountStatusPresentation; isError: boolean; onRetry: () => void; t: TranslationFunction }) {
+export function WorkspaceStatus({ status, isError, onRetry, t, verificationHref = "/establishment/verification" }: {
+  status: DashboardAccountStatusPresentation;
+  isError: boolean;
+  onRetry: () => void;
+  t: TranslationFunction;
+  verificationHref?: "/establishment/verification" | "/doctor/verification";
+}) {
   return (
     <section className="workspace-status surface-section" aria-labelledby="workspace-status-heading">
       <div className="flex flex-wrap items-center justify-between gap-2">
@@ -14,7 +20,7 @@ export function WorkspaceStatus({ status, isError, onRetry, t }: { status: Dashb
       <p className="clinical-caption mt-3">{status.cardDescription}</p>
       <p className="mt-2 text-[.65rem] text-[var(--text-muted)]">{t("dashboard.clinical.account.source")}</p>
       {isError ? <button type="button" onClick={onRetry} className="clinical-link mt-1">{t("dashboard.clinical.account.retry")}</button> :
-        <Link href="/establishment/verification" className="clinical-link mt-1">{status.actionLabel ?? t("dashboard.clinical.actions.verification")}</Link>}
+        <Link href={verificationHref} className="clinical-link mt-1">{status.actionLabel ?? t("dashboard.clinical.actions.verification")}</Link>}
     </section>
   );
 }

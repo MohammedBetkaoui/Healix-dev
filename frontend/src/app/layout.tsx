@@ -9,6 +9,13 @@ import { Providers } from "./providers";
 export const metadata: Metadata = {
   title: commonFr.metadata.appTitle,
   description: commonFr.metadata.appDescription,
+  icons: {
+    icon: [
+      { url: "/HealixDz-logo/logo.svg", type: "image/svg+xml" },
+    ],
+    shortcut: "/HealixDz-logo/logo.svg",
+    apple: "/HealixDz-logo/logo.svg",
+  },
 };
 
 export default function RootLayout({

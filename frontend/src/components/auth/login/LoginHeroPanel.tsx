@@ -1,3 +1,4 @@
+import { HealixLogo } from "@/components/shared/HealixLogo";
 import styles from "./LoginPage.module.css";
 
 const trustItems = [
@@ -37,19 +38,10 @@ export function LoginHeroPanel({ t }: LoginHeroPanelProps) {
   return (
     <aside className={styles.heroPanel}>
       <div className={styles.brand} aria-label="HealixDz">
-        <span className={styles.brandMark} aria-hidden="true">
-          <svg viewBox="0 0 24 24" fill="none">
-            <path d="M2 12h4l2-7 4 14 3-9 2 4h5" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
-          </svg>
-        </span>
-        <div>
-          <p className={styles.brandName}>
-            Healix<span className={styles.brandNameAccent}>Dz</span>
-          </p>
-          <p className={styles.brandSubtitle}>
-            {t("login.brandSubtitle")}
-          </p>
-        </div>
+        <HealixLogo variant="full" priority />
+        <p className={styles.brandSubtitle}>
+          {t("login.brandSubtitle")}
+        </p>
       </div>
 
       <div className={styles.heroCopy}>

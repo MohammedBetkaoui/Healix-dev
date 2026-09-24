@@ -3,6 +3,7 @@ import { existsSync, readFileSync } from "node:fs";
 import { test } from "node:test";
 
 import { establishmentDemo } from "../src/data/dashboard-establishment.mock.ts";
+import { doctorDemo } from "../src/data/dashboard-doctor.mock.ts";
 import { clinicalWorkspaceFr } from "../src/i18n/locales/fr/clinical-workspace.ts";
 import { clinicalWorkspaceAr } from "../src/i18n/locales/ar/clinical-workspace.ts";
 
@@ -55,4 +56,16 @@ test("all concrete clinical navigation destinations have an existing page", () =
   for (const [, route] of source.matchAll(/href: "(\/(?:establishment|doctor)\/[^"#]+)"/g)) {
     assert.ok(existsSync(new URL(`../src/app${route}/page.tsx`, import.meta.url)), route);
   }
+});
+
+test("doctor demo separates specialty distribution from workflow status", () => {
+  assert.equal(doctorDemo.source, "demo");
+  assert.equal(doctorDemo.ai.specialties.reduce((sum, item) => sum + item.count, 0), doctorDemo.metrics.analyses);
+  assert.ok(doctorDemo.ai.pending <= doctorDemo.metrics.analyses);
+  for (const { key } of doctorDemo.ai.specialties) {
+    assert.ok(clinicalWorkspaceFr.ai[key]);
+    assert.ok(clinicalWorkspaceAr.ai[key]);
+    assert.ok(!["reports", "pending", "completed"].includes(key));
+  }
+  assert.equal(doctorDemo.activity.at(-1).day - doctorDemo.activity[0].day, 29);
 });

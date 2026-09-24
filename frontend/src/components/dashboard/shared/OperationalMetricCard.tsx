@@ -1,7 +1,7 @@
 import type { LucideIcon } from "lucide-react";
 
 export function OperationalMetricCard({ label, value, denominator, hint, icon: Icon, tone = "default" }: {
-  label: string; value: string; denominator?: string; hint: string; icon: LucideIcon; tone?: "default" | "medical" | "warning";
+  label: string; value: string; denominator?: string; hint: string; icon: LucideIcon; tone?: "default" | "medical" | "warning" | "ai";
 }) {
   return (
     <div className="operational-metric" data-tone={tone}>

@@ -7,7 +7,8 @@ flux patients, activité clinique, activité récente, assistance IA, actions ra
 statut du compte. Le statut n’est plus une métrique métier.
 
 Aucun changement backend, endpoint inventé, nouvelle dépendance ni modification
-de l’authentification. Le contenu du dashboard médecin est conservé. Admin et
+de l’authentification. Les fonctions du dashboard médecin sont conservées et sa
+présentation reprend désormais le même design system clinique. Admin et
 Login/Register ne reçoivent pas le nouveau thème clinique.
 
 ## Fichiers et composants
@@ -27,7 +28,7 @@ Login/Register ne reçoivent pas le nouveau thème clinique.
   conservée à travers le portail du modal.
 - `src/i18n/locales/{fr,ar}/clinical-workspace.ts` et `dashboard.ts` : textes et intégration FR/AR.
 - `src/data/dashboard-establishment.mock.ts` : seules données métier de démonstration.
-- `scripts/clinical-workspace.test.mjs` : cinq tests sans dépendance supplémentaire.
+- `scripts/clinical-workspace.test.mjs` : six tests sans dépendance supplémentaire.
 
 ## Identité et fonctionnement
 
@@ -63,7 +64,7 @@ Les périodes 7/90 jours restent désactivées, seule la présentation 30 jours 
   `components/admin/verifications/detail/VerificationDocumentModal.tsx:167`.
 - `npx tsc --noEmit` : réussi.
 - `npm run build` : réussi, avec accès réseau pour les polices Google déjà configurées.
-- `node --experimental-strip-types --test scripts/clinical-workspace.test.mjs` : 5/5.
+- `node --experimental-strip-types --test scripts/clinical-workspace.test.mjs` : 6/6.
   Node 22 peut afficher son avertissement de détection automatique ESM pour les imports TypeScript.
 - Navigateur : 375, 768, 1024, 1440 et 1920 px, FR/AR, clair/sombre ; aucun débordement
   global constaté dans les sections du nouveau dashboard. Drawer, repli, Échap,
@@ -78,3 +79,21 @@ Les périodes 7/90 jours restent désactivées, seule la présentation 30 jours 
 Les vérifications visuelles utilisent les aperçus de développement existants
 `/theme-review/*`, pas des comptes de production. Les opérations authentifiées de
 création de patient, soumission de documents et paiement n’ont pas été exécutées.
+
+## Harmonisation de l’espace médecin indépendant
+
+`DoctorDashboard.tsx` reprend l’introduction compacte, les métriques regroupées,
+les surfaces et les couleurs du thème clinique, avec son propre contenu métier.
+Les patients, rapports et analyses restent visibles ; le statut réel du compte est
+déplacé dans le panneau secondaire. Aucun flux hospitalier n’a été ajouté au médecin.
+
+`CompactQuickActions`, `WorkspaceStatus` et `HealixAIWidget` acceptent désormais
+des actions, une route de vérification et une période adaptés au profil. Les valeurs
+par défaut conservent le fonctionnement de l’établissement. `UsageChart` possède
+une variante clinique compacte, sans dégradé, et garde ses données accessibles.
+Tous les liens médecin restent dans `/doctor/*` ou conservent leurs ancres existantes.
+
+Les données métier médecin sont explicitement simulées dans
+`src/data/dashboard-doctor.mock.ts`. La répartition IA distingue les spécialités des
+statuts ; les rapports ne sont plus présentés comme une spécialité médicale.
+Le nom affiché provient du compte connecté, avec un intitulé générique en absence de données.

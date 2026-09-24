@@ -12,7 +12,13 @@ import { SubscriptionPage } from "@/components/subscription/SubscriptionPage";
 export function ThemeReview({ view }: { view: string }) {
   const [client] = useState(() => {
     const query = new QueryClient({ defaultOptions: { queries: { retry: false, enabled: false, staleTime: Infinity } } });
-    query.setQueryData(["auth", "me"], { id: "preview", role: "ESTABLISHMENT_ADMIN", fullName: "Clinique Démonstration", accountStatus: "PENDING_VERIFICATION", verificationStatus: "PENDING_VERIFICATION" });
+    query.setQueryData(["auth", "me"], {
+      id: "preview",
+      role: view === "doctor" ? "INDEPENDENT_DOCTOR" : "ESTABLISHMENT_ADMIN",
+      fullName: view === "doctor" ? "Dr Démonstration" : "Clinique Démonstration",
+      accountStatus: "PENDING_VERIFICATION",
+      verificationStatus: "PENDING_VERIFICATION",
+    });
     query.setQueryData(["admin-auth", "me"], { id: "preview", role: "SUPER_ADMIN", fullName: "Administration Démonstration", email: "preview@example.invalid" });
     query.setQueryData(["admin", "dashboard", "overview"], {
       stats: { pendingVerifications: 12, verifiedRequests: 48, rejectedRequests: 3, totalUsers: 164, establishments: 64, independentDoctors: 100 },

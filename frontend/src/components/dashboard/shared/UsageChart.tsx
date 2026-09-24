@@ -3,7 +3,7 @@
 import { useId } from "react";
 import { type DashboardBarPoint, type DashboardLinePoint } from "@/types/dashboard";
 
-type UsageChartProps =
+type UsageChartProps = { variant?: "default" | "clinical" } & (
   | {
       data: DashboardLinePoint[];
       legendPrimary: string;
@@ -21,7 +21,7 @@ type UsageChartProps =
       subtitle: string;
       title: string;
       type: "bar";
-    };
+    });
 
 function buildPolyline(
   data: DashboardLinePoint[],
@@ -124,8 +124,9 @@ export function UsageChart(props: UsageChartProps) {
     );
   }
 
+  const isClinical = props.variant === "clinical";
   const width = 720;
-  const height = 240;
+  const height = isClinical ? 180 : 240;
   const sharedMaxValue = Math.max(
     ...props.data.flatMap((entry) => [entry.primary, entry.secondary ?? 0]),
     1,
@@ -147,66 +148,69 @@ export function UsageChart(props: UsageChartProps) {
   const areaPath = buildAreaPath(props.data, height, width, sharedMaxValue);
 
   return (
-    <section className="rounded-xl border border-[var(--line)] bg-[var(--panel)]/94 p-6 shadow-sm">
-      <div className="mb-6 flex flex-wrap items-start justify-between gap-4">
+    <section className={isClinical ? "surface-section clinical-usage-chart" : "rounded-xl border border-[var(--line)] bg-[var(--panel)]/94 p-6 shadow-sm"}>
+      <div className={isClinical ? "clinical-section-heading" : "mb-6 flex flex-wrap items-start justify-between gap-4"}>
         <div>
           <h2 className="font-[var(--font-auth-display)] text-[1.2rem] font-medium text-[var(--ink)]">{props.title}</h2>
-          <p className="mt-1 text-sm text-[var(--ink-soft)]">{props.subtitle}</p>
+          <p className={isClinical ? "clinical-caption mt-1" : "mt-1 text-sm text-[var(--ink-soft)]"}>{props.subtitle}</p>
         </div>
-        <div className="inline-flex items-center rounded-full border border-[var(--line)] bg-[var(--panel-soft)] px-4 py-2 font-[var(--font-auth-mono)] text-[0.66rem] font-medium text-[var(--ink-soft)]">
+        <div className={isClinical ? "clinical-caption rounded-md bg-[var(--surface-muted)] px-3 py-2" : "inline-flex items-center rounded-full border border-[var(--line)] bg-[var(--panel-soft)] px-4 py-2 font-[var(--font-auth-mono)] text-[0.66rem] font-medium text-[var(--ink-soft)]"}>
           {props.periodLabel}
         </div>
       </div>
-      <div className="rounded-[0.9rem] border border-[var(--line-soft)] bg-[linear-gradient(180deg,var(--panel)_0%,var(--panel-soft)_100%)] p-4">
-        <svg
-          viewBox={`0 0 ${width} ${height}`}
-          className="h-[240px] w-full"
-          preserveAspectRatio="none"
-          aria-hidden="true"
-        >
-          <defs>
-            <linearGradient id={gradientId} x1="0" y1="0" x2="0" y2="1">
-              <stop offset="0%" stopColor="var(--chart-primary)" stopOpacity="0.16" />
-              <stop offset="100%" stopColor="var(--accent-soft)" stopOpacity="0.18" />
-            </linearGradient>
-          </defs>
-          {[0, 1, 2, 3].map((index) => (
-            <line
-              key={index}
-              x1="0"
-              x2={width}
-              y1={(height / 4) * index + 12}
-              y2={(height / 4) * index + 12}
-              stroke="var(--line)"
-              strokeDasharray="4 6"
+      <div className={isClinical ? "clinical-chart overflow-x-auto" : "rounded-[0.9rem] border border-[var(--line-soft)] bg-[linear-gradient(180deg,var(--panel)_0%,var(--panel-soft)_100%)] p-4"}
+        role={isClinical ? "region" : undefined} aria-label={isClinical ? props.title : undefined} tabIndex={isClinical ? 0 : undefined} dir="ltr">
+        <div className={isClinical ? "min-w-[480px]" : undefined}>
+          <svg
+            viewBox={`0 0 ${width} ${height}`}
+            className={isClinical ? "h-[180px] w-full" : "h-[240px] w-full"}
+            preserveAspectRatio="none"
+            aria-hidden="true"
+          >
+            <defs>
+              <linearGradient id={gradientId} x1="0" y1="0" x2="0" y2="1">
+                <stop offset="0%" stopColor="var(--chart-primary)" stopOpacity="0.16" />
+                <stop offset="100%" stopColor="var(--accent-soft)" stopOpacity="0.18" />
+              </linearGradient>
+            </defs>
+            {[0, 1, 2, 3].map((index) => (
+              <line
+                key={index}
+                x1="0"
+                x2={width}
+                y1={(height / 4) * index + 12}
+                y2={(height / 4) * index + 12}
+                stroke="var(--line)"
+                strokeDasharray="4 6"
+              />
+            ))}
+            {!isClinical ? <path d={areaPath} fill={`url(#${gradientId})`} /> : null}
+            <polyline
+              fill="none"
+              points={secondaryPoints}
+              stroke="var(--chart-secondary)"
+              strokeDasharray="6 5"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              strokeWidth="2"
             />
-          ))}
-          <path d={areaPath} fill={`url(#${gradientId})`} />
-          <polyline
-            fill="none"
-            points={secondaryPoints}
-            stroke="var(--chart-secondary)"
-            strokeDasharray="6 5"
-            strokeLinecap="round"
-            strokeLinejoin="round"
-            strokeWidth="2"
-          />
-          <polyline
-            fill="none"
-            points={primaryPoints}
-            stroke="var(--chart-primary)"
-            strokeLinecap="round"
-            strokeLinejoin="round"
-            strokeWidth="2.5"
-          />
-        </svg>
-        <div className="mt-3 grid grid-cols-6 gap-2 text-center font-[var(--font-auth-mono)] text-[0.62rem] font-medium text-[var(--ink-faint)]">
-          {props.data.map((entry) => (
-            <span key={entry.label}>{entry.label}</span>
-          ))}
+            <polyline
+              fill="none"
+              points={primaryPoints}
+              stroke="var(--chart-primary)"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              strokeWidth="2.5"
+            />
+          </svg>
+          <div className="mt-3 grid grid-cols-6 gap-2 text-center font-[var(--font-auth-mono)] text-[0.62rem] font-medium text-[var(--ink-faint)]">
+            {props.data.map((entry) => (
+              <span key={entry.label}>{entry.label}</span>
+            ))}
+          </div>
         </div>
       </div>
-      <div className="mt-6 flex flex-wrap gap-4 text-xs text-[var(--ink-soft)]">
+      <div className={isClinical ? "chart-legend px-5 pb-5" : "mt-6 flex flex-wrap gap-4 text-xs text-[var(--ink-soft)]"}>
         <span className="inline-flex items-center gap-2">
           <span className="h-2.5 w-2.5 rounded-full bg-[var(--chart-primary)]" />
           {props.legendPrimary}
