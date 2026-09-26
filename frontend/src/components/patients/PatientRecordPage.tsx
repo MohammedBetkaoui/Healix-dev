@@ -11,12 +11,12 @@ import {
   Stethoscope,
   UserRound,
 } from "lucide-react";
-import { useMemo, useState } from "react";
+import { useState } from "react";
 
 import { DashboardShell } from "@/components/dashboard/layout/DashboardShell";
 import { doctorNavSections, establishmentNavSections } from "@/components/dashboard/layout/navigation";
 import { Button } from "@/components/ui/button";
-import { getMockPatientById } from "@/data/patients.mock";
+import { usePatient } from "@/features/patients/hooks/use-patient";
 import { formatPatientDate, formatPatientDateTime, getPatientAge } from "@/features/patients/patient-registry";
 import { useStoredLocale, useTranslation } from "@/lib/i18n";
 import { cn } from "@/lib/utils";
@@ -86,7 +86,7 @@ export function PatientRecordPage({ accountType, patientId }: PatientRecordPageP
   const { locale } = useStoredLocale();
   const { t } = useTranslation(locale);
   const localized = copy[locale];
-  const patient = useMemo(() => getMockPatientById(patientId, locale), [locale, patientId]);
+  const { data: patient, isError, isLoading } = usePatient(patientId);
   const [activeTab, setActiveTab] = useState<RecordTab>("summary");
 
   const shellProps = accountType === "ESTABLISHMENT"
@@ -101,7 +101,15 @@ export function PatientRecordPage({ accountType, patientId }: PatientRecordPageP
         user: { accountType: "INDEPENDENT_DOCTOR" as const, footerSubtitle: "Neurologie", initials: "SB", name: "Dr Samir Benali", roleKey: "dashboard.common.roles.doctor", workspaceSubtitle: "Cabinet HealixDZ" },
       };
 
-  if (!patient) {
+  if (isLoading) {
+    return (
+      <DashboardShell {...shellProps} activeKey="patients" breadcrumbLabel={t("patients.page.breadcrumb")} titleKey={accountType === "ESTABLISHMENT" ? "patients.page.title" : "patients.page.doctorTitle"}>
+        <EmptyTab label={t("patients.states.loading")} />
+      </DashboardShell>
+    );
+  }
+
+  if (isError || !patient) {
     return (
       <DashboardShell {...shellProps} activeKey="patients" breadcrumbLabel={t("patients.page.breadcrumb")} titleKey={accountType === "ESTABLISHMENT" ? "patients.page.title" : "patients.page.doctorTitle"}>
         <EmptyTab label={localized.notFound} />

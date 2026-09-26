@@ -1,30 +1,60 @@
 "use client";
 
-import { useEffect, useMemo } from "react";
+import { useMemo } from "react";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { Edit3, X } from "lucide-react";
 import { useForm } from "react-hook-form";
 
 import { Button } from "@/components/ui/button";
+import { useUpdatePatient } from "@/features/patients/hooks/use-update-patient";
+import { type UpdatePatientPayload } from "@/features/patients/patients.types";
 import { type Direction, type TranslationFunction } from "@/lib/i18n";
 import { cn } from "@/lib/utils";
-import { type Patient, type PatientFormValues } from "@/types/patient";
+import {
+  type Patient,
+  type PatientFormValues,
+  type PatientGender,
+  type PatientInsurance,
+  type PatientSector,
+} from "@/types/patient";
 
 import { PatientFormFields } from "./PatientFormFields";
-import {
-  createPatientFormSchema,
-  createPatientFromForm,
-  getPatientFormValues,
-} from "./patient-form";
+import { createPatientFormSchema, getPatientFormValues } from "./patient-form";
 
 type EditPatientModalProps = {
   direction: Direction;
   isOpen: boolean;
   onClose: () => void;
-  onUpdate: (patient: Patient) => void;
+  onUpdate: () => void;
   patient: Patient | null;
   t: TranslationFunction;
 };
+
+function buildUpdatePayload(values: PatientFormValues): UpdatePatientPayload {
+  const [, wilayaName] = values.wilaya.split("|");
+
+  return {
+    address: values.address,
+    birthDate: values.birthDate,
+    commune: values.commune,
+    email: values.email || undefined,
+    emergencyContactName: values.emergencyContactName,
+    emergencyContactPhone: values.emergencyContactPhone.replace(/\D/g, ""),
+    firstName: values.firstName,
+    firstNameAr: values.firstNameAr,
+    gender: values.gender as PatientGender,
+    hospitalRecordNumber: values.hospitalRecordNumber || undefined,
+    insurance: values.insurance as PatientInsurance,
+    insuredNumber: values.insuredNumber || undefined,
+    lastName: values.lastName,
+    lastNameAr: values.lastNameAr,
+    nationalId: values.nationalId,
+    phone: values.phone.replace(/\D/g, ""),
+    sector: values.sector as PatientSector,
+    smsEnabled: values.smsEnabled,
+    wilaya: wilayaName ?? values.wilaya,
+  };
+}
 
 export function EditPatientModal({
   direction,
@@ -35,30 +65,32 @@ export function EditPatientModal({
   t,
 }: EditPatientModalProps) {
   const schema = useMemo(() => createPatientFormSchema(t), [t]);
+  const updatePatientMutation = useUpdatePatient();
   const {
     formState: { errors, isSubmitting },
     handleSubmit,
     register,
-    reset,
     watch,
   } = useForm<PatientFormValues>({
     defaultValues: getPatientFormValues(patient ?? undefined),
     resolver: zodResolver(schema),
+    values: getPatientFormValues(patient ?? undefined),
   });
-
-  useEffect(() => {
-    if (isOpen) {
-      reset(getPatientFormValues(patient ?? undefined));
-    }
-  }, [isOpen, patient, reset]);
 
   if (!isOpen || !patient) {
     return null;
   }
 
   const submit = (values: PatientFormValues) => {
-    onUpdate(createPatientFromForm(values, patient));
-    onClose();
+    updatePatientMutation.mutate(
+      { id: patient.id, payload: buildUpdatePayload(values) },
+      {
+        onSuccess: () => {
+          onUpdate();
+          onClose();
+        },
+      },
+    );
   };
 
   return (
@@ -105,11 +137,16 @@ export function EditPatientModal({
             t={t}
             watch={watch}
           />
+          {updatePatientMutation.isError ? (
+            <p className="mt-4 text-xs text-destructive">
+              {t("patients.states.submitError")}
+            </p>
+          ) : null}
           <div className="mt-8 flex flex-col-reverse gap-3 border-t border-border pt-5 sm:flex-row sm:justify-end">
             <Button variant="outline" onClick={onClose}>
               {t("patients.actions.cancel")}
             </Button>
-            <Button type="submit" disabled={isSubmitting}>
+            <Button type="submit" disabled={isSubmitting || updatePatientMutation.isPending}>
               {t("patients.actions.save")}
             </Button>
           </div>

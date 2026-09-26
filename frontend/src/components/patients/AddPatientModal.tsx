@@ -6,6 +6,7 @@ import { useMemo, useState } from "react";
 import { useForm } from "react-hook-form";
 
 import { Button } from "@/components/ui/button";
+import { useCreatePatient } from "@/features/patients/hooks/use-create-patient";
 import {
   findPotentialPatientDuplicate,
   formatAlgerianPhone,
@@ -13,13 +14,20 @@ import {
   maskPatientName,
   type PotentialPatientDuplicate,
 } from "@/features/patients/patient-registry";
+import { type CreatePatientPayload } from "@/features/patients/patients.types";
 import { type Locale } from "@/i18n";
 import { type Direction, type TranslationFunction } from "@/lib/i18n";
 import { cn } from "@/lib/utils";
-import { type Patient, type PatientFormValues } from "@/types/patient";
+import {
+  type Patient,
+  type PatientFormValues,
+  type PatientGender,
+  type PatientInsurance,
+  type PatientSector,
+} from "@/types/patient";
 
 import { PatientFormFields } from "./PatientFormFields";
-import { createPatientFormSchema, createPatientFromForm, getPatientFormValues } from "./patient-form";
+import { createPatientFormSchema, getPatientFormValues } from "./patient-form";
 
 type AddPatientModalProps = {
   direction: Direction;
@@ -27,60 +35,34 @@ type AddPatientModalProps = {
   isOpen: boolean;
   locale: Locale;
   onClose: () => void;
-  onCreate: (patient: Patient) => void;
+  onCreate: () => void;
   onOpenPatient: (patient: Patient) => void;
   t: TranslationFunction;
 };
 
-function createEmptyPatient(sequence: number): Patient {
-  const now = new Date().toISOString();
-  const createdAt = now.slice(0, 10);
-  const recordNumber = String(700000 + sequence).padStart(6, "0");
+function buildCreatePayload(values: PatientFormValues): CreatePatientPayload {
+  const [, wilayaName] = values.wilaya.split("|");
 
   return {
-    administrativeStatus: "ACTIVE",
-    address: "",
-    aiAnalyses: [],
-    assignedDoctor: "",
-    audit: [{
-      action: "Création du registre patient",
-      actor: "Utilisateur connecté",
-      at: now,
-      id: `audit-create-${recordNumber}`,
-      organization: "Organisation active",
-    }],
-    birthDate: "",
-    bloodGroup: "O+",
-    commune: "",
-    consents: [],
-    consultations: [],
-    doctorRegistrationNumber: "",
-    documents: [],
-    email: "",
-    emergencyContactName: "",
-    emergencyContactPhone: "",
-    firstName: "",
-    firstNameAr: "",
-    gender: "MALE",
-    hospitalRecordNumber: "",
-    id: `PAT-2026-${recordNumber}`,
-    insurance: "UNINSURED",
-    insuredNumber: "",
-    internalId: `patient_${recordNumber}`,
-    lastName: "",
-    lastNameAr: "",
-    lastVisit: "",
-    medicalSummary: { allergies: [], chronicDiseases: [], currentMedications: [], history: [], notes: "" },
-    nationalId: "",
-    nextVisit: "",
-    phone: "",
-    registeredAt: createdAt,
-    sector: "PRIVATE",
-    smsEnabled: true,
-    status: "NEW",
-    timeline: [],
-    wilaya: "",
-    wilayaCode: "",
+    address: values.address,
+    birthDate: values.birthDate,
+    commune: values.commune,
+    email: values.email || undefined,
+    emergencyContactName: values.emergencyContactName,
+    emergencyContactPhone: values.emergencyContactPhone.replace(/\D/g, ""),
+    firstName: values.firstName,
+    firstNameAr: values.firstNameAr,
+    gender: values.gender as PatientGender,
+    hospitalRecordNumber: values.hospitalRecordNumber || undefined,
+    insurance: values.insurance as PatientInsurance,
+    insuredNumber: values.insuredNumber || undefined,
+    lastName: values.lastName,
+    lastNameAr: values.lastNameAr,
+    nationalId: values.nationalId,
+    phone: values.phone.replace(/\D/g, ""),
+    sector: values.sector as PatientSector,
+    smsEnabled: values.smsEnabled,
+    wilaya: wilayaName ?? values.wilaya,
   };
 }
 
@@ -95,6 +77,7 @@ export function AddPatientModal({
   t,
 }: AddPatientModalProps) {
   const schema = useMemo(() => createPatientFormSchema(t), [t]);
+  const createPatientMutation = useCreatePatient();
   const [duplicate, setDuplicate] = useState<PotentialPatientDuplicate>();
   const [pendingValues, setPendingValues] = useState<PatientFormValues>();
   const [justification, setJustification] = useState("");
@@ -114,24 +97,19 @@ export function AddPatientModal({
     setDuplicate(undefined);
     setPendingValues(undefined);
     setJustification("");
+    createPatientMutation.reset();
     onClose();
   };
 
   if (!isOpen) return null;
 
-  const createPatient = (values: PatientFormValues, overrideReason?: string) => {
-    const patient = createPatientFromForm(values, createEmptyPatient(existingPatients.length + 1));
-    if (overrideReason) {
-      patient.audit.push({
-        action: `Création forcée après alerte de doublon · Justification : ${overrideReason}`,
-        actor: "Utilisateur connecté",
-        at: new Date().toISOString(),
-        id: `audit-duplicate-${patient.id}`,
-        organization: "Organisation active",
-      });
-    }
-    onCreate(patient);
-    closeModal();
+  const createPatient = (values: PatientFormValues) => {
+    createPatientMutation.mutate(buildCreatePayload(values), {
+      onSuccess: () => {
+        onCreate();
+        closeModal();
+      },
+    });
   };
 
   const submit = (values: PatientFormValues) => {
@@ -174,9 +152,12 @@ export function AddPatientModal({
 
         <form className="max-h-[calc(94vh-110px)] overflow-y-auto px-5 py-6 sm:px-7" onSubmit={handleSubmit(submit)}>
           <PatientFormFields direction={direction} errors={errors} register={register} t={t} watch={watch} />
+          {createPatientMutation.isError ? (
+            <p className="mt-4 font-[var(--font-auth-mono)] text-[0.7rem] text-[var(--danger-ink)]">{t("patients.states.submitError")}</p>
+          ) : null}
           <footer className="mt-8 flex flex-col-reverse gap-3 border-t border-[var(--line)] pt-5 sm:flex-row sm:justify-end">
             <Button className="rounded-full border-[var(--line)] bg-transparent px-5 text-[var(--ink-soft)]" type="button" variant="outline" onClick={closeModal}>{t("patients.actions.cancel")}</Button>
-            <Button className="rounded-full px-6" type="submit" disabled={isSubmitting}>
+            <Button className="rounded-full px-6" type="submit" disabled={isSubmitting || createPatientMutation.isPending}>
               <ShieldCheck className="me-2 h-4 w-4" strokeWidth={1.7} aria-hidden="true" />
               {t("patients.actions.createRegistry")}
             </Button>
@@ -220,7 +201,7 @@ export function AddPatientModal({
               <Button type="button" variant="outline" className="rounded-full border-[var(--accent-line)] text-[var(--accent-dark)]" onClick={() => onOpenPatient(duplicate.patient)}>
                 {t("patients.duplicate.openRecord")}<ArrowUpRight className="ms-2 h-4 w-4" strokeWidth={1.7} />
               </Button>
-              <Button type="button" className="rounded-full bg-primary px-5 text-white hover:bg-secondary" disabled={justification.trim().length < 10} onClick={() => createPatient(pendingValues, justification.trim())}>{t("patients.duplicate.createAnyway")}</Button>
+              <Button type="button" className="rounded-full bg-primary px-5 text-white hover:bg-secondary" disabled={justification.trim().length < 10 || createPatientMutation.isPending} onClick={() => createPatient(pendingValues)}>{t("patients.duplicate.createAnyway")}</Button>
             </div>
           </section>
         </div>

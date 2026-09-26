@@ -148,10 +148,13 @@ export type PatientFilterState = {
 };
 
 export type PatientFormValues = {
+  address: string;
   birthDate: string;
   commune: string;
   doctorRegistrationNumber: string;
   email: string;
+  emergencyContactName: string;
+  emergencyContactPhone: string;
   firstName: string;
   firstNameAr: string;
   gender: string;

@@ -16,6 +16,7 @@ import {
 
 export function createPatientFormSchema(t: TranslationFunction) {
   return z.object({
+    address: z.string().trim().min(5, t("patients.modal.errors.address")),
     birthDate: z.string().min(1, t("patients.modal.errors.birthDate")),
     commune: z.string().trim().min(1, t("patients.modal.errors.commune")),
     doctorRegistrationNumber: z.string().trim().min(1, t("patients.modal.errors.doctorRegistrationNumber")),
@@ -23,6 +24,8 @@ export function createPatientFormSchema(t: TranslationFunction) {
       (value) => !value || z.email().safeParse(value).success,
       { message: t("patients.modal.errors.email") },
     ),
+    emergencyContactName: z.string().trim().min(2, t("patients.modal.errors.emergencyContactName")),
+    emergencyContactPhone: z.string().trim().min(6, t("patients.modal.errors.emergencyContactPhone")),
     firstName: z.string().trim().min(1, t("patients.modal.errors.firstName")),
     firstNameAr: z.string().trim().min(1, t("patients.modal.errors.firstNameAr")),
     gender: z.string().refine(
@@ -60,10 +63,13 @@ export function createPatientFormSchema(t: TranslationFunction) {
 
 export function getPatientFormValues(patient?: Patient): PatientFormValues {
   return {
+    address: patient?.address ?? "",
     birthDate: patient?.birthDate ?? "",
     commune: patient?.commune ?? "",
     doctorRegistrationNumber: patient?.doctorRegistrationNumber ?? "",
     email: patient?.email ?? "",
+    emergencyContactName: patient?.emergencyContactName ?? "",
+    emergencyContactPhone: patient?.emergencyContactPhone ?? "",
     firstName: patient?.firstName ?? "",
     firstNameAr: patient?.firstNameAr ?? "",
     gender: patient?.gender ?? "",
@@ -81,46 +87,5 @@ export function getPatientFormValues(patient?: Patient): PatientFormValues {
     sector: patient?.sector ?? "",
     smsEnabled: patient?.smsEnabled ?? true,
     wilaya: patient ? `${patient.wilayaCode}|${patient.wilaya}` : "",
-  };
-}
-
-export function createPatientFromForm(
-  values: PatientFormValues,
-  basePatient: Patient,
-): Patient {
-  const [wilayaCode, wilaya] = values.wilaya.split("|");
-  const now = new Date().toISOString();
-
-  return {
-    ...basePatient,
-    assignedDoctor: values.referringDoctor,
-    birthDate: values.birthDate,
-    commune: values.commune,
-    consents: [
-      {
-        documentName: `consentement-18-07-${basePatient.id}.pdf`,
-        recordedAt: now,
-        recordedBy: "Utilisateur connecté",
-        status: "SIGNED",
-        type: "HEALTH_DATA",
-      },
-      ...basePatient.consents.filter((consent) => consent.type !== "HEALTH_DATA"),
-    ],
-    doctorRegistrationNumber: values.doctorRegistrationNumber,
-    email: values.email,
-    firstName: values.firstName,
-    firstNameAr: values.firstNameAr,
-    gender: values.gender as PatientGender,
-    hospitalRecordNumber: values.hospitalRecordNumber,
-    insurance: values.insurance as PatientInsurance,
-    insuredNumber: values.insuredNumber,
-    lastName: values.lastName,
-    lastNameAr: values.lastNameAr,
-    nationalId: values.nationalId,
-    phone: values.phone.replace(/\D/g, ""),
-    sector: values.sector as PatientSector,
-    smsEnabled: values.smsEnabled,
-    wilaya,
-    wilayaCode,
   };
 }

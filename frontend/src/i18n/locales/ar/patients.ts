@@ -145,6 +145,7 @@ export const patientsAr = {
     },
     placeholders: { allergies: "مثال: البنسلين، الغبار", chronicDiseases: "مثال: السكري، ضغط الدم", history: "مثال: جراحة، سوابق عائلية" },
     errors: {
+      address: "العنوان إلزامي.",
       birthDate: "تاريخ الميلاد إلزامي.",
       commune: "البلدية إلزامية.",
       consent: "الموافقة الصريحة مطلوبة لإنشاء السجل.",
@@ -181,6 +182,7 @@ export const patientsAr = {
     empty: "لم يتم العثور على أي مريض",
     error: "تعذر تحميل المرضى",
     loading: "جارٍ تحميل المرضى…",
+    submitError: "حدث خطأ. يرجى إعادة المحاولة.",
     results: "تم العثور على {count} مريضاً",
     resultsLabel: "نتيجة",
     patientAdded: "تمت إضافة المريض بنجاح",

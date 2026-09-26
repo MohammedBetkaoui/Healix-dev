@@ -145,6 +145,7 @@ export const patientsFr = {
     },
     placeholders: { allergies: "Ex : Pénicilline, poussière", chronicDiseases: "Ex : Diabète, hypertension", history: "Ex : Chirurgie, antécédents familiaux" },
     errors: {
+      address: "L’adresse est obligatoire.",
       birthDate: "La date de naissance est obligatoire.",
       commune: "La commune est obligatoire.",
       consent: "Le consentement explicite est requis pour créer le registre.",
@@ -181,6 +182,7 @@ export const patientsFr = {
     empty: "Aucun patient trouvé",
     error: "Impossible de charger les patients",
     loading: "Chargement des patients…",
+    submitError: "Une erreur est survenue. Veuillez réessayer.",
     results: "{count} patients trouvés",
     resultsLabel: "résultats",
     patientAdded: "Patient ajouté avec succès",

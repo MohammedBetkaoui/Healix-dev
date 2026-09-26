@@ -137,6 +137,9 @@ export function PatientFormFields({
           <Field label={t("patients.modal.fields.commune")} error={errors.commune?.message} required>
             <Input className={fieldClass} {...register("commune")} />
           </Field>
+          <Field label={t("patients.modal.fields.address")} error={errors.address?.message} required>
+            <Input className={fieldClass} {...register("address")} />
+          </Field>
           <Field label={t("patients.modal.fields.referringDoctor")} error={errors.referringDoctor?.message} required>
             <Input className={fieldClass} placeholder="Dr Amel Benaïssa" {...register("referringDoctor")} />
           </Field>
@@ -165,9 +168,21 @@ export function PatientFormFields({
         </label>
       </section>
 
+      <section className="space-y-4">
+        <SectionHeading index="04" title={t("patients.modal.sections.emergency")} />
+        <div className="grid gap-4 md:grid-cols-2">
+          <Field label={t("patients.modal.fields.emergencyContactName")} error={errors.emergencyContactName?.message} required>
+            <Input className={fieldClass} {...register("emergencyContactName")} />
+          </Field>
+          <Field label={t("patients.modal.fields.emergencyContactPhone")} error={errors.emergencyContactPhone?.message} required>
+            <Input className={fieldClass} inputMode="tel" {...register("emergencyContactPhone")} />
+          </Field>
+        </div>
+      </section>
+
       <section className="rounded-xl border border-[var(--accent-line)] bg-[var(--accent-soft)] p-5">
         <div className="flex items-center justify-between gap-4">
-          <SectionHeading index="04" title={t("patients.modal.sections.consent")} />
+          <SectionHeading index="05" title={t("patients.modal.sections.consent")} />
           <span className="shrink-0 rounded-full border border-[var(--accent-line)] bg-[var(--panel)] px-3 py-1 font-[var(--font-auth-mono)] text-[0.62rem] text-[var(--accent-dark)]">LOI 18-07</span>
         </div>
         <p className="mt-4 text-sm leading-6 text-[var(--ink-soft)]">{t("patients.modal.help.consent")}</p>

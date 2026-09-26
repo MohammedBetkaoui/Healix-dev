@@ -20,7 +20,7 @@ import { useMemo, useRef, useState, type KeyboardEvent } from "react";
 
 import { Button } from "@/components/ui/button";
 import { AddPatientModal } from "@/components/patients/AddPatientModal";
-import { getMockPatients } from "@/data/patients.mock";
+import { usePatients } from "@/features/patients/hooks/use-patients";
 import {
   algerianWilayas,
   patientAdministrativeStatusValues,
@@ -157,7 +157,8 @@ export function PatientRegistryPage({ accountType }: PatientRegistryPageProps) {
   const { locale } = useStoredLocale();
   const { direction, t } = useTranslation(locale);
   const copy = registryCopy[locale];
-  const [createdPatients, setCreatedPatients] = useState<Patient[]>([]);
+  const { data, isError, isLoading } = usePatients({ limit: 100 });
+  const patients = data?.data ?? [];
   const [search, setSearch] = useState("");
   const [filters, setFilters] = useState(initialFilters);
   const [columns, setColumns] = useState(initialColumns);
@@ -168,11 +169,6 @@ export function PatientRegistryPage({ accountType }: PatientRegistryPageProps) {
   const [notice, setNotice] = useState("");
   const importRef = useRef<HTMLInputElement>(null);
   const basePath = accountType === "ESTABLISHMENT" ? "/establishment/patients" : "/doctor/patients";
-
-  const patients = useMemo(
-    () => [...createdPatients, ...getMockPatients(locale)],
-    [createdPatients, locale],
-  );
 
   const filteredPatients = useMemo(() => patients.filter((patient) => {
     if (!patientMatchesSearch(patient, search)) return false;
@@ -293,6 +289,11 @@ export function PatientRegistryPage({ accountType }: PatientRegistryPageProps) {
           </section>
         ) : null}
 
+        {isLoading ? (
+          <div className="rounded-xl border border-[var(--line)] bg-[var(--panel)] px-6 py-16 text-center text-sm text-[var(--ink-faint)]">{t("patients.states.loading")}</div>
+        ) : isError ? (
+          <div className="rounded-xl border border-[var(--danger-line)] bg-[var(--danger-soft)] px-6 py-16 text-center text-sm text-[var(--danger-ink)]">{t("patients.states.error")}</div>
+        ) : (
         <section className="overflow-hidden rounded-xl border border-[var(--line)] bg-[var(--panel)] shadow-sm">
           <header className="flex flex-wrap items-center justify-between gap-3 border-b border-[var(--line)] px-5 py-4">
             <div><h2 className="font-[var(--font-auth-display)] text-xl font-medium text-[var(--ink)]">{copy.title}</h2><p className="mt-1 text-xs text-[var(--ink-faint)]">{copy.loaded(Math.min(visiblePatients.length, filteredPatients.length), filteredPatients.length)}</p></div>
@@ -356,11 +357,12 @@ export function PatientRegistryPage({ accountType }: PatientRegistryPageProps) {
 
           {visibleCount < filteredPatients.length ? <div className="border-t border-[var(--line)] p-4 text-center"><Button className="rounded-full border-[var(--accent-line)] bg-[var(--accent-soft)] px-5 text-[var(--accent-dark)] shadow-none hover:bg-secondary" variant="outline" onClick={() => setVisibleCount((count) => count + 8)}>{copy.loadMore}</Button></div> : null}
         </section>
+        )}
 
         <aside className="flex items-start gap-2 px-1 text-[0.7rem] leading-5 text-[var(--ink-faint)]"><Info className="mt-0.5 h-3.5 w-3.5 shrink-0 text-[var(--accent)]" strokeWidth={1.7} />{copy.demo}</aside>
       </div>
 
-      <AddPatientModal direction={direction} existingPatients={patients} isOpen={isAddOpen} locale={locale} onClose={() => setAddOpen(false)} onCreate={(patient) => { setCreatedPatients((current) => [patient, ...current]); setNotice(t("patients.states.patientAdded")); window.setTimeout(() => setNotice(""), 3200); }} onOpenPatient={openPatient} t={t} />
+      <AddPatientModal direction={direction} existingPatients={patients} isOpen={isAddOpen} locale={locale} onClose={() => setAddOpen(false)} onCreate={() => { setNotice(t("patients.states.patientAdded")); window.setTimeout(() => setNotice(""), 3200); }} onOpenPatient={openPatient} t={t} />
     </DashboardShell>
   );
 }
