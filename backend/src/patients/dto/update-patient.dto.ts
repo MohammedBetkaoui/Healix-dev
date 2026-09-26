@@ -1,4 +1,4 @@
-import { Transform } from 'class-transformer';
+import { Transform, Type } from 'class-transformer';
 import {
   IsBoolean,
   IsEmail,
@@ -8,6 +8,7 @@ import {
   IsString,
   MaxLength,
   MinLength,
+  ValidateNested,
 } from 'class-validator';
 
 import { PatientAdministrativeStatus } from '../../common/enums/patient-administrative-status.enum';
@@ -16,6 +17,7 @@ import { PatientGender } from '../../common/enums/patient-gender.enum';
 import { PatientInsurance } from '../../common/enums/patient-insurance.enum';
 import { PatientSector } from '../../common/enums/patient-sector.enum';
 import { PatientStatus } from '../../common/enums/patient-status.enum';
+import { PatientMedicalSummaryDto } from './patient-medical-summary.dto';
 
 export class UpdatePatientDto {
   @IsOptional()
@@ -131,4 +133,9 @@ export class UpdatePatientDto {
   @IsBoolean()
   @Transform(({ value }) => value === true || value === 'true')
   smsEnabled?: boolean;
+
+  @IsOptional()
+  @ValidateNested()
+  @Type(() => PatientMedicalSummaryDto)
+  medicalSummary?: PatientMedicalSummaryDto;
 }

@@ -44,6 +44,14 @@ type PatientOwnerScope = {
   doctorProfileId: string | null;
 };
 
+type PatientMedicalSummaryJson = {
+  allergies: string[];
+  chronicDiseases: string[];
+  currentMedications: string[];
+  history: string[];
+  notes: string;
+} | null;
+
 type PatientConsultationWithDoctor = Prisma.PatientConsultationGetPayload<{
   include: {
     doctorProfile: { include: { user: { select: { fullName: true } } } };
@@ -638,6 +646,15 @@ export class PatientsService {
       status: dto.status,
       administrativeStatus: dto.administrativeStatus,
       smsEnabled: dto.smsEnabled,
+      medicalSummary: dto.medicalSummary
+        ? {
+            allergies: dto.medicalSummary.allergies,
+            chronicDiseases: dto.medicalSummary.chronicDiseases,
+            currentMedications: dto.medicalSummary.currentMedications,
+            history: dto.medicalSummary.history,
+            notes: sanitizeTextInput(dto.medicalSummary.notes),
+          }
+        : undefined,
     };
   }
 
@@ -670,6 +687,7 @@ export class PatientsService {
       status: patient.status,
       administrativeStatus: patient.administrativeStatus,
       smsEnabled: patient.smsEnabled,
+      medicalSummary: patient.medicalSummary as PatientMedicalSummaryJson,
       establishmentId: patient.establishmentId,
       doctorProfileId: patient.doctorProfileId,
       createdAt: patient.createdAt,

@@ -9,6 +9,7 @@ import {
   type PatientFilterState,
   type PatientGender,
   type PatientInsurance,
+  type PatientMedicalSummary,
   type PatientSector,
   type PatientStatus,
 } from "@/types/patient";
@@ -41,6 +42,10 @@ export type PatientBloodGroupCode =
   | "O_POS"
   | "O_NEG";
 
+// Wire shape of the medicalSummary JSON column (backend/prisma/schema.prisma#Patient).
+// null until a PATCH ever sets it.
+export type PatientMedicalSummaryJson = PatientMedicalSummary | null;
+
 // Wire shape returned by GET /patients and GET /patients/:id — identity and
 // demographics only. Mirrors backend/src/patients/patients.service.ts#toPatientResponse.
 export type PatientRecord = {
@@ -64,6 +69,7 @@ export type PatientRecord = {
   insuredNumber: string | null;
   lastName: string;
   lastNameAr: string;
+  medicalSummary: PatientMedicalSummaryJson;
   nationalId: string;
   phone: string;
   sector: PatientSector;
@@ -111,6 +117,7 @@ export type CreatePatientPayload = {
 // Mirrors backend/src/patients/dto/update-patient.dto.ts exactly.
 export type UpdatePatientPayload = Partial<CreatePatientPayload> & {
   administrativeStatus?: PatientAdministrativeStatus;
+  medicalSummary?: PatientMedicalSummary;
   status?: PatientStatus;
 };
 

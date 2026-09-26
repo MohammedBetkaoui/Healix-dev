@@ -46,10 +46,12 @@ function findWilayaCode(wilayaName: string): string {
   return algerianWilayas.find(([, name]) => name === wilayaName)?.[0] ?? "";
 }
 
-// The backend Patient model only covers identity/demographics (see
-// backend/src/patients/patients.service.ts). Clinical sections with no
-// backend endpoint yet (consultations, documents, consents, audit, AI
-// analyses, timeline, care team) stay empty placeholders here.
+// GET/POST/PATCH /patients only return identity/demographics + medicalSummary
+// (see backend/src/patients/patients.service.ts#toPatientResponse).
+// Consultations/documents/consents/AI analyses are separate resources, fetched
+// through their own hooks elsewhere on the page. Sections with no backend
+// counterpart at all yet (audit, timeline, care team, assignedDoctor, …)
+// stay empty placeholders here.
 function toPatientViewModel(record: PatientRecord): Patient {
   return {
     address: record.address,
@@ -78,7 +80,7 @@ function toPatientViewModel(record: PatientRecord): Patient {
     lastName: record.lastName,
     lastNameAr: record.lastNameAr,
     lastVisit: "",
-    medicalSummary: {
+    medicalSummary: record.medicalSummary ?? {
       allergies: [],
       chronicDiseases: [],
       currentMedications: [],

@@ -352,6 +352,11 @@ model Patient {
   status                PatientStatus               @default(NEW)
   administrativeStatus  PatientAdministrativeStatus @default(ACTIVE) @map("administrative_status")
   smsEnabled            Boolean                     @default(true) @map("sms_enabled")
+  // { allergies: string[], chronicDiseases: string[], currentMedications: string[], history: string[], notes: string }
+  // (frontend/src/types/patient.ts#PatientMedicalSummary). A single JSON
+  // column since MySQL/Prisma has no native array type outside Postgres and
+  // this content is never queried field-by-field in SQL.
+  medicalSummary        Json?                       @map("medical_summary")
   establishmentId       String?                     @map("establishment_id")
   doctorProfileId       String?                     @map("doctor_profile_id")
   createdAt             DateTime                    @default(now()) @map("created_at")
