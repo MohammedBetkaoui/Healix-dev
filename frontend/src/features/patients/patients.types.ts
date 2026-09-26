@@ -155,3 +155,27 @@ export type UpsertPatientConsentPayload = {
   documentName?: string;
   status: PatientConsentStatus;
 };
+
+// Wire shape returned by GET /patients/:id/consultations and
+// POST /patients/:id/consultations. Mirrors
+// backend/src/patients/patients.service.ts#toConsultationResponse.
+export type PatientConsultationRecord = {
+  createdAt: string;
+  date: string;
+  diagnosis: string;
+  doctor: string;
+  id: string;
+  patientId: string;
+  reason: string;
+  treatment: string;
+  updatedAt: string;
+};
+
+// Mirrors backend/src/patients/dto/create-patient-consultation.dto.ts exactly.
+// No doctorProfileId: the authoring doctor is derived server-side.
+export type CreatePatientConsultationPayload = {
+  date: string;
+  diagnosis: string;
+  reason: string;
+  treatment: string;
+};

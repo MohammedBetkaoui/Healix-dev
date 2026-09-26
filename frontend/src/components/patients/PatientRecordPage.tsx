@@ -18,6 +18,7 @@ import { doctorNavSections, establishmentNavSections } from "@/components/dashbo
 import { Button } from "@/components/ui/button";
 import { usePatient } from "@/features/patients/hooks/use-patient";
 import { usePatientConsents } from "@/features/patients/hooks/use-patient-consents";
+import { usePatientConsultations } from "@/features/patients/hooks/use-patient-consultations";
 import { formatPatientDate, formatPatientDateTime, getPatientAge } from "@/features/patients/patient-registry";
 import { useStoredLocale, useTranslation } from "@/lib/i18n";
 import { cn } from "@/lib/utils";
@@ -89,6 +90,7 @@ export function PatientRecordPage({ accountType, patientId }: PatientRecordPageP
   const localized = copy[locale];
   const { data: patient, isError, isLoading } = usePatient(patientId);
   const { data: consents } = usePatientConsents(patientId);
+  const { data: consultations } = usePatientConsultations(patientId);
   const [activeTab, setActiveTab] = useState<RecordTab>("summary");
 
   const shellProps = accountType === "ESTABLISHMENT"
@@ -172,6 +174,13 @@ export function PatientRecordPage({ accountType, patientId }: PatientRecordPageP
           </div>
         ) : null}
 
+        {activeTab === "consultations" ? (
+          <section className="rounded-xl border border-[var(--line)] bg-[var(--panel)] p-5">
+            <div className="flex items-center gap-3"><Stethoscope className="h-5 w-5 text-[var(--accent-dark)]" strokeWidth={1.7} /><h2 className="font-[var(--font-auth-display)] text-xl font-medium text-[var(--ink)]">{localized.tabs.consultations}</h2></div>
+            <div className="mt-5 divide-y divide-[var(--line)]">{(consultations ?? []).map((consultation) => <article key={consultation.id} className="grid gap-2 py-4 sm:grid-cols-[minmax(0,1fr)_auto]"><div><p className="text-sm font-medium text-[var(--ink)]">{consultation.reason}</p><p className="mt-1 text-xs text-[var(--ink-soft)]">{consultation.diagnosis}</p><p className="mt-1 text-xs text-[var(--ink-faint)]">{consultation.treatment}</p><p className="mt-1 text-xs text-[var(--ink-faint)]">{consultation.doctor}</p></div><time className="font-[var(--font-auth-mono)] text-[0.62rem] text-[var(--ink-faint)]">{formatPatientDate(consultation.date, locale)}</time></article>)}</div>
+          </section>
+        ) : null}
+
         {activeTab === "consents" ? (
           <section className="rounded-xl border border-[var(--line)] bg-[var(--panel)] p-5">
             <div className="flex items-center gap-3"><ShieldCheck className="h-5 w-5 text-[var(--accent-dark)]" strokeWidth={1.7} /><h2 className="font-[var(--font-auth-display)] text-xl font-medium text-[var(--ink)]">{localized.consentTitle}</h2></div>
@@ -186,7 +195,7 @@ export function PatientRecordPage({ accountType, patientId }: PatientRecordPageP
           </section>
         ) : null}
 
-        {activeTab !== "summary" && activeTab !== "consents" && activeTab !== "audit" ? <EmptyTab label={localized.tabs[activeTab]} /> : null}
+        {activeTab !== "summary" && activeTab !== "consultations" && activeTab !== "consents" && activeTab !== "audit" ? <EmptyTab label={localized.tabs[activeTab]} /> : null}
       </div>
     </DashboardShell>
   );

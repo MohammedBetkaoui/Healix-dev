@@ -4,6 +4,7 @@ import {
   type PatientBloodGroup,
   type PatientConsent,
   type PatientConsentType,
+  type PatientConsultation,
 } from "@/types/patient";
 
 import { type PotentialPatientDuplicate } from "./patient-registry";
@@ -11,9 +12,11 @@ import { algerianWilayas } from "./patients.constants";
 import {
   type CheckPatientDuplicateParams,
   type CheckPatientDuplicateResponse,
+  type CreatePatientConsultationPayload,
   type CreatePatientPayload,
   type PatientBloodGroupCode,
   type PatientConsentRecord,
+  type PatientConsultationRecord,
   type PatientRecord,
   type PatientRecordsListResponse,
   type PatientsListParams,
@@ -159,6 +162,41 @@ export async function upsertPatientConsent(
   );
 
   return toPatientConsentViewModel(response.data);
+}
+
+function toPatientConsultationViewModel(
+  record: PatientConsultationRecord,
+): PatientConsultation {
+  return {
+    date: record.date,
+    diagnosis: record.diagnosis,
+    doctor: record.doctor,
+    id: record.id,
+    reason: record.reason,
+    treatment: record.treatment,
+  };
+}
+
+export async function getPatientConsultations(
+  patientId: string,
+): Promise<PatientConsultation[]> {
+  const response = await apiClient.get<PatientConsultationRecord[]>(
+    `/patients/${patientId}/consultations`,
+  );
+
+  return response.data.map(toPatientConsultationViewModel);
+}
+
+export async function createPatientConsultation(
+  patientId: string,
+  payload: CreatePatientConsultationPayload,
+): Promise<PatientConsultation> {
+  const response = await apiClient.post<PatientConsultationRecord>(
+    `/patients/${patientId}/consultations`,
+    payload,
+  );
+
+  return toPatientConsultationViewModel(response.data);
 }
 
 export async function checkPatientDuplicate(

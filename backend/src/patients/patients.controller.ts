@@ -15,6 +15,7 @@ import { type AuthenticatedUserPayload } from '../auth/types/authenticated-reque
 import { CurrentUser } from '../common/decorators/current-user.decorator';
 import { RolesGuard } from '../common/guards/roles.guard';
 import { CheckPatientDuplicateQueryDto } from './dto/check-patient-duplicate-query.dto';
+import { CreatePatientConsultationDto } from './dto/create-patient-consultation.dto';
 import { CreatePatientDto } from './dto/create-patient.dto';
 import { ListPatientsQueryDto } from './dto/list-patients-query.dto';
 import { UpdatePatientDto } from './dto/update-patient.dto';
@@ -85,5 +86,22 @@ export class PatientsController {
     @Body() dto: UpsertPatientConsentDto,
   ) {
     return this.patientsService.upsertConsent(user, id, type, dto);
+  }
+
+  @Get(':id/consultations')
+  listConsultations(
+    @CurrentUser() user: AuthenticatedUserPayload,
+    @Param('id') id: string,
+  ) {
+    return this.patientsService.listConsultations(user, id);
+  }
+
+  @Post(':id/consultations')
+  createConsultation(
+    @CurrentUser() user: AuthenticatedUserPayload,
+    @Param('id') id: string,
+    @Body() dto: CreatePatientConsultationDto,
+  ) {
+    return this.patientsService.createConsultation(user, id, dto);
   }
 }

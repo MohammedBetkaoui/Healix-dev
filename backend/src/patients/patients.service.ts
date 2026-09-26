@@ -4,7 +4,11 @@ import {
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
-import { type Patient, type PatientConsent, type Prisma } from '@prisma/client';
+import {
+  type Patient,
+  type PatientConsent,
+  type Prisma,
+} from '@prisma/client';
 
 import {
   createPaginationMeta,
@@ -21,6 +25,7 @@ import {
 } from '../common/utils/sanitize';
 import { PrismaService } from '../prisma/prisma.service';
 import { CheckPatientDuplicateQueryDto } from './dto/check-patient-duplicate-query.dto';
+import { CreatePatientConsultationDto } from './dto/create-patient-consultation.dto';
 import { CreatePatientDto } from './dto/create-patient.dto';
 import { ListPatientsQueryDto } from './dto/list-patients-query.dto';
 import { UpdatePatientDto } from './dto/update-patient.dto';
@@ -31,6 +36,16 @@ type PatientOwnerScope = {
   establishmentId: string | null;
   doctorProfileId: string | null;
 };
+
+type PatientConsultationWithDoctor = Prisma.PatientConsultationGetPayload<{
+  include: {
+    doctorProfile: { include: { user: { select: { fullName: true } } } };
+  };
+}>;
+
+const consultationDoctorInclude = {
+  doctorProfile: { include: { user: { select: { fullName: true } } } },
+} as const;
 
 @Injectable()
 export class PatientsService {
@@ -209,6 +224,76 @@ export class PatientsService {
     });
 
     return this.toConsentResponse(consent);
+  }
+
+  async listConsultations(user: AuthenticatedUserPayload, patientId: string) {
+    await this.getPatientInScope(user, patientId);
+
+    const consultations = await this.prisma.patientConsultation.findMany({
+      where: { patientId },
+      include: consultationDoctorInclude,
+      orderBy: { date: 'desc' },
+    });
+
+    return consultations.map((consultation) =>
+      this.toConsultationResponse(consultation),
+    );
+  }
+
+  async createConsultation(
+    user: AuthenticatedUserPayload,
+    patientId: string,
+    dto: CreatePatientConsultationDto,
+  ) {
+    await this.getPatientInScope(user, patientId);
+    this.assertCanCreateConsultation(user.role);
+
+    const doctorProfile = await this.prisma.doctorProfile.findUnique({
+      where: { userId: user.sub },
+    });
+
+    if (!doctorProfile) {
+      throw new NotFoundException('Profil médecin introuvable.');
+    }
+
+    const consultation = await this.prisma.patientConsultation.create({
+      data: {
+        patientId,
+        doctorProfileId: doctorProfile.id,
+        date: new Date(dto.date),
+        reason: sanitizeTextInput(dto.reason),
+        diagnosis: sanitizeTextInput(dto.diagnosis),
+        treatment: sanitizeTextInput(dto.treatment),
+      },
+      include: consultationDoctorInclude,
+    });
+
+    return this.toConsultationResponse(consultation);
+  }
+
+  private assertCanCreateConsultation(role: UserRole): void {
+    if (
+      role !== UserRole.AFFILIATED_DOCTOR &&
+      role !== UserRole.INDEPENDENT_DOCTOR
+    ) {
+      throw new ForbiddenException(
+        "Seul un médecin peut créer une consultation.",
+      );
+    }
+  }
+
+  private toConsultationResponse(consultation: PatientConsultationWithDoctor) {
+    return {
+      id: consultation.id,
+      patientId: consultation.patientId,
+      date: consultation.date,
+      reason: consultation.reason,
+      diagnosis: consultation.diagnosis,
+      treatment: consultation.treatment,
+      doctor: consultation.doctorProfile?.user.fullName ?? '',
+      createdAt: consultation.createdAt,
+      updatedAt: consultation.updatedAt,
+    };
   }
 
   private async getPatientInScope(

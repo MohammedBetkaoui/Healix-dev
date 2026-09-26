@@ -297,6 +297,7 @@ model DoctorProfile {
   establishment       Establishment?       @relation(fields: [establishmentId], references: [id], onDelete: SetNull)
   verificationRequest VerificationRequest?
   patients            Patient[]
+  consultations       PatientConsultation[]
 
   @@index([establishmentId])
   @@map("doctor_profiles")
@@ -338,6 +339,7 @@ model Patient {
   establishment Establishment? @relation(fields: [establishmentId], references: [id], onDelete: SetNull)
   doctorProfile DoctorProfile? @relation(fields: [doctorProfileId], references: [id], onDelete: SetNull)
   consents      PatientConsent[]
+  consultations PatientConsultation[]
 
   @@index([establishmentId])
   @@index([doctorProfileId])
@@ -367,6 +369,24 @@ model PatientConsent {
   @@index([patientId])
   @@index([recordedById])
   @@map("patient_consents")
+}
+
+model PatientConsultation {
+  id              String   @id @default(cuid())
+  patientId       String   @map("patient_id")
+  doctorProfileId String?  @map("doctor_profile_id")
+  date            DateTime
+  reason          String   @db.Text
+  diagnosis       String   @db.Text
+  treatment       String   @db.Text
+  createdAt       DateTime @default(now()) @map("created_at")
+  updatedAt       DateTime @updatedAt @map("updated_at")
+
+  patient       Patient        @relation(fields: [patientId], references: [id], onDelete: Cascade)
+  doctorProfile DoctorProfile? @relation(fields: [doctorProfileId], references: [id], onDelete: SetNull)
+
+  @@index([patientId])
+  @@map("patient_consultations")
 }
 
 model AuditLog {
