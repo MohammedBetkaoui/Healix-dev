@@ -8,6 +8,7 @@ import { AppService } from './app.service';
 import { AdminAuthModule } from './admin-auth/admin-auth.module';
 import { AdminModule } from './admin/admin.module';
 import { AuthModule } from './auth/auth.module';
+import { PatientsModule } from './patients/patients.module';
 import { PaymentsModule } from './payments/payments.module';
 import { SubscriptionsModule } from './subscriptions/subscriptions.module';
 import { VerificationModule } from './verification/verification.module';
@@ -27,6 +28,7 @@ import { VerificationModule } from './verification/verification.module';
     SubscriptionsModule,
     PaymentsModule,
     VerificationModule,
+    PatientsModule,
   ],
   controllers: [AppController],
   providers: [
