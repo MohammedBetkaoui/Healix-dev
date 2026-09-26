@@ -219,6 +219,17 @@ enum PatientBloodGroup {
   O_NEG
 }
 
+enum PatientConsentType {
+  HEALTH_DATA
+  DIAGNOSTIC_AI
+  RESEARCH
+}
+
+enum PatientConsentStatus {
+  SIGNED
+  NOT_GRANTED
+}
+
 model User {
   id              String        @id @default(cuid())
   fullName        String        @map("full_name") @db.VarChar(120)
@@ -241,6 +252,7 @@ model User {
   subscriptions                Subscription[]        @relation("SubscriptionUser")
   payments                     Payment[]             @relation("PaymentUser")
   reviewedPayments             Payment[]             @relation("PaymentReviewedBy")
+  recordedPatientConsents      PatientConsent[]
 
   @@map("users")
 }
@@ -325,10 +337,36 @@ model Patient {
 
   establishment Establishment? @relation(fields: [establishmentId], references: [id], onDelete: SetNull)
   doctorProfile DoctorProfile? @relation(fields: [doctorProfileId], references: [id], onDelete: SetNull)
+  consents      PatientConsent[]
 
   @@index([establishmentId])
   @@index([doctorProfileId])
   @@map("patients")
+}
+
+// A consent is its own record per purpose (type + status + timestamp + who
+// recorded it), never a single boolean flag — see "Le consentement doit
+// devenir un objet distinct" in reports/Module patients SaaS médical Algérie.md.
+// @@unique([patientId, type]) means each purpose is updated over time rather
+// than duplicated into a new row.
+model PatientConsent {
+  id           String               @id @default(cuid())
+  patientId    String               @map("patient_id")
+  type         PatientConsentType
+  status       PatientConsentStatus
+  documentName String?              @map("document_name") @db.VarChar(255)
+  recordedAt   DateTime             @map("recorded_at")
+  recordedById String               @map("recorded_by_id")
+  createdAt    DateTime             @default(now()) @map("created_at")
+  updatedAt    DateTime             @updatedAt @map("updated_at")
+
+  patient    Patient @relation(fields: [patientId], references: [id], onDelete: Cascade)
+  recordedBy User    @relation(fields: [recordedById], references: [id], onDelete: Restrict)
+
+  @@unique([patientId, type])
+  @@index([patientId])
+  @@index([recordedById])
+  @@map("patient_consents")
 }
 
 model AuditLog {

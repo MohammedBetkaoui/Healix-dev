@@ -8,12 +8,12 @@ import { useForm } from "react-hook-form";
 import { Button } from "@/components/ui/button";
 import { useCreatePatient } from "@/features/patients/hooks/use-create-patient";
 import {
-  findPotentialPatientDuplicate,
   formatAlgerianPhone,
   formatPatientDate,
   maskPatientName,
   type PotentialPatientDuplicate,
 } from "@/features/patients/patient-registry";
+import { checkPatientDuplicate } from "@/features/patients/patients.api";
 import { type CreatePatientPayload } from "@/features/patients/patients.types";
 import { type Locale } from "@/i18n";
 import { type Direction, type TranslationFunction } from "@/lib/i18n";
@@ -31,7 +31,6 @@ import { createPatientFormSchema, getPatientFormValues } from "./patient-form";
 
 type AddPatientModalProps = {
   direction: Direction;
-  existingPatients: Patient[];
   isOpen: boolean;
   locale: Locale;
   onClose: () => void;
@@ -40,13 +39,17 @@ type AddPatientModalProps = {
   t: TranslationFunction;
 };
 
-function buildCreatePayload(values: PatientFormValues): CreatePatientPayload {
+function buildCreatePayload(
+  values: PatientFormValues,
+  duplicateOverrideReason?: string,
+): CreatePatientPayload {
   const [, wilayaName] = values.wilaya.split("|");
 
   return {
     address: values.address,
     birthDate: values.birthDate,
     commune: values.commune,
+    duplicateOverrideReason,
     email: values.email || undefined,
     emergencyContactName: values.emergencyContactName,
     emergencyContactPhone: values.emergencyContactPhone.replace(/\D/g, ""),
@@ -68,7 +71,6 @@ function buildCreatePayload(values: PatientFormValues): CreatePatientPayload {
 
 export function AddPatientModal({
   direction,
-  existingPatients,
   isOpen,
   locale,
   onClose,
@@ -103,8 +105,8 @@ export function AddPatientModal({
 
   if (!isOpen) return null;
 
-  const createPatient = (values: PatientFormValues) => {
-    createPatientMutation.mutate(buildCreatePayload(values), {
+  const createPatient = (values: PatientFormValues, overrideReason?: string) => {
+    createPatientMutation.mutate(buildCreatePayload(values, overrideReason), {
       onSuccess: () => {
         onCreate();
         closeModal();
@@ -112,12 +114,25 @@ export function AddPatientModal({
     });
   };
 
-  const submit = (values: PatientFormValues) => {
-    const match = findPotentialPatientDuplicate(values, existingPatients);
-    if (match) {
-      setDuplicate(match);
-      setPendingValues(values);
-      return;
+  const submit = async (values: PatientFormValues) => {
+    try {
+      const [match] = await checkPatientDuplicate({
+        birthDate: values.birthDate,
+        firstName: values.firstName,
+        firstNameAr: values.firstNameAr,
+        lastName: values.lastName,
+        lastNameAr: values.lastNameAr,
+        nationalId: values.nationalId,
+        phone: values.phone,
+      });
+      if (match) {
+        setDuplicate(match);
+        setPendingValues(values);
+        return;
+      }
+    } catch {
+      // The duplicate check is a UX safeguard, not a hard gate — if it fails
+      // (network, auth refresh, …), fall through and let creation proceed.
     }
     createPatient(values);
   };

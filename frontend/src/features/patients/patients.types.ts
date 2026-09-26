@@ -1,6 +1,8 @@
 import {
   type Patient,
   type PatientAdministrativeStatus,
+  type PatientConsentStatus,
+  type PatientConsentType,
   type PatientFilterState,
   type PatientGender,
   type PatientInsurance,
@@ -84,6 +86,7 @@ export type CreatePatientPayload = {
   birthDate: string;
   bloodGroup?: PatientBloodGroupCode;
   commune: string;
+  duplicateOverrideReason?: string;
   email?: string;
   emergencyContactName: string;
   emergencyContactPhone: string;
@@ -106,4 +109,49 @@ export type CreatePatientPayload = {
 export type UpdatePatientPayload = Partial<CreatePatientPayload> & {
   administrativeStatus?: PatientAdministrativeStatus;
   status?: PatientStatus;
+};
+
+// Mirrors backend PatientMatchReason (backend/src/patients/patient-matching.util.ts).
+export type PatientMatchReason = "IDENTITY" | "PHONE" | "NIN";
+
+// Mirrors backend/src/patients/dto/check-patient-duplicate-query.dto.ts.
+export type CheckPatientDuplicateParams = {
+  birthDate?: string;
+  firstName?: string;
+  firstNameAr?: string;
+  lastName?: string;
+  lastNameAr?: string;
+  nationalId?: string;
+  phone?: string;
+};
+
+// Wire shape returned by GET /patients/check-duplicate.
+export type CheckPatientDuplicateResponse = {
+  matches: Array<{
+    patient: PatientRecord;
+    reasons: PatientMatchReason[];
+  }>;
+};
+
+// Wire shape returned by GET /patients/:id/consents and
+// PUT /patients/:id/consents/:type. Mirrors
+// backend/src/patients/patients.service.ts#toConsentResponse — a consent is
+// its own record (type + status + timestamp + who recorded it), never a
+// single flag on the patient.
+export type PatientConsentRecord = {
+  createdAt: string;
+  documentName: string | null;
+  id: string;
+  patientId: string;
+  recordedAt: string;
+  recordedById: string;
+  status: PatientConsentStatus;
+  type: PatientConsentType;
+  updatedAt: string;
+};
+
+// Mirrors backend/src/patients/dto/upsert-patient-consent.dto.ts exactly.
+export type UpsertPatientConsentPayload = {
+  documentName?: string;
+  status: PatientConsentStatus;
 };

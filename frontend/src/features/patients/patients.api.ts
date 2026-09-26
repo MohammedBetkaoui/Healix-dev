@@ -1,15 +1,25 @@
 import { apiClient } from "@/lib/api/http-client";
-import { type Patient, type PatientBloodGroup } from "@/types/patient";
+import {
+  type Patient,
+  type PatientBloodGroup,
+  type PatientConsent,
+  type PatientConsentType,
+} from "@/types/patient";
 
+import { type PotentialPatientDuplicate } from "./patient-registry";
 import { algerianWilayas } from "./patients.constants";
 import {
+  type CheckPatientDuplicateParams,
+  type CheckPatientDuplicateResponse,
   type CreatePatientPayload,
   type PatientBloodGroupCode,
+  type PatientConsentRecord,
   type PatientRecord,
   type PatientRecordsListResponse,
   type PatientsListParams,
   type PatientsListResponse,
   type UpdatePatientPayload,
+  type UpsertPatientConsentPayload,
 } from "./patients.types";
 
 const bloodGroupToDisplay: Record<PatientBloodGroupCode, PatientBloodGroup> = {
@@ -116,4 +126,51 @@ export async function updatePatient(
   );
 
   return toPatientViewModel(response.data);
+}
+
+function toPatientConsentViewModel(record: PatientConsentRecord): PatientConsent {
+  return {
+    documentName: record.documentName ?? undefined,
+    recordedAt: record.recordedAt,
+    recordedBy: record.recordedById,
+    status: record.status,
+    type: record.type,
+  };
+}
+
+export async function getPatientConsents(
+  patientId: string,
+): Promise<PatientConsent[]> {
+  const response = await apiClient.get<PatientConsentRecord[]>(
+    `/patients/${patientId}/consents`,
+  );
+
+  return response.data.map(toPatientConsentViewModel);
+}
+
+export async function upsertPatientConsent(
+  patientId: string,
+  type: PatientConsentType,
+  payload: UpsertPatientConsentPayload,
+): Promise<PatientConsent> {
+  const response = await apiClient.put<PatientConsentRecord>(
+    `/patients/${patientId}/consents/${type}`,
+    payload,
+  );
+
+  return toPatientConsentViewModel(response.data);
+}
+
+export async function checkPatientDuplicate(
+  params: CheckPatientDuplicateParams,
+): Promise<PotentialPatientDuplicate[]> {
+  const response = await apiClient.get<CheckPatientDuplicateResponse>(
+    "/patients/check-duplicate",
+    { params },
+  );
+
+  return response.data.matches.map((match) => ({
+    patient: toPatientViewModel(match.patient),
+    reasons: match.reasons,
+  }));
 }

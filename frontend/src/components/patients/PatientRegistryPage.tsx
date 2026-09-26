@@ -362,7 +362,7 @@ export function PatientRegistryPage({ accountType }: PatientRegistryPageProps) {
         <aside className="flex items-start gap-2 px-1 text-[0.7rem] leading-5 text-[var(--ink-faint)]"><Info className="mt-0.5 h-3.5 w-3.5 shrink-0 text-[var(--accent)]" strokeWidth={1.7} />{copy.demo}</aside>
       </div>
 
-      <AddPatientModal direction={direction} existingPatients={patients} isOpen={isAddOpen} locale={locale} onClose={() => setAddOpen(false)} onCreate={() => { setNotice(t("patients.states.patientAdded")); window.setTimeout(() => setNotice(""), 3200); }} onOpenPatient={openPatient} t={t} />
+      <AddPatientModal direction={direction} isOpen={isAddOpen} locale={locale} onClose={() => setAddOpen(false)} onCreate={() => { setNotice(t("patients.states.patientAdded")); window.setTimeout(() => setNotice(""), 3200); }} onOpenPatient={openPatient} t={t} />
     </DashboardShell>
   );
 }

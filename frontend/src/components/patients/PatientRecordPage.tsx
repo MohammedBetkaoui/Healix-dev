@@ -17,6 +17,7 @@ import { DashboardShell } from "@/components/dashboard/layout/DashboardShell";
 import { doctorNavSections, establishmentNavSections } from "@/components/dashboard/layout/navigation";
 import { Button } from "@/components/ui/button";
 import { usePatient } from "@/features/patients/hooks/use-patient";
+import { usePatientConsents } from "@/features/patients/hooks/use-patient-consents";
 import { formatPatientDate, formatPatientDateTime, getPatientAge } from "@/features/patients/patient-registry";
 import { useStoredLocale, useTranslation } from "@/lib/i18n";
 import { cn } from "@/lib/utils";
@@ -87,6 +88,7 @@ export function PatientRecordPage({ accountType, patientId }: PatientRecordPageP
   const { t } = useTranslation(locale);
   const localized = copy[locale];
   const { data: patient, isError, isLoading } = usePatient(patientId);
+  const { data: consents } = usePatientConsents(patientId);
   const [activeTab, setActiveTab] = useState<RecordTab>("summary");
 
   const shellProps = accountType === "ESTABLISHMENT"
@@ -173,7 +175,7 @@ export function PatientRecordPage({ accountType, patientId }: PatientRecordPageP
         {activeTab === "consents" ? (
           <section className="rounded-xl border border-[var(--line)] bg-[var(--panel)] p-5">
             <div className="flex items-center gap-3"><ShieldCheck className="h-5 w-5 text-[var(--accent-dark)]" strokeWidth={1.7} /><h2 className="font-[var(--font-auth-display)] text-xl font-medium text-[var(--ink)]">{localized.consentTitle}</h2></div>
-            <div className="mt-5 divide-y divide-[var(--line)]">{patient.consents.map((consent) => <div key={consent.type} className="grid gap-3 py-4 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-center"><div><p className="text-sm font-medium text-[var(--ink)]">{consent.type.replaceAll("_", " ")}</p><p className="mt-1 text-xs text-[var(--ink-faint)]">{consent.documentName || t("patients.common.none")}</p></div><div className="sm:text-end"><span className={cn("rounded-full border px-2.5 py-1 font-[var(--font-auth-mono)] text-[0.6rem]", consent.status === "SIGNED" ? "border-[var(--success-line)] bg-[var(--success-soft)] text-[var(--success-ink)]" : "border-[var(--line)] bg-muted text-[var(--ink-soft)]")}>{consent.status}</span><p className="mt-2 text-xs text-[var(--ink-faint)]">{formatPatientDateTime(consent.recordedAt, locale)}</p></div></div>)}</div>
+            <div className="mt-5 divide-y divide-[var(--line)]">{(consents ?? []).map((consent) => <div key={consent.type} className="grid gap-3 py-4 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-center"><div><p className="text-sm font-medium text-[var(--ink)]">{consent.type.replaceAll("_", " ")}</p><p className="mt-1 text-xs text-[var(--ink-faint)]">{consent.documentName || t("patients.common.none")}</p></div><div className="sm:text-end"><span className={cn("rounded-full border px-2.5 py-1 font-[var(--font-auth-mono)] text-[0.6rem]", consent.status === "SIGNED" ? "border-[var(--success-line)] bg-[var(--success-soft)] text-[var(--success-ink)]" : "border-[var(--line)] bg-muted text-[var(--ink-soft)]")}>{consent.status}</span><p className="mt-2 text-xs text-[var(--ink-faint)]">{formatPatientDateTime(consent.recordedAt, locale)}</p></div></div>)}</div>
           </section>
         ) : null}
 

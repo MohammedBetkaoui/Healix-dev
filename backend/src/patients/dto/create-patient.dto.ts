@@ -106,4 +106,11 @@ export class CreatePatientDto {
   @IsBoolean()
   @Transform(({ value }) => value === true || value === 'true')
   smsEnabled?: boolean;
+
+  // Set when the client bypassed a check-duplicate warning. Never blocks
+  // creation — only triggers an audit log entry (see PatientsService.create).
+  @IsOptional()
+  @IsString()
+  @MaxLength(1000)
+  duplicateOverrideReason?: string;
 }

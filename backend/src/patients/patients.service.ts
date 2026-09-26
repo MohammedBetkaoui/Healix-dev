@@ -1,15 +1,18 @@
 import {
+  BadRequestException,
   ForbiddenException,
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
-import { type Patient, type Prisma } from '@prisma/client';
+import { type Patient, type PatientConsent, type Prisma } from '@prisma/client';
 
 import {
   createPaginationMeta,
   getPagination,
 } from '../admin/shared/admin-pagination.util';
+import { AuditLogsService } from '../audit-logs/audit-logs.service';
 import { type AuthenticatedUserPayload } from '../auth/types/authenticated-request.type';
+import { PatientConsentType } from '../common/enums/patient-consent-type.enum';
 import { UserRole } from '../common/enums/user-role.enum';
 import {
   normalizeEmail,
@@ -17,9 +20,12 @@ import {
   sanitizeTextInput,
 } from '../common/utils/sanitize';
 import { PrismaService } from '../prisma/prisma.service';
+import { CheckPatientDuplicateQueryDto } from './dto/check-patient-duplicate-query.dto';
 import { CreatePatientDto } from './dto/create-patient.dto';
 import { ListPatientsQueryDto } from './dto/list-patients-query.dto';
 import { UpdatePatientDto } from './dto/update-patient.dto';
+import { UpsertPatientConsentDto } from './dto/upsert-patient-consent.dto';
+import { findPatientMatches } from './patient-matching.util';
 
 type PatientOwnerScope = {
   establishmentId: string | null;
@@ -28,7 +34,10 @@ type PatientOwnerScope = {
 
 @Injectable()
 export class PatientsService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly auditLogsService: AuditLogsService,
+  ) {}
 
   async create(user: AuthenticatedUserPayload, dto: CreatePatientDto) {
     const scope = await this.resolveOwnerScope(user);
@@ -64,7 +73,55 @@ export class PatientsService {
       },
     });
 
+    if (dto.duplicateOverrideReason) {
+      await this.logDuplicateOverride(user, scope, dto, patient.id);
+    }
+
     return this.toPatientResponse(patient);
+  }
+
+  async checkDuplicate(
+    user: AuthenticatedUserPayload,
+    query: CheckPatientDuplicateQueryDto,
+  ) {
+    const scope = await this.resolveOwnerScope(user);
+    const candidates = await this.prisma.patient.findMany({
+      where: this.scopeToWhere(scope),
+    });
+
+    const matches = findPatientMatches(query, candidates);
+
+    return {
+      matches: matches.map((match) => ({
+        patient: this.toPatientResponse(match.patient),
+        reasons: match.reasons,
+      })),
+    };
+  }
+
+  private async logDuplicateOverride(
+    user: AuthenticatedUserPayload,
+    scope: PatientOwnerScope,
+    dto: CreatePatientDto,
+    createdPatientId: string,
+  ): Promise<void> {
+    const otherPatients = await this.prisma.patient.findMany({
+      where: { ...this.scopeToWhere(scope), id: { not: createdPatientId } },
+    });
+    const matchedPatientIds = findPatientMatches(dto, otherPatients).map(
+      (match) => match.patient.id,
+    );
+
+    await this.auditLogsService.createAuditLog({
+      userId: user.sub,
+      action: 'PATIENT_CREATED_WITH_DUPLICATE_OVERRIDE',
+      entityType: 'Patient',
+      entityId: createdPatientId,
+      metadata: {
+        justification: dto.duplicateOverrideReason,
+        matchedPatientIds,
+      },
+    });
   }
 
   async list(user: AuthenticatedUserPayload, query: ListPatientsQueryDto) {
@@ -89,6 +146,75 @@ export class PatientsService {
   }
 
   async findOne(user: AuthenticatedUserPayload, id: string) {
+    const patient = await this.getPatientInScope(user, id);
+    return this.toPatientResponse(patient);
+  }
+
+  async update(
+    user: AuthenticatedUserPayload,
+    id: string,
+    dto: UpdatePatientDto,
+  ) {
+    const existing = await this.getPatientInScope(user, id);
+
+    const patient = await this.prisma.patient.update({
+      where: { id: existing.id },
+      data: this.toUpdateInput(dto),
+    });
+
+    return this.toPatientResponse(patient);
+  }
+
+  async listConsents(user: AuthenticatedUserPayload, patientId: string) {
+    await this.getPatientInScope(user, patientId);
+
+    const consents = await this.prisma.patientConsent.findMany({
+      where: { patientId },
+      orderBy: { recordedAt: 'desc' },
+    });
+
+    return consents.map((consent) => this.toConsentResponse(consent));
+  }
+
+  async upsertConsent(
+    user: AuthenticatedUserPayload,
+    patientId: string,
+    type: string,
+    dto: UpsertPatientConsentDto,
+  ) {
+    await this.getPatientInScope(user, patientId);
+    this.assertValidConsentType(type);
+
+    const consentType = type as PatientConsentType;
+    const documentName = dto.documentName
+      ? sanitizeTextInput(dto.documentName)
+      : null;
+
+    const consent = await this.prisma.patientConsent.upsert({
+      where: { patientId_type: { patientId, type: consentType } },
+      create: {
+        patientId,
+        type: consentType,
+        status: dto.status,
+        documentName,
+        recordedAt: new Date(),
+        recordedById: user.sub,
+      },
+      update: {
+        status: dto.status,
+        documentName,
+        recordedAt: new Date(),
+        recordedById: user.sub,
+      },
+    });
+
+    return this.toConsentResponse(consent);
+  }
+
+  private async getPatientInScope(
+    user: AuthenticatedUserPayload,
+    id: string,
+  ): Promise<Patient> {
     const scope = await this.resolveOwnerScope(user);
     const patient = await this.prisma.patient.findFirst({
       where: { id, ...this.scopeToWhere(scope) },
@@ -98,29 +224,31 @@ export class PatientsService {
       throw new NotFoundException('Patient introuvable.');
     }
 
-    return this.toPatientResponse(patient);
+    return patient;
   }
 
-  async update(
-    user: AuthenticatedUserPayload,
-    id: string,
-    dto: UpdatePatientDto,
-  ) {
-    const scope = await this.resolveOwnerScope(user);
-    const existing = await this.prisma.patient.findFirst({
-      where: { id, ...this.scopeToWhere(scope) },
-    });
-
-    if (!existing) {
-      throw new NotFoundException('Patient introuvable.');
+  private assertValidConsentType(type: string): void {
+    if (
+      !Object.values(PatientConsentType).includes(
+        type as PatientConsentType,
+      )
+    ) {
+      throw new BadRequestException('Type de consentement invalide.');
     }
+  }
 
-    const patient = await this.prisma.patient.update({
-      where: { id: existing.id },
-      data: this.toUpdateInput(dto),
-    });
-
-    return this.toPatientResponse(patient);
+  private toConsentResponse(consent: PatientConsent) {
+    return {
+      id: consent.id,
+      patientId: consent.patientId,
+      type: consent.type,
+      status: consent.status,
+      documentName: consent.documentName,
+      recordedAt: consent.recordedAt,
+      recordedById: consent.recordedById,
+      createdAt: consent.createdAt,
+      updatedAt: consent.updatedAt,
+    };
   }
 
   private async resolveOwnerScope(
