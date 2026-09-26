@@ -236,3 +236,16 @@ export type CreatePatientAiAnalysisPayload = {
   sourceDocumentId?: string;
   type: PatientAiAnalysisType;
 };
+
+// Wire shape returned by GET /patients/:id/audit-log. Mirrors
+// backend/src/patients/patients.service.ts#toAuditLogEntryResponse. Write
+// operations only for now (who changed what, not who merely viewed it).
+export type PatientAuditLogEntryRecord = {
+  action: string;
+  actor: string | null;
+  createdAt: string;
+  entityId: string;
+  entityType: string;
+  id: string;
+  metadata: unknown;
+};

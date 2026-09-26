@@ -153,4 +153,12 @@ export class PatientsController {
   ) {
     return this.patientsService.createAiAnalysis(user, id, dto);
   }
+
+  @Get(':id/audit-log')
+  listAuditLog(
+    @CurrentUser() user: AuthenticatedUserPayload,
+    @Param('id') id: string,
+  ) {
+    return this.patientsService.listAuditLog(user, id);
+  }
 }

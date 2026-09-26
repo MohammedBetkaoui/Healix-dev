@@ -19,6 +19,7 @@ import { doctorNavSections, establishmentNavSections } from "@/components/dashbo
 import { Button } from "@/components/ui/button";
 import { usePatient } from "@/features/patients/hooks/use-patient";
 import { usePatientAiAnalyses } from "@/features/patients/hooks/use-patient-ai-analyses";
+import { usePatientAuditLog } from "@/features/patients/hooks/use-patient-audit-log";
 import { usePatientConsents } from "@/features/patients/hooks/use-patient-consents";
 import { usePatientConsultations } from "@/features/patients/hooks/use-patient-consultations";
 import { usePatientDocuments } from "@/features/patients/hooks/use-patient-documents";
@@ -96,6 +97,7 @@ export function PatientRecordPage({ accountType, patientId }: PatientRecordPageP
   const { data: consultations } = usePatientConsultations(patientId);
   const { data: documents } = usePatientDocuments(patientId);
   const { data: aiAnalyses } = usePatientAiAnalyses(patientId);
+  const { data: auditLog } = usePatientAuditLog(patientId);
   const hasSignedAiConsent = (consents ?? []).some(
     (consent) => consent.type === "DIAGNOSTIC_AI" && consent.status === "SIGNED",
   );
@@ -182,6 +184,19 @@ export function PatientRecordPage({ accountType, patientId }: PatientRecordPageP
           </div>
         ) : null}
 
+        {activeTab === "allergies" ? (
+          <section className="rounded-xl border border-[var(--line)] bg-[var(--panel)] p-5">
+            <div className="flex items-center gap-3"><AlertTriangle className="h-5 w-5 text-[var(--accent-dark)]" strokeWidth={1.7} /><h2 className="font-[var(--font-auth-display)] text-xl font-medium text-[var(--ink)]">{t("patients.drawer.titles.medical")}</h2></div>
+            <dl className="mt-5 grid gap-4 border-t border-[var(--line)] pt-5 sm:grid-cols-2">
+              <div><dt className="font-[var(--font-auth-mono)] text-[0.6rem] uppercase tracking-[0.1em] text-[var(--ink-faint)]">{t("patients.drawer.fields.allergies")}</dt><dd className="mt-1 text-sm text-[var(--ink)]">{patient.medicalSummary.allergies.join(" · ") || t("patients.drawer.empty")}</dd></div>
+              <div><dt className="font-[var(--font-auth-mono)] text-[0.6rem] uppercase tracking-[0.1em] text-[var(--ink-faint)]">{t("patients.drawer.fields.chronicDiseases")}</dt><dd className="mt-1 text-sm text-[var(--ink)]">{patient.medicalSummary.chronicDiseases.join(" · ") || t("patients.drawer.empty")}</dd></div>
+              <div><dt className="font-[var(--font-auth-mono)] text-[0.6rem] uppercase tracking-[0.1em] text-[var(--ink-faint)]">{t("patients.drawer.fields.currentMedications")}</dt><dd className="mt-1 text-sm text-[var(--ink)]">{patient.medicalSummary.currentMedications.join(" · ") || t("patients.drawer.empty")}</dd></div>
+              <div><dt className="font-[var(--font-auth-mono)] text-[0.6rem] uppercase tracking-[0.1em] text-[var(--ink-faint)]">{t("patients.drawer.fields.history")}</dt><dd className="mt-1 text-sm text-[var(--ink)]">{patient.medicalSummary.history.join(" · ") || t("patients.drawer.empty")}</dd></div>
+            </dl>
+            <p className="mt-4 border-t border-[var(--line)] pt-4 text-sm text-[var(--ink-soft)]">{patient.medicalSummary.notes || t("patients.drawer.empty")}</p>
+          </section>
+        ) : null}
+
         {activeTab === "imaging" ? (
           <section className="rounded-xl border border-[var(--line)] bg-[var(--panel)] p-5">
             <div className="flex items-center gap-3"><BrainCircuit className="h-5 w-5 text-[var(--accent-dark)]" strokeWidth={1.7} /><h2 className="font-[var(--font-auth-display)] text-xl font-medium text-[var(--ink)]">{localized.tabs.imaging}</h2></div>
@@ -221,11 +236,11 @@ export function PatientRecordPage({ accountType, patientId }: PatientRecordPageP
         {activeTab === "audit" ? (
           <section className="rounded-xl border border-[var(--line)] bg-[var(--panel)] p-5">
             <div className="flex items-center gap-3"><History className="h-5 w-5 text-[var(--accent-dark)]" strokeWidth={1.7} /><h2 className="font-[var(--font-auth-display)] text-xl font-medium text-[var(--ink)]">{localized.auditTitle}</h2></div>
-            <div className="mt-5 divide-y divide-[var(--line)]">{patient.audit.map((entry) => <article key={entry.id} className="grid gap-2 py-4 sm:grid-cols-[minmax(0,1fr)_auto]"><div><p className="text-sm font-medium text-[var(--ink)]">{entry.action}</p><p className="mt-1 text-xs text-[var(--ink-soft)]">{entry.actor} · {entry.organization}</p></div><time className="font-[var(--font-auth-mono)] text-[0.62rem] text-[var(--ink-faint)]">{formatPatientDateTime(entry.at, locale)}</time></article>)}</div>
+            <div className="mt-5 divide-y divide-[var(--line)]">{(auditLog ?? []).map((entry) => <article key={entry.id} className="grid gap-2 py-4 sm:grid-cols-[minmax(0,1fr)_auto]"><div><p className="text-sm font-medium text-[var(--ink)]">{entry.action}</p><p className="mt-1 text-xs text-[var(--ink-soft)]">{entry.actor} · {entry.organization}</p></div><time className="font-[var(--font-auth-mono)] text-[0.62rem] text-[var(--ink-faint)]">{formatPatientDateTime(entry.at, locale)}</time></article>)}</div>
           </section>
         ) : null}
 
-        {activeTab !== "summary" && activeTab !== "consultations" && activeTab !== "documents" && activeTab !== "imaging" && activeTab !== "consents" && activeTab !== "audit" ? <EmptyTab label={localized.tabs[activeTab]} /> : null}
+        {activeTab !== "summary" && activeTab !== "allergies" && activeTab !== "consultations" && activeTab !== "documents" && activeTab !== "imaging" && activeTab !== "consents" && activeTab !== "audit" ? <EmptyTab label={localized.tabs[activeTab]} /> : null}
       </div>
     </DashboardShell>
   );

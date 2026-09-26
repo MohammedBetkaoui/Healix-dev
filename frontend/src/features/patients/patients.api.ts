@@ -2,6 +2,7 @@ import { apiClient } from "@/lib/api/http-client";
 import {
   type Patient,
   type PatientAiAnalysis,
+  type PatientAuditEntry,
   type PatientBloodGroup,
   type PatientConsent,
   type PatientConsentType,
@@ -19,6 +20,7 @@ import {
   type CreatePatientConsultationPayload,
   type CreatePatientPayload,
   type PatientAiAnalysisRecord,
+  type PatientAuditLogEntryRecord,
   type PatientBloodGroupCode,
   type PatientConsentRecord,
   type PatientConsultationRecord,
@@ -291,6 +293,28 @@ export async function createPatientAiAnalysis(
   );
 
   return toPatientAiAnalysisViewModel(response.data);
+}
+
+function toPatientAuditEntryViewModel(
+  record: PatientAuditLogEntryRecord,
+): PatientAuditEntry {
+  return {
+    action: record.action,
+    actor: record.actor ?? "",
+    at: record.createdAt,
+    id: record.id,
+    organization: "",
+  };
+}
+
+export async function getPatientAuditLog(
+  patientId: string,
+): Promise<PatientAuditEntry[]> {
+  const response = await apiClient.get<PatientAuditLogEntryRecord[]>(
+    `/patients/${patientId}/audit-log`,
+  );
+
+  return response.data.map(toPatientAuditEntryViewModel);
 }
 
 export async function checkPatientDuplicate(

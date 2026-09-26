@@ -5,6 +5,7 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 import {
+  type AuditLog,
   type Patient,
   type PatientAiAnalysis,
   type PatientConsent,
@@ -16,7 +17,6 @@ import {
   createPaginationMeta,
   getPagination,
 } from '../admin/shared/admin-pagination.util';
-import { AuditLogsService } from '../audit-logs/audit-logs.service';
 import { type AuthenticatedUserPayload } from '../auth/types/authenticated-request.type';
 import { PatientConsentStatus } from '../common/enums/patient-consent-status.enum';
 import { PatientConsentType } from '../common/enums/patient-consent-type.enum';
@@ -38,6 +38,7 @@ import { UpsertPatientConsentDto } from './dto/upsert-patient-consent.dto';
 import { PatientFileStorageService } from './documents/patient-file-storage.service';
 import { PatientFileValidator } from './documents/patient-file-validator';
 import { findPatientMatches } from './patient-matching.util';
+import { PatientAuditService } from './patient-audit.service';
 
 type PatientOwnerScope = {
   establishmentId: string | null;
@@ -66,7 +67,7 @@ const consultationDoctorInclude = {
 export class PatientsService {
   constructor(
     private readonly prisma: PrismaService,
-    private readonly auditLogsService: AuditLogsService,
+    private readonly patientAuditService: PatientAuditService,
     private readonly fileValidator: PatientFileValidator,
     private readonly fileStorageService: PatientFileStorageService,
   ) {}
@@ -104,6 +105,8 @@ export class PatientsService {
         doctorProfileId: scope.doctorProfileId ?? undefined,
       },
     });
+
+    await this.patientAuditService.log(user, 'PATIENT_CREATED', patient.id);
 
     if (dto.duplicateOverrideReason) {
       await this.logDuplicateOverride(user, scope, dto, patient.id);
@@ -144,16 +147,15 @@ export class PatientsService {
       (match) => match.patient.id,
     );
 
-    await this.auditLogsService.createAuditLog({
-      userId: user.sub,
-      action: 'PATIENT_CREATED_WITH_DUPLICATE_OVERRIDE',
-      entityType: 'Patient',
-      entityId: createdPatientId,
-      metadata: {
+    await this.patientAuditService.log(
+      user,
+      'PATIENT_CREATED_WITH_DUPLICATE_OVERRIDE',
+      createdPatientId,
+      {
         justification: dto.duplicateOverrideReason,
         matchedPatientIds,
       },
-    });
+    );
   }
 
   async list(user: AuthenticatedUserPayload, query: ListPatientsQueryDto) {
@@ -194,7 +196,19 @@ export class PatientsService {
       data: this.toUpdateInput(dto),
     });
 
+    // Field names only — never the old/new values themselves, since several
+    // of them are health/identity data (nationalId, medicalSummary, ...).
+    await this.patientAuditService.log(user, 'PATIENT_UPDATED', patient.id, {
+      fields: this.getUpdatedFieldNames(dto),
+    });
+
     return this.toPatientResponse(patient);
+  }
+
+  private getUpdatedFieldNames(dto: UpdatePatientDto): string[] {
+    return Object.entries(dto)
+      .filter(([, value]) => value !== undefined)
+      .map(([key]) => key);
   }
 
   async listConsents(user: AuthenticatedUserPayload, patientId: string) {
@@ -236,6 +250,13 @@ export class PatientsService {
         recordedById: user.sub,
       },
     });
+
+    await this.patientAuditService.log(
+      user,
+      'PATIENT_CONSENT_UPDATED',
+      patientId,
+      { type: consentType, status: dto.status },
+    );
 
     return this.toConsentResponse(consent);
   }
@@ -281,6 +302,12 @@ export class PatientsService {
       },
       include: consultationDoctorInclude,
     });
+
+    await this.patientAuditService.log(
+      user,
+      'PATIENT_CONSULTATION_CREATED',
+      consultation.id,
+    );
 
     return this.toConsultationResponse(consultation);
   }
@@ -333,6 +360,13 @@ export class PatientsService {
           uploadedById: user.sub,
         },
       });
+
+      await this.patientAuditService.log(
+        user,
+        'PATIENT_DOCUMENT_UPLOADED',
+        document.id,
+        { documentType: dto.documentType },
+      );
 
       return this.toDocumentResponse(document);
     } catch (error) {
@@ -404,7 +438,69 @@ export class PatientsService {
       },
     });
 
+    await this.patientAuditService.log(
+      user,
+      'PATIENT_AI_ANALYSIS_CREATED',
+      analysis.id,
+      { type: dto.type, result: dto.result },
+    );
+
     return this.toAiAnalysisResponse(analysis);
+  }
+
+  // Read-only: which patients/sub-resources changed, not who *viewed* the
+  // dossier. Read-access logging is a separate, costlier concern (every GET)
+  // left for a later evaluation.
+  async listAuditLog(user: AuthenticatedUserPayload, patientId: string) {
+    await this.getPatientInScope(user, patientId);
+
+    const [consultations, documents, analyses] = await Promise.all([
+      this.prisma.patientConsultation.findMany({
+        where: { patientId },
+        select: { id: true },
+      }),
+      this.prisma.patientDocument.findMany({
+        where: { patientId },
+        select: { id: true },
+      }),
+      this.prisma.patientAiAnalysis.findMany({
+        where: { patientId },
+        select: { id: true },
+      }),
+    ]);
+
+    // AuditLog has no patientId column: entries for sub-resources
+    // (consultations/documents/AI analyses) are recorded against their own
+    // entityId, so the dossier's full trail is gathered across every id
+    // that belongs to this patient.
+    const entityIds = [
+      patientId,
+      ...consultations.map((consultation) => consultation.id),
+      ...documents.map((document) => document.id),
+      ...analyses.map((analysis) => analysis.id),
+    ];
+
+    const entries = await this.prisma.auditLog.findMany({
+      where: { entityId: { in: entityIds } },
+      include: { user: { select: { fullName: true } } },
+      orderBy: { createdAt: 'desc' },
+    });
+
+    return entries.map((entry) => this.toAuditLogEntryResponse(entry));
+  }
+
+  private toAuditLogEntryResponse(
+    entry: AuditLog & { user: { fullName: string } | null },
+  ) {
+    return {
+      id: entry.id,
+      action: entry.action,
+      entityType: entry.entityType,
+      entityId: entry.entityId,
+      actor: entry.user?.fullName ?? null,
+      metadata: entry.metadata,
+      createdAt: entry.createdAt,
+    };
   }
 
   private toAiAnalysisResponse(analysis: PatientAiAnalysis) {

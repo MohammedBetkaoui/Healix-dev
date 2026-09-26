@@ -6,6 +6,7 @@ import { RolesGuard } from '../common/guards/roles.guard';
 import { PrismaModule } from '../prisma/prisma.module';
 import { PatientFileStorageService } from './documents/patient-file-storage.service';
 import { PatientFileValidator } from './documents/patient-file-validator';
+import { PatientAuditService } from './patient-audit.service';
 import { PatientsController } from './patients.controller';
 import { PatientsService } from './patients.service';
 
@@ -18,6 +19,7 @@ import { PatientsService } from './patients.service';
     RolesGuard,
     PatientFileValidator,
     PatientFileStorageService,
+    PatientAuditService,
   ],
 })
 export class PatientsModule {}
