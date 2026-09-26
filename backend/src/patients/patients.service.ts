@@ -6,6 +6,7 @@ import {
 } from '@nestjs/common';
 import {
   type Patient,
+  type PatientAiAnalysis,
   type PatientConsent,
   type PatientDocument,
   type Prisma,
@@ -17,6 +18,7 @@ import {
 } from '../admin/shared/admin-pagination.util';
 import { AuditLogsService } from '../audit-logs/audit-logs.service';
 import { type AuthenticatedUserPayload } from '../auth/types/authenticated-request.type';
+import { PatientConsentStatus } from '../common/enums/patient-consent-status.enum';
 import { PatientConsentType } from '../common/enums/patient-consent-type.enum';
 import { UserRole } from '../common/enums/user-role.enum';
 import {
@@ -26,6 +28,7 @@ import {
 } from '../common/utils/sanitize';
 import { PrismaService } from '../prisma/prisma.service';
 import { CheckPatientDuplicateQueryDto } from './dto/check-patient-duplicate-query.dto';
+import { CreatePatientAiAnalysisDto } from './dto/create-patient-ai-analysis.dto';
 import { CreatePatientConsultationDto } from './dto/create-patient-consultation.dto';
 import { CreatePatientDto } from './dto/create-patient.dto';
 import { ListPatientsQueryDto } from './dto/list-patients-query.dto';
@@ -189,10 +192,7 @@ export class PatientsService {
   async listConsents(user: AuthenticatedUserPayload, patientId: string) {
     await this.getPatientInScope(user, patientId);
 
-    const consents = await this.prisma.patientConsent.findMany({
-      where: { patientId },
-      orderBy: { recordedAt: 'desc' },
-    });
+    const consents = await this.findPatientConsents(patientId);
 
     return consents.map((consent) => this.toConsentResponse(consent));
   }
@@ -347,6 +347,74 @@ export class PatientsService {
     };
   }
 
+  async listAiAnalyses(user: AuthenticatedUserPayload, patientId: string) {
+    await this.getPatientInScope(user, patientId);
+
+    const analyses = await this.prisma.patientAiAnalysis.findMany({
+      where: { patientId },
+      orderBy: { createdAt: 'desc' },
+    });
+
+    return analyses.map((analysis) => this.toAiAnalysisResponse(analysis));
+  }
+
+  // This step only records a result manually — it never calls a real
+  // inference model (PyTorch/TensorFlow); that wiring is a separate task
+  // once this data structure is validated.
+  async createAiAnalysis(
+    user: AuthenticatedUserPayload,
+    patientId: string,
+    dto: CreatePatientAiAnalysisDto,
+  ) {
+    await this.getPatientInScope(user, patientId);
+    await this.assertDiagnosticAiConsentSigned(patientId);
+
+    if (dto.sourceDocumentId) {
+      const sourceDocument = await this.prisma.patientDocument.findFirst({
+        where: { id: dto.sourceDocumentId, patientId },
+      });
+
+      if (!sourceDocument) {
+        throw new BadRequestException(
+          'Document source introuvable pour ce patient.',
+        );
+      }
+    }
+
+    const analysis = await this.prisma.patientAiAnalysis.create({
+      data: {
+        patientId,
+        type: dto.type,
+        result: dto.result,
+        score: dto.score,
+        modelName: sanitizeTextInput(dto.modelName),
+        modelVersion: dto.modelVersion
+          ? sanitizeTextInput(dto.modelVersion)
+          : undefined,
+        sourceDocumentId: dto.sourceDocumentId ?? undefined,
+        requestedById: user.sub,
+      },
+    });
+
+    return this.toAiAnalysisResponse(analysis);
+  }
+
+  private toAiAnalysisResponse(analysis: PatientAiAnalysis) {
+    return {
+      id: analysis.id,
+      patientId: analysis.patientId,
+      type: analysis.type,
+      result: analysis.result,
+      score: analysis.score,
+      modelName: analysis.modelName,
+      modelVersion: analysis.modelVersion,
+      sourceDocumentId: analysis.sourceDocumentId,
+      requestedById: analysis.requestedById,
+      createdAt: analysis.createdAt,
+      updatedAt: analysis.updatedAt,
+    };
+  }
+
   private assertCanCreateConsultation(role: UserRole): void {
     if (
       role !== UserRole.AFFILIATED_DOCTOR &&
@@ -395,6 +463,30 @@ export class PatientsService {
       )
     ) {
       throw new BadRequestException('Type de consentement invalide.');
+    }
+  }
+
+  private findPatientConsents(patientId: string) {
+    return this.prisma.patientConsent.findMany({
+      where: { patientId },
+      orderBy: { recordedAt: 'desc' },
+    });
+  }
+
+  private async assertDiagnosticAiConsentSigned(
+    patientId: string,
+  ): Promise<void> {
+    const consents = await this.findPatientConsents(patientId);
+    const hasSignedConsent = consents.some(
+      (consent) =>
+        consent.type === PatientConsentType.DIAGNOSTIC_AI &&
+        consent.status === PatientConsentStatus.SIGNED,
+    );
+
+    if (!hasSignedConsent) {
+      throw new ForbiddenException(
+        "Consentement DIAGNOSTIC_AI requis avant tout enregistrement d'analyse IA.",
+      );
     }
   }
 

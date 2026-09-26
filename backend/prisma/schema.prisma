@@ -237,6 +237,18 @@ enum PatientDocumentType {
   DICOM
 }
 
+enum PatientAiAnalysisType {
+  MRI
+  CT_SCAN
+  XRAY
+  ECG
+}
+
+enum PatientAiAnalysisResult {
+  NORMAL
+  ANOMALY_DETECTED
+}
+
 model User {
   id              String        @id @default(cuid())
   fullName        String        @map("full_name") @db.VarChar(120)
@@ -261,6 +273,7 @@ model User {
   reviewedPayments             Payment[]             @relation("PaymentReviewedBy")
   recordedPatientConsents      PatientConsent[]
   uploadedPatientDocuments     PatientDocument[]
+  requestedPatientAiAnalyses   PatientAiAnalysis[]
 
   @@map("users")
 }
@@ -349,6 +362,7 @@ model Patient {
   consents      PatientConsent[]
   consultations PatientConsultation[]
   documents     PatientDocument[]
+  aiAnalyses    PatientAiAnalysis[]
 
   @@index([establishmentId])
   @@index([doctorProfileId])
@@ -412,11 +426,37 @@ model PatientDocument {
   createdAt    DateTime            @default(now()) @map("created_at")
   updatedAt    DateTime            @updatedAt @map("updated_at")
 
-  patient    Patient @relation(fields: [patientId], references: [id], onDelete: Cascade)
-  uploadedBy User    @relation(fields: [uploadedById], references: [id], onDelete: Restrict)
+  patient    Patient             @relation(fields: [patientId], references: [id], onDelete: Cascade)
+  uploadedBy User                @relation(fields: [uploadedById], references: [id], onDelete: Restrict)
+  aiAnalyses PatientAiAnalysis[]
 
   @@index([patientId])
   @@map("patient_documents")
+}
+
+// This step only lays down the structure that will receive AI model output
+// later (modelName/modelVersion trace which model produced the result).
+// It does not call any real inference model — result/score are recorded
+// manually for now.
+model PatientAiAnalysis {
+  id               String                  @id @default(cuid())
+  patientId        String                  @map("patient_id")
+  type             PatientAiAnalysisType
+  result           PatientAiAnalysisResult
+  score            Float
+  modelName        String                  @map("model_name") @db.VarChar(120)
+  modelVersion     String?                 @map("model_version") @db.VarChar(40)
+  sourceDocumentId String?                 @map("source_document_id")
+  requestedById    String                  @map("requested_by_id")
+  createdAt        DateTime                @default(now()) @map("created_at")
+  updatedAt        DateTime                @updatedAt @map("updated_at")
+
+  patient        Patient          @relation(fields: [patientId], references: [id], onDelete: Cascade)
+  sourceDocument PatientDocument? @relation(fields: [sourceDocumentId], references: [id], onDelete: SetNull)
+  requestedBy    User             @relation(fields: [requestedById], references: [id], onDelete: Restrict)
+
+  @@index([patientId])
+  @@map("patient_ai_analyses")
 }
 
 model AuditLog {

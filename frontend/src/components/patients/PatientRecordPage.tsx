@@ -18,6 +18,7 @@ import { DashboardShell } from "@/components/dashboard/layout/DashboardShell";
 import { doctorNavSections, establishmentNavSections } from "@/components/dashboard/layout/navigation";
 import { Button } from "@/components/ui/button";
 import { usePatient } from "@/features/patients/hooks/use-patient";
+import { usePatientAiAnalyses } from "@/features/patients/hooks/use-patient-ai-analyses";
 import { usePatientConsents } from "@/features/patients/hooks/use-patient-consents";
 import { usePatientConsultations } from "@/features/patients/hooks/use-patient-consultations";
 import { usePatientDocuments } from "@/features/patients/hooks/use-patient-documents";
@@ -94,6 +95,10 @@ export function PatientRecordPage({ accountType, patientId }: PatientRecordPageP
   const { data: consents } = usePatientConsents(patientId);
   const { data: consultations } = usePatientConsultations(patientId);
   const { data: documents } = usePatientDocuments(patientId);
+  const { data: aiAnalyses } = usePatientAiAnalyses(patientId);
+  const hasSignedAiConsent = (consents ?? []).some(
+    (consent) => consent.type === "DIAGNOSTIC_AI" && consent.status === "SIGNED",
+  );
   const [activeTab, setActiveTab] = useState<RecordTab>("summary");
 
   const shellProps = accountType === "ESTABLISHMENT"
@@ -171,10 +176,25 @@ export function PatientRecordPage({ accountType, patientId }: PatientRecordPageP
             </section>
 
             <section className="rounded-xl border border-[var(--accent-line)] bg-muted p-5">
-              <div className="flex items-center gap-3"><span className="flex h-10 w-10 items-center justify-center rounded-[0.72rem] border border-[var(--accent-line)] bg-[var(--accent-soft)] text-[var(--accent)]"><BrainCircuit className="h-4 w-4" strokeWidth={1.7} /></span><div><p className="font-[var(--font-auth-mono)] text-[0.6rem] uppercase tracking-[0.1em] text-[var(--accent)]">{localized.aiKicker}</p><p className="mt-1 text-sm font-medium text-[var(--ink)]">IRM · Healix Vision 2.1 · {patient.aiAnalyses[0]?.score ?? 0}%</p></div></div>
+              <div className="flex items-center gap-3"><span className="flex h-10 w-10 items-center justify-center rounded-[0.72rem] border border-[var(--accent-line)] bg-[var(--accent-soft)] text-[var(--accent)]"><BrainCircuit className="h-4 w-4" strokeWidth={1.7} /></span><div><p className="font-[var(--font-auth-mono)] text-[0.6rem] uppercase tracking-[0.1em] text-[var(--accent)]">{localized.aiKicker}</p><p className="mt-1 text-sm font-medium text-[var(--ink)]">IRM · Healix Vision 2.1 · {aiAnalyses?.[0]?.score ?? 0}%</p></div></div>
               <p className="mt-4 border-s-2 border-[var(--specialty-brain)] ps-3 text-xs leading-5 text-[var(--ink-soft)]">{localized.aiDisclaimer}</p>
             </section>
           </div>
+        ) : null}
+
+        {activeTab === "imaging" ? (
+          <section className="rounded-xl border border-[var(--line)] bg-[var(--panel)] p-5">
+            <div className="flex items-center gap-3"><BrainCircuit className="h-5 w-5 text-[var(--accent-dark)]" strokeWidth={1.7} /><h2 className="font-[var(--font-auth-display)] text-xl font-medium text-[var(--ink)]">{localized.tabs.imaging}</h2></div>
+            {hasSignedAiConsent ? (
+              (aiAnalyses ?? []).length === 0 ? (
+                <p className="mt-5 text-sm text-[var(--ink-faint)]">{t("patients.common.none")}</p>
+              ) : (
+                <div className="mt-5 divide-y divide-[var(--line)]">{(aiAnalyses ?? []).map((analysis) => <div key={analysis.id} className="grid gap-2 py-4 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-center"><div><p className="text-sm font-medium text-[var(--ink)]">{t(`patients.ai.types.${analysis.type}`)} · {analysis.score}%</p><p className="mt-1 text-xs text-[var(--ink-faint)]">{t(`patients.ai.results.${analysis.result}`)}</p></div><time className="font-[var(--font-auth-mono)] text-[0.62rem] text-[var(--ink-faint)]">{formatPatientDate(analysis.date, locale)}</time></div>)}</div>
+              )
+            ) : (
+              <p className="mt-5 text-sm text-[var(--ink-faint)]">{t("patients.ai.consentRequired")}</p>
+            )}
+          </section>
         ) : null}
 
         {activeTab === "consultations" ? (
@@ -205,7 +225,7 @@ export function PatientRecordPage({ accountType, patientId }: PatientRecordPageP
           </section>
         ) : null}
 
-        {activeTab !== "summary" && activeTab !== "consultations" && activeTab !== "documents" && activeTab !== "consents" && activeTab !== "audit" ? <EmptyTab label={localized.tabs[activeTab]} /> : null}
+        {activeTab !== "summary" && activeTab !== "consultations" && activeTab !== "documents" && activeTab !== "imaging" && activeTab !== "consents" && activeTab !== "audit" ? <EmptyTab label={localized.tabs[activeTab]} /> : null}
       </div>
     </DashboardShell>
   );

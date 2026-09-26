@@ -19,6 +19,7 @@ import { type AuthenticatedUserPayload } from '../auth/types/authenticated-reque
 import { CurrentUser } from '../common/decorators/current-user.decorator';
 import { RolesGuard } from '../common/guards/roles.guard';
 import { CheckPatientDuplicateQueryDto } from './dto/check-patient-duplicate-query.dto';
+import { CreatePatientAiAnalysisDto } from './dto/create-patient-ai-analysis.dto';
 import { CreatePatientConsultationDto } from './dto/create-patient-consultation.dto';
 import { CreatePatientDto } from './dto/create-patient.dto';
 import { ListPatientsQueryDto } from './dto/list-patients-query.dto';
@@ -134,5 +135,22 @@ export class PatientsController {
     @UploadedFile() file: Express.Multer.File,
   ) {
     return this.patientsService.uploadDocument(user, id, dto, file);
+  }
+
+  @Get(':id/ai-analyses')
+  listAiAnalyses(
+    @CurrentUser() user: AuthenticatedUserPayload,
+    @Param('id') id: string,
+  ) {
+    return this.patientsService.listAiAnalyses(user, id);
+  }
+
+  @Post(':id/ai-analyses')
+  createAiAnalysis(
+    @CurrentUser() user: AuthenticatedUserPayload,
+    @Param('id') id: string,
+    @Body() dto: CreatePatientAiAnalysisDto,
+  ) {
+    return this.patientsService.createAiAnalysis(user, id, dto);
   }
 }

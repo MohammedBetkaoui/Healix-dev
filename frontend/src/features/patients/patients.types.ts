@@ -1,6 +1,8 @@
 import {
   type Patient,
   type PatientAdministrativeStatus,
+  type PatientAiAnalysisResult,
+  type PatientAiAnalysisType,
   type PatientConsentStatus,
   type PatientConsentType,
   type PatientDocumentType,
@@ -196,4 +198,34 @@ export type PatientDocumentRecord = {
   size: number;
   updatedAt: string;
   uploadedById: string;
+};
+
+// Wire shape returned by GET /patients/:id/ai-analyses and
+// POST /patients/:id/ai-analyses. Mirrors
+// backend/src/patients/patients.service.ts#toAiAnalysisResponse. This is a
+// manual record of a result — no real inference model is called yet.
+export type PatientAiAnalysisRecord = {
+  createdAt: string;
+  id: string;
+  modelName: string;
+  modelVersion: string | null;
+  patientId: string;
+  requestedById: string;
+  result: PatientAiAnalysisResult;
+  score: number;
+  sourceDocumentId: string | null;
+  type: PatientAiAnalysisType;
+  updatedAt: string;
+};
+
+// Mirrors backend/src/patients/dto/create-patient-ai-analysis.dto.ts exactly.
+// Creation requires a signed DIAGNOSTIC_AI consent server-side (403 if
+// missing) — see PatientsService.createAiAnalysis.
+export type CreatePatientAiAnalysisPayload = {
+  modelName: string;
+  modelVersion?: string;
+  result: PatientAiAnalysisResult;
+  score: number;
+  sourceDocumentId?: string;
+  type: PatientAiAnalysisType;
 };

@@ -67,6 +67,7 @@ export const patientsFr = {
   ai: {
     types: { CT_SCAN: "Scanner", ECG: "ECG", MRI: "IRM", XRAY: "Radio" },
     results: { ANOMALY_DETECTED: "Anomalie détectée", NORMAL: "Normal" },
+    consentRequired: "Un consentement IA (DIAGNOSTIC_AI) signé est requis avant tout enregistrement d’analyse.",
   },
   actions: {
     addDocument: "Ajouter document",

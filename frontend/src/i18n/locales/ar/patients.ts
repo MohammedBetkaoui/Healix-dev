@@ -67,6 +67,7 @@ export const patientsAr = {
   ai: {
     types: { CT_SCAN: "سكانير", ECG: "تخطيط القلب", MRI: "رنين مغناطيسي", XRAY: "أشعة" },
     results: { ANOMALY_DETECTED: "تم اكتشاف حالة غير عادية", NORMAL: "عادي" },
+    consentRequired: "تلزم موافقة الذكاء الاصطناعي (DIAGNOSTIC_AI) موقعة قبل أي تسجيل لتحليل.",
   },
   actions: {
     addDocument: "إضافة وثيقة",

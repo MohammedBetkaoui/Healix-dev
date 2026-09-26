@@ -1,6 +1,7 @@
 import { apiClient } from "@/lib/api/http-client";
 import {
   type Patient,
+  type PatientAiAnalysis,
   type PatientBloodGroup,
   type PatientConsent,
   type PatientConsentType,
@@ -14,8 +15,10 @@ import { algerianWilayas } from "./patients.constants";
 import {
   type CheckPatientDuplicateParams,
   type CheckPatientDuplicateResponse,
+  type CreatePatientAiAnalysisPayload,
   type CreatePatientConsultationPayload,
   type CreatePatientPayload,
+  type PatientAiAnalysisRecord,
   type PatientBloodGroupCode,
   type PatientConsentRecord,
   type PatientConsultationRecord,
@@ -252,6 +255,40 @@ export async function uploadPatientDocument(
   );
 
   return toPatientDocumentViewModel(response.data);
+}
+
+function toPatientAiAnalysisViewModel(
+  record: PatientAiAnalysisRecord,
+): PatientAiAnalysis {
+  return {
+    date: record.createdAt,
+    id: record.id,
+    result: record.result,
+    score: record.score,
+    type: record.type,
+  };
+}
+
+export async function getPatientAiAnalyses(
+  patientId: string,
+): Promise<PatientAiAnalysis[]> {
+  const response = await apiClient.get<PatientAiAnalysisRecord[]>(
+    `/patients/${patientId}/ai-analyses`,
+  );
+
+  return response.data.map(toPatientAiAnalysisViewModel);
+}
+
+export async function createPatientAiAnalysis(
+  patientId: string,
+  payload: CreatePatientAiAnalysisPayload,
+): Promise<PatientAiAnalysis> {
+  const response = await apiClient.post<PatientAiAnalysisRecord>(
+    `/patients/${patientId}/ai-analyses`,
+    payload,
+  );
+
+  return toPatientAiAnalysisViewModel(response.data);
 }
 
 export async function checkPatientDuplicate(
