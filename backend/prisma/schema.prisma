@@ -230,6 +230,13 @@ enum PatientConsentStatus {
   NOT_GRANTED
 }
 
+enum PatientDocumentType {
+  PRESCRIPTION
+  MEDICAL_REPORT
+  MEDICAL_IMAGE
+  DICOM
+}
+
 model User {
   id              String        @id @default(cuid())
   fullName        String        @map("full_name") @db.VarChar(120)
@@ -253,6 +260,7 @@ model User {
   payments                     Payment[]             @relation("PaymentUser")
   reviewedPayments             Payment[]             @relation("PaymentReviewedBy")
   recordedPatientConsents      PatientConsent[]
+  uploadedPatientDocuments     PatientDocument[]
 
   @@map("users")
 }
@@ -340,6 +348,7 @@ model Patient {
   doctorProfile DoctorProfile? @relation(fields: [doctorProfileId], references: [id], onDelete: SetNull)
   consents      PatientConsent[]
   consultations PatientConsultation[]
+  documents     PatientDocument[]
 
   @@index([establishmentId])
   @@index([doctorProfileId])
@@ -387,6 +396,27 @@ model PatientConsultation {
 
   @@index([patientId])
   @@map("patient_consultations")
+}
+
+model PatientDocument {
+  id           String              @id @default(cuid())
+  patientId    String              @map("patient_id")
+  documentType PatientDocumentType @map("document_type")
+  originalName String              @map("original_name") @db.VarChar(255)
+  storedName   String              @map("stored_name") @db.VarChar(255)
+  mimeType     String              @map("mime_type") @db.VarChar(100)
+  size         Int
+  localPath    String              @map("local_path") @db.VarChar(500)
+  checksum     String?             @db.VarChar(128)
+  uploadedById String              @map("uploaded_by_id")
+  createdAt    DateTime            @default(now()) @map("created_at")
+  updatedAt    DateTime            @updatedAt @map("updated_at")
+
+  patient    Patient @relation(fields: [patientId], references: [id], onDelete: Cascade)
+  uploadedBy User    @relation(fields: [uploadedById], references: [id], onDelete: Restrict)
+
+  @@index([patientId])
+  @@map("patient_documents")
 }
 
 model AuditLog {

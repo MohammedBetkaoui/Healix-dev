@@ -3,6 +3,7 @@ import {
   type PatientAdministrativeStatus,
   type PatientConsentStatus,
   type PatientConsentType,
+  type PatientDocumentType,
   type PatientFilterState,
   type PatientGender,
   type PatientInsurance,
@@ -178,4 +179,21 @@ export type CreatePatientConsultationPayload = {
   diagnosis: string;
   reason: string;
   treatment: string;
+};
+
+// Wire shape returned by GET /patients/:id/documents and
+// POST /patients/:id/documents. Mirrors
+// backend/src/patients/patients.service.ts#toDocumentResponse — storedName,
+// localPath and checksum are internal storage details and are never
+// returned to the client.
+export type PatientDocumentRecord = {
+  createdAt: string;
+  documentType: PatientDocumentType;
+  id: string;
+  mimeType: string;
+  originalName: string;
+  patientId: string;
+  size: number;
+  updatedAt: string;
+  uploadedById: string;
 };

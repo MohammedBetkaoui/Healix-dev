@@ -5,6 +5,8 @@ import {
   type PatientConsent,
   type PatientConsentType,
   type PatientConsultation,
+  type PatientDocument,
+  type PatientDocumentType,
 } from "@/types/patient";
 
 import { type PotentialPatientDuplicate } from "./patient-registry";
@@ -17,6 +19,7 @@ import {
   type PatientBloodGroupCode,
   type PatientConsentRecord,
   type PatientConsultationRecord,
+  type PatientDocumentRecord,
   type PatientRecord,
   type PatientRecordsListResponse,
   type PatientsListParams,
@@ -197,6 +200,58 @@ export async function createPatientConsultation(
   );
 
   return toPatientConsultationViewModel(response.data);
+}
+
+function formatDocumentSize(size: number): string {
+  if (size < 1024 * 1024) {
+    return `${Math.max(1, Math.round(size / 1024))} KB`;
+  }
+
+  return `${(size / (1024 * 1024)).toFixed(1)} MB`;
+}
+
+function toPatientDocumentViewModel(
+  record: PatientDocumentRecord,
+): PatientDocument {
+  return {
+    date: record.createdAt,
+    fileName: record.originalName,
+    id: record.id,
+    size: formatDocumentSize(record.size),
+    type: record.documentType,
+  };
+}
+
+export async function getPatientDocuments(
+  patientId: string,
+): Promise<PatientDocument[]> {
+  const response = await apiClient.get<PatientDocumentRecord[]>(
+    `/patients/${patientId}/documents`,
+  );
+
+  return response.data.map(toPatientDocumentViewModel);
+}
+
+export async function uploadPatientDocument(
+  patientId: string,
+  file: File,
+  documentType: PatientDocumentType,
+): Promise<PatientDocument> {
+  const formData = new FormData();
+  formData.append("file", file);
+  formData.append("documentType", documentType);
+
+  const response = await apiClient.post<PatientDocumentRecord>(
+    `/patients/${patientId}/documents`,
+    formData,
+    {
+      headers: {
+        "Content-Type": "multipart/form-data",
+      },
+    },
+  );
+
+  return toPatientDocumentViewModel(response.data);
 }
 
 export async function checkPatientDuplicate(

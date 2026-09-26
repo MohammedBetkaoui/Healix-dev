@@ -7,6 +7,7 @@ import {
 import {
   type Patient,
   type PatientConsent,
+  type PatientDocument,
   type Prisma,
 } from '@prisma/client';
 
@@ -29,7 +30,10 @@ import { CreatePatientConsultationDto } from './dto/create-patient-consultation.
 import { CreatePatientDto } from './dto/create-patient.dto';
 import { ListPatientsQueryDto } from './dto/list-patients-query.dto';
 import { UpdatePatientDto } from './dto/update-patient.dto';
+import { UploadPatientDocumentDto } from './dto/upload-patient-document.dto';
 import { UpsertPatientConsentDto } from './dto/upsert-patient-consent.dto';
+import { PatientFileStorageService } from './documents/patient-file-storage.service';
+import { PatientFileValidator } from './documents/patient-file-validator';
 import { findPatientMatches } from './patient-matching.util';
 
 type PatientOwnerScope = {
@@ -52,6 +56,8 @@ export class PatientsService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly auditLogsService: AuditLogsService,
+    private readonly fileValidator: PatientFileValidator,
+    private readonly fileStorageService: PatientFileStorageService,
   ) {}
 
   async create(user: AuthenticatedUserPayload, dto: CreatePatientDto) {
@@ -269,6 +275,76 @@ export class PatientsService {
     });
 
     return this.toConsultationResponse(consultation);
+  }
+
+  async listDocuments(user: AuthenticatedUserPayload, patientId: string) {
+    await this.getPatientInScope(user, patientId);
+
+    const documents = await this.prisma.patientDocument.findMany({
+      where: { patientId },
+      orderBy: { createdAt: 'desc' },
+    });
+
+    return documents.map((document) => this.toDocumentResponse(document));
+  }
+
+  // Read/write access here mirrors the patient record itself: uploading a
+  // scanned prescription is routine administrative work, unlike creating a
+  // consultation, so there is no extra clinical-role restriction.
+  async uploadDocument(
+    user: AuthenticatedUserPayload,
+    patientId: string,
+    dto: UploadPatientDocumentDto,
+    file: Express.Multer.File,
+  ) {
+    if (!file) {
+      throw new BadRequestException('Document obligatoire manquant.');
+    }
+
+    await this.getPatientInScope(user, patientId);
+
+    const extension = this.fileValidator.validate(file);
+    const storedFile = await this.fileStorageService.storePatientDocument({
+      documentType: dto.documentType,
+      extension,
+      file,
+      patientId,
+    });
+
+    try {
+      const document = await this.prisma.patientDocument.create({
+        data: {
+          patientId,
+          documentType: dto.documentType,
+          originalName: storedFile.originalName,
+          storedName: storedFile.storedName,
+          mimeType: file.mimetype,
+          size: file.size,
+          localPath: storedFile.localPath,
+          checksum: storedFile.checksum,
+          uploadedById: user.sub,
+        },
+      });
+
+      return this.toDocumentResponse(document);
+    } catch (error) {
+      await this.fileStorageService.deleteLocalFile(storedFile.localPath);
+      throw error;
+    }
+  }
+
+  private toDocumentResponse(document: PatientDocument) {
+    return {
+      id: document.id,
+      patientId: document.patientId,
+      documentType: document.documentType,
+      originalName: document.originalName,
+      mimeType: document.mimeType,
+      size: document.size,
+      uploadedById: document.uploadedById,
+      createdAt: document.createdAt,
+      updatedAt: document.updatedAt,
+    };
   }
 
   private assertCanCreateConsultation(role: UserRole): void {

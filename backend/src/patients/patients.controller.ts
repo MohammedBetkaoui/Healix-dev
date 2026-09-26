@@ -7,8 +7,12 @@ import {
   Post,
   Put,
   Query,
+  UploadedFile,
   UseGuards,
+  UseInterceptors,
 } from '@nestjs/common';
+import { FileInterceptor } from '@nestjs/platform-express';
+import { memoryStorage } from 'multer';
 
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { type AuthenticatedUserPayload } from '../auth/types/authenticated-request.type';
@@ -19,6 +23,7 @@ import { CreatePatientConsultationDto } from './dto/create-patient-consultation.
 import { CreatePatientDto } from './dto/create-patient.dto';
 import { ListPatientsQueryDto } from './dto/list-patients-query.dto';
 import { UpdatePatientDto } from './dto/update-patient.dto';
+import { UploadPatientDocumentDto } from './dto/upload-patient-document.dto';
 import { UpsertPatientConsentDto } from './dto/upsert-patient-consent.dto';
 import { PatientsService } from './patients.service';
 
@@ -103,5 +108,31 @@ export class PatientsController {
     @Body() dto: CreatePatientConsultationDto,
   ) {
     return this.patientsService.createConsultation(user, id, dto);
+  }
+
+  @Get(':id/documents')
+  listDocuments(
+    @CurrentUser() user: AuthenticatedUserPayload,
+    @Param('id') id: string,
+  ) {
+    return this.patientsService.listDocuments(user, id);
+  }
+
+  @Post(':id/documents')
+  @UseInterceptors(
+    FileInterceptor('file', {
+      storage: memoryStorage(),
+      limits: {
+        fileSize: 20 * 1024 * 1024,
+      },
+    }),
+  )
+  uploadDocument(
+    @CurrentUser() user: AuthenticatedUserPayload,
+    @Param('id') id: string,
+    @Body() dto: UploadPatientDocumentDto,
+    @UploadedFile() file: Express.Multer.File,
+  ) {
+    return this.patientsService.uploadDocument(user, id, dto, file);
   }
 }
