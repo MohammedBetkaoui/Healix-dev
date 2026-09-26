@@ -7,6 +7,7 @@ import { AppController } from './app.controller';
 import { AppService } from './app.service';
 import { AdminAuthModule } from './admin-auth/admin-auth.module';
 import { AdminModule } from './admin/admin.module';
+import { AppointmentsModule } from './appointments/appointments.module';
 import { AuthModule } from './auth/auth.module';
 import { PatientsModule } from './patients/patients.module';
 import { PaymentsModule } from './payments/payments.module';
@@ -29,6 +30,7 @@ import { VerificationModule } from './verification/verification.module';
     PaymentsModule,
     VerificationModule,
     PatientsModule,
+    AppointmentsModule,
   ],
   controllers: [AppController],
   providers: [
