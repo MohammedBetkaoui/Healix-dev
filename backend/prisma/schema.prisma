@@ -249,6 +249,14 @@ enum PatientAiAnalysisResult {
   ANOMALY_DETECTED
 }
 
+enum AppointmentStatus {
+  SCHEDULED
+  CONFIRMED
+  CANCELED
+  COMPLETED
+  NO_SHOW
+}
+
 model User {
   id              String        @id @default(cuid())
   fullName        String        @map("full_name") @db.VarChar(120)
@@ -274,6 +282,7 @@ model User {
   recordedPatientConsents      PatientConsent[]
   uploadedPatientDocuments     PatientDocument[]
   requestedPatientAiAnalyses   PatientAiAnalysis[]
+  createdAppointments          Appointment[]
 
   @@map("users")
 }
@@ -319,6 +328,7 @@ model DoctorProfile {
   verificationRequest VerificationRequest?
   patients            Patient[]
   consultations       PatientConsultation[]
+  appointments        Appointment[]
 
   @@index([establishmentId])
   @@map("doctor_profiles")
@@ -368,6 +378,7 @@ model Patient {
   consultations PatientConsultation[]
   documents     PatientDocument[]
   aiAnalyses    PatientAiAnalysis[]
+  appointments  Appointment[]
 
   @@index([establishmentId])
   @@index([doctorProfileId])
@@ -462,6 +473,29 @@ model PatientAiAnalysis {
 
   @@index([patientId])
   @@map("patient_ai_analyses")
+}
+
+model Appointment {
+  id              String            @id @default(cuid())
+  patientId       String            @map("patient_id")
+  doctorProfileId String            @map("doctor_profile_id")
+  scheduledAt     DateTime          @map("scheduled_at")
+  durationMinutes Int               @default(30) @map("duration_minutes")
+  reason          String            @db.VarChar(255)
+  status          AppointmentStatus @default(SCHEDULED)
+  notes           String?           @db.Text
+  createdById     String            @map("created_by_id")
+  createdAt       DateTime          @default(now()) @map("created_at")
+  updatedAt       DateTime          @updatedAt @map("updated_at")
+
+  patient       Patient       @relation(fields: [patientId], references: [id], onDelete: Cascade)
+  doctorProfile DoctorProfile @relation(fields: [doctorProfileId], references: [id], onDelete: Cascade)
+  createdBy     User          @relation(fields: [createdById], references: [id], onDelete: Restrict)
+
+  @@index([patientId])
+  @@index([doctorProfileId])
+  @@index([scheduledAt])
+  @@map("appointments")
 }
 
 model AuditLog {
