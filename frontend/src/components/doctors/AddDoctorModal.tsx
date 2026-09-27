@@ -224,7 +224,7 @@ export function AddDoctorModal({
       className="fixed inset-0 z-50 overflow-y-auto bg-[var(--scrim)]"
       role="presentation"
       onKeyDown={(event) => {
-        if (event.key === "Escape") {
+        if (event.key === "Escape" && !result) {
           event.stopPropagation();
           closeModal();
         }
