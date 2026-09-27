@@ -31,6 +31,7 @@ const appointmentInclude = {
     },
   },
   doctorProfile: { select: { user: { select: { fullName: true } } } },
+  consultation: { select: { id: true } },
 } as const;
 
 type AppointmentWithRelations = Prisma.AppointmentGetPayload<{
@@ -396,6 +397,7 @@ export class AppointmentsService {
       patientFirstNameAr: appointment.patient.firstNameAr,
       patientLastNameAr: appointment.patient.lastNameAr,
       doctorFullName: appointment.doctorProfile.user.fullName,
+      consultationId: appointment.consultation?.id ?? null,
     };
   }
 }

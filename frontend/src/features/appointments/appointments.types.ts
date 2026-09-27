@@ -9,6 +9,7 @@ export type AppointmentStatus =
 // Wire shape returned by GET/POST/PATCH /appointments. Mirrors
 // backend/src/appointments/appointments.service.ts#toAppointmentResponse.
 export type Appointment = {
+  consultationId: string | null;
   createdAt: string;
   createdById: string;
   doctorFullName: string;

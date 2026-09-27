@@ -18,6 +18,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select } from "@/components/ui/select";
 import { StatusBadge } from "@/components/dashboard/shared/StatusBadge";
+import { CreateConsultationModal } from "@/components/patients/CreateConsultationModal";
 import { type Appointment, type AppointmentStatus } from "@/features/appointments/appointments.types";
 import { useUpdateAppointment } from "@/features/appointments/hooks/use-update-appointment";
 import { type Locale } from "@/i18n";
@@ -67,6 +68,7 @@ const detailsCopy = {
       reason: "Le motif doit contenir entre 2 et 255 caractères.",
       time: "L’heure est obligatoire.",
     },
+    consultationLinked: "Consultation enregistrée pour ce rendez-vous.",
     fields: {
       date: "Date",
       duration: "Durée",
@@ -110,6 +112,7 @@ const detailsCopy = {
       reason: "يجب أن يتضمن السبب بين 2 و255 حرفاً.",
       time: "الساعة إلزامية.",
     },
+    consultationLinked: "تم تسجيل استشارة لهذا الموعد.",
     fields: {
       date: "التاريخ",
       duration: "المدة",
@@ -198,6 +201,7 @@ export function AppointmentDetailsModal({
   const [current, setCurrent] = useState(appointment);
   const [mode, setMode] = useState<"view" | "edit">("view");
   const [isConfirmingCancel, setConfirmingCancel] = useState(false);
+  const [isConsultationPromptOpen, setConsultationPromptOpen] = useState(false);
   const {
     formState: { errors: formErrors },
     handleSubmit,
@@ -211,6 +215,7 @@ export function AppointmentDetailsModal({
     setCurrent(appointment);
     setMode("view");
     setConfirmingCancel(false);
+    setConsultationPromptOpen(false);
     updateMutation.reset();
     if (appointment) reset(getEditFormValues(appointment));
     // updateMutation is stable across renders (react-query mutation object identity
@@ -239,7 +244,15 @@ export function AppointmentDetailsModal({
         onSuccess: (updated) => {
           setCurrent(updated);
           setConfirmingCancel(false);
-          onUpdated();
+          // Offer to open the consultation form right away when this RDV has
+          // never had one recorded. If a consultation is already linked (e.g.
+          // rescheduling a previously COMPLETED appointment), skip the prompt
+          // and keep the existing behavior of just refreshing the agenda.
+          if (status === "COMPLETED" && updated.consultationId === null) {
+            setConsultationPromptOpen(true);
+          } else {
+            onUpdated();
+          }
         },
       },
     );
@@ -277,6 +290,7 @@ export function AppointmentDetailsModal({
   };
 
   return (
+    <>
     <div
       className="fixed inset-0 z-50 overflow-y-auto bg-[var(--scrim)]"
       role="presentation"
@@ -354,6 +368,13 @@ export function AppointmentDetailsModal({
                     <dd className="mt-1 whitespace-pre-wrap text-sm text-[var(--text-primary)]">{current.notes || copy.fields.noNotes}</dd>
                   </div>
                 </dl>
+
+                {current.consultationId ? (
+                  <p className="flex items-center gap-2 text-xs font-medium text-[var(--success-ink)]">
+                    <CircleCheck size={15} strokeWidth={1.8} className="shrink-0" aria-hidden="true" />
+                    {copy.consultationLinked}
+                  </p>
+                ) : null}
 
                 {updateMutation.isError ? (
                   <p role="alert" className="flex items-start gap-2 rounded-[var(--radius-sm)] border border-[var(--danger-line)] bg-[var(--danger-soft)] px-3 py-2.5 text-xs leading-relaxed text-[var(--danger-ink)]">
@@ -477,5 +498,26 @@ export function AppointmentDetailsModal({
         </div>
       </div>
     </div>
+
+    <CreateConsultationModal
+      appointmentId={current.id}
+      direction={direction}
+      isOpen={isConsultationPromptOpen}
+      locale={locale}
+      patientId={current.patientId}
+      onClose={() => {
+        setConsultationPromptOpen(false);
+        // The RDV was already marked COMPLETED before this prompt opened, so
+        // declining to log a consultation now still means the agenda needs
+        // its "updated" notice.
+        onUpdated();
+      }}
+      onCreated={() => {
+        setConsultationPromptOpen(false);
+        onUpdated();
+        closeModal();
+      }}
+    />
+    </>
   );
 }

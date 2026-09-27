@@ -35,6 +35,7 @@ function seedAppointmentsPreview(query: QueryClient) {
     [17, 0, 20, "SCHEDULED", "Riad", "Hamdi", "رياض", "حمدي", "Résultats d’analyses", 1],
   ];
   const appointments: Appointment[] = rows.map(([hours, minutes, duration, status, firstName, lastName, firstNameAr, lastNameAr, reason, doctorIndex], index) => ({
+    consultationId: status === "COMPLETED" ? `consultation-${index}` : null,
     createdAt: start.toISOString(),
     createdById: "preview",
     doctorFullName: doctors[doctorIndex].fullName,
