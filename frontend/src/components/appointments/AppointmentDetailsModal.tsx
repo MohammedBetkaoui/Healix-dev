@@ -1,5 +1,6 @@
 "use client";
 
+import { isAxiosError } from "axios";
 import {
   Ban,
   CalendarCheck,
@@ -139,6 +140,18 @@ const detailsCopy = {
     backToDetails: "رجوع",
   },
 } as const;
+
+// Surfaces the backend's own message verbatim (e.g. the 409 slot-overlap
+// conflict) instead of always showing a generic fallback string.
+function getServerErrorMessage(error: unknown): string | undefined {
+  if (!isAxiosError(error)) return undefined;
+  const message = (error.response?.data as { message?: unknown } | undefined)?.message;
+  if (typeof message === "string") return message;
+  if (Array.isArray(message)) {
+    return message.find((entry): entry is string => typeof entry === "string");
+  }
+  return undefined;
+}
 
 function getPatientName(appointment: Appointment) {
   const latinName = `${appointment.patientFirstName} ${appointment.patientLastName}`.trim();
@@ -357,7 +370,7 @@ export function AppointmentDetailsModal({
                 {updateMutation.isError ? (
                   <p role="alert" className="flex items-start gap-2 rounded-[var(--radius-sm)] border border-[var(--danger-line)] bg-[var(--danger-soft)] px-3 py-2.5 text-xs leading-relaxed text-[var(--danger-ink)]">
                     <TriangleAlert size={15} strokeWidth={1.8} className="mt-px shrink-0" aria-hidden="true" />
-                    {copy.updateError}
+                    {getServerErrorMessage(updateMutation.error) ?? copy.updateError}
                   </p>
                 ) : null}
 
@@ -450,7 +463,7 @@ export function AppointmentDetailsModal({
                 {updateMutation.isError ? (
                   <p role="alert" className="flex items-start gap-2 rounded-[var(--radius-sm)] border border-[var(--danger-line)] bg-[var(--danger-soft)] px-3 py-2.5 text-xs leading-relaxed text-[var(--danger-ink)]">
                     <TriangleAlert size={15} strokeWidth={1.8} className="mt-px shrink-0" aria-hidden="true" />
-                    {copy.updateError}
+                    {getServerErrorMessage(updateMutation.error) ?? copy.updateError}
                   </p>
                 ) : null}
               </div>

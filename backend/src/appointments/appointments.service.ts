@@ -1,4 +1,5 @@
 import {
+  ConflictException,
   ForbiddenException,
   Injectable,
   NotFoundException,
@@ -6,6 +7,7 @@ import {
 import { type Prisma } from '@prisma/client';
 
 import { type AuthenticatedUserPayload } from '../auth/types/authenticated-request.type';
+import { AppointmentStatus } from '../common/enums/appointment-status.enum';
 import { UserRole } from '../common/enums/user-role.enum';
 import { sanitizeTextInput } from '../common/utils/sanitize';
 import { PrismaService } from '../prisma/prisma.service';
@@ -59,12 +61,16 @@ export class AppointmentsService {
       );
     }
 
+    const scheduledAt = new Date(dto.scheduledAt);
+    const durationMinutes = dto.durationMinutes ?? 30;
+    await this.assertNoOverlap(doctorProfileId, scheduledAt, durationMinutes);
+
     const appointment = await this.prisma.appointment.create({
       data: {
         patientId: dto.patientId,
         doctorProfileId,
-        scheduledAt: new Date(dto.scheduledAt),
-        durationMinutes: dto.durationMinutes ?? 30,
+        scheduledAt,
+        durationMinutes,
         reason: sanitizeTextInput(dto.reason),
         createdById: user.sub,
       },
@@ -133,6 +139,22 @@ export class AppointmentsService {
   ) {
     const existing = await this.getAppointmentInScope(user, id);
 
+    // doctorProfileId is never part of UpdateAppointmentDto (not reassignable
+    // from this endpoint), so existing.doctorProfileId is always the right
+    // doctor to re-check against.
+    if (dto.scheduledAt !== undefined || dto.durationMinutes !== undefined) {
+      const scheduledAt = dto.scheduledAt
+        ? new Date(dto.scheduledAt)
+        : existing.scheduledAt;
+      const durationMinutes = dto.durationMinutes ?? existing.durationMinutes;
+      await this.assertNoOverlap(
+        existing.doctorProfileId,
+        scheduledAt,
+        durationMinutes,
+        existing.id,
+      );
+    }
+
     const appointment = await this.prisma.appointment.update({
       where: { id: existing.id },
       data: {
@@ -168,6 +190,48 @@ export class AppointmentsService {
     }
 
     return this.toAppointmentResponse(appointment);
+  }
+
+  // MySQL/Prisma can't express interval-overlap arithmetic in a `where`
+  // clause, so this pulls the doctor's active appointments within a generous
+  // ±12h window of the target slot and filters the classic overlap test
+  // (existing.start < newEnd AND existing.end > newStart) in memory.
+  // CANCELED/NO_SHOW appointments never block a slot.
+  private async assertNoOverlap(
+    doctorProfileId: string,
+    scheduledAt: Date,
+    durationMinutes: number,
+    excludeAppointmentId?: string,
+  ): Promise<void> {
+    const newStart = scheduledAt;
+    const newEnd = new Date(scheduledAt.getTime() + durationMinutes * 60_000);
+    const windowStart = new Date(scheduledAt.getTime() - 12 * 60 * 60_000);
+    const windowEnd = new Date(scheduledAt.getTime() + 12 * 60 * 60_000);
+
+    const candidates = await this.prisma.appointment.findMany({
+      where: {
+        doctorProfileId,
+        status: {
+          notIn: [AppointmentStatus.CANCELED, AppointmentStatus.NO_SHOW],
+        },
+        scheduledAt: { gte: windowStart, lte: windowEnd },
+        ...(excludeAppointmentId ? { id: { not: excludeAppointmentId } } : {}),
+      },
+    });
+
+    const hasOverlap = candidates.some((candidate) => {
+      const candidateStart = candidate.scheduledAt;
+      const candidateEnd = new Date(
+        candidateStart.getTime() + candidate.durationMinutes * 60_000,
+      );
+      return candidateStart < newEnd && candidateEnd > newStart;
+    });
+
+    if (hasOverlap) {
+      throw new ConflictException(
+        'Ce créneau chevauche un autre rendez-vous du même médecin.',
+      );
+    }
   }
 
   private async resolveCreateDoctorProfileId(

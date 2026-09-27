@@ -1,6 +1,7 @@
 "use client";
 
 import { zodResolver } from "@hookform/resolvers/zod";
+import { isAxiosError } from "axios";
 import { CalendarPlus, Info, Search, TriangleAlert, X } from "lucide-react";
 import { useEffect, useId, useMemo, useState, type KeyboardEvent } from "react";
 import { useForm } from "react-hook-form";
@@ -135,6 +136,18 @@ function getDefaultValues(defaultDate: string): AppointmentFormValues {
     reason: "",
     time: "09:00",
   };
+}
+
+// Surfaces the backend's own message verbatim (e.g. the 409 slot-overlap
+// conflict) instead of always showing a generic fallback string.
+function getServerErrorMessage(error: unknown): string | undefined {
+  if (!isAxiosError(error)) return undefined;
+  const message = (error.response?.data as { message?: unknown } | undefined)?.message;
+  if (typeof message === "string") return message;
+  if (Array.isArray(message)) {
+    return message.find((entry): entry is string => typeof entry === "string");
+  }
+  return undefined;
 }
 
 function getPatientLabel(patient: Patient) {
@@ -436,7 +449,7 @@ export function CreateAppointmentModal({
               {createAppointmentMutation.isError ? (
                 <p role="alert" className="flex items-start gap-2 rounded-[var(--radius-sm)] border border-[var(--danger-line)] bg-[var(--danger-soft)] px-3 py-2.5 text-xs leading-relaxed text-[var(--danger-ink)]">
                   <TriangleAlert size={15} strokeWidth={1.8} className="mt-px shrink-0" aria-hidden="true" />
-                  {copy.submitError}
+                  {getServerErrorMessage(createAppointmentMutation.error) ?? copy.submitError}
                 </p>
               ) : null}
             </div>
