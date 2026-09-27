@@ -178,6 +178,7 @@ function toPatientConsultationViewModel(
   record: PatientConsultationRecord,
 ): PatientConsultation {
   return {
+    appointmentId: record.appointmentId,
     date: record.date,
     diagnosis: record.diagnosis,
     doctor: record.doctor,

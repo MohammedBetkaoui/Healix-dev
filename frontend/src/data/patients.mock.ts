@@ -119,6 +119,7 @@ function createMockPatient(index: number, locale: Locale): Patient {
       { recordedAt: "", recordedBy: "", status: "NOT_GRANTED", type: "RESEARCH" },
     ],
     consultations: [{
+      appointmentId: null,
       date: lastVisit,
       diagnosis: isFrench ? "Diagnostic validé par le praticien" : "تشخيص مصادق عليه من الطبيب",
       doctor: assignedDoctor,

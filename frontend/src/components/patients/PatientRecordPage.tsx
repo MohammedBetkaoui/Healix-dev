@@ -3,6 +3,7 @@
 import {
   AlertTriangle,
   BrainCircuit,
+  CalendarCheck,
   CalendarPlus,
   CircleCheck,
   ClipboardPlus,
@@ -51,6 +52,7 @@ const copy = {
     notFound: "Ce dossier patient est introuvable.",
     consultationCreated: "Consultation enregistrée.",
     doctorOnly: "Seul un médecin peut créer une consultation.",
+    viaAppointment: "Via rendez-vous",
     record: "Dossier patient longitudinal",
     tabs: {
       summary: "Résumé", timeline: "Chronologie", consultations: "Consultations", diagnostics: "Diagnostics",
@@ -70,6 +72,7 @@ const copy = {
     notFound: "تعذر العثور على ملف المريض.",
     consultationCreated: "تم تسجيل الاستشارة.",
     doctorOnly: "لا يمكن لغير الطبيب إنشاء استشارة.",
+    viaAppointment: "عبر موعد",
     record: "ملف المريض الطولي",
     tabs: {
       summary: "الملخص", timeline: "التسلسل الزمني", consultations: "الاستشارات", diagnostics: "التشخيصات",
@@ -231,7 +234,7 @@ export function PatientRecordPage({ accountType, patientId }: PatientRecordPageP
         {activeTab === "consultations" ? (
           <section className="rounded-xl border border-[var(--line)] bg-[var(--panel)] p-5">
             <div className="flex items-center gap-3"><Stethoscope className="h-5 w-5 text-[var(--accent-dark)]" strokeWidth={1.7} /><h2 className="font-[var(--font-auth-display)] text-xl font-medium text-[var(--ink)]">{localized.tabs.consultations}</h2></div>
-            <div className="mt-5 divide-y divide-[var(--line)]">{(consultations ?? []).map((consultation) => <article key={consultation.id} className="grid gap-2 py-4 sm:grid-cols-[minmax(0,1fr)_auto]"><div><p className="text-sm font-medium text-[var(--ink)]">{consultation.reason}</p><p className="mt-1 text-xs text-[var(--ink-soft)]">{consultation.diagnosis}</p><p className="mt-1 text-xs text-[var(--ink-faint)]">{consultation.treatment}</p><p className="mt-1 text-xs text-[var(--ink-faint)]">{consultation.doctor}</p></div><time className="font-[var(--font-auth-mono)] text-[0.62rem] text-[var(--ink-faint)]">{formatPatientDate(consultation.date, locale)}</time></article>)}</div>
+            <div className="mt-5 divide-y divide-[var(--line)]">{(consultations ?? []).map((consultation) => <article key={consultation.id} className="grid gap-2 py-4 sm:grid-cols-[minmax(0,1fr)_auto]"><div><p className="text-sm font-medium text-[var(--ink)]">{consultation.reason}</p><p className="mt-1 text-xs text-[var(--ink-soft)]">{consultation.diagnosis}</p><p className="mt-1 text-xs text-[var(--ink-faint)]">{consultation.treatment}</p><p className="mt-1 flex flex-wrap items-center gap-2 text-xs text-[var(--ink-faint)]"><span>{consultation.doctor}</span>{consultation.appointmentId ? <span className="flex items-center gap-1"><CalendarCheck className="h-3 w-3" strokeWidth={1.7} aria-hidden="true" />{localized.viaAppointment}</span> : null}</p></div><time className="font-[var(--font-auth-mono)] text-[0.62rem] text-[var(--ink-faint)]">{formatPatientDate(consultation.date, locale)}</time></article>)}</div>
           </section>
         ) : null}
 

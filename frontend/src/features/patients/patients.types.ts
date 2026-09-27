@@ -170,6 +170,7 @@ export type UpsertPatientConsentPayload = {
 // POST /patients/:id/consultations. Mirrors
 // backend/src/patients/patients.service.ts#toConsultationResponse.
 export type PatientConsultationRecord = {
+  appointmentId: string | null;
   createdAt: string;
   date: string;
   diagnosis: string;

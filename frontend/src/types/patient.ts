@@ -45,6 +45,7 @@ export type PatientMedicalSummary = {
 };
 
 export type PatientConsultation = {
+  appointmentId: string | null;
   date: string;
   diagnosis: string;
   doctor: string;
