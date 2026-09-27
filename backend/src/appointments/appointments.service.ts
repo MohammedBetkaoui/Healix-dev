@@ -3,7 +3,7 @@ import {
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
-import { type Appointment, type Prisma } from '@prisma/client';
+import { type Prisma } from '@prisma/client';
 
 import { type AuthenticatedUserPayload } from '../auth/types/authenticated-request.type';
 import { UserRole } from '../common/enums/user-role.enum';
@@ -18,6 +18,22 @@ type AppointmentOwnerScope = {
   establishmentId: string | null;
   doctorProfileId: string | null;
 };
+
+const appointmentInclude = {
+  patient: {
+    select: {
+      firstName: true,
+      lastName: true,
+      firstNameAr: true,
+      lastNameAr: true,
+    },
+  },
+  doctorProfile: { select: { user: { select: { fullName: true } } } },
+} as const;
+
+type AppointmentWithRelations = Prisma.AppointmentGetPayload<{
+  include: typeof appointmentInclude;
+}>;
 
 @Injectable()
 export class AppointmentsService {
@@ -52,6 +68,7 @@ export class AppointmentsService {
         reason: sanitizeTextInput(dto.reason),
         createdById: user.sub,
       },
+      include: appointmentInclude,
     });
 
     await this.appointmentAuditService.log(
@@ -70,12 +87,38 @@ export class AppointmentsService {
 
     const appointments = await this.prisma.appointment.findMany({
       where,
+      include: appointmentInclude,
       orderBy: { scheduledAt: 'asc' },
     });
 
     return appointments.map((appointment) =>
       this.toAppointmentResponse(appointment),
     );
+  }
+
+  // Doctors the caller may book with: the whole establishment for
+  // ESTABLISHMENT_ADMIN / AFFILIATED_DOCTOR, only themselves for
+  // INDEPENDENT_DOCTOR — same scope rule create() enforces.
+  async listDoctors(user: AuthenticatedUserPayload) {
+    const scope = await this.resolveOwnerScope(user);
+
+    const doctorProfiles = await this.prisma.doctorProfile.findMany({
+      where: scope.establishmentId
+        ? { establishmentId: scope.establishmentId }
+        : { id: scope.doctorProfileId as string },
+      select: {
+        id: true,
+        speciality: true,
+        user: { select: { fullName: true } },
+      },
+      orderBy: { user: { fullName: 'asc' } },
+    });
+
+    return doctorProfiles.map((doctorProfile) => ({
+      id: doctorProfile.id,
+      fullName: doctorProfile.user.fullName,
+      speciality: doctorProfile.speciality,
+    }));
   }
 
   async findOne(user: AuthenticatedUserPayload, id: string) {
@@ -100,6 +143,7 @@ export class AppointmentsService {
         notes:
           dto.notes === undefined ? undefined : sanitizeTextInput(dto.notes),
       },
+      include: appointmentInclude,
     });
 
     if (dto.status && dto.status !== existing.status) {
@@ -154,10 +198,11 @@ export class AppointmentsService {
   private async getAppointmentInScope(
     user: AuthenticatedUserPayload,
     id: string,
-  ): Promise<Appointment> {
+  ): Promise<AppointmentWithRelations> {
     const scope = await this.resolveOwnerScope(user);
     const appointment = await this.prisma.appointment.findFirst({
       where: { id, ...this.scopeToWhere(scope) },
+      include: appointmentInclude,
     });
 
     if (!appointment) {
@@ -269,7 +314,7 @@ export class AppointmentsService {
     return where;
   }
 
-  private toAppointmentResponse(appointment: Appointment) {
+  private toAppointmentResponse(appointment: AppointmentWithRelations) {
     return {
       id: appointment.id,
       patientId: appointment.patientId,
@@ -282,6 +327,11 @@ export class AppointmentsService {
       createdById: appointment.createdById,
       createdAt: appointment.createdAt,
       updatedAt: appointment.updatedAt,
+      patientFirstName: appointment.patient.firstName,
+      patientLastName: appointment.patient.lastName,
+      patientFirstNameAr: appointment.patient.firstNameAr,
+      patientLastNameAr: appointment.patient.lastNameAr,
+      doctorFullName: appointment.doctorProfile.user.fullName,
     };
   }
 }

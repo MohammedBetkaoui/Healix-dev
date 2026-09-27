@@ -39,6 +39,13 @@ export class AppointmentsController {
     return this.appointmentsService.list(user, query);
   }
 
+  // Must stay above the ':id' route below, otherwise Nest would match
+  // "doctors" as an :id value.
+  @Get('doctors')
+  listDoctors(@CurrentUser() user: AuthenticatedUserPayload) {
+    return this.appointmentsService.listDoctors(user);
+  }
+
   @Get(':id')
   findOne(
     @CurrentUser() user: AuthenticatedUserPayload,
