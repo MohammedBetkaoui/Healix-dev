@@ -1,5 +1,6 @@
 import {
   BadRequestException,
+  ConflictException,
   ForbiddenException,
   Injectable,
   NotFoundException,
@@ -291,10 +292,37 @@ export class PatientsService {
       throw new NotFoundException('Profil médecin introuvable.');
     }
 
+    if (dto.appointmentId) {
+      const appointment = await this.prisma.appointment.findUnique({
+        where: { id: dto.appointmentId },
+      });
+
+      if (
+        !appointment ||
+        appointment.patientId !== patientId ||
+        appointment.doctorProfileId !== doctorProfile.id
+      ) {
+        throw new ForbiddenException(
+          "Ce rendez-vous ne correspond pas à ce patient et à ce médecin.",
+        );
+      }
+
+      const existingLink = await this.prisma.patientConsultation.findUnique({
+        where: { appointmentId: dto.appointmentId },
+      });
+
+      if (existingLink) {
+        throw new ConflictException(
+          'Ce rendez-vous a déjà une consultation associée.',
+        );
+      }
+    }
+
     const consultation = await this.prisma.patientConsultation.create({
       data: {
         patientId,
         doctorProfileId: doctorProfile.id,
+        appointmentId: dto.appointmentId ?? null,
         date: new Date(dto.date),
         reason: sanitizeTextInput(dto.reason),
         diagnosis: sanitizeTextInput(dto.diagnosis),
@@ -534,6 +562,7 @@ export class PatientsService {
     return {
       id: consultation.id,
       patientId: consultation.patientId,
+      appointmentId: consultation.appointmentId,
       date: consultation.date,
       reason: consultation.reason,
       diagnosis: consultation.diagnosis,

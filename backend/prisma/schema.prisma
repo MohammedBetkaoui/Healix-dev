@@ -414,6 +414,7 @@ model PatientConsultation {
   id              String   @id @default(cuid())
   patientId       String   @map("patient_id")
   doctorProfileId String?  @map("doctor_profile_id")
+  appointmentId   String?  @unique @map("appointment_id")
   date            DateTime
   reason          String   @db.Text
   diagnosis       String   @db.Text
@@ -423,6 +424,7 @@ model PatientConsultation {
 
   patient       Patient        @relation(fields: [patientId], references: [id], onDelete: Cascade)
   doctorProfile DoctorProfile? @relation(fields: [doctorProfileId], references: [id], onDelete: SetNull)
+  appointment   Appointment?   @relation(fields: [appointmentId], references: [id], onDelete: SetNull)
 
   @@index([patientId])
   @@map("patient_consultations")
@@ -491,6 +493,7 @@ model Appointment {
   patient       Patient       @relation(fields: [patientId], references: [id], onDelete: Cascade)
   doctorProfile DoctorProfile @relation(fields: [doctorProfileId], references: [id], onDelete: Cascade)
   createdBy     User          @relation(fields: [createdById], references: [id], onDelete: Restrict)
+  consultation  PatientConsultation?
 
   @@index([patientId])
   @@index([doctorProfileId])

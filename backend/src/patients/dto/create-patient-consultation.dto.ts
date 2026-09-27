@@ -1,4 +1,10 @@
-import { IsISO8601, IsString, MaxLength, MinLength } from 'class-validator';
+import {
+  IsISO8601,
+  IsOptional,
+  IsString,
+  MaxLength,
+  MinLength,
+} from 'class-validator';
 
 // No doctorProfileId here on purpose: the authoring doctor is derived from
 // the current user (see PatientsService.createConsultation), never accepted
@@ -21,4 +27,8 @@ export class CreatePatientConsultationDto {
   @MinLength(2)
   @MaxLength(5000)
   treatment!: string;
+
+  @IsOptional()
+  @IsString()
+  appointmentId?: string;
 }
