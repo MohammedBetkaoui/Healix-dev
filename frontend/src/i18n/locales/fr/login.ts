@@ -81,7 +81,7 @@ export const loginFr = {
     establishmentHintDescription:
       "Parcours dédié à la gestion d'une structure et de plusieurs praticiens.",
     doctor: "Médecin indépendant",
-    doctorDescription: "Cabinet privé ou activité libérale",
+    doctorDescription: "Cabinet privé, ou médecin rattaché à un établissement",
     doctorHintTitle: "Médecin indépendant",
     doctorHintDescription:
       "Accès personnel pour gérer votre cabinet et votre patientèle.",

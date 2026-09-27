@@ -13,7 +13,7 @@ export const protectedRouteRules = [
   },
   {
     prefix: "/doctor",
-    roles: ["INDEPENDENT_DOCTOR"],
+    roles: ["INDEPENDENT_DOCTOR", "AFFILIATED_DOCTOR"],
   },
 ] as const satisfies ReadonlyArray<{
   prefix: string;
@@ -58,7 +58,7 @@ export function getDefaultProtectedPathForRole(role: string | undefined) {
     return "/establishment/dashboard";
   }
 
-  if (role === "INDEPENDENT_DOCTOR") {
+  if (role === "INDEPENDENT_DOCTOR" || role === "AFFILIATED_DOCTOR") {
     return "/doctor/dashboard";
   }
 

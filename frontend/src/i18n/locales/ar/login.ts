@@ -81,7 +81,7 @@ export const loginAr = {
     establishmentHintDescription:
       "مسار مخصص لإدارة المؤسسة وعدة ممارسين صحيين.",
     doctor: "طبيب مستقل",
-    doctorDescription: "عيادة خاصة أو نشاط حر",
+    doctorDescription: "عيادة خاصة، أو طبيب منتسب إلى مؤسسة",
     doctorHintTitle: "طبيب مستقل",
     doctorHintDescription:
       "ولوج شخصي لإدارة عيادتك وملفات مرضاك.",

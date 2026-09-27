@@ -9,7 +9,7 @@ export default async function Page({ params }: PageProps) {
   const { patientId } = await params;
   const decodedPatientId = decodeURIComponent(patientId);
   await requireAuthenticatedPage(
-    ["INDEPENDENT_DOCTOR"],
+    ["INDEPENDENT_DOCTOR", "AFFILIATED_DOCTOR"],
     `/doctor/patients/${encodeURIComponent(decodedPatientId)}`,
   );
 

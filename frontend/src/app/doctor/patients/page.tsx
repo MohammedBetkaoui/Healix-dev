@@ -2,7 +2,10 @@ import { DoctorPatientsPage } from "@/components/dashboard/doctor/DoctorPatients
 import { requireAuthenticatedPage } from "@/lib/auth/server-auth";
 
 export default async function Page() {
-  await requireAuthenticatedPage(["INDEPENDENT_DOCTOR"], "/doctor/patients");
+  await requireAuthenticatedPage(
+    ["INDEPENDENT_DOCTOR", "AFFILIATED_DOCTOR"],
+    "/doctor/patients",
+  );
 
   return <DoctorPatientsPage />;
 }

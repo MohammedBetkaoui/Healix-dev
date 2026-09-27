@@ -11,7 +11,7 @@ export type LoginUser = {
   fullName: string;
   email: string;
   phone: string;
-  role: "ESTABLISHMENT_ADMIN" | "INDEPENDENT_DOCTOR";
+  role: "ESTABLISHMENT_ADMIN" | "INDEPENDENT_DOCTOR" | "AFFILIATED_DOCTOR";
   accountStatus: string;
 };
 
