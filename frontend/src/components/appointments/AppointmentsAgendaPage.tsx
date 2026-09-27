@@ -21,7 +21,9 @@ import { DashboardShell } from "@/components/dashboard/layout/DashboardShell";
 import { doctorNavSections, establishmentNavSections } from "@/components/dashboard/layout/navigation";
 import { OperationalMetricCard } from "@/components/dashboard/shared/OperationalMetricCard";
 import { StatusBadge } from "@/components/dashboard/shared/StatusBadge";
+import { Select } from "@/components/ui/select";
 import { type Appointment, type AppointmentStatus } from "@/features/appointments/appointments.types";
+import { useAppointmentDoctors } from "@/features/appointments/hooks/use-appointment-doctors";
 import { useAppointments } from "@/features/appointments/hooks/use-appointments";
 import { useStoredLocale, useTranslation } from "@/lib/i18n";
 import { cn } from "@/lib/utils";
@@ -36,7 +38,9 @@ type AppointmentsAgendaPageProps = {
 const agendaCopy = {
   fr: {
     added: "Rendez-vous créé avec succès.",
+    allDoctors: "Tous les médecins",
     context: { DOCTOR: "Mon agenda", ESTABLISHMENT: "Agenda de l’établissement" },
+    doctorFilter: "Filtrer par médecin",
     count: (value: string) => `${value} rendez-vous`,
     datePicker: "Aller à une date",
     doctorCount: (count: number, value: string) => `${value} médecin${count > 1 ? "s" : ""}`,
@@ -85,7 +89,9 @@ const agendaCopy = {
   },
   ar: {
     added: "تم إنشاء الموعد بنجاح.",
+    allDoctors: "جميع الأطباء",
     context: { DOCTOR: "أجندتي", ESTABLISHMENT: "أجندة المؤسسة" },
+    doctorFilter: "التصفية حسب الطبيب",
     count: (value: string) => `المواعيد: ${value}`,
     datePicker: "الانتقال إلى تاريخ",
     doctorCount: (_count: number, value: string) => `الأطباء: ${value}`,
@@ -186,7 +192,9 @@ export function AppointmentsAgendaPage({ accountType }: AppointmentsAgendaPagePr
   const [selectedAppointment, setSelectedAppointment] = useState<Appointment | null>(null);
   const [notice, setNotice] = useState("");
   const [now, setNow] = useState(() => new Date());
+  const [selectedDoctorId, setSelectedDoctorId] = useState<string | null>(null);
   const isEstablishment = accountType === "ESTABLISHMENT";
+  const { data: doctors } = useAppointmentDoctors({ enabled: isEstablishment });
 
   // Keeps the "now" marker (and "today") current on a page left open.
   useEffect(() => {
@@ -199,7 +207,8 @@ export function AppointmentsAgendaPage({ accountType }: AppointmentsAgendaPagePr
   const range = useMemo(() => ({
     from: selectedDate.toISOString(),
     to: new Date(addDays(selectedDate, 1).getTime() - 1).toISOString(),
-  }), [selectedDate]);
+    ...(selectedDoctorId ? { doctorProfileId: selectedDoctorId } : {}),
+  }), [selectedDate, selectedDoctorId]);
   const { data: appointments, isError, isLoading, refetch } = useAppointments(range);
 
   const intlLocale = locale === "ar" ? "ar-DZ" : "fr-DZ";
@@ -311,6 +320,20 @@ export function AppointmentsAgendaPage({ accountType }: AppointmentsAgendaPagePr
                 if (year && month && day) setSelectedDate(new Date(year, month - 1, day));
               }}
             />
+            {isEstablishment ? (
+              <Select
+                aria-label={copy.doctorFilter}
+                title={copy.doctorFilter}
+                className="h-[42px] w-auto rounded-[var(--radius-sm)] border-[var(--border)] bg-[var(--surface)] px-3 text-[.8rem] text-[var(--text-primary)] hover:bg-[var(--surface-muted)]"
+                value={selectedDoctorId ?? ""}
+                onChange={(event) => setSelectedDoctorId(event.target.value || null)}
+              >
+                <option value="">{copy.allDoctors}</option>
+                {(doctors ?? []).map((doctor) => (
+                  <option key={doctor.id} value={doctor.id}>{doctor.fullName}</option>
+                ))}
+              </Select>
+            ) : null}
             <button type="button" className="clinical-button clinical-button-primary" onClick={openCreate}>
               <CalendarPlus size={16} strokeWidth={1.8} aria-hidden="true" />
               {copy.new}
