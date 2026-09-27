@@ -15,6 +15,7 @@ import {
 } from "lucide-react";
 import { Fragment, useEffect, useMemo, useState } from "react";
 
+import { AppointmentDetailsModal } from "@/components/appointments/AppointmentDetailsModal";
 import { CreateAppointmentModal } from "@/components/appointments/CreateAppointmentModal";
 import { DashboardShell } from "@/components/dashboard/layout/DashboardShell";
 import { doctorNavSections, establishmentNavSections } from "@/components/dashboard/layout/navigation";
@@ -80,6 +81,7 @@ const agendaCopy = {
       SCHEDULED: "Planifié",
     },
     today: "Aujourd’hui",
+    updated: "Rendez-vous mis à jour avec succès.",
   },
   ar: {
     added: "تم إنشاء الموعد بنجاح.",
@@ -128,6 +130,7 @@ const agendaCopy = {
       SCHEDULED: "مبرمج",
     },
     today: "اليوم",
+    updated: "تم تحديث الموعد بنجاح.",
   },
 } as const;
 
@@ -180,6 +183,7 @@ export function AppointmentsAgendaPage({ accountType }: AppointmentsAgendaPagePr
   const copy = agendaCopy[locale];
   const [selectedDate, setSelectedDate] = useState(() => startOfDay(new Date()));
   const [isCreateOpen, setCreateOpen] = useState(false);
+  const [selectedAppointment, setSelectedAppointment] = useState<Appointment | null>(null);
   const [notice, setNotice] = useState("");
   const [now, setNow] = useState(() => new Date());
   const isEstablishment = accountType === "ESTABLISHMENT";
@@ -411,9 +415,18 @@ export function AppointmentsAgendaPage({ accountType }: AppointmentsAgendaPagePr
                     {index === nowMarkerIndex ? nowMarker : null}
                     <li
                       className={cn(
-                        "relative grid grid-cols-[6rem_minmax(0,1fr)] items-center gap-x-4 gap-y-2.5 px-5 py-4 md:grid-cols-[6rem_minmax(0,1fr)_auto]",
+                        "relative grid cursor-pointer grid-cols-[6rem_minmax(0,1fr)] items-center gap-x-4 gap-y-2.5 px-5 py-4 transition hover:bg-[var(--surface-muted)] md:grid-cols-[6rem_minmax(0,1fr)_auto]",
                         hasTopBorder && "border-t border-[var(--line-soft)]",
                       )}
+                      role="button"
+                      tabIndex={0}
+                      onClick={() => setSelectedAppointment(appointment)}
+                      onKeyDown={(event) => {
+                        if (event.key === "Enter" || event.key === " ") {
+                          event.preventDefault();
+                          setSelectedAppointment(appointment);
+                        }
+                      }}
                     >
                       <span aria-hidden="true" className="absolute inset-y-3 start-0 w-[3px] rounded-e-full" style={{ backgroundColor: presentation.rail }} />
                       <div className="self-start leading-tight md:self-center">
@@ -483,6 +496,15 @@ export function AppointmentsAgendaPage({ accountType }: AppointmentsAgendaPagePr
         locale={locale}
         onClose={() => setCreateOpen(false)}
         onCreate={() => { setNotice(copy.added); window.setTimeout(() => setNotice(""), 3200); }}
+      />
+
+      <AppointmentDetailsModal
+        accountType={accountType}
+        appointment={selectedAppointment}
+        direction={direction}
+        locale={locale}
+        onClose={() => setSelectedAppointment(null)}
+        onUpdated={() => { setNotice(copy.updated); window.setTimeout(() => setNotice(""), 3200); }}
       />
     </DashboardShell>
   );
