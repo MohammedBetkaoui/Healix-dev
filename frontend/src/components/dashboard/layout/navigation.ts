@@ -26,7 +26,7 @@ export const establishmentNavSections: DashboardNavSection[] = [
       { href: "/establishment/dashboard", icon: LayoutDashboard, key: "dashboard", labelKey: "dashboard.clinical.nav.overview" },
       { href: "/establishment/patients", icon: Users, key: "patients", labelKey: "dashboard.sidebar.establishment.patients" },
       { href: "/establishment/appointments", icon: Calendar, key: "appointments", labelKey: "dashboard.sidebar.establishment.appointments" },
-      { href: "#doctors", icon: Stethoscope, key: "doctors", labelKey: "dashboard.clinical.nav.team" },
+      { href: "/establishment/doctors", icon: Stethoscope, key: "doctors", labelKey: "dashboard.clinical.nav.team" },
     ],
   },
   {
