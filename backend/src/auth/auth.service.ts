@@ -199,10 +199,10 @@ export class AuthService {
   ): Promise<LoginResponse> {
     // Frontend validation improves UX only. Backend validation remains mandatory.
     const input = this.sanitizeLoginInput(dto);
-    const expectedRole = this.mapAccountTypeToRole(input.accountType);
+    const expectedRoles = this.mapAccountTypeToRoles(input.accountType);
     const authUser = await this.usersService.findAuthUserByEmail(input.email);
 
-    if (!authUser || authUser.role !== expectedRole) {
+    if (!authUser || !expectedRoles.includes(authUser.role)) {
       await this.auditLogsService.logLoginFailed({
         ipAddress: context.ipAddress,
         userAgent: context.userAgent,
@@ -755,12 +755,12 @@ export class AuthService {
     }
   }
 
-  private mapAccountTypeToRole(accountType: LoginAccountType): UserRole {
+  private mapAccountTypeToRoles(accountType: LoginAccountType): UserRole[] {
     if (accountType === 'ESTABLISHMENT') {
-      return UserRole.ESTABLISHMENT_ADMIN;
+      return [UserRole.ESTABLISHMENT_ADMIN];
     }
 
-    return UserRole.INDEPENDENT_DOCTOR;
+    return [UserRole.INDEPENDENT_DOCTOR, UserRole.AFFILIATED_DOCTOR];
   }
 
   private getRedirectPath(role: UserRole): string {
