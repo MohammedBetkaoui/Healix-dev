@@ -1,6 +1,5 @@
 "use client";
 
-import { isAxiosError } from "axios";
 import {
   Ban,
   CalendarCheck,
@@ -22,6 +21,7 @@ import { StatusBadge } from "@/components/dashboard/shared/StatusBadge";
 import { type Appointment, type AppointmentStatus } from "@/features/appointments/appointments.types";
 import { useUpdateAppointment } from "@/features/appointments/hooks/use-update-appointment";
 import { type Locale } from "@/i18n";
+import { getServerErrorMessage } from "@/lib/api/get-server-error-message";
 import { type Direction } from "@/lib/i18n";
 import { type DashboardStatusTone } from "@/types/dashboard";
 
@@ -140,18 +140,6 @@ const detailsCopy = {
     backToDetails: "رجوع",
   },
 } as const;
-
-// Surfaces the backend's own message verbatim (e.g. the 409 slot-overlap
-// conflict) instead of always showing a generic fallback string.
-function getServerErrorMessage(error: unknown): string | undefined {
-  if (!isAxiosError(error)) return undefined;
-  const message = (error.response?.data as { message?: unknown } | undefined)?.message;
-  if (typeof message === "string") return message;
-  if (Array.isArray(message)) {
-    return message.find((entry): entry is string => typeof entry === "string");
-  }
-  return undefined;
-}
 
 function getPatientName(appointment: Appointment) {
   const latinName = `${appointment.patientFirstName} ${appointment.patientLastName}`.trim();

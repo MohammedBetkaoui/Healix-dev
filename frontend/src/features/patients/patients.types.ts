@@ -184,6 +184,7 @@ export type PatientConsultationRecord = {
 // Mirrors backend/src/patients/dto/create-patient-consultation.dto.ts exactly.
 // No doctorProfileId: the authoring doctor is derived server-side.
 export type CreatePatientConsultationPayload = {
+  appointmentId?: string;
   date: string;
   diagnosis: string;
   reason: string;

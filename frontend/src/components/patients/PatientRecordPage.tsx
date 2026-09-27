@@ -4,6 +4,7 @@ import {
   AlertTriangle,
   BrainCircuit,
   CalendarPlus,
+  CircleCheck,
   ClipboardPlus,
   FilePlus2,
   FileText,
@@ -17,6 +18,7 @@ import { useState } from "react";
 import { DashboardShell } from "@/components/dashboard/layout/DashboardShell";
 import { doctorNavSections, establishmentNavSections } from "@/components/dashboard/layout/navigation";
 import { Button } from "@/components/ui/button";
+import { CreateConsultationModal } from "@/components/patients/CreateConsultationModal";
 import { usePatient } from "@/features/patients/hooks/use-patient";
 import { usePatientAiAnalyses } from "@/features/patients/hooks/use-patient-ai-analyses";
 import { usePatientAuditLog } from "@/features/patients/hooks/use-patient-audit-log";
@@ -47,6 +49,8 @@ const copy = {
     auditTitle: "Audit / Historique non désactivable",
     consentTitle: "Consentements Loi 18-07",
     notFound: "Ce dossier patient est introuvable.",
+    consultationCreated: "Consultation enregistrée.",
+    doctorOnly: "Seul un médecin peut créer une consultation.",
     record: "Dossier patient longitudinal",
     tabs: {
       summary: "Résumé", timeline: "Chronologie", consultations: "Consultations", diagnostics: "Diagnostics",
@@ -64,6 +68,8 @@ const copy = {
     auditTitle: "التدقيق / السجل غير القابل للتعطيل",
     consentTitle: "الموافقات وفق القانون 18-07",
     notFound: "تعذر العثور على ملف المريض.",
+    consultationCreated: "تم تسجيل الاستشارة.",
+    doctorOnly: "لا يمكن لغير الطبيب إنشاء استشارة.",
     record: "ملف المريض الطولي",
     tabs: {
       summary: "الملخص", timeline: "التسلسل الزمني", consultations: "الاستشارات", diagnostics: "التشخيصات",
@@ -90,7 +96,7 @@ function EmptyTab({ label }: { label: string }) {
 
 export function PatientRecordPage({ accountType, patientId }: PatientRecordPageProps) {
   const { locale } = useStoredLocale();
-  const { t } = useTranslation(locale);
+  const { direction, t } = useTranslation(locale);
   const localized = copy[locale];
   const { data: patient, isError, isLoading } = usePatient(patientId);
   const { data: consents } = usePatientConsents(patientId);
@@ -102,6 +108,9 @@ export function PatientRecordPage({ accountType, patientId }: PatientRecordPageP
     (consent) => consent.type === "DIAGNOSTIC_AI" && consent.status === "SIGNED",
   );
   const [activeTab, setActiveTab] = useState<RecordTab>("summary");
+  const [isConsultationModalOpen, setConsultationModalOpen] = useState(false);
+  const [notice, setNotice] = useState("");
+  const canCreateConsultation = accountType === "DOCTOR";
 
   const shellProps = accountType === "ESTABLISHMENT"
     ? {
@@ -154,7 +163,14 @@ export function PatientRecordPage({ accountType, patientId }: PatientRecordPageP
             </div>
 
             <div className="flex flex-wrap gap-2">
-              <Button className="rounded-full px-4"><ClipboardPlus className="me-2 h-4 w-4" strokeWidth={1.7} />{localized.actions.consultation}</Button>
+              <Button
+                className="rounded-full px-4"
+                disabled={!canCreateConsultation}
+                title={canCreateConsultation ? undefined : localized.doctorOnly}
+                onClick={() => setConsultationModalOpen(true)}
+              >
+                <ClipboardPlus className="me-2 h-4 w-4" strokeWidth={1.7} />{localized.actions.consultation}
+              </Button>
               <Button variant="outline" className="rounded-full border-[var(--line)] bg-[var(--panel)] text-[var(--ink-soft)]"><CalendarPlus className="me-2 h-4 w-4" strokeWidth={1.7} />{localized.actions.appointment}</Button>
               <Button variant="outline" className="rounded-full border-[var(--line)] bg-[var(--panel)] text-[var(--ink-soft)]"><FilePlus2 className="me-2 h-4 w-4" strokeWidth={1.7} />{localized.actions.document}</Button>
             </div>
@@ -242,6 +258,27 @@ export function PatientRecordPage({ accountType, patientId }: PatientRecordPageP
 
         {activeTab !== "summary" && activeTab !== "allergies" && activeTab !== "consultations" && activeTab !== "documents" && activeTab !== "imaging" && activeTab !== "consents" && activeTab !== "audit" ? <EmptyTab label={localized.tabs[activeTab]} /> : null}
       </div>
+
+      <div role="status" aria-live="polite">
+        {notice ? (
+          <div className="surface-raised fixed bottom-6 end-6 z-40 flex items-center gap-2.5 border-[var(--success-line)] px-4 py-3 text-sm font-medium text-[var(--text-primary)]">
+            <CircleCheck size={17} strokeWidth={1.8} className="shrink-0 text-[var(--success-ink)]" aria-hidden="true" />
+            {notice}
+          </div>
+        ) : null}
+      </div>
+
+      <CreateConsultationModal
+        direction={direction}
+        isOpen={isConsultationModalOpen}
+        locale={locale}
+        patientId={patientId}
+        onClose={() => setConsultationModalOpen(false)}
+        onCreated={() => {
+          setNotice(localized.consultationCreated);
+          window.setTimeout(() => setNotice(""), 3200);
+        }}
+      />
     </DashboardShell>
   );
 }

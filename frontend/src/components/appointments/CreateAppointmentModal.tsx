@@ -1,7 +1,6 @@
 "use client";
 
 import { zodResolver } from "@hookform/resolvers/zod";
-import { isAxiosError } from "axios";
 import { CalendarPlus, Info, Search, TriangleAlert, X } from "lucide-react";
 import { useEffect, useId, useMemo, useState, type KeyboardEvent } from "react";
 import { useForm } from "react-hook-form";
@@ -15,6 +14,7 @@ import { useCreateAppointment } from "@/features/appointments/hooks/use-create-a
 import { usePatients } from "@/features/patients/hooks/use-patients";
 import { formatPatientDate, patientMatchesSearch } from "@/features/patients/patient-registry";
 import { type Locale } from "@/i18n";
+import { getServerErrorMessage } from "@/lib/api/get-server-error-message";
 import { type Direction } from "@/lib/i18n";
 import { cn } from "@/lib/utils";
 import { type Patient } from "@/types/patient";
@@ -136,18 +136,6 @@ function getDefaultValues(defaultDate: string): AppointmentFormValues {
     reason: "",
     time: "09:00",
   };
-}
-
-// Surfaces the backend's own message verbatim (e.g. the 409 slot-overlap
-// conflict) instead of always showing a generic fallback string.
-function getServerErrorMessage(error: unknown): string | undefined {
-  if (!isAxiosError(error)) return undefined;
-  const message = (error.response?.data as { message?: unknown } | undefined)?.message;
-  if (typeof message === "string") return message;
-  if (Array.isArray(message)) {
-    return message.find((entry): entry is string => typeof entry === "string");
-  }
-  return undefined;
 }
 
 function getPatientLabel(patient: Patient) {
