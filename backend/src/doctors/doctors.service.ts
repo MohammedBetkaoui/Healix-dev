@@ -1,9 +1,17 @@
-import { Injectable } from '@nestjs/common';
+import { randomBytes } from 'node:crypto';
 
+import { Injectable } from '@nestjs/common';
+import { ConfigService } from '@nestjs/config';
 import { type DoctorProfile, type Prisma } from '@prisma/client';
-import { type SubscriptionStatus } from '../common/enums/subscription-status.enum';
-import { type VerificationStatus } from '../common/enums/verification-status.enum';
+import * as bcrypt from 'bcrypt';
+
+import { AccountStatus } from '../common/enums/account-status.enum';
+import { SubscriptionStatus } from '../common/enums/subscription-status.enum';
+import { UserRole } from '../common/enums/user-role.enum';
+import { VerificationStatus } from '../common/enums/verification-status.enum';
 import { PrismaService } from '../prisma/prisma.service';
+import { UsersService } from '../users/users.service';
+import { CreateAffiliatedDoctorDto } from './dto/create-affiliated-doctor.dto';
 
 type PrismaExecutor = PrismaService | Prisma.TransactionClient;
 
@@ -16,9 +24,41 @@ type CreateIndependentDoctorProfileInput = {
   subscriptionStatus: SubscriptionStatus;
 };
 
+type CreateAffiliatedDoctorResponse = {
+  doctorProfile: {
+    id: string;
+    fullName: string;
+    email: string;
+    phone: string;
+    speciality: string;
+    wilaya: string;
+  };
+  temporaryPassword: string;
+};
+
+type AffiliatedDoctorSummary = {
+  id: string;
+  fullName: string;
+  email: string;
+  phone: string;
+  speciality: string;
+  wilaya: string;
+  accountStatus: string;
+};
+
 @Injectable()
 export class DoctorsService {
-  constructor(private readonly prisma: PrismaService) {}
+  private readonly saltRounds: number;
+
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly usersService: UsersService,
+    configService: ConfigService,
+  ) {
+    this.saltRounds = this.parseSaltRounds(
+      configService.get<string>('BCRYPT_SALT_ROUNDS'),
+    );
+  }
 
   async createIndependentDoctorProfile(
     input: CreateIndependentDoctorProfileInput,
@@ -36,5 +76,111 @@ export class DoctorsService {
         subscriptionStatus: input.subscriptionStatus,
       },
     });
+  }
+
+  async createAffiliatedDoctor(
+    establishmentId: string,
+    dto: CreateAffiliatedDoctorDto,
+  ): Promise<CreateAffiliatedDoctorResponse> {
+    const temporaryPassword = this.generateTemporaryPassword();
+    const passwordHash = await this.hashPassword(temporaryPassword);
+
+    const { user, doctorProfile } = await this.prisma.$transaction(
+      async (transaction) => {
+        await this.usersService.ensureEmailAndPhoneAvailable(
+          dto.email,
+          dto.phone,
+          transaction,
+        );
+
+        const createdUser = await this.usersService.createUser(
+          {
+            fullName: dto.fullName,
+            email: dto.email,
+            phone: dto.phone,
+            passwordHash,
+            role: UserRole.AFFILIATED_DOCTOR,
+            accountStatus: AccountStatus.ACTIVE,
+          },
+          transaction,
+        );
+
+        const createdDoctorProfile = await transaction.doctorProfile.create({
+          data: {
+            userId: createdUser.id,
+            speciality: dto.speciality,
+            wilaya: dto.wilaya,
+            professionalAddress: dto.professionalAddress,
+            isIndependent: false,
+            establishmentId,
+            verificationStatus: VerificationStatus.VERIFIED,
+            subscriptionStatus: SubscriptionStatus.ACTIVE,
+          },
+        });
+
+        return { user: createdUser, doctorProfile: createdDoctorProfile };
+      },
+    );
+
+    return {
+      doctorProfile: {
+        id: doctorProfile.id,
+        fullName: user.fullName,
+        email: user.email,
+        phone: user.phone,
+        speciality: doctorProfile.speciality,
+        wilaya: doctorProfile.wilaya,
+      },
+      temporaryPassword,
+    };
+  }
+
+  async listAffiliatedDoctors(
+    establishmentId: string,
+  ): Promise<AffiliatedDoctorSummary[]> {
+    const doctorProfiles = await this.prisma.doctorProfile.findMany({
+      where: { establishmentId },
+      include: {
+        user: {
+          select: {
+            fullName: true,
+            email: true,
+            phone: true,
+            accountStatus: true,
+          },
+        },
+      },
+      orderBy: { createdAt: 'desc' },
+    });
+
+    return doctorProfiles.map((doctorProfile) => ({
+      id: doctorProfile.id,
+      fullName: doctorProfile.user.fullName,
+      email: doctorProfile.user.email,
+      phone: doctorProfile.user.phone,
+      speciality: doctorProfile.speciality,
+      wilaya: doctorProfile.wilaya,
+      accountStatus: doctorProfile.user.accountStatus,
+    }));
+  }
+
+  // ~12 base64url characters, well above the 8-character minimum enforced
+  // elsewhere on user-chosen passwords.
+  private generateTemporaryPassword(): string {
+    return randomBytes(9).toString('base64url');
+  }
+
+  private async hashPassword(password: string): Promise<string> {
+    return bcrypt.hash(password, this.saltRounds);
+  }
+
+  private parseSaltRounds(value: string | undefined): number {
+    const parsedValue = Number(value);
+
+    if (Number.isInteger(parsedValue) && parsedValue >= 10) {
+      return parsedValue;
+    }
+
+    return 12;
   }
 }
