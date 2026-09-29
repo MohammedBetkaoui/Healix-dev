@@ -17,6 +17,7 @@ import {
 } from "lucide-react";
 import { useState } from "react";
 
+import { CreateAppointmentModal } from "@/components/appointments/CreateAppointmentModal";
 import { DashboardShell } from "@/components/dashboard/layout/DashboardShell";
 import { doctorNavSections, establishmentNavSections } from "@/components/dashboard/layout/navigation";
 import { Button } from "@/components/ui/button";
@@ -53,6 +54,7 @@ const copy = {
     auditTitle: "Audit / Historique non désactivable",
     consentTitle: "Consentements Loi 18-07",
     notFound: "Ce dossier patient est introuvable.",
+    appointmentCreated: "Rendez-vous créé.",
     consultationCreated: "Consultation enregistrée.",
     patientUpdated: "Dossier patient mis à jour.",
     doctorOnly: "Seul un médecin peut créer une consultation.",
@@ -74,6 +76,7 @@ const copy = {
     auditTitle: "التدقيق / السجل غير القابل للتعطيل",
     consentTitle: "الموافقات وفق القانون 18-07",
     notFound: "تعذر العثور على ملف المريض.",
+    appointmentCreated: "تم إنشاء الموعد.",
     consultationCreated: "تم تسجيل الاستشارة.",
     patientUpdated: "تم تحديث ملف المريض.",
     doctorOnly: "لا يمكن لغير الطبيب إنشاء استشارة.",
@@ -92,6 +95,13 @@ const tabs: RecordTab[] = [
   "summary", "timeline", "consultations", "diagnostics", "allergies", "medications",
   "vitals", "labs", "imaging", "documents", "appointments", "careTeam", "consents", "audit",
 ];
+
+// Local time, not UTC (toISOString), so the default date never shifts by a day.
+function toDateInputValue(date: Date) {
+  const month = String(date.getMonth() + 1).padStart(2, "0");
+  const day = String(date.getDate()).padStart(2, "0");
+  return `${date.getFullYear()}-${month}-${day}`;
+}
 
 function EmptyTab({ label }: { label: string }) {
   return (
@@ -118,6 +128,7 @@ export function PatientRecordPage({ accountType, patientId }: PatientRecordPageP
   const [activeTab, setActiveTab] = useState<RecordTab>("summary");
   const [isConsultationModalOpen, setConsultationModalOpen] = useState(false);
   const [isEditModalOpen, setEditModalOpen] = useState(false);
+  const [isAppointmentModalOpen, setAppointmentModalOpen] = useState(false);
   const [notice, setNotice] = useState("");
   const canCreateConsultation = accountType === "DOCTOR";
 
@@ -187,7 +198,7 @@ export function PatientRecordPage({ accountType, patientId }: PatientRecordPageP
               >
                 <Edit3 className="me-2 h-4 w-4" strokeWidth={1.7} />{t("patients.actions.edit")}
               </Button>
-              <Button variant="outline" className="rounded-full border-[var(--line)] bg-[var(--panel)] text-[var(--ink-soft)]"><CalendarPlus className="me-2 h-4 w-4" strokeWidth={1.7} />{localized.actions.appointment}</Button>
+              <Button variant="outline" className="rounded-full border-[var(--line)] bg-[var(--panel)] text-[var(--ink-soft)]" onClick={() => setAppointmentModalOpen(true)}><CalendarPlus className="me-2 h-4 w-4" strokeWidth={1.7} />{localized.actions.appointment}</Button>
               <Button variant="outline" className="rounded-full border-[var(--line)] bg-[var(--panel)] text-[var(--ink-soft)]"><FilePlus2 className="me-2 h-4 w-4" strokeWidth={1.7} />{localized.actions.document}</Button>
             </div>
           </div>
@@ -306,6 +317,21 @@ export function PatientRecordPage({ accountType, patientId }: PatientRecordPageP
         }}
         patient={patient}
         t={t}
+      />
+
+      <CreateAppointmentModal
+        accountType={accountType}
+        defaultDate={toDateInputValue(new Date())}
+        direction={direction}
+        isOpen={isAppointmentModalOpen}
+        locale={locale}
+        lockedPatient={patient}
+        onClose={() => setAppointmentModalOpen(false)}
+        onCreate={() => {
+          setAppointmentModalOpen(false);
+          setNotice(localized.appointmentCreated);
+          window.setTimeout(() => setNotice(""), 3200);
+        }}
       />
     </DashboardShell>
   );

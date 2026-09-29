@@ -25,6 +25,9 @@ type CreateAppointmentModalProps = {
   direction: Direction;
   isOpen: boolean;
   locale: Locale;
+  // Pre-selects this patient and hides the "Change" action (e.g. when opened
+  // from the patient record, where the patient is already known).
+  lockedPatient?: Patient;
   onClose: () => void;
   onCreate: () => void;
 };
@@ -127,12 +130,12 @@ function createAppointmentFormSchema(copy: ModalCopy, requireDoctor: boolean) {
   });
 }
 
-function getDefaultValues(defaultDate: string): AppointmentFormValues {
+function getDefaultValues(defaultDate: string, lockedPatientId?: string): AppointmentFormValues {
   return {
     date: defaultDate,
     doctorProfileId: "",
     durationMinutes: "30",
-    patientId: "",
+    patientId: lockedPatientId ?? "",
     reason: "",
     time: "09:00",
   };
@@ -170,6 +173,7 @@ export function CreateAppointmentModal({
   direction,
   isOpen,
   locale,
+  lockedPatient,
   onClose,
   onCreate,
 }: CreateAppointmentModalProps) {
@@ -194,6 +198,9 @@ export function CreateAppointmentModal({
   const { data: patientsResponse } = usePatients({ limit: 100 });
   const { data: doctors } = useAppointmentDoctors({ enabled: isOpen });
   const [search, setSearch] = useState("");
+  // Keyed on the id, not the object: a background refetch of the same patient
+  // yields a new object and must not wipe a form being filled in.
+  const lockedPatientId = lockedPatient?.id;
   const {
     formState: { errors, isSubmitting },
     handleSubmit,
@@ -202,20 +209,20 @@ export function CreateAppointmentModal({
     setValue,
     watch,
   } = useForm<AppointmentFormValues>({
-    defaultValues: getDefaultValues(defaultDate),
+    defaultValues: getDefaultValues(defaultDate, lockedPatientId),
     resolver: zodResolver(schema),
   });
 
   useEffect(() => {
     if (isOpen) {
-      reset(getDefaultValues(defaultDate));
+      reset(getDefaultValues(defaultDate, lockedPatientId));
       setSearch("");
     }
-  }, [defaultDate, isOpen, reset]);
+  }, [defaultDate, isOpen, lockedPatientId, reset]);
 
   const patients = patientsResponse?.data ?? [];
   const selectedPatientId = watch("patientId");
-  const selectedPatient = patients.find((patient) => patient.id === selectedPatientId);
+  const selectedPatient = lockedPatient ?? patients.find((patient) => patient.id === selectedPatientId);
   const matchingPatients = search.trim()
     ? patients.filter((patient) => patientMatchesSearch(patient, search)).slice(0, 6)
     : [];
@@ -227,7 +234,7 @@ export function CreateAppointmentModal({
   const isPending = isSubmitting || createAppointmentMutation.isPending;
 
   const closeModal = () => {
-    reset(getDefaultValues(defaultDate));
+    reset(getDefaultValues(defaultDate, lockedPatientId));
     setSearch("");
     createAppointmentMutation.reset();
     onClose();
@@ -313,9 +320,11 @@ export function CreateAppointmentModal({
                       <p className="truncate text-sm font-semibold text-[var(--text-primary)]">{getPatientLabel(selectedPatient)}</p>
                       <p className="truncate text-xs text-[var(--text-secondary)]">{patientDetails(selectedPatient)}</p>
                     </div>
-                    <button type="button" className="shrink-0 rounded-[var(--radius-xs)] px-2 py-1 text-xs font-medium text-[var(--accent-dark)] hover:underline hover:underline-offset-4" onClick={clearPatient}>
-                      {copy.change}
-                    </button>
+                    {lockedPatient ? null : (
+                      <button type="button" className="shrink-0 rounded-[var(--radius-xs)] px-2 py-1 text-xs font-medium text-[var(--accent-dark)] hover:underline hover:underline-offset-4" onClick={clearPatient}>
+                        {copy.change}
+                      </button>
+                    )}
                   </div>
                 ) : (
                   <>
