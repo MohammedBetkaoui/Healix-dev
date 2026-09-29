@@ -15,13 +15,16 @@ import {
   Stethoscope,
   UserRound,
 } from "lucide-react";
-import { useState } from "react";
+import { useMemo, useState } from "react";
 
 import { CreateAppointmentModal } from "@/components/appointments/CreateAppointmentModal";
 import { DashboardShell } from "@/components/dashboard/layout/DashboardShell";
 import { doctorNavSections, establishmentNavSections } from "@/components/dashboard/layout/navigation";
+import { StatusBadge } from "@/components/dashboard/shared/StatusBadge";
 import { Button } from "@/components/ui/button";
 import { CreateConsultationModal } from "@/components/patients/CreateConsultationModal";
+import { type AppointmentStatus } from "@/features/appointments/appointments.types";
+import { useAppointments } from "@/features/appointments/hooks/use-appointments";
 import { usePatient } from "@/features/patients/hooks/use-patient";
 import { usePatientAiAnalyses } from "@/features/patients/hooks/use-patient-ai-analyses";
 import { usePatientAuditLog } from "@/features/patients/hooks/use-patient-audit-log";
@@ -31,6 +34,7 @@ import { usePatientDocuments } from "@/features/patients/hooks/use-patient-docum
 import { formatPatientDate, formatPatientDateTime, getPatientAge } from "@/features/patients/patient-registry";
 import { useStoredLocale, useTranslation } from "@/lib/i18n";
 import { cn } from "@/lib/utils";
+import { type DashboardStatusTone } from "@/types/dashboard";
 
 import { EditPatientModal } from "./EditPatientModal";
 import { UploadPatientDocumentModal } from "./UploadPatientDocumentModal";
@@ -62,6 +66,13 @@ const copy = {
     doctorOnly: "Seul un médecin peut créer une consultation.",
     viaAppointment: "Via rendez-vous",
     record: "Dossier patient longitudinal",
+    appointmentStatuses: {
+      CANCELED: "Annulé",
+      COMPLETED: "Terminé",
+      CONFIRMED: "Confirmé",
+      NO_SHOW: "Absent",
+      SCHEDULED: "Planifié",
+    },
     tabs: {
       summary: "Résumé", timeline: "Chronologie", consultations: "Consultations", diagnostics: "Diagnostics",
       allergies: "Allergies", medications: "Médicaments", vitals: "Constantes", labs: "Examens / Analyses",
@@ -85,6 +96,13 @@ const copy = {
     doctorOnly: "لا يمكن لغير الطبيب إنشاء استشارة.",
     viaAppointment: "عبر موعد",
     record: "ملف المريض الطولي",
+    appointmentStatuses: {
+      CANCELED: "ملغى",
+      COMPLETED: "منجز",
+      CONFIRMED: "مؤكد",
+      NO_SHOW: "غائب",
+      SCHEDULED: "مبرمج",
+    },
     tabs: {
       summary: "الملخص", timeline: "التسلسل الزمني", consultations: "الاستشارات", diagnostics: "التشخيصات",
       allergies: "الحساسية", medications: "الأدوية", vitals: "المؤشرات", labs: "الفحوصات / التحاليل",
@@ -106,6 +124,16 @@ function toDateInputValue(date: Date) {
   return `${date.getFullYear()}-${month}-${day}`;
 }
 
+// Same tones as statusPresentation in AppointmentsAgendaPage.tsx, minus the
+// agenda-only rail colour.
+const appointmentStatusTone: Record<AppointmentStatus, DashboardStatusTone> = {
+  CANCELED: "neutral",
+  COMPLETED: "success",
+  CONFIRMED: "info",
+  NO_SHOW: "danger",
+  SCHEDULED: "neutral",
+};
+
 function EmptyTab({ label }: { label: string }) {
   return (
     <div className="relative overflow-hidden rounded-xl border border-[var(--line)] bg-[var(--panel)] px-6 py-14 text-center">
@@ -125,6 +153,19 @@ export function PatientRecordPage({ accountType, patientId }: PatientRecordPageP
   const { data: documents } = usePatientDocuments(patientId);
   const { data: aiAnalyses } = usePatientAiAnalyses(patientId);
   const { data: auditLog } = usePatientAuditLog(patientId);
+  // Bounded window, as the backend requires: the record shows the last 12
+  // months and the next 6, never the full appointment history.
+  const appointmentsRange = useMemo(() => {
+    const from = new Date();
+    from.setMonth(from.getMonth() - 12);
+    const to = new Date();
+    to.setMonth(to.getMonth() + 6);
+    return { from: from.toISOString(), to: to.toISOString() };
+  }, []);
+  const { data: appointments } = useAppointments({
+    patientId,
+    ...appointmentsRange,
+  });
   const hasSignedAiConsent = (consents ?? []).some(
     (consent) => consent.type === "DIAGNOSTIC_AI" && consent.status === "SIGNED",
   );
@@ -266,6 +307,29 @@ export function PatientRecordPage({ accountType, patientId }: PatientRecordPageP
           </section>
         ) : null}
 
+        {activeTab === "appointments" ? (
+          <section className="rounded-xl border border-[var(--line)] bg-[var(--panel)] p-5">
+            <div className="flex items-center gap-3">
+              <CalendarCheck className="h-5 w-5 text-[var(--accent-dark)]" strokeWidth={1.7} />
+              <h2 className="font-[var(--font-auth-display)] text-xl font-medium text-[var(--ink)]">{localized.tabs.appointments}</h2>
+            </div>
+            <div className="mt-5 divide-y divide-[var(--line)]">
+              {(appointments ?? []).map((appointment) => (
+                <div key={appointment.id} className="grid gap-2 py-4 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-center">
+                  <div>
+                    <p className="text-sm font-medium text-[var(--ink)]">{appointment.reason}</p>
+                    <p className="mt-1 text-xs text-[var(--ink-faint)]">{appointment.doctorFullName}</p>
+                  </div>
+                  <div className="sm:text-end">
+                    <StatusBadge label={localized.appointmentStatuses[appointment.status]} tone={appointmentStatusTone[appointment.status]} />
+                    <p className="mt-2 text-xs text-[var(--ink-faint)]">{formatPatientDateTime(appointment.scheduledAt, locale)}</p>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </section>
+        ) : null}
+
         {activeTab === "documents" ? (
           <section className="rounded-xl border border-[var(--line)] bg-[var(--panel)] p-5">
             <div className="flex items-center gap-3"><FileText className="h-5 w-5 text-[var(--accent-dark)]" strokeWidth={1.7} /><h2 className="font-[var(--font-auth-display)] text-xl font-medium text-[var(--ink)]">{localized.tabs.documents}</h2></div>
@@ -287,7 +351,7 @@ export function PatientRecordPage({ accountType, patientId }: PatientRecordPageP
           </section>
         ) : null}
 
-        {activeTab !== "summary" && activeTab !== "allergies" && activeTab !== "consultations" && activeTab !== "documents" && activeTab !== "imaging" && activeTab !== "consents" && activeTab !== "audit" ? <EmptyTab label={localized.tabs[activeTab]} /> : null}
+        {activeTab !== "summary" && activeTab !== "allergies" && activeTab !== "consultations" && activeTab !== "documents" && activeTab !== "imaging" && activeTab !== "consents" && activeTab !== "audit" && activeTab !== "appointments" ? <EmptyTab label={localized.tabs[activeTab]} /> : null}
       </div>
 
       <div role="status" aria-live="polite">
