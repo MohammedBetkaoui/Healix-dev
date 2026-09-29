@@ -12,6 +12,7 @@ import { VerificationStatus } from '../common/enums/verification-status.enum';
 import { PrismaService } from '../prisma/prisma.service';
 import { UsersService } from '../users/users.service';
 import { CreateAffiliatedDoctorDto } from './dto/create-affiliated-doctor.dto';
+import { UpdateAffiliatedDoctorDto } from './dto/update-affiliated-doctor.dto';
 
 type PrismaExecutor = PrismaService | Prisma.TransactionClient;
 
@@ -233,6 +234,50 @@ export class DoctorsService {
     });
 
     return { accountStatus: updatedUser.accountStatus };
+  }
+
+  async updateAffiliatedDoctor(
+    establishmentId: string,
+    doctorProfileId: string,
+    dto: UpdateAffiliatedDoctorDto,
+  ): Promise<AffiliatedDoctorSummary> {
+    const doctorProfile = await this.resolveOwnedAffiliatedDoctor(
+      establishmentId,
+      doctorProfileId,
+    );
+
+    // Prisma ignores undefined fields, so omitted DTO fields stay unchanged.
+    // Both updates always run so the response reflects the stored row.
+    const [updatedUser, updatedDoctorProfile] = await this.prisma.$transaction([
+      this.prisma.user.update({
+        where: { id: doctorProfile.userId },
+        data: { fullName: dto.fullName },
+        select: {
+          fullName: true,
+          email: true,
+          phone: true,
+          accountStatus: true,
+        },
+      }),
+      this.prisma.doctorProfile.update({
+        where: { id: doctorProfile.id },
+        data: {
+          speciality: dto.speciality,
+          wilaya: dto.wilaya,
+          professionalAddress: dto.professionalAddress,
+        },
+      }),
+    ]);
+
+    return {
+      id: updatedDoctorProfile.id,
+      fullName: updatedUser.fullName,
+      email: updatedUser.email,
+      phone: updatedUser.phone,
+      speciality: updatedDoctorProfile.speciality,
+      wilaya: updatedDoctorProfile.wilaya,
+      accountStatus: updatedUser.accountStatus,
+    };
   }
 
   // Same message whether the profile is missing or belongs elsewhere, so

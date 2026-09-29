@@ -4,6 +4,7 @@ import {
   Get,
   NotFoundException,
   Param,
+  Patch,
   Post,
   UseGuards,
 } from '@nestjs/common';
@@ -16,6 +17,7 @@ import { UserRole } from '../common/enums/user-role.enum';
 import { RolesGuard } from '../common/guards/roles.guard';
 import { PrismaService } from '../prisma/prisma.service';
 import { CreateAffiliatedDoctorDto } from './dto/create-affiliated-doctor.dto';
+import { UpdateAffiliatedDoctorDto } from './dto/update-affiliated-doctor.dto';
 import { DoctorsService } from './doctors.service';
 
 @Controller('establishment/doctors')
@@ -41,6 +43,21 @@ export class DoctorsController {
   async list(@CurrentUser() user: AuthenticatedUserPayload) {
     const establishmentId = await this.resolveEstablishmentId(user);
     return this.doctorsService.listAffiliatedDoctors(establishmentId);
+  }
+
+  @Patch(':doctorProfileId')
+  @Roles(UserRole.ESTABLISHMENT_ADMIN)
+  async update(
+    @CurrentUser() user: AuthenticatedUserPayload,
+    @Param('doctorProfileId') doctorProfileId: string,
+    @Body() dto: UpdateAffiliatedDoctorDto,
+  ) {
+    const establishmentId = await this.resolveEstablishmentId(user);
+    return this.doctorsService.updateAffiliatedDoctor(
+      establishmentId,
+      doctorProfileId,
+      dto,
+    );
   }
 
   @Post(':doctorProfileId/reset-password')
