@@ -1,6 +1,6 @@
 import { randomBytes } from 'node:crypto';
 
-import { Injectable } from '@nestjs/common';
+import { Injectable, NotFoundException } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { type DoctorProfile, type Prisma } from '@prisma/client';
 import * as bcrypt from 'bcrypt';
@@ -162,6 +162,51 @@ export class DoctorsService {
       wilaya: doctorProfile.wilaya,
       accountStatus: doctorProfile.user.accountStatus,
     }));
+  }
+
+  async resetAffiliatedDoctorPassword(
+    establishmentId: string,
+    doctorProfileId: string,
+  ): Promise<{ temporaryPassword: string }> {
+    const doctorProfile = await this.prisma.doctorProfile.findUnique({
+      where: { id: doctorProfileId },
+      include: {
+        user: {
+          select: {
+            id: true,
+            fullName: true,
+            email: true,
+          },
+        },
+      },
+    });
+
+    // Same message whether the profile is missing or belongs elsewhere, so
+    // the endpoint never reveals doctors outside the caller's establishment.
+    if (
+      !doctorProfile ||
+      doctorProfile.establishmentId !== establishmentId ||
+      doctorProfile.isIndependent
+    ) {
+      throw new NotFoundException('Médecin introuvable.');
+    }
+
+    const temporaryPassword = this.generateTemporaryPassword();
+    const passwordHash = await this.hashPassword(temporaryPassword);
+
+    // A password change must invalidate every existing session.
+    await this.prisma.$transaction([
+      this.prisma.user.update({
+        where: { id: doctorProfile.userId },
+        data: { passwordHash },
+      }),
+      this.prisma.refreshToken.updateMany({
+        where: { userId: doctorProfile.userId, revokedAt: null },
+        data: { revokedAt: new Date() },
+      }),
+    ]);
+
+    return { temporaryPassword };
   }
 
   // ~12 base64url characters, well above the 8-character minimum enforced

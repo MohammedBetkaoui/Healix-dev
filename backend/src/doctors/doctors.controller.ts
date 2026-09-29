@@ -3,6 +3,7 @@ import {
   Controller,
   Get,
   NotFoundException,
+  Param,
   Post,
   UseGuards,
 } from '@nestjs/common';
@@ -40,6 +41,19 @@ export class DoctorsController {
   async list(@CurrentUser() user: AuthenticatedUserPayload) {
     const establishmentId = await this.resolveEstablishmentId(user);
     return this.doctorsService.listAffiliatedDoctors(establishmentId);
+  }
+
+  @Post(':doctorProfileId/reset-password')
+  @Roles(UserRole.ESTABLISHMENT_ADMIN)
+  async resetPassword(
+    @CurrentUser() user: AuthenticatedUserPayload,
+    @Param('doctorProfileId') doctorProfileId: string,
+  ) {
+    const establishmentId = await this.resolveEstablishmentId(user);
+    return this.doctorsService.resetAffiliatedDoctorPassword(
+      establishmentId,
+      doctorProfileId,
+    );
   }
 
   private async resolveEstablishmentId(
