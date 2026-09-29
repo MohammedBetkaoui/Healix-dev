@@ -7,7 +7,17 @@ export type AffiliatedDoctor = {
   phone: string;
   speciality: string;
   wilaya: string;
+  professionalAddress: string;
   accountStatus: string;
+};
+
+// Mirrors backend/src/doctors/dto/update-affiliated-doctor.dto.ts: every field
+// optional (partial update). No email/phone: they are login identifiers.
+export type UpdateAffiliatedDoctorPayload = {
+  fullName?: string;
+  speciality?: string;
+  wilaya?: string;
+  professionalAddress?: string;
 };
 
 // Mirrors backend/src/doctors/dto/create-affiliated-doctor.dto.ts exactly.

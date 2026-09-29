@@ -1,14 +1,16 @@
 "use client";
 
-import { Ban, CircleCheck, KeyRound, Mail, Phone, RotateCcw, Stethoscope, TriangleAlert, UserRoundPlus, Users } from "lucide-react";
+import { Ban, CircleCheck, Edit3, KeyRound, Mail, Phone, RotateCcw, Stethoscope, TriangleAlert, UserRoundPlus, Users } from "lucide-react";
 import { useState } from "react";
 
 import { AddDoctorModal } from "@/components/doctors/AddDoctorModal";
+import { EditDoctorModal } from "@/components/doctors/EditDoctorModal";
 import { ResetDoctorPasswordModal } from "@/components/doctors/ResetDoctorPasswordModal";
 import { ToggleDoctorStatusModal } from "@/components/doctors/ToggleDoctorStatusModal";
 import { DashboardShell } from "@/components/dashboard/layout/DashboardShell";
 import { establishmentNavSections } from "@/components/dashboard/layout/navigation";
 import { StatusBadge } from "@/components/dashboard/shared/StatusBadge";
+import { type AffiliatedDoctor } from "@/features/doctors/doctors.types";
 import { useAffiliatedDoctors } from "@/features/doctors/hooks/use-affiliated-doctors";
 import { useStoredLocale, useTranslation } from "@/lib/i18n";
 import { cn } from "@/lib/utils";
@@ -18,6 +20,7 @@ const teamCopy = {
   fr: {
     added: "Médecin ajouté avec succès.",
     countSuffix: (count: number) => `${count} médecin${count > 1 ? "s" : ""}`,
+    edit: "Modifier le profil",
     empty: {
       description: "Ajoutez un premier médecin affilié à votre établissement.",
       title: "Aucun médecin affilié",
@@ -46,10 +49,12 @@ const teamCopy = {
     suspend: "Suspendre",
     suspended: "Médecin suspendu.",
     title: "Équipe médicale",
+    updated: "Profil du médecin mis à jour.",
   },
   ar: {
     added: "تمت إضافة الطبيب بنجاح.",
     countSuffix: (count: number) => `${count} طبيب`,
+    edit: "تعديل الملف",
     empty: {
       description: "أضف أول طبيب منتسب إلى مؤسستك.",
       title: "لا يوجد أي طبيب منتسب",
@@ -78,6 +83,7 @@ const teamCopy = {
     suspend: "إيقاف",
     suspended: "تم إيقاف الطبيب.",
     title: "الفريق الطبي",
+    updated: "تم تحديث ملف الطبيب.",
   },
 } as const;
 
@@ -108,6 +114,7 @@ export function DoctorsTeamPage() {
   const copy = teamCopy[locale];
   const [isCreateOpen, setCreateOpen] = useState(false);
   const [notice, setNotice] = useState("");
+  const [editTarget, setEditTarget] = useState<AffiliatedDoctor | null>(null);
   const [resetTarget, setResetTarget] = useState<{ id: string; fullName: string } | null>(null);
   const [statusTarget, setStatusTarget] = useState<{ id: string; fullName: string; action: "suspend" | "reactivate" } | null>(null);
   const { data: doctors, isError, isLoading, refetch } = useAffiliatedDoctors();
@@ -213,6 +220,15 @@ export function DoctorsTeamPage() {
                     <button
                       type="button"
                       className="clinical-icon-button"
+                      onClick={() => setEditTarget(doctor)}
+                      aria-label={copy.edit}
+                      title={copy.edit}
+                    >
+                      <Edit3 size={16} strokeWidth={1.8} aria-hidden="true" />
+                    </button>
+                    <button
+                      type="button"
+                      className="clinical-icon-button"
                       onClick={() => setResetTarget({ id: doctor.id, fullName: doctor.fullName })}
                       aria-label={copy.resetPassword}
                       title={copy.resetPassword}
@@ -264,6 +280,18 @@ export function DoctorsTeamPage() {
         onClose={() => setCreateOpen(false)}
         onCreated={() => {
           setNotice(copy.added);
+          window.setTimeout(() => setNotice(""), 3200);
+        }}
+      />
+
+      <EditDoctorModal
+        direction={direction}
+        doctor={editTarget}
+        isOpen={editTarget !== null}
+        locale={locale}
+        onClose={() => setEditTarget(null)}
+        onUpdated={() => {
+          setNotice(copy.updated);
           window.setTimeout(() => setNotice(""), 3200);
         }}
       />

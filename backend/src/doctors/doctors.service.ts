@@ -44,6 +44,7 @@ type AffiliatedDoctorSummary = {
   phone: string;
   speciality: string;
   wilaya: string;
+  professionalAddress: string;
   accountStatus: string;
 };
 
@@ -161,6 +162,7 @@ export class DoctorsService {
       phone: doctorProfile.user.phone,
       speciality: doctorProfile.speciality,
       wilaya: doctorProfile.wilaya,
+      professionalAddress: doctorProfile.professionalAddress,
       accountStatus: doctorProfile.user.accountStatus,
     }));
   }
@@ -276,6 +278,7 @@ export class DoctorsService {
       phone: updatedUser.phone,
       speciality: updatedDoctorProfile.speciality,
       wilaya: updatedDoctorProfile.wilaya,
+      professionalAddress: updatedDoctorProfile.professionalAddress,
       accountStatus: updatedUser.accountStatus,
     };
   }

@@ -6,6 +6,7 @@ import {
   type CreateAffiliatedDoctorResult,
   type ResetAffiliatedDoctorPasswordResult,
   type SetAffiliatedDoctorStatusResult,
+  type UpdateAffiliatedDoctorPayload,
 } from "./doctors.types";
 
 export async function getAffiliatedDoctors(): Promise<AffiliatedDoctor[]> {
@@ -52,6 +53,18 @@ export async function reactivateAffiliatedDoctor(
 ): Promise<SetAffiliatedDoctorStatusResult> {
   const response = await apiClient.post<SetAffiliatedDoctorStatusResult>(
     `/establishment/doctors/${doctorProfileId}/reactivate`,
+  );
+
+  return response.data;
+}
+
+export async function updateAffiliatedDoctor(
+  doctorProfileId: string,
+  payload: UpdateAffiliatedDoctorPayload,
+): Promise<AffiliatedDoctor> {
+  const response = await apiClient.patch<AffiliatedDoctor>(
+    `/establishment/doctors/${doctorProfileId}`,
+    payload,
   );
 
   return response.data;
