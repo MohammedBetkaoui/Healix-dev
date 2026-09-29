@@ -7,6 +7,7 @@ import {
   CalendarPlus,
   CircleCheck,
   ClipboardPlus,
+  Edit3,
   FilePlus2,
   FileText,
   History,
@@ -30,6 +31,8 @@ import { formatPatientDate, formatPatientDateTime, getPatientAge } from "@/featu
 import { useStoredLocale, useTranslation } from "@/lib/i18n";
 import { cn } from "@/lib/utils";
 
+import { EditPatientModal } from "./EditPatientModal";
+
 type PatientRecordPageProps = {
   accountType: "DOCTOR" | "ESTABLISHMENT";
   patientId: string;
@@ -51,6 +54,7 @@ const copy = {
     consentTitle: "Consentements Loi 18-07",
     notFound: "Ce dossier patient est introuvable.",
     consultationCreated: "Consultation enregistrée.",
+    patientUpdated: "Dossier patient mis à jour.",
     doctorOnly: "Seul un médecin peut créer une consultation.",
     viaAppointment: "Via rendez-vous",
     record: "Dossier patient longitudinal",
@@ -71,6 +75,7 @@ const copy = {
     consentTitle: "الموافقات وفق القانون 18-07",
     notFound: "تعذر العثور على ملف المريض.",
     consultationCreated: "تم تسجيل الاستشارة.",
+    patientUpdated: "تم تحديث ملف المريض.",
     doctorOnly: "لا يمكن لغير الطبيب إنشاء استشارة.",
     viaAppointment: "عبر موعد",
     record: "ملف المريض الطولي",
@@ -112,6 +117,7 @@ export function PatientRecordPage({ accountType, patientId }: PatientRecordPageP
   );
   const [activeTab, setActiveTab] = useState<RecordTab>("summary");
   const [isConsultationModalOpen, setConsultationModalOpen] = useState(false);
+  const [isEditModalOpen, setEditModalOpen] = useState(false);
   const [notice, setNotice] = useState("");
   const canCreateConsultation = accountType === "DOCTOR";
 
@@ -173,6 +179,13 @@ export function PatientRecordPage({ accountType, patientId }: PatientRecordPageP
                 onClick={() => setConsultationModalOpen(true)}
               >
                 <ClipboardPlus className="me-2 h-4 w-4" strokeWidth={1.7} />{localized.actions.consultation}
+              </Button>
+              <Button
+                variant="outline"
+                className="rounded-full border-[var(--line)] bg-[var(--panel)] text-[var(--ink-soft)]"
+                onClick={() => setEditModalOpen(true)}
+              >
+                <Edit3 className="me-2 h-4 w-4" strokeWidth={1.7} />{t("patients.actions.edit")}
               </Button>
               <Button variant="outline" className="rounded-full border-[var(--line)] bg-[var(--panel)] text-[var(--ink-soft)]"><CalendarPlus className="me-2 h-4 w-4" strokeWidth={1.7} />{localized.actions.appointment}</Button>
               <Button variant="outline" className="rounded-full border-[var(--line)] bg-[var(--panel)] text-[var(--ink-soft)]"><FilePlus2 className="me-2 h-4 w-4" strokeWidth={1.7} />{localized.actions.document}</Button>
@@ -281,6 +294,18 @@ export function PatientRecordPage({ accountType, patientId }: PatientRecordPageP
           setNotice(localized.consultationCreated);
           window.setTimeout(() => setNotice(""), 3200);
         }}
+      />
+
+      <EditPatientModal
+        direction={direction}
+        isOpen={isEditModalOpen}
+        onClose={() => setEditModalOpen(false)}
+        onUpdate={() => {
+          setNotice(localized.patientUpdated);
+          window.setTimeout(() => setNotice(""), 3200);
+        }}
+        patient={patient}
+        t={t}
       />
     </DashboardShell>
   );
