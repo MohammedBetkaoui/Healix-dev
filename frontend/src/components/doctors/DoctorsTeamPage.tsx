@@ -1,9 +1,10 @@
 "use client";
 
-import { CircleCheck, Mail, Phone, RotateCcw, Stethoscope, TriangleAlert, UserRoundPlus, Users } from "lucide-react";
+import { CircleCheck, KeyRound, Mail, Phone, RotateCcw, Stethoscope, TriangleAlert, UserRoundPlus, Users } from "lucide-react";
 import { useState } from "react";
 
 import { AddDoctorModal } from "@/components/doctors/AddDoctorModal";
+import { ResetDoctorPasswordModal } from "@/components/doctors/ResetDoctorPasswordModal";
 import { DashboardShell } from "@/components/dashboard/layout/DashboardShell";
 import { establishmentNavSections } from "@/components/dashboard/layout/navigation";
 import { StatusBadge } from "@/components/dashboard/shared/StatusBadge";
@@ -27,6 +28,8 @@ const teamCopy = {
     },
     loading: "Chargement de l’équipe médicale…",
     new: "Ajouter un médecin",
+    passwordReset: "Mot de passe régénéré avec succès.",
+    resetPassword: "Régénérer le mot de passe",
     statuses: {
       ACTIVE: "Actif",
       BASIC_ACCOUNT: "Compte de base",
@@ -53,6 +56,8 @@ const teamCopy = {
     },
     loading: "جارٍ تحميل الفريق الطبي…",
     new: "إضافة طبيب",
+    passwordReset: "تمت إعادة تعيين كلمة المرور بنجاح.",
+    resetPassword: "إعادة تعيين كلمة المرور",
     statuses: {
       ACTIVE: "نشط",
       BASIC_ACCOUNT: "حساب أساسي",
@@ -94,6 +99,7 @@ export function DoctorsTeamPage() {
   const copy = teamCopy[locale];
   const [isCreateOpen, setCreateOpen] = useState(false);
   const [notice, setNotice] = useState("");
+  const [resetTarget, setResetTarget] = useState<{ id: string; fullName: string } | null>(null);
   const { data: doctors, isError, isLoading, refetch } = useAffiliatedDoctors();
 
   const list = doctors ?? [];
@@ -189,10 +195,21 @@ export function DoctorsTeamPage() {
                       </p>
                     </div>
                   </div>
-                  <StatusBadge
-                    label={copy.statuses[doctor.accountStatus as keyof typeof copy.statuses] ?? doctor.accountStatus}
-                    tone={statusTone[doctor.accountStatus] ?? "neutral"}
-                  />
+                  <div className="flex items-center gap-2">
+                    <StatusBadge
+                      label={copy.statuses[doctor.accountStatus as keyof typeof copy.statuses] ?? doctor.accountStatus}
+                      tone={statusTone[doctor.accountStatus] ?? "neutral"}
+                    />
+                    <button
+                      type="button"
+                      className="clinical-icon-button"
+                      onClick={() => setResetTarget({ id: doctor.id, fullName: doctor.fullName })}
+                      aria-label={copy.resetPassword}
+                      title={copy.resetPassword}
+                    >
+                      <KeyRound size={16} strokeWidth={1.8} aria-hidden="true" />
+                    </button>
+                  </div>
                 </li>
               ))}
             </ol>
@@ -216,6 +233,19 @@ export function DoctorsTeamPage() {
         onClose={() => setCreateOpen(false)}
         onCreated={() => {
           setNotice(copy.added);
+          window.setTimeout(() => setNotice(""), 3200);
+        }}
+      />
+
+      <ResetDoctorPasswordModal
+        direction={direction}
+        doctorId={resetTarget?.id ?? ""}
+        doctorName={resetTarget?.fullName ?? ""}
+        isOpen={resetTarget !== null}
+        locale={locale}
+        onClose={() => setResetTarget(null)}
+        onReset={() => {
+          setNotice(copy.passwordReset);
           window.setTimeout(() => setNotice(""), 3200);
         }}
       />
