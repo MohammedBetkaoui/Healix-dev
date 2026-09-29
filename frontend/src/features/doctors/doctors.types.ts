@@ -40,3 +40,8 @@ export type CreateAffiliatedDoctorResult = {
 // Mirrors backend/src/doctors/doctors.service.ts#resetAffiliatedDoctorPassword —
 // temporaryPassword is only ever present in this one response.
 export type ResetAffiliatedDoctorPasswordResult = { temporaryPassword: string };
+
+// Wire shape returned by POST /establishment/doctors/:id/suspend and
+// /reactivate. Mirrors backend/src/doctors/doctors.service.ts#suspendAffiliatedDoctor
+// and #reactivateAffiliatedDoctor.
+export type SetAffiliatedDoctorStatusResult = { accountStatus: string };

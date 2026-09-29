@@ -1,10 +1,11 @@
 "use client";
 
-import { CircleCheck, KeyRound, Mail, Phone, RotateCcw, Stethoscope, TriangleAlert, UserRoundPlus, Users } from "lucide-react";
+import { Ban, CircleCheck, KeyRound, Mail, Phone, RotateCcw, Stethoscope, TriangleAlert, UserRoundPlus, Users } from "lucide-react";
 import { useState } from "react";
 
 import { AddDoctorModal } from "@/components/doctors/AddDoctorModal";
 import { ResetDoctorPasswordModal } from "@/components/doctors/ResetDoctorPasswordModal";
+import { ToggleDoctorStatusModal } from "@/components/doctors/ToggleDoctorStatusModal";
 import { DashboardShell } from "@/components/dashboard/layout/DashboardShell";
 import { establishmentNavSections } from "@/components/dashboard/layout/navigation";
 import { StatusBadge } from "@/components/dashboard/shared/StatusBadge";
@@ -29,6 +30,8 @@ const teamCopy = {
     loading: "Chargement de l’équipe médicale…",
     new: "Ajouter un médecin",
     passwordReset: "Mot de passe régénéré avec succès.",
+    reactivate: "Réactiver",
+    reactivated: "Médecin réactivé.",
     resetPassword: "Régénérer le mot de passe",
     statuses: {
       ACTIVE: "Actif",
@@ -40,6 +43,8 @@ const teamCopy = {
       VERIFIED_NO_PLAN: "Vérifié, sans abonnement",
     },
     subtitle: "Médecins affiliés à votre établissement.",
+    suspend: "Suspendre",
+    suspended: "Médecin suspendu.",
     title: "Équipe médicale",
   },
   ar: {
@@ -57,6 +62,8 @@ const teamCopy = {
     loading: "جارٍ تحميل الفريق الطبي…",
     new: "إضافة طبيب",
     passwordReset: "تمت إعادة تعيين كلمة المرور بنجاح.",
+    reactivate: "إعادة تفعيل",
+    reactivated: "تمت إعادة تفعيل الطبيب.",
     resetPassword: "إعادة تعيين كلمة المرور",
     statuses: {
       ACTIVE: "نشط",
@@ -68,6 +75,8 @@ const teamCopy = {
       VERIFIED_NO_PLAN: "تم التحقق، بدون اشتراك",
     },
     subtitle: "الأطباء المنتسبون إلى مؤسستك.",
+    suspend: "إيقاف",
+    suspended: "تم إيقاف الطبيب.",
     title: "الفريق الطبي",
   },
 } as const;
@@ -100,6 +109,7 @@ export function DoctorsTeamPage() {
   const [isCreateOpen, setCreateOpen] = useState(false);
   const [notice, setNotice] = useState("");
   const [resetTarget, setResetTarget] = useState<{ id: string; fullName: string } | null>(null);
+  const [statusTarget, setStatusTarget] = useState<{ id: string; fullName: string; action: "suspend" | "reactivate" } | null>(null);
   const { data: doctors, isError, isLoading, refetch } = useAffiliatedDoctors();
 
   const list = doctors ?? [];
@@ -209,6 +219,27 @@ export function DoctorsTeamPage() {
                     >
                       <KeyRound size={16} strokeWidth={1.8} aria-hidden="true" />
                     </button>
+                    {doctor.accountStatus === "SUSPENDED" ? (
+                      <button
+                        type="button"
+                        className="clinical-icon-button"
+                        onClick={() => setStatusTarget({ id: doctor.id, fullName: doctor.fullName, action: "reactivate" })}
+                        aria-label={copy.reactivate}
+                        title={copy.reactivate}
+                      >
+                        <RotateCcw size={16} strokeWidth={1.8} aria-hidden="true" />
+                      </button>
+                    ) : (
+                      <button
+                        type="button"
+                        className="clinical-icon-button"
+                        onClick={() => setStatusTarget({ id: doctor.id, fullName: doctor.fullName, action: "suspend" })}
+                        aria-label={copy.suspend}
+                        title={copy.suspend}
+                      >
+                        <Ban size={16} strokeWidth={1.8} aria-hidden="true" />
+                      </button>
+                    )}
                   </div>
                 </li>
               ))}
@@ -246,6 +277,20 @@ export function DoctorsTeamPage() {
         onClose={() => setResetTarget(null)}
         onReset={() => {
           setNotice(copy.passwordReset);
+          window.setTimeout(() => setNotice(""), 3200);
+        }}
+      />
+
+      <ToggleDoctorStatusModal
+        action={statusTarget?.action ?? "suspend"}
+        direction={direction}
+        doctorId={statusTarget?.id ?? ""}
+        doctorName={statusTarget?.fullName ?? ""}
+        isOpen={statusTarget !== null}
+        locale={locale}
+        onClose={() => setStatusTarget(null)}
+        onDone={() => {
+          setNotice(statusTarget?.action === "reactivate" ? copy.reactivated : copy.suspended);
           window.setTimeout(() => setNotice(""), 3200);
         }}
       />
