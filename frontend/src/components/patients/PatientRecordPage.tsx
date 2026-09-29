@@ -33,6 +33,7 @@ import { useStoredLocale, useTranslation } from "@/lib/i18n";
 import { cn } from "@/lib/utils";
 
 import { EditPatientModal } from "./EditPatientModal";
+import { UploadPatientDocumentModal } from "./UploadPatientDocumentModal";
 
 type PatientRecordPageProps = {
   accountType: "DOCTOR" | "ESTABLISHMENT";
@@ -56,6 +57,7 @@ const copy = {
     notFound: "Ce dossier patient est introuvable.",
     appointmentCreated: "Rendez-vous créé.",
     consultationCreated: "Consultation enregistrée.",
+    documentUploaded: "Document ajouté.",
     patientUpdated: "Dossier patient mis à jour.",
     doctorOnly: "Seul un médecin peut créer une consultation.",
     viaAppointment: "Via rendez-vous",
@@ -78,6 +80,7 @@ const copy = {
     notFound: "تعذر العثور على ملف المريض.",
     appointmentCreated: "تم إنشاء الموعد.",
     consultationCreated: "تم تسجيل الاستشارة.",
+    documentUploaded: "تمت إضافة الوثيقة.",
     patientUpdated: "تم تحديث ملف المريض.",
     doctorOnly: "لا يمكن لغير الطبيب إنشاء استشارة.",
     viaAppointment: "عبر موعد",
@@ -129,6 +132,7 @@ export function PatientRecordPage({ accountType, patientId }: PatientRecordPageP
   const [isConsultationModalOpen, setConsultationModalOpen] = useState(false);
   const [isEditModalOpen, setEditModalOpen] = useState(false);
   const [isAppointmentModalOpen, setAppointmentModalOpen] = useState(false);
+  const [isDocumentModalOpen, setDocumentModalOpen] = useState(false);
   const [notice, setNotice] = useState("");
   const canCreateConsultation = accountType === "DOCTOR";
 
@@ -199,7 +203,7 @@ export function PatientRecordPage({ accountType, patientId }: PatientRecordPageP
                 <Edit3 className="me-2 h-4 w-4" strokeWidth={1.7} />{t("patients.actions.edit")}
               </Button>
               <Button variant="outline" className="rounded-full border-[var(--line)] bg-[var(--panel)] text-[var(--ink-soft)]" onClick={() => setAppointmentModalOpen(true)}><CalendarPlus className="me-2 h-4 w-4" strokeWidth={1.7} />{localized.actions.appointment}</Button>
-              <Button variant="outline" className="rounded-full border-[var(--line)] bg-[var(--panel)] text-[var(--ink-soft)]"><FilePlus2 className="me-2 h-4 w-4" strokeWidth={1.7} />{localized.actions.document}</Button>
+              <Button variant="outline" className="rounded-full border-[var(--line)] bg-[var(--panel)] text-[var(--ink-soft)]" onClick={() => setDocumentModalOpen(true)}><FilePlus2 className="me-2 h-4 w-4" strokeWidth={1.7} />{localized.actions.document}</Button>
             </div>
           </div>
         </section>
@@ -332,6 +336,19 @@ export function PatientRecordPage({ accountType, patientId }: PatientRecordPageP
           setNotice(localized.appointmentCreated);
           window.setTimeout(() => setNotice(""), 3200);
         }}
+      />
+
+      <UploadPatientDocumentModal
+        direction={direction}
+        isOpen={isDocumentModalOpen}
+        onClose={() => setDocumentModalOpen(false)}
+        onUploaded={() => {
+          setDocumentModalOpen(false);
+          setNotice(localized.documentUploaded);
+          window.setTimeout(() => setNotice(""), 3200);
+        }}
+        patientId={patientId}
+        t={t}
       />
     </DashboardShell>
   );
