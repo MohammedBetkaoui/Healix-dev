@@ -168,28 +168,10 @@ export class DoctorsService {
     establishmentId: string,
     doctorProfileId: string,
   ): Promise<{ temporaryPassword: string }> {
-    const doctorProfile = await this.prisma.doctorProfile.findUnique({
-      where: { id: doctorProfileId },
-      include: {
-        user: {
-          select: {
-            id: true,
-            fullName: true,
-            email: true,
-          },
-        },
-      },
-    });
-
-    // Same message whether the profile is missing or belongs elsewhere, so
-    // the endpoint never reveals doctors outside the caller's establishment.
-    if (
-      !doctorProfile ||
-      doctorProfile.establishmentId !== establishmentId ||
-      doctorProfile.isIndependent
-    ) {
-      throw new NotFoundException('Médecin introuvable.');
-    }
+    const doctorProfile = await this.resolveOwnedAffiliatedDoctor(
+      establishmentId,
+      doctorProfileId,
+    );
 
     const temporaryPassword = this.generateTemporaryPassword();
     const passwordHash = await this.hashPassword(temporaryPassword);
@@ -207,6 +189,81 @@ export class DoctorsService {
     ]);
 
     return { temporaryPassword };
+  }
+
+  async suspendAffiliatedDoctor(
+    establishmentId: string,
+    doctorProfileId: string,
+  ): Promise<{ accountStatus: string }> {
+    const doctorProfile = await this.resolveOwnedAffiliatedDoctor(
+      establishmentId,
+      doctorProfileId,
+    );
+
+    // A suspended account must lose every existing session immediately.
+    const [updatedUser] = await this.prisma.$transaction([
+      this.prisma.user.update({
+        where: { id: doctorProfile.userId },
+        data: { accountStatus: AccountStatus.SUSPENDED },
+        select: { accountStatus: true },
+      }),
+      this.prisma.refreshToken.updateMany({
+        where: { userId: doctorProfile.userId, revokedAt: null },
+        data: { revokedAt: new Date() },
+      }),
+    ]);
+
+    return { accountStatus: updatedUser.accountStatus };
+  }
+
+  async reactivateAffiliatedDoctor(
+    establishmentId: string,
+    doctorProfileId: string,
+  ): Promise<{ accountStatus: string }> {
+    const doctorProfile = await this.resolveOwnedAffiliatedDoctor(
+      establishmentId,
+      doctorProfileId,
+    );
+
+    // No session to revoke: suspension already revoked them all.
+    const updatedUser = await this.prisma.user.update({
+      where: { id: doctorProfile.userId },
+      data: { accountStatus: AccountStatus.ACTIVE },
+      select: { accountStatus: true },
+    });
+
+    return { accountStatus: updatedUser.accountStatus };
+  }
+
+  // Same message whether the profile is missing or belongs elsewhere, so
+  // callers never reveal doctors outside the caller's establishment.
+  private async resolveOwnedAffiliatedDoctor(
+    establishmentId: string,
+    doctorProfileId: string,
+  ) {
+    const doctorProfile = await this.prisma.doctorProfile.findUnique({
+      where: { id: doctorProfileId },
+      include: {
+        user: {
+          select: {
+            id: true,
+            fullName: true,
+            email: true,
+            accountStatus: true,
+          },
+        },
+      },
+    });
+
+    if (
+      !doctorProfile ||
+      doctorProfile.establishmentId !== establishmentId ||
+      doctorProfile.isIndependent
+    ) {
+      throw new NotFoundException('Médecin introuvable.');
+    }
+
+    return doctorProfile;
   }
 
   // ~12 base64url characters, well above the 8-character minimum enforced

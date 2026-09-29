@@ -56,6 +56,32 @@ export class DoctorsController {
     );
   }
 
+  @Post(':doctorProfileId/suspend')
+  @Roles(UserRole.ESTABLISHMENT_ADMIN)
+  async suspend(
+    @CurrentUser() user: AuthenticatedUserPayload,
+    @Param('doctorProfileId') doctorProfileId: string,
+  ) {
+    const establishmentId = await this.resolveEstablishmentId(user);
+    return this.doctorsService.suspendAffiliatedDoctor(
+      establishmentId,
+      doctorProfileId,
+    );
+  }
+
+  @Post(':doctorProfileId/reactivate')
+  @Roles(UserRole.ESTABLISHMENT_ADMIN)
+  async reactivate(
+    @CurrentUser() user: AuthenticatedUserPayload,
+    @Param('doctorProfileId') doctorProfileId: string,
+  ) {
+    const establishmentId = await this.resolveEstablishmentId(user);
+    return this.doctorsService.reactivateAffiliatedDoctor(
+      establishmentId,
+      doctorProfileId,
+    );
+  }
+
   private async resolveEstablishmentId(
     user: AuthenticatedUserPayload,
   ): Promise<string> {
