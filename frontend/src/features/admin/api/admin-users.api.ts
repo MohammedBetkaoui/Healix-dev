@@ -1,5 +1,6 @@
 import { apiClient } from "@/lib/api/http-client";
 import {
+  type AdminUserDetailResponse,
   type AdminUsersQuery,
   type AdminUsersResponse,
   type AdminUserStatusChangeResult,
@@ -13,6 +14,16 @@ export async function listAdminUsers(
   const { data } = await apiClient.get<AdminUsersResponse>("/admin/users", {
     params: cleanAdminQuery(query),
   });
+
+  return data;
+}
+
+export async function getAdminUserDetail(
+  id: string,
+): Promise<AdminUserDetailResponse> {
+  const { data } = await apiClient.get<AdminUserDetailResponse>(
+    `/admin/users/${id}`,
+  );
 
   return data;
 }

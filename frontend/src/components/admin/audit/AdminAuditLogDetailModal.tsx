@@ -64,7 +64,7 @@ const toneStyles = {
   },
 };
 
-function DetailItem({ icon: Icon, label, value }: DetailItemProps) {
+export function DetailItem({ icon: Icon, label, value }: DetailItemProps) {
   return (
     <div className="rounded-2xl border border-border bg-card p-4 shadow-sm">
       <div className="flex items-start gap-3">

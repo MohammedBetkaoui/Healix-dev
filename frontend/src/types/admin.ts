@@ -1,5 +1,12 @@
 import { type LucideIcon } from "lucide-react";
 
+import { type EstablishmentType } from "./auth";
+import { type SubscriptionStatus } from "./subscription";
+
+// Re-exported rather than redefined: both already exist with the exact
+// backend enum values (types/auth.ts, types/subscription.ts).
+export type { EstablishmentType, SubscriptionStatus };
+
 export type AdminUser = {
   id: string;
   fullName: string;
@@ -146,6 +153,71 @@ export type RegisteredUser = {
 export type AdminUserStatusChangeResult = {
   message: string;
   status: RegisteredUserStatus;
+};
+
+// GET /admin/users/:id — mirrors backend/src/admin/users/admin-users.service.ts
+// #getUserById. establishment/doctorProfile/verificationSummary are the raw
+// Prisma records (subset of their fields), not the computed shapes of the
+// verifications module (VerificationRequest/VerificationDocument above).
+export type AdminUserEstablishmentSummary = {
+  id: string;
+  name: string;
+  type: EstablishmentType;
+  wilaya: string;
+  address: string;
+  professionalEmail: string;
+  phone: string;
+  managerFullName: string;
+  verificationStatus: VerificationStatus;
+  subscriptionStatus: SubscriptionStatus;
+  createdAt: string;
+};
+
+export type AdminUserDoctorProfileSummary = {
+  id: string;
+  speciality: string;
+  wilaya: string;
+  professionalAddress: string;
+  isIndependent: boolean;
+  establishmentId: string | null;
+  verificationStatus: VerificationStatus;
+  subscriptionStatus: SubscriptionStatus;
+  createdAt: string;
+};
+
+export type AdminUserVerificationSummary = {
+  id: string;
+  type: VerificationRequestType;
+  status: VerificationStatus;
+  submittedAt: string | null;
+  reviewedAt: string | null;
+  documents: {
+    id: string;
+    documentType: string;
+    originalName: string;
+    status: string;
+    uploadedAt: string;
+  }[];
+};
+
+export type AdminUserDetailResponse = {
+  user: {
+    id: string;
+    fullName: string;
+    email: string;
+    phone: string;
+    role: RegisteredUserRole;
+    accountStatus: RegisteredUserStatus;
+    isEmailVerified: boolean;
+    isPhoneVerified: boolean;
+    createdAt: string;
+    updatedAt: string;
+  };
+  establishment: AdminUserEstablishmentSummary | null;
+  doctorProfile: AdminUserDoctorProfileSummary | null;
+  verificationSummary: AdminUserVerificationSummary | null;
+  // Actions performed BY this user (backend filters on AuditLog.userId).
+  latestAuditLogs: AdminAuditLogItem[];
 };
 
 export type AuditAction =

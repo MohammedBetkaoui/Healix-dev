@@ -7,6 +7,7 @@ import { useAdminUsers } from "@/features/admin/hooks/use-admin-users";
 import { useStoredLocale, useTranslation } from "@/lib/i18n";
 import { type RegisteredUser } from "@/types/admin";
 
+import { AdminUserDetailModal } from "./AdminUserDetailModal";
 import {
   type AdminUserFilterState,
   AdminUserFilters,
@@ -26,6 +27,7 @@ export function AdminUsersPage() {
   const { t } = useTranslation(locale);
   const [filters, setFilters] = useState<AdminUserFilterState>(initialFilters);
   const [toggleTarget, setToggleTarget] = useState<RegisteredUser | null>(null);
+  const [detailTarget, setDetailTarget] = useState<RegisteredUser | null>(null);
 
   const query = useMemo(
     () => ({
@@ -71,6 +73,7 @@ export function AdminUsersPage() {
             <AdminUsersTable
               locale={locale}
               onToggleStatus={setToggleTarget}
+              onViewDetails={setDetailTarget}
               t={t}
               users={data?.data ?? []}
             />
@@ -84,6 +87,12 @@ export function AdminUsersPage() {
           </>
         )}
       </div>
+      <AdminUserDetailModal
+        locale={locale}
+        onClose={() => setDetailTarget(null)}
+        t={t}
+        user={detailTarget}
+      />
       <ToggleUserStatusModal
         onClose={() => setToggleTarget(null)}
         onDone={() => setToggleTarget(null)}
