@@ -2,6 +2,7 @@ import { bloodGroupToDisplay, findWilayaCode } from "@/features/patients/patient
 import { type PatientBloodGroupCode } from "@/features/patients/patients.types";
 import { apiClient } from "@/lib/api/http-client";
 import {
+  type AdminPatientDetailResponse,
   type AdminPatientListItem,
   type AdminPatientsQuery,
   type AdminPatientsResponse,
@@ -18,6 +19,16 @@ export async function listAdminPatients(
     {
       params: cleanAdminQuery(query),
     },
+  );
+
+  return data;
+}
+
+export async function getAdminPatientDetail(
+  id: string,
+): Promise<AdminPatientDetailResponse> {
+  const { data } = await apiClient.get<AdminPatientDetailResponse>(
+    `/admin/patients/${id}`,
   );
 
   return data;

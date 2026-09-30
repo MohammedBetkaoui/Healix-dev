@@ -318,6 +318,34 @@ export type AdminPatientsResponse = {
   meta: PaginationMeta;
 };
 
+// GET /admin/patients/:id — mirrors backend/src/admin/patients/
+// admin-patients.service.ts#getPatientById. establishment/doctorProfile are
+// the raw Prisma records (subset of their fields); latestAuditLogs spans the
+// patient and its consultations/documents/AI analyses.
+export type AdminPatientEstablishmentSummary = {
+  id: string;
+  name: string;
+  wilaya: string;
+  address: string;
+  professionalEmail: string;
+  phone: string;
+  managerFullName: string;
+};
+
+export type AdminPatientDoctorProfileSummary = {
+  id: string;
+  speciality: string;
+  wilaya: string;
+  professionalAddress: string;
+};
+
+export type AdminPatientDetailResponse = {
+  patient: AdminPatientListItem;
+  establishment: AdminPatientEstablishmentSummary | null;
+  doctorProfile: AdminPatientDoctorProfileSummary | null;
+  latestAuditLogs: AdminAuditLogItem[];
+};
+
 export type AdminVerificationsQuery = {
   limit?: number;
   page?: number;

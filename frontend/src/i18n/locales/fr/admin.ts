@@ -52,6 +52,10 @@ export const adminFr = {
         description: "{actor} a consulté un journal d'audit.",
         label: "Audit consulté",
       },
+      ADMIN_VIEWED_PATIENT: {
+        description: "{actor} a consulté un dossier patient.",
+        label: "Dossier patient consulté",
+      },
       ADMIN_VIEWED_USER: {
         description: "{actor} a consulté un profil utilisateur.",
         label: "Utilisateur consulté",
@@ -79,6 +83,35 @@ export const adminFr = {
       LOGOUT: {
         description: "{actor} s'est déconnecté de la plateforme.",
         label: "Déconnexion utilisateur",
+      },
+      PATIENT_AI_ANALYSIS_CREATED: {
+        description: "{actor} a enregistré une analyse IA dans un dossier patient.",
+        label: "Analyse IA enregistrée",
+      },
+      PATIENT_CONSENT_UPDATED: {
+        description: "{actor} a mis à jour un consentement patient.",
+        label: "Consentement mis à jour",
+      },
+      PATIENT_CONSULTATION_CREATED: {
+        description: "{actor} a enregistré une consultation.",
+        label: "Consultation enregistrée",
+      },
+      PATIENT_CREATED: {
+        description: "{actor} a créé un dossier patient.",
+        label: "Dossier patient créé",
+      },
+      PATIENT_CREATED_WITH_DUPLICATE_OVERRIDE: {
+        description:
+          "{actor} a créé un dossier patient malgré un doublon potentiel signalé.",
+        label: "Dossier créé (doublon ignoré)",
+      },
+      PATIENT_DOCUMENT_UPLOADED: {
+        description: "{actor} a ajouté un document à un dossier patient.",
+        label: "Document patient ajouté",
+      },
+      PATIENT_UPDATED: {
+        description: "{actor} a modifié un dossier patient.",
+        label: "Dossier patient modifié",
       },
       USER_REACTIVATED: {
         description: "{actor} a réactivé un compte utilisateur.",

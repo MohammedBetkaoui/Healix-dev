@@ -47,6 +47,10 @@ export const adminAr = {
         description: "اطلع {actor} على سجل تدقيق.",
         label: "عرض سجل تدقيق",
       },
+      ADMIN_VIEWED_PATIENT: {
+        description: "اطلع {actor} على ملف مريض.",
+        label: "عرض ملف مريض",
+      },
       ADMIN_VIEWED_USER: {
         description: "اطلع {actor} على ملف مستخدم.",
         label: "عرض مستخدم",
@@ -70,6 +74,34 @@ export const adminAr = {
       LOGOUT: {
         description: "سجل {actor} الخروج من المنصة.",
         label: "خروج مستخدم",
+      },
+      PATIENT_AI_ANALYSIS_CREATED: {
+        description: "سجّل {actor} تحليلاً بالذكاء الاصطناعي في ملف مريض.",
+        label: "تسجيل تحليل بالذكاء الاصطناعي",
+      },
+      PATIENT_CONSENT_UPDATED: {
+        description: "حدّث {actor} موافقة مريض.",
+        label: "تحديث موافقة",
+      },
+      PATIENT_CONSULTATION_CREATED: {
+        description: "سجّل {actor} استشارة.",
+        label: "تسجيل استشارة",
+      },
+      PATIENT_CREATED: {
+        description: "أنشأ {actor} ملف مريض.",
+        label: "إنشاء ملف مريض",
+      },
+      PATIENT_CREATED_WITH_DUPLICATE_OVERRIDE: {
+        description: "أنشأ {actor} ملف مريض رغم التنبيه إلى تكرار محتمل.",
+        label: "إنشاء ملف رغم التكرار",
+      },
+      PATIENT_DOCUMENT_UPLOADED: {
+        description: "أضاف {actor} وثيقة إلى ملف مريض.",
+        label: "إضافة وثيقة",
+      },
+      PATIENT_UPDATED: {
+        description: "عدّل {actor} ملف مريض.",
+        label: "تعديل ملف مريض",
       },
       USER_REACTIVATED: {
         description: "أعاد {actor} تفعيل حساب مستخدم.",

@@ -27,6 +27,9 @@ import {
   type PatientStatus,
 } from "@/types/patient";
 
+import { AdminPatientDetailModal } from "./AdminPatientDetailModal";
+import { getPatientStatusClasses } from "./patient-status-classes";
+
 const initialFilters: PatientFilterState = {
   administrativeStatus: "",
   ageGroup: "",
@@ -117,28 +120,13 @@ function matchesPeriod(value: string, period: string) {
   return true;
 }
 
-function statusClasses(status: Patient["status"]) {
-  if (status === "URGENT") {
-    return "border-[var(--danger-line)] bg-[var(--danger-soft)] text-[var(--danger-ink)]";
-  }
-
-  if (status === "FOLLOW_UP") {
-    return "border-[var(--accent-line)] bg-secondary text-[var(--accent-dark)]";
-  }
-
-  if (status === "NEW") {
-    return "border-[var(--warning-line)] bg-[var(--warning-soft)] text-[var(--warning-ink)]";
-  }
-
-  return "border-[var(--success-line)] bg-[var(--success-soft)] text-[var(--success-ink)]";
-}
-
 export function AdminPatientsPage() {
   const { locale } = useStoredLocale();
   const { direction, t } = useTranslation(locale);
   const [search, setSearch] = useState("");
   const [filters, setFilters] = useState(initialFilters);
   const [page, setPage] = useState(1);
+  const [detailTarget, setDetailTarget] = useState<Patient | null>(null);
 
   // Any change to what is queried restarts from the first page.
   const updateSearch = (value: string) => {
@@ -353,7 +341,7 @@ export function AdminPatientsPage() {
                             <span
                               className={cn(
                                 "inline-flex items-center rounded-full border px-2.5 py-1 text-xs font-semibold",
-                                statusClasses(patient.status),
+                                getPatientStatusClasses(patient.status),
                               )}
                             >
                               {t(`patients.statuses.${patient.status}`)}
@@ -373,7 +361,7 @@ export function AdminPatientsPage() {
                           </td>
                           <td className="px-5 py-4">
                             <div className="flex flex-wrap gap-2">
-                              <Button type="button" variant="outline" size="sm">
+                              <Button type="button" variant="outline" size="sm" onClick={() => setDetailTarget(patient)}>
                                 {t("patients.actions.view")}
                               </Button>
                               <Button type="button" variant="ghost" size="sm">
@@ -417,6 +405,12 @@ export function AdminPatientsPage() {
           </>
         )}
       </div>
+      <AdminPatientDetailModal
+        locale={locale}
+        onClose={() => setDetailTarget(null)}
+        patient={detailTarget}
+        t={t}
+      />
     </AdminShell>
   );
 }
