@@ -16,8 +16,9 @@ import { SubscriptionHeader } from "@/components/subscription/SubscriptionHeader
 import { SubscriptionStatusCard } from "@/components/subscription/SubscriptionStatusCard";
 import { VerificationAccessBanner } from "@/components/subscription/VerificationAccessBanner";
 import { getSubscriptionPlansByAccountType } from "@/config/subscription-plans";
-import { getMockSubscriptionContext } from "@/data/subscription.mock";
 import { useCreatePaymentIntent } from "@/features/payments/hooks/use-create-payment-intent";
+import { useMySubscription } from "@/features/subscriptions/hooks/use-my-subscription";
+import { toSubscriptionContext } from "@/features/subscriptions/subscriptions.api";
 import { useStoredLocale, useTranslation } from "@/lib/i18n";
 import {
   type AccountType,
@@ -84,16 +85,20 @@ export function SubscriptionPage({ accountType }: SubscriptionPageProps) {
     () => getSubscriptionPlansByAccountType(accountType),
     [accountType],
   );
+  const { data, error, isLoading } = useMySubscription();
+  // Memoized so the context keeps a stable identity between renders for the
+  // components it is passed to.
   const context = useMemo(
-    () => getMockSubscriptionContext(accountType),
-    [accountType],
+    () => (data ? toSubscriptionContext(data) : null),
+    [data],
   );
-  const currentPlan = plans.find((plan) => plan.id === context.currentPlanId);
+  const currentPlan = context
+    ? plans.find((plan) => plan.id === context.currentPlanId)
+    : undefined;
   const selectedPlan = plans.find((plan) => plan.id === selectedPlanId);
-  const canSelectPlan = canSelectSubscriptionPlan(
-    context.accountStatus,
-    context.verificationStatus,
-  );
+  const canSelectPlan =
+    context !== null &&
+    canSelectSubscriptionPlan(context.accountStatus, context.verificationStatus);
   const canCheckout = Boolean(
     canSelectPlan &&
       selectedPlan &&
@@ -150,78 +155,96 @@ export function SubscriptionPage({ accountType }: SubscriptionPageProps) {
           </div>
         ) : null}
 
-        <SubscriptionHeader
-          accountStatus={context.accountStatus}
-          accountType={accountType}
-          t={t}
-        />
+        {isLoading ? (
+          <div
+            role="status"
+            className="rounded-2xl border border-border bg-card p-10 text-sm text-muted-foreground shadow-sm"
+          >
+            {t("subscription.page.loading")}
+          </div>
+        ) : error || !context ? (
+          <div
+            role="alert"
+            className="rounded-2xl border border-[var(--danger-line)] bg-[var(--danger-soft)] p-5 text-sm font-medium text-[var(--danger-ink)]"
+          >
+            {t("subscription.page.error")}
+          </div>
+        ) : (
+          <>
+            <SubscriptionHeader
+              accountStatus={context.accountStatus}
+              accountType={accountType}
+              t={t}
+            />
 
-        <VerificationAccessBanner
-          context={context}
-          t={t}
-          verificationHref={getVerificationHref(accountType)}
-        />
+            <VerificationAccessBanner
+              context={context}
+              t={t}
+              verificationHref={getVerificationHref(accountType)}
+            />
 
-        <SubscriptionStatusCard
-          context={context}
-          currentPlan={currentPlan}
-          locale={locale}
-          onChangePlan={() =>
-            showMockToast(t("subscription.mock.changePlanSoon"))
-          }
-          onRenew={() => showMockToast(t("subscription.mock.renewSoon"))}
-          t={t}
-        />
+            <SubscriptionStatusCard
+              context={context}
+              currentPlan={currentPlan}
+              locale={locale}
+              onChangePlan={() =>
+                showMockToast(t("subscription.mock.changePlanSoon"))
+              }
+              onRenew={() => showMockToast(t("subscription.mock.renewSoon"))}
+              t={t}
+            />
 
-        <BillingToggle
-          billingPeriod={billingPeriod}
-          onChange={setBillingPeriod}
-          t={t}
-        />
+            <BillingToggle
+              billingPeriod={billingPeriod}
+              onChange={setBillingPeriod}
+              t={t}
+            />
 
-        <PricingGrid
-          billingPeriod={billingPeriod}
-          canSelectPlan={canSelectPlan}
-          onSelectPlan={handleSelectPlan}
-          plans={plans}
-          selectedPlanId={selectedPlanId}
-          t={t}
-        />
+            <PricingGrid
+              billingPeriod={billingPeriod}
+              canSelectPlan={canSelectPlan}
+              onSelectPlan={handleSelectPlan}
+              plans={plans}
+              selectedPlanId={selectedPlanId}
+              t={t}
+            />
 
-        <PlanComparisonTable
-          billingPeriod={billingPeriod}
-          plans={plans}
-          t={t}
-        />
+            <PlanComparisonTable
+              billingPeriod={billingPeriod}
+              plans={plans}
+              t={t}
+            />
 
-        <SubscriptionFAQ t={t} />
+            <SubscriptionFAQ t={t} />
 
-        <PaymentCheckoutModal
-          accountType={accountType}
-          billingPeriod={billingPeriod}
-          canCheckout={canCheckout}
-          context={context}
-          direction={direction}
-          error={paymentError}
-          isLoading={isCreatingPaymentIntent}
-          isOpen={isPaymentModalOpen}
-          onClose={handleClosePaymentModal}
-          onConfirm={() => {
-            if (!selectedPlan || !paymentMethod) {
-              return;
-            }
+            <PaymentCheckoutModal
+              accountType={accountType}
+              billingPeriod={billingPeriod}
+              canCheckout={canCheckout}
+              context={context}
+              direction={direction}
+              error={paymentError}
+              isLoading={isCreatingPaymentIntent}
+              isOpen={isPaymentModalOpen}
+              onClose={handleClosePaymentModal}
+              onConfirm={() => {
+                if (!selectedPlan || !paymentMethod) {
+                  return;
+                }
 
-            void createIntent({
-              billingPeriod,
-              paymentMethod,
-              planId: selectedPlan.id,
-            });
-          }}
-          onPaymentMethodChange={setPaymentMethod}
-          paymentMethod={paymentMethod}
-          plan={selectedPlan}
-          t={t}
-        />
+                void createIntent({
+                  billingPeriod,
+                  paymentMethod,
+                  planId: selectedPlan.id,
+                });
+              }}
+              onPaymentMethodChange={setPaymentMethod}
+              paymentMethod={paymentMethod}
+              plan={selectedPlan}
+              t={t}
+            />
+          </>
+        )}
       </div>
     </DashboardShell>
   );

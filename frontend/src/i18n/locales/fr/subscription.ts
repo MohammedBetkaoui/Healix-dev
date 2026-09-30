@@ -148,6 +148,10 @@ export const subscriptionFr = {
       "Redirection vers la passerelle de paiement bientôt disponible.",
     renewSoon: "Le renouvellement sera disponible bientôt.",
   },
+  page: {
+    error: "Impossible de charger votre abonnement. Veuillez réessayer.",
+    loading: "Chargement de votre abonnement...",
+  },
   payment: {
     methodLabels: {
       BARIDIMOB_RECEIPT: "BaridiMob / CCP",

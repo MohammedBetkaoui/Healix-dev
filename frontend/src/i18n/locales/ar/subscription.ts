@@ -141,6 +141,10 @@ export const subscriptionAr = {
     paymentRedirect: "إعادة التوجيه إلى بوابة الدفع ستكون متاحة قريبًا.",
     renewSoon: "تجديد الاشتراك سيكون متاحًا قريبًا.",
   },
+  page: {
+    error: "تعذر تحميل اشتراكك. يرجى إعادة المحاولة.",
+    loading: "جاري تحميل اشتراكك...",
+  },
   payment: {
     methodLabels: {
       BARIDIMOB_RECEIPT: "BaridiMob / CCP",
