@@ -4,6 +4,7 @@ import {
   type Establishment,
   type EstablishmentVerificationData,
   type DoctorVerificationData,
+  type Patient,
   type User,
   type VerificationDocument,
   type VerificationRequest,
@@ -164,6 +165,75 @@ export function mapAdminUserListItem(
       'NOT_STARTED',
     wilaya: user.establishment?.wilaya ?? user.doctorProfile?.wilaya ?? null,
     createdAt: user.createdAt,
+  };
+}
+
+export type PublicAdminPatientListItem = {
+  id: string;
+  firstName: string;
+  firstNameAr: string;
+  lastName: string;
+  lastNameAr: string;
+  gender: string;
+  birthDate: Date;
+  nationalId: string;
+  bloodGroup: string | null;
+  phone: string;
+  email: string | null;
+  address: string;
+  wilaya: string;
+  commune: string;
+  insurance: string;
+  sector: string;
+  hospitalRecordNumber: string | null;
+  status: string;
+  administrativeStatus: string;
+  // null when the owning establishment/doctor profile was deleted: both
+  // relations are onDelete: SetNull on Patient.
+  ownerType: 'ESTABLISHMENT' | 'DOCTOR' | null;
+  ownerName: string;
+  createdAt: Date;
+};
+
+// Exactly one of establishment/doctorProfile is set at creation
+// (PatientsService#resolveOwnerScope). medicalSummary and the other clinical
+// or contact fields are deliberately not exposed in this cross-tenant list.
+export function mapAdminPatientListItem(
+  patient: Patient & {
+    establishment?: Pick<Establishment, 'name'> | null;
+    doctorProfile?:
+      | (Pick<DoctorProfile, 'id'> & { user: Pick<User, 'fullName'> })
+      | null;
+  },
+): PublicAdminPatientListItem {
+  return {
+    id: patient.id,
+    firstName: patient.firstName,
+    firstNameAr: patient.firstNameAr,
+    lastName: patient.lastName,
+    lastNameAr: patient.lastNameAr,
+    gender: patient.gender,
+    birthDate: patient.birthDate,
+    nationalId: patient.nationalId,
+    bloodGroup: patient.bloodGroup,
+    phone: patient.phone,
+    email: patient.email,
+    address: patient.address,
+    wilaya: patient.wilaya,
+    commune: patient.commune,
+    insurance: patient.insurance,
+    sector: patient.sector,
+    hospitalRecordNumber: patient.hospitalRecordNumber,
+    status: patient.status,
+    administrativeStatus: patient.administrativeStatus,
+    ownerType: patient.establishmentId
+      ? 'ESTABLISHMENT'
+      : patient.doctorProfileId
+        ? 'DOCTOR'
+        : null,
+    ownerName:
+      patient.establishment?.name ?? patient.doctorProfile?.user.fullName ?? '',
+    createdAt: patient.createdAt,
   };
 }
 

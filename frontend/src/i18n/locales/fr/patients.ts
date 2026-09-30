@@ -257,5 +257,5 @@ export const patientsFr = {
     patientArchived: "Dossier patient archivé",
     patientUpdated: "Patient mis à jour avec succès",
   },
-  security: { note: "Les données affichées sont fictives. L’accès réel est protégé par les autorisations et l’audit." },
+  security: { note: "Données réelles du registre patients de la plateforme. L’accès est réservé aux administrateurs autorisés et les modifications des dossiers sont tracées dans le journal d’audit." },
 } as const;

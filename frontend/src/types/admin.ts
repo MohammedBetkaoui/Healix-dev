@@ -1,11 +1,30 @@
 import { type LucideIcon } from "lucide-react";
 
+import { type PatientBloodGroupCode } from "@/features/patients/patients.types";
+
 import { type EstablishmentType } from "./auth";
+import {
+  type PatientAdministrativeStatus,
+  type PatientGender,
+  type PatientInsurance,
+  type PatientSector,
+  type PatientStatus,
+} from "./patient";
 import { type SubscriptionStatus } from "./subscription";
 
-// Re-exported rather than redefined: both already exist with the exact
-// backend enum values (types/auth.ts, types/subscription.ts).
-export type { EstablishmentType, SubscriptionStatus };
+// Re-exported rather than redefined: they already exist with the exact
+// backend enum values (types/auth.ts, types/subscription.ts, types/patient.ts,
+// features/patients/patients.types.ts).
+export type {
+  EstablishmentType,
+  PatientAdministrativeStatus,
+  PatientBloodGroupCode,
+  PatientGender,
+  PatientInsurance,
+  PatientSector,
+  PatientStatus,
+  SubscriptionStatus,
+};
 
 export type AdminUser = {
   id: string;
@@ -250,6 +269,54 @@ export type PaginationMeta = {
 };
 
 export type SortOrder = "asc" | "desc";
+
+// GET /admin/patients — mirrors backend/src/admin/shared/admin-response.mapper.ts
+// #mapAdminPatientListItem. ownerType is null when the owning establishment
+// or doctor profile was deleted (onDelete: SetNull on Patient).
+export type AdminPatientOwnerType = "ESTABLISHMENT" | "DOCTOR";
+
+export type AdminPatientListItem = {
+  id: string;
+  firstName: string;
+  firstNameAr: string;
+  lastName: string;
+  lastNameAr: string;
+  gender: PatientGender;
+  birthDate: string;
+  nationalId: string;
+  bloodGroup: PatientBloodGroupCode | null;
+  phone: string;
+  email: string | null;
+  address: string;
+  wilaya: string;
+  commune: string;
+  insurance: PatientInsurance;
+  sector: PatientSector;
+  hospitalRecordNumber: string | null;
+  status: PatientStatus;
+  administrativeStatus: PatientAdministrativeStatus;
+  ownerType: AdminPatientOwnerType | null;
+  ownerName: string;
+  createdAt: string;
+};
+
+export type AdminPatientsQuery = {
+  limit?: number;
+  page?: number;
+  search?: string;
+  gender?: PatientGender;
+  status?: PatientStatus;
+  administrativeStatus?: PatientAdministrativeStatus;
+  insurance?: PatientInsurance;
+  sector?: PatientSector;
+  bloodGroup?: PatientBloodGroupCode;
+  wilaya?: string;
+};
+
+export type AdminPatientsResponse = {
+  data: AdminPatientListItem[];
+  meta: PaginationMeta;
+};
 
 export type AdminVerificationsQuery = {
   limit?: number;

@@ -33,7 +33,7 @@ import {
   type UpsertPatientConsentPayload,
 } from "./patients.types";
 
-const bloodGroupToDisplay: Record<PatientBloodGroupCode, PatientBloodGroup> = {
+export const bloodGroupToDisplay: Record<PatientBloodGroupCode, PatientBloodGroup> = {
   A_POS: "A+",
   A_NEG: "A-",
   B_POS: "B+",
@@ -44,7 +44,7 @@ const bloodGroupToDisplay: Record<PatientBloodGroupCode, PatientBloodGroup> = {
   O_NEG: "O-",
 };
 
-function findWilayaCode(wilayaName: string): string {
+export function findWilayaCode(wilayaName: string): string {
   return algerianWilayas.find(([, name]) => name === wilayaName)?.[0] ?? "";
 }
 
