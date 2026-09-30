@@ -63,6 +63,17 @@ export const patientsAr = {
   insurances: { CNAS: "CNAS", CASNOS: "CASNOS", UNINSURED: "غير مؤمّن", PRIVATE: "خاص" },
   sectors: { PRIVATE: "خاص", PUBLIC: "عمومي", CONVENTIONED: "متعاقد" },
   sms: { enabled: "الرسائل مفعّلة", disabled: "الرسائل معطّلة" },
+  consents: {
+    types: {
+      HEALTH_DATA: "معالجة البيانات الصحية",
+      DIAGNOSTIC_AI: "المساعدة على التشخيص بالذكاء الاصطناعي",
+      RESEARCH: "البحث الطبي",
+    },
+    statuses: { SIGNED: "موقّعة", NOT_GRANTED: "غير ممنوحة" },
+    notRecorded: "غير مسجلة",
+    grant: "منح",
+    update: "تحديث",
+  },
   documents: { DICOM: "ملف DICOM", MEDICAL_IMAGE: "صورة طبية", MEDICAL_REPORT: "تقرير طبي", PRESCRIPTION: "وصفة PDF" },
   ai: {
     types: { CT_SCAN: "سكانير", ECG: "تخطيط القلب", MRI: "رنين مغناطيسي", XRAY: "أشعة" },
@@ -125,6 +136,20 @@ export const patientsAr = {
         score: "يجب أن تكون النسبة بين 0 و100.",
         modelName: "يجب أن يتضمن اسم النموذج بين 2 و120 حرفاً.",
         modelVersion: "لا يمكن أن يتجاوز الإصدار 40 حرفاً.",
+      },
+    },
+    upsertConsent: {
+      title: "موافقة المريض",
+      subtitle: "سجّل قرار المريض، وعند الحاجة مرجع الوثيقة الموقّعة.",
+      statusLabel: "القرار",
+      selectStatus: "اختر القرار",
+      documentNameLabel: "مرجع الوثيقة (اختياري)",
+      submit: "تسجيل",
+      submitting: "جارٍ التسجيل…",
+      submitError: "تعذر تسجيل الموافقة. يرجى إعادة المحاولة.",
+      errors: {
+        status: "اختر القرار.",
+        documentName: "لا يمكن أن يتجاوز المرجع 255 حرفاً.",
       },
     },
     uploadDocument: {

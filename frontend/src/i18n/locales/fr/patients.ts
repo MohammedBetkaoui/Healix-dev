@@ -63,6 +63,17 @@ export const patientsFr = {
   insurances: { CNAS: "CNAS", CASNOS: "CASNOS", UNINSURED: "Non assuré", PRIVATE: "Privé" },
   sectors: { PRIVATE: "Privé", PUBLIC: "Public", CONVENTIONED: "Conventionné" },
   sms: { enabled: "SMS activé", disabled: "SMS désactivé" },
+  consents: {
+    types: {
+      HEALTH_DATA: "Traitement des données de santé",
+      DIAGNOSTIC_AI: "Aide au diagnostic par IA",
+      RESEARCH: "Recherche médicale",
+    },
+    statuses: { SIGNED: "Signé", NOT_GRANTED: "Non accordé" },
+    notRecorded: "Non enregistré",
+    grant: "Accorder",
+    update: "Mettre à jour",
+  },
   documents: { DICOM: "Fichier DICOM", MEDICAL_IMAGE: "Image médicale", MEDICAL_REPORT: "Rapport médical", PRESCRIPTION: "Ordonnance PDF" },
   ai: {
     types: { CT_SCAN: "Scanner", ECG: "ECG", MRI: "IRM", XRAY: "Radio" },
@@ -125,6 +136,20 @@ export const patientsFr = {
         score: "Le score doit être compris entre 0 et 100.",
         modelName: "Le nom du modèle doit contenir entre 2 et 120 caractères.",
         modelVersion: "La version ne peut pas dépasser 40 caractères.",
+      },
+    },
+    upsertConsent: {
+      title: "Consentement du patient",
+      subtitle: "Enregistrez la décision du patient et, si besoin, la référence du document signé.",
+      statusLabel: "Décision",
+      selectStatus: "Choisir une décision",
+      documentNameLabel: "Référence du document (optionnel)",
+      submit: "Enregistrer",
+      submitting: "Enregistrement…",
+      submitError: "Le consentement n’a pas pu être enregistré. Veuillez réessayer.",
+      errors: {
+        status: "Sélectionnez une décision.",
+        documentName: "La référence ne peut pas dépasser 255 caractères.",
       },
     },
     uploadDocument: {

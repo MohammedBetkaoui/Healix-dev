@@ -35,10 +35,12 @@ import { formatPatientDate, formatPatientDateTime, getPatientAge } from "@/featu
 import { useStoredLocale, useTranslation } from "@/lib/i18n";
 import { cn } from "@/lib/utils";
 import { type DashboardStatusTone } from "@/types/dashboard";
+import { type PatientConsentStatus, type PatientConsentType } from "@/types/patient";
 
 import { CreateAiAnalysisModal } from "./CreateAiAnalysisModal";
 import { EditPatientModal } from "./EditPatientModal";
 import { UploadPatientDocumentModal } from "./UploadPatientDocumentModal";
+import { UpsertConsentModal } from "./UpsertConsentModal";
 
 type PatientRecordPageProps = {
   accountType: "DOCTOR" | "ESTABLISHMENT";
@@ -61,6 +63,7 @@ const copy = {
     consentTitle: "Consentements Loi 18-07",
     notFound: "Ce dossier patient est introuvable.",
     appointmentCreated: "Rendez-vous créé.",
+    consentUpdated: "Consentement enregistré.",
     consultationCreated: "Consultation enregistrée.",
     aiAnalysisCreated: "Analyse enregistrée.",
     documentUploaded: "Document ajouté.",
@@ -92,6 +95,7 @@ const copy = {
     consentTitle: "الموافقات وفق القانون 18-07",
     notFound: "تعذر العثور على ملف المريض.",
     appointmentCreated: "تم إنشاء الموعد.",
+    consentUpdated: "تم تسجيل الموافقة.",
     consultationCreated: "تم تسجيل الاستشارة.",
     aiAnalysisCreated: "تم تسجيل التحليل.",
     documentUploaded: "تمت إضافة الوثيقة.",
@@ -126,6 +130,10 @@ function toDateInputValue(date: Date) {
   const day = String(date.getDate()).padStart(2, "0");
   return `${date.getFullYear()}-${month}-${day}`;
 }
+
+// Always listed, even when never recorded: the backend only returns consent
+// rows that already exist, so a missing type must still be grantable.
+const consentTypes: PatientConsentType[] = ["HEALTH_DATA", "DIAGNOSTIC_AI", "RESEARCH"];
 
 // Same tones as statusPresentation in AppointmentsAgendaPage.tsx, minus the
 // agenda-only rail colour.
@@ -178,6 +186,11 @@ export function PatientRecordPage({ accountType, patientId }: PatientRecordPageP
   const [isAppointmentModalOpen, setAppointmentModalOpen] = useState(false);
   const [isDocumentModalOpen, setDocumentModalOpen] = useState(false);
   const [isAiAnalysisModalOpen, setAiAnalysisModalOpen] = useState(false);
+  const [consentTarget, setConsentTarget] = useState<{
+    documentName?: string;
+    status?: PatientConsentStatus;
+    type: PatientConsentType;
+  } | null>(null);
   const [notice, setNotice] = useState("");
   const canCreateConsultation = accountType === "DOCTOR";
 
@@ -348,7 +361,37 @@ export function PatientRecordPage({ accountType, patientId }: PatientRecordPageP
         {activeTab === "consents" ? (
           <section className="rounded-xl border border-[var(--line)] bg-[var(--panel)] p-5">
             <div className="flex items-center gap-3"><ShieldCheck className="h-5 w-5 text-[var(--accent-dark)]" strokeWidth={1.7} /><h2 className="font-[var(--font-auth-display)] text-xl font-medium text-[var(--ink)]">{localized.consentTitle}</h2></div>
-            <div className="mt-5 divide-y divide-[var(--line)]">{(consents ?? []).map((consent) => <div key={consent.type} className="grid gap-3 py-4 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-center"><div><p className="text-sm font-medium text-[var(--ink)]">{consent.type.replaceAll("_", " ")}</p><p className="mt-1 text-xs text-[var(--ink-faint)]">{consent.documentName || t("patients.common.none")}</p></div><div className="sm:text-end"><span className={cn("rounded-full border px-2.5 py-1 font-[var(--font-auth-mono)] text-[0.6rem]", consent.status === "SIGNED" ? "border-[var(--success-line)] bg-[var(--success-soft)] text-[var(--success-ink)]" : "border-[var(--line)] bg-muted text-[var(--ink-soft)]")}>{consent.status}</span><p className="mt-2 text-xs text-[var(--ink-faint)]">{formatPatientDateTime(consent.recordedAt, locale)}</p></div></div>)}</div>
+            <div className="mt-5 divide-y divide-[var(--line)]">
+              {consentTypes.map((type) => {
+                const consent = consents?.find((entry) => entry.type === type);
+                return (
+                  <div key={type} className="grid gap-3 py-4 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-center">
+                    <div>
+                      <p className="text-sm font-medium text-[var(--ink)]">{t(`patients.consents.types.${type}`)}</p>
+                      <p className="mt-1 text-xs text-[var(--ink-faint)]">
+                        {consent ? consent.documentName || t("patients.common.none") : t("patients.consents.notRecorded")}
+                      </p>
+                    </div>
+                    <div className="flex flex-wrap items-center gap-3 sm:justify-end">
+                      {consent ? (
+                        <div className="sm:text-end">
+                          <span className={cn("rounded-full border px-2.5 py-1 font-[var(--font-auth-mono)] text-[0.6rem]", consent.status === "SIGNED" ? "border-[var(--success-line)] bg-[var(--success-soft)] text-[var(--success-ink)]" : "border-[var(--line)] bg-muted text-[var(--ink-soft)]")}>{t(`patients.consents.statuses.${consent.status}`)}</span>
+                          <p className="mt-2 text-xs text-[var(--ink-faint)]">{formatPatientDateTime(consent.recordedAt, locale)}</p>
+                        </div>
+                      ) : null}
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        className="rounded-full border-[var(--line)] bg-[var(--panel)] text-[var(--ink-soft)]"
+                        onClick={() => setConsentTarget({ documentName: consent?.documentName, status: consent?.status, type })}
+                      >
+                        {consent ? t("patients.consents.update") : t("patients.consents.grant")}
+                      </Button>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
           </section>
         ) : null}
 
@@ -430,6 +473,22 @@ export function PatientRecordPage({ accountType, patientId }: PatientRecordPageP
         onCreated={() => {
           setAiAnalysisModalOpen(false);
           setNotice(localized.aiAnalysisCreated);
+          window.setTimeout(() => setNotice(""), 3200);
+        }}
+        patientId={patientId}
+        t={t}
+      />
+
+      <UpsertConsentModal
+        consentType={consentTarget?.type ?? "HEALTH_DATA"}
+        currentDocumentName={consentTarget?.documentName}
+        currentStatus={consentTarget?.status}
+        direction={direction}
+        isOpen={consentTarget !== null}
+        onClose={() => setConsentTarget(null)}
+        onUpdated={() => {
+          setConsentTarget(null);
+          setNotice(localized.consentUpdated);
           window.setTimeout(() => setNotice(""), 3200);
         }}
         patientId={patientId}
