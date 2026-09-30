@@ -17,13 +17,14 @@ import {
 } from "lucide-react";
 import { useMemo, useState } from "react";
 
+import { AppointmentDetailsModal } from "@/components/appointments/AppointmentDetailsModal";
 import { CreateAppointmentModal } from "@/components/appointments/CreateAppointmentModal";
 import { DashboardShell } from "@/components/dashboard/layout/DashboardShell";
 import { doctorNavSections, establishmentNavSections } from "@/components/dashboard/layout/navigation";
 import { StatusBadge } from "@/components/dashboard/shared/StatusBadge";
 import { Button } from "@/components/ui/button";
 import { CreateConsultationModal } from "@/components/patients/CreateConsultationModal";
-import { type AppointmentStatus } from "@/features/appointments/appointments.types";
+import { type Appointment, type AppointmentStatus } from "@/features/appointments/appointments.types";
 import { useAppointments } from "@/features/appointments/hooks/use-appointments";
 import { usePatient } from "@/features/patients/hooks/use-patient";
 import { usePatientAiAnalyses } from "@/features/patients/hooks/use-patient-ai-analyses";
@@ -63,6 +64,7 @@ const copy = {
     consentTitle: "Consentements Loi 18-07",
     notFound: "Ce dossier patient est introuvable.",
     appointmentCreated: "Rendez-vous créé.",
+    appointmentUpdated: "Rendez-vous mis à jour avec succès.",
     consentUpdated: "Consentement enregistré.",
     consultationCreated: "Consultation enregistrée.",
     aiAnalysisCreated: "Analyse enregistrée.",
@@ -95,6 +97,7 @@ const copy = {
     consentTitle: "الموافقات وفق القانون 18-07",
     notFound: "تعذر العثور على ملف المريض.",
     appointmentCreated: "تم إنشاء الموعد.",
+    appointmentUpdated: "تم تحديث الموعد بنجاح.",
     consentUpdated: "تم تسجيل الموافقة.",
     consultationCreated: "تم تسجيل الاستشارة.",
     aiAnalysisCreated: "تم تسجيل التحليل.",
@@ -184,6 +187,7 @@ export function PatientRecordPage({ accountType, patientId }: PatientRecordPageP
   const [isConsultationModalOpen, setConsultationModalOpen] = useState(false);
   const [isEditModalOpen, setEditModalOpen] = useState(false);
   const [isAppointmentModalOpen, setAppointmentModalOpen] = useState(false);
+  const [selectedAppointment, setSelectedAppointment] = useState<Appointment | null>(null);
   const [isDocumentModalOpen, setDocumentModalOpen] = useState(false);
   const [isAiAnalysisModalOpen, setAiAnalysisModalOpen] = useState(false);
   const [consentTarget, setConsentTarget] = useState<{
@@ -336,7 +340,21 @@ export function PatientRecordPage({ accountType, patientId }: PatientRecordPageP
             </div>
             <div className="mt-5 divide-y divide-[var(--line)]">
               {(appointments ?? []).map((appointment) => (
-                <div key={appointment.id} className="grid gap-2 py-4 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-center">
+                <div
+                  key={appointment.id}
+                  // Same clickable-row pattern as AppointmentsAgendaPage: a
+                  // <button> could not legally contain these <div>/<p> blocks.
+                  className="-mx-2 grid cursor-pointer gap-2 rounded-[0.6rem] px-2 py-4 transition hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--accent)] sm:grid-cols-[minmax(0,1fr)_auto] sm:items-center"
+                  role="button"
+                  tabIndex={0}
+                  onClick={() => setSelectedAppointment(appointment)}
+                  onKeyDown={(event) => {
+                    if (event.key === "Enter" || event.key === " ") {
+                      event.preventDefault();
+                      setSelectedAppointment(appointment);
+                    }
+                  }}
+                >
                   <div>
                     <p className="text-sm font-medium text-[var(--ink)]">{appointment.reason}</p>
                     <p className="mt-1 text-xs text-[var(--ink-faint)]">{appointment.doctorFullName}</p>
@@ -493,6 +511,18 @@ export function PatientRecordPage({ accountType, patientId }: PatientRecordPageP
         }}
         patientId={patientId}
         t={t}
+      />
+
+      <AppointmentDetailsModal
+        accountType={accountType}
+        appointment={selectedAppointment}
+        direction={direction}
+        locale={locale}
+        onClose={() => setSelectedAppointment(null)}
+        onUpdated={() => {
+          setNotice(localized.appointmentUpdated);
+          window.setTimeout(() => setNotice(""), 3200);
+        }}
       />
     </DashboardShell>
   );
