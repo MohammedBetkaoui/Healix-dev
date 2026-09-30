@@ -20,6 +20,7 @@ export type VerificationFilterState = {
 type VerificationFiltersProps = {
   filters: VerificationFilterState;
   onChange: (filters: VerificationFilterState) => void;
+  onExport: () => void;
   onReset: () => void;
   t: TranslationFunction;
 };
@@ -43,6 +44,7 @@ const priorities: VerificationPriority[] = ["NORMAL", "REVIEW", "URGENT"];
 export function VerificationFilters({
   filters,
   onChange,
+  onExport,
   onReset,
   t,
 }: VerificationFiltersProps) {
@@ -206,7 +208,7 @@ export function VerificationFilters({
           <Button type="button" variant="outline" onClick={onReset}>
             {t("admin.actions.reset")}
           </Button>
-          <Button type="button">{t("admin.actions.exportCsv")}</Button>
+          <Button type="button" onClick={onExport}>{t("admin.actions.exportCsv")}</Button>
         </div>
       </div>
     </section>
