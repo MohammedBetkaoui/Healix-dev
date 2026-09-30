@@ -36,6 +36,7 @@ import { useStoredLocale, useTranslation } from "@/lib/i18n";
 import { cn } from "@/lib/utils";
 import { type DashboardStatusTone } from "@/types/dashboard";
 
+import { CreateAiAnalysisModal } from "./CreateAiAnalysisModal";
 import { EditPatientModal } from "./EditPatientModal";
 import { UploadPatientDocumentModal } from "./UploadPatientDocumentModal";
 
@@ -61,6 +62,7 @@ const copy = {
     notFound: "Ce dossier patient est introuvable.",
     appointmentCreated: "Rendez-vous créé.",
     consultationCreated: "Consultation enregistrée.",
+    aiAnalysisCreated: "Analyse enregistrée.",
     documentUploaded: "Document ajouté.",
     patientUpdated: "Dossier patient mis à jour.",
     doctorOnly: "Seul un médecin peut créer une consultation.",
@@ -91,6 +93,7 @@ const copy = {
     notFound: "تعذر العثور على ملف المريض.",
     appointmentCreated: "تم إنشاء الموعد.",
     consultationCreated: "تم تسجيل الاستشارة.",
+    aiAnalysisCreated: "تم تسجيل التحليل.",
     documentUploaded: "تمت إضافة الوثيقة.",
     patientUpdated: "تم تحديث ملف المريض.",
     doctorOnly: "لا يمكن لغير الطبيب إنشاء استشارة.",
@@ -174,6 +177,7 @@ export function PatientRecordPage({ accountType, patientId }: PatientRecordPageP
   const [isEditModalOpen, setEditModalOpen] = useState(false);
   const [isAppointmentModalOpen, setAppointmentModalOpen] = useState(false);
   const [isDocumentModalOpen, setDocumentModalOpen] = useState(false);
+  const [isAiAnalysisModalOpen, setAiAnalysisModalOpen] = useState(false);
   const [notice, setNotice] = useState("");
   const canCreateConsultation = accountType === "DOCTOR";
 
@@ -245,6 +249,10 @@ export function PatientRecordPage({ accountType, patientId }: PatientRecordPageP
               </Button>
               <Button variant="outline" className="rounded-full border-[var(--line)] bg-[var(--panel)] text-[var(--ink-soft)]" onClick={() => setAppointmentModalOpen(true)}><CalendarPlus className="me-2 h-4 w-4" strokeWidth={1.7} />{localized.actions.appointment}</Button>
               <Button variant="outline" className="rounded-full border-[var(--line)] bg-[var(--panel)] text-[var(--ink-soft)]" onClick={() => setDocumentModalOpen(true)}><FilePlus2 className="me-2 h-4 w-4" strokeWidth={1.7} />{localized.actions.document}</Button>
+              {/* The backend rejects creation (403) without a signed DIAGNOSTIC_AI consent. */}
+              {hasSignedAiConsent ? (
+                <Button variant="outline" className="rounded-full border-[var(--line)] bg-[var(--panel)] text-[var(--ink-soft)]" onClick={() => setAiAnalysisModalOpen(true)}><BrainCircuit className="me-2 h-4 w-4" strokeWidth={1.7} />{t("patients.actions.addAiAnalysis")}</Button>
+              ) : null}
             </div>
           </div>
         </section>
@@ -409,6 +417,19 @@ export function PatientRecordPage({ accountType, patientId }: PatientRecordPageP
         onUploaded={() => {
           setDocumentModalOpen(false);
           setNotice(localized.documentUploaded);
+          window.setTimeout(() => setNotice(""), 3200);
+        }}
+        patientId={patientId}
+        t={t}
+      />
+
+      <CreateAiAnalysisModal
+        direction={direction}
+        isOpen={isAiAnalysisModalOpen}
+        onClose={() => setAiAnalysisModalOpen(false)}
+        onCreated={() => {
+          setAiAnalysisModalOpen(false);
+          setNotice(localized.aiAnalysisCreated);
           window.setTimeout(() => setNotice(""), 3200);
         }}
         patientId={patientId}
