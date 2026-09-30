@@ -1,12 +1,14 @@
 import { FileClock } from "lucide-react";
+import { type ReactNode } from "react";
 
-import { Button } from "@/components/ui/button";
 import { type TranslationFunction } from "@/lib/i18n";
 import {
   type BillingPeriod,
   type PaymentMethod,
   type SubscriptionPlan,
 } from "@/types/subscription";
+
+import { formatPlanAmount } from "./subscription-format";
 
 type ManualPaymentNoticeProps = {
   billingPeriod: BillingPeriod;
@@ -15,14 +17,17 @@ type ManualPaymentNoticeProps = {
   t: TranslationFunction;
 };
 
-function formatPrice(value: number | null | undefined, t: TranslationFunction) {
-  if (value === null || value === undefined) {
-    return t("subscription.pricing.customPrice");
-  }
-
-  return `${new Intl.NumberFormat("fr-DZ").format(value)} DA`;
+function NoticeField({ label, value }: { label: string; value: ReactNode }) {
+  return (
+    <div className="rounded-[var(--radius-sm)] border border-[var(--line-soft)] bg-[var(--surface-muted)] px-3.5 py-3">
+      <dt className="text-xs font-medium text-[var(--text-secondary)]">{label}</dt>
+      <dd className="mt-1 text-sm font-semibold text-[var(--text-primary)]">{value}</dd>
+    </div>
+  );
 }
 
+// Shown for the manual methods. The proof itself is uploaded on the payment
+// screen the user is redirected to after confirming, hence no action here.
 export function ManualPaymentNotice({
   billingPeriod,
   paymentMethod,
@@ -40,61 +45,47 @@ export function ManualPaymentNotice({
   const price = billingPeriod === "ANNUAL" ? plan?.annualPrice : plan?.monthlyPrice;
 
   return (
-    <section className="rounded-xl border border-[var(--accent-line)] bg-[var(--accent-soft)]/65 p-5 shadow-sm">
+    <section className="rounded-[var(--radius-md)] border border-s-[3px] border-[var(--border)] border-s-[color:var(--accent)] bg-[var(--surface)] p-5">
       <div className="flex items-start gap-3">
-        <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-[0.78rem] border border-[var(--accent-line)] bg-[var(--panel)] text-[var(--accent-dark)]">
-          <FileClock className="h-5 w-5" strokeWidth={1.7} aria-hidden="true" />
+        <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-[var(--radius-sm)] bg-[var(--accent-soft)] text-[var(--accent-dark)]">
+          <FileClock size={18} strokeWidth={1.8} aria-hidden="true" />
         </span>
-        <div>
-          <h2 className="font-[var(--font-auth-display)] text-2xl font-medium text-[var(--ink)]">
+        <div className="min-w-0">
+          <h2 className="text-sm font-semibold text-[var(--text-primary)]">
             {t("subscription.manual.title")}
           </h2>
-          <p className="mt-2 text-sm leading-6 text-[var(--ink-soft)]">
+          <p className="mt-1 text-sm leading-6 text-[var(--text-secondary)]">
             {paymentMethod === "MANUAL_CASH"
               ? t("subscription.manual.cashDescription")
               : t("subscription.manual.description")}
           </p>
         </div>
       </div>
-      <dl className="mt-5 grid gap-3 sm:grid-cols-2">
-        <div className="rounded-[0.85rem] border border-[var(--line)] bg-[var(--panel)] p-4">
-          <dt className="font-[var(--font-auth-mono)] text-[0.62rem] font-medium uppercase tracking-[0.13em] text-[var(--ink-faint)]">
-            {t("subscription.manual.beneficiary")}
-          </dt>
-          <dd className="mt-1 font-medium text-[var(--ink)]">HealixDZ</dd>
-        </div>
-        <div className="rounded-[0.85rem] border border-[var(--line)] bg-[var(--panel)] p-4">
-          <dt className="font-[var(--font-auth-mono)] text-[0.62rem] font-medium uppercase tracking-[0.13em] text-[var(--ink-faint)]">
-            {t("subscription.manual.reference")}
-          </dt>
-          <dd className="mt-1 font-medium text-[var(--ink)]">
-            {t("subscription.manual.generatedLater")}
-          </dd>
-        </div>
-        <div className="rounded-[0.85rem] border border-[var(--line)] bg-[var(--panel)] p-4">
-          <dt className="font-[var(--font-auth-mono)] text-[0.62rem] font-medium uppercase tracking-[0.13em] text-[var(--ink-faint)]">
-            {t("subscription.manual.amount")}
-          </dt>
-          <dd className="mt-1 font-[var(--font-auth-display)] text-lg font-medium text-[var(--ink)]">
-            {formatPrice(price, t)}
-          </dd>
-        </div>
-        <div className="rounded-[0.85rem] border border-[var(--line)] bg-[var(--panel)] p-4">
-          <dt className="font-[var(--font-auth-mono)] text-[0.62rem] font-medium uppercase tracking-[0.13em] text-[var(--ink-faint)]">
-            {t("subscription.manual.proof")}
-          </dt>
-          <dd className="mt-1 text-sm font-medium text-[var(--ink-soft)]">
-            {paymentMethod === "MANUAL_CASH"
+      <dl className="mt-4 grid gap-2.5 sm:grid-cols-2">
+        <NoticeField label={t("subscription.manual.beneficiary")} value="HealixDZ" />
+        <NoticeField
+          label={t("subscription.manual.reference")}
+          value={t("subscription.manual.generatedLater")}
+        />
+        <NoticeField
+          label={t("subscription.manual.amount")}
+          value={
+            price === null || price === undefined ? (
+              t("subscription.pricing.customPrice")
+            ) : (
+              <bdi dir="ltr" className="tabular-nums">{formatPlanAmount(price)} DA</bdi>
+            )
+          }
+        />
+        <NoticeField
+          label={t("subscription.manual.proof")}
+          value={
+            paymentMethod === "MANUAL_CASH"
               ? t("subscription.manual.cashActivation")
-              : t("subscription.manual.proofLater")}
-          </dd>
-        </div>
+              : t("subscription.manual.proofLater")
+          }
+        />
       </dl>
-      <Button type="button" disabled className="mt-5 rounded-[0.72rem]">
-        {paymentMethod === "MANUAL_CASH"
-          ? t("subscription.manual.cashButton")
-          : t("subscription.manual.uploadSoon")}
-      </Button>
     </section>
   );
 }

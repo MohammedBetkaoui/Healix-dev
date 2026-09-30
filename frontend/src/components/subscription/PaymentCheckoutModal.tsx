@@ -4,7 +4,6 @@ import { useEffect, useRef } from "react";
 import { createPortal } from "react-dom";
 import { CreditCard, X } from "lucide-react";
 
-import { Button } from "@/components/ui/button";
 import {
   type Direction,
   type TranslationFunction,
@@ -145,51 +144,45 @@ export function PaymentCheckoutModal({
         aria-labelledby="payment-modal-title"
         aria-describedby="payment-modal-description"
         tabIndex={-1}
-        className="dashboard-theme clinical-theme flex max-h-[calc(100dvh-1.5rem)] w-full max-w-6xl flex-col overflow-hidden rounded-xl border border-[var(--line)] shadow-xl outline-none sm:max-h-[calc(100dvh-3rem)]"
+        className="dashboard-theme clinical-theme flex max-h-[calc(100dvh-1.5rem)] w-full max-w-5xl flex-col overflow-hidden rounded-[var(--radius-md)] border border-[var(--border)] bg-[var(--surface)] shadow-[var(--shadow-raised)] outline-none sm:max-h-[calc(100dvh-3rem)]"
       >
-        <header className="flex shrink-0 items-start justify-between gap-4 border-b border-[var(--line)] bg-[var(--panel)] px-5 py-4 sm:px-7 sm:py-5">
-          <div className="flex min-w-0 items-start gap-3 sm:gap-4">
-            <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-[0.8rem] border border-[var(--accent-line)] bg-[var(--accent-soft)] text-[var(--accent-dark)]">
-              <CreditCard
-                className="h-5 w-5"
-                strokeWidth={1.7}
-                aria-hidden="true"
-              />
+        <header className="flex shrink-0 items-start justify-between gap-4 border-b border-[var(--border)] bg-[var(--surface)] px-5 py-4 sm:px-6">
+          <div className="flex min-w-0 items-start gap-3">
+            <span className="healix-mark">
+              <CreditCard size={18} strokeWidth={1.8} aria-hidden="true" />
             </span>
             <div className="min-w-0">
-              <p className="font-[var(--font-auth-mono)] text-[0.62rem] font-medium uppercase tracking-[0.14em] text-[var(--accent-dark)]">
+              <p className="text-xs font-medium text-[var(--medical)]">
                 {t("subscription.header.eyebrow")}
               </p>
               <h2
                 id="payment-modal-title"
-                className="mt-1 truncate font-[var(--font-auth-display)] text-[1.55rem] font-medium text-[var(--ink)] sm:text-[1.8rem]"
+                className="mt-0.5 truncate text-lg font-semibold text-[var(--text-primary)]"
               >
                 {t(plan.name)}
               </h2>
               <p
                 id="payment-modal-description"
-                className="mt-1 text-sm text-[var(--ink-soft)]"
+                className="clinical-caption mt-0.5"
               >
                 {t("subscription.checkout.subtitle")}
               </p>
             </div>
           </div>
-          <Button
+          <button
             ref={closeButtonRef}
             type="button"
-            variant="outline"
-            size="icon"
-            className="shrink-0 rounded-full border-[var(--line)] bg-[var(--panel)] text-[var(--ink-soft)] hover:border-[var(--accent-line)] hover:bg-[var(--accent-soft)] hover:text-[var(--accent-dark)]"
+            className="clinical-icon-button -me-2 shrink-0"
             aria-label={t("admin.actions.close")}
             onClick={onClose}
           >
-            <X className="h-4 w-4" strokeWidth={1.7} aria-hidden="true" />
-          </Button>
+            <X size={18} strokeWidth={1.8} aria-hidden="true" />
+          </button>
         </header>
 
-        <div className="overflow-y-auto overscroll-contain p-4 [scrollbar-color:var(--accent)_transparent] [scrollbar-width:thin] sm:p-6">
+        <div className="overflow-y-auto overscroll-contain bg-[var(--bg)] p-4 [scrollbar-color:var(--border-strong)_transparent] [scrollbar-width:thin] sm:p-6">
           <div className="grid items-start gap-5 xl:grid-cols-[minmax(0,1fr)_minmax(19rem,0.72fr)]">
-            <div className="space-y-5">
+            <div className="space-y-4">
               <PaymentMethodSelector
                 disabled={false}
                 onChange={onPaymentMethodChange}
@@ -219,7 +212,7 @@ export function PaymentCheckoutModal({
               {error ? (
                 <p
                   role="alert"
-                  className="mt-4 rounded-[0.9rem] border border-[var(--danger-line)] bg-[var(--danger-soft)] p-4 text-sm font-medium text-[var(--danger-ink)]"
+                  className="mt-4 rounded-[var(--radius-md)] border border-[var(--danger-line)] bg-[var(--danger-soft)] px-4 py-3 text-sm font-medium text-[var(--danger-ink)]"
                 >
                   {error}
                 </p>

@@ -1,4 +1,4 @@
-import { ChevronDown, HelpCircle } from "lucide-react";
+import { ChevronDown } from "lucide-react";
 
 import { type TranslationFunction } from "@/lib/i18n";
 
@@ -17,35 +17,30 @@ const faqItems = [
 
 export function SubscriptionFAQ({ t }: SubscriptionFAQProps) {
   return (
-    <section className="rounded-xl border border-[var(--line)] bg-[var(--panel)] p-5 shadow-sm">
-      <div className="flex items-center gap-3">
-        <span className="flex h-11 w-11 items-center justify-center rounded-[0.78rem] border border-[var(--accent-line)] bg-[var(--accent-soft)] text-[var(--accent-dark)]">
-          <HelpCircle className="h-5 w-5" strokeWidth={1.7} aria-hidden="true" />
-        </span>
+    <section
+      aria-labelledby="subscription-faq-heading"
+      className="overflow-hidden rounded-[var(--radius-md)] border border-[var(--border)] bg-[var(--surface)]"
+    >
+      <div className="clinical-section-heading border-b border-[var(--line-soft)]">
         <div>
-          <h2 className="font-[var(--font-auth-display)] text-[1.65rem] font-medium text-[var(--ink)]">
+          <h2 id="subscription-faq-heading" className="text-[var(--text-primary)]">
             {t("subscription.faq.title")}
           </h2>
-          <p className="mt-1 text-sm text-[var(--ink-soft)]">
-            {t("subscription.faq.subtitle")}
-          </p>
+          <p className="clinical-caption mt-0.5">{t("subscription.faq.subtitle")}</p>
         </div>
       </div>
-      <div className="mt-5 grid gap-3 md:grid-cols-2">
+      <div className="divide-y divide-[var(--line-soft)]">
         {faqItems.map((item) => (
-          <details
-            key={item}
-            className="group self-start rounded-xl border border-[var(--line)] bg-[var(--panel)] open:shadow-sm"
-          >
-            <summary className="flex cursor-pointer list-none items-center justify-between gap-4 px-4 py-4 text-sm font-medium text-[var(--ink)] transition hover:bg-[var(--panel-soft)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-[var(--accent)] [&::-webkit-details-marker]:hidden">
+          <details key={item} className="group">
+            <summary className="flex min-h-[52px] cursor-pointer list-none items-center justify-between gap-4 px-5 py-3 text-sm font-medium text-[var(--text-primary)] transition hover:bg-[var(--surface-muted)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-[var(--accent)] [&::-webkit-details-marker]:hidden">
               {t(`subscription.faq.items.${item}.question`)}
               <ChevronDown
-                className="h-4 w-4 shrink-0 text-[var(--accent)] transition-transform duration-200 group-open:rotate-180"
-                strokeWidth={1.7}
+                className="h-4 w-4 shrink-0 text-[var(--text-secondary)] transition-transform duration-200 group-open:rotate-180"
+                strokeWidth={1.8}
                 aria-hidden="true"
               />
             </summary>
-            <p className="border-t border-[var(--line-soft)] px-4 py-4 text-sm leading-6 text-[var(--ink-soft)]">
+            <p className="max-w-3xl px-5 pb-4 text-sm leading-6 text-[var(--text-secondary)]">
               {t(`subscription.faq.items.${item}.answer`)}
             </p>
           </details>

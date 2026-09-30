@@ -46,11 +46,11 @@ export function PaymentMethodSelector({
   t,
 }: PaymentMethodSelectorProps) {
   return (
-    <section className="rounded-xl border border-[var(--line)] bg-[var(--panel)] p-5 shadow-sm">
-      <h2 className="font-[var(--font-auth-display)] text-2xl font-medium text-[var(--ink)]">
+    <section className="rounded-[var(--radius-md)] border border-[var(--border)] bg-[var(--surface)] p-5">
+      <h2 className="text-sm font-semibold text-[var(--text-primary)]">
         {t("subscription.payment.methodTitle")}
       </h2>
-      <div className="mt-4 grid gap-3 sm:grid-cols-2">
+      <div className="mt-3 grid gap-3 sm:grid-cols-2">
         {paymentMethods.map((method) => {
           const Icon = method.icon;
           const selected = selectedMethod === method.id;
@@ -60,31 +60,53 @@ export function PaymentMethodSelector({
               key={method.id}
               type="button"
               disabled={disabled}
+              aria-pressed={selected}
               onClick={() => onChange(method.id)}
               className={cn(
-                "rounded-xl border p-4 text-start transition",
+                "flex items-start gap-3 rounded-[var(--radius-md)] border p-4 text-start transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--accent)]",
                 selected
-                  ? "border-[var(--accent)] bg-[var(--accent-soft)]/70 ring-2 ring-[var(--accent-line)]"
-                  : "border-[var(--line)] bg-[var(--panel)] hover:border-[var(--accent-line)] hover:bg-[var(--panel-soft)]",
+                  ? "border-[var(--accent)] bg-[var(--accent-soft)] ring-1 ring-[var(--accent)]"
+                  : "border-[var(--border)] bg-[var(--surface)] hover:border-[var(--border-strong)] hover:bg-[var(--surface-muted)]",
                 disabled && "cursor-not-allowed opacity-60",
               )}
             >
-              <div className="flex items-start justify-between gap-3">
-                <span className="flex h-10 w-10 items-center justify-center rounded-[0.72rem] border border-[var(--accent-line)] bg-[var(--accent-soft)] text-[var(--accent-dark)]">
-                  <Icon className="h-5 w-5" strokeWidth={1.7} aria-hidden="true" />
-                </span>
-                {"badgeKey" in method ? (
-                  <span className="rounded-full border border-[var(--accent-line)] bg-[var(--accent-soft)] px-2.5 py-1 font-[var(--font-auth-mono)] text-[0.62rem] font-medium text-[var(--accent-dark)]">
-                    {t(method.badgeKey)}
+              <span
+                className={cn(
+                  "flex h-9 w-9 shrink-0 items-center justify-center rounded-[var(--radius-sm)]",
+                  selected
+                    ? "bg-[var(--surface)] text-[var(--accent-dark)]"
+                    : "bg-[var(--surface-muted)] text-[var(--text-secondary)]",
+                )}
+              >
+                <Icon size={18} strokeWidth={1.8} aria-hidden="true" />
+              </span>
+              <span className="min-w-0 flex-1">
+                <span className="flex flex-wrap items-center gap-2">
+                  <span className="text-sm font-semibold text-[var(--text-primary)]">
+                    {t(method.titleKey)}
                   </span>
-                ) : null}
-              </div>
-              <p className="mt-4 font-medium text-[var(--ink)]">
-                {t(method.titleKey)}
-              </p>
-              <p className="mt-2 text-sm leading-6 text-[var(--ink-soft)]">
-                {t(method.descriptionKey)}
-              </p>
+                  {"badgeKey" in method ? (
+                    <span className="rounded-[var(--radius-xs)] bg-[var(--success-soft)] px-1.5 py-0.5 text-[.65rem] font-semibold text-[var(--success-ink)]">
+                      {t(method.badgeKey)}
+                    </span>
+                  ) : null}
+                </span>
+                <span className="mt-1 block text-[.8rem] leading-5 text-[var(--text-secondary)]">
+                  {t(method.descriptionKey)}
+                </span>
+              </span>
+              {/* Radio-style indicator: the choice is exclusive. */}
+              <span
+                aria-hidden="true"
+                className={cn(
+                  "mt-0.5 flex h-4 w-4 shrink-0 items-center justify-center rounded-full border",
+                  selected
+                    ? "border-[var(--accent)]"
+                    : "border-[var(--border-strong)]",
+                )}
+              >
+                {selected ? <span className="h-2 w-2 rounded-full bg-[var(--accent)]" /> : null}
+              </span>
             </button>
           );
         })}

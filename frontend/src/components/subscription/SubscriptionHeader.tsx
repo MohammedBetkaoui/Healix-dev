@@ -1,7 +1,8 @@
-import { ShieldCheck } from "lucide-react";
+import { Building2, Stethoscope } from "lucide-react";
 
 import { StatusBadge } from "@/components/dashboard/shared/StatusBadge";
 import { type TranslationFunction } from "@/lib/i18n";
+import { type DashboardStatusTone } from "@/types/dashboard";
 import {
   type AccountStatus,
   type AccountType,
@@ -13,37 +14,45 @@ type SubscriptionHeaderProps = {
   t: TranslationFunction;
 };
 
+const accountStatusTone: Record<AccountStatus, DashboardStatusTone> = {
+  ACTIVE: "success",
+  BASIC_ACCOUNT: "neutral",
+  PENDING_VERIFICATION: "warning",
+  REJECTED: "danger",
+  SUSPENDED: "danger",
+  VERIFIED_NO_PLAN: "info",
+};
+
 export function SubscriptionHeader({
   accountStatus,
   accountType,
   t,
 }: SubscriptionHeaderProps) {
+  const AccountIcon = accountType === "ESTABLISHMENT" ? Building2 : Stethoscope;
+
   return (
-    <section className="rounded-xl border border-[var(--line)] bg-[var(--panel)] p-6 shadow-sm">
-      <div className="flex flex-col gap-5 lg:flex-row lg:items-start lg:justify-between">
-        <div className="flex items-start gap-4">
-          <span className="flex h-14 w-14 shrink-0 items-center justify-center rounded-[0.95rem] border border-[var(--accent-line)] bg-[var(--accent-soft)] text-[var(--accent-dark)]">
-            <ShieldCheck className="h-6 w-6" strokeWidth={1.7} aria-hidden="true" />
-          </span>
-          <div>
-            <p className="font-[var(--font-auth-mono)] text-[0.68rem] font-medium uppercase tracking-[0.16em] text-[var(--accent-dark)]">
-              {t("subscription.header.eyebrow")}
-            </p>
-            <h1 className="mt-2 font-[var(--font-auth-display)] text-3xl font-medium tracking-[-0.015em] text-[var(--ink)] md:text-[2.2rem]">
-              {t("subscription.header.title")}
-            </h1>
-            <p className="mt-3 max-w-3xl text-sm leading-6 text-[var(--ink-soft)]">
-              {accountType === "ESTABLISHMENT"
-                ? t("subscription.header.establishmentSubtitle")
-                : t("subscription.header.doctorSubtitle")}
-            </p>
-          </div>
-        </div>
+    <header className="workspace-intro">
+      <div className="min-w-0">
+        <p className="mb-2 text-xs font-medium text-[var(--medical)]">
+          {t("subscription.header.eyebrow")}
+        </p>
+        <h1 className="break-words">{t("subscription.header.title")}</h1>
+        <p className="mt-1 max-w-2xl text-sm text-[var(--text-secondary)]">
+          {accountType === "ESTABLISHMENT"
+            ? t("subscription.header.establishmentSubtitle")
+            : t("subscription.header.doctorSubtitle")}
+        </p>
+      </div>
+      <div className="flex flex-wrap items-center gap-2">
+        <span className="inline-flex items-center gap-1.5 rounded-full border border-[var(--border)] bg-[var(--surface)] px-2.5 py-1 text-xs font-medium text-[var(--text-secondary)]">
+          <AccountIcon size={14} strokeWidth={1.8} aria-hidden="true" />
+          {t(`subscription.accountType.${accountType}`)}
+        </span>
         <StatusBadge
           label={t(`subscription.status.account.${accountStatus}`)}
-          tone={accountStatus === "ACTIVE" ? "success" : "info"}
+          tone={accountStatusTone[accountStatus] ?? "neutral"}
         />
       </div>
-    </section>
+    </header>
   );
 }

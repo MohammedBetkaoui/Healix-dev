@@ -1,3 +1,6 @@
+import { Lock } from "lucide-react";
+import { type ReactNode } from "react";
+
 import {
   type BillingPeriod,
   type SubscriptionPlan,
@@ -10,37 +13,47 @@ import { PricingCard } from "./PricingCard";
 type PricingGridProps = {
   billingPeriod: BillingPeriod;
   canSelectPlan: boolean;
+  currentPlanId?: string | null;
   onSelectPlan: (planId: string) => void;
   plans: SubscriptionPlan[];
   selectedPlanId?: string;
   t: TranslationFunction;
+  // Rendered on the end side of the section heading (the billing toggle).
+  toolbar?: ReactNode;
 };
 
 export function PricingGrid({
   billingPeriod,
   canSelectPlan,
+  currentPlanId,
   onSelectPlan,
   plans,
   selectedPlanId,
   t,
+  toolbar,
 }: PricingGridProps) {
   return (
-    <section>
-      <div className="mb-4 flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between">
-        <div>
-          <h2 className="font-[var(--font-auth-display)] text-[1.65rem] font-medium text-[var(--ink)]">
+    <section
+      aria-labelledby="subscription-plans-heading"
+      className="overflow-hidden rounded-[var(--radius-md)] border border-[var(--border)] bg-[var(--surface)]"
+    >
+      <div className="clinical-section-heading border-b border-[var(--line-soft)]">
+        <div className="min-w-0">
+          <h2 id="subscription-plans-heading" className="text-[var(--text-primary)]">
             {t("subscription.pricing.title")}
           </h2>
-          <p className="mt-1 text-sm text-[var(--ink-soft)]">
+          <p className="clinical-caption mt-0.5 max-w-2xl">
             {t("subscription.pricing.subtitle")}
           </p>
         </div>
+        {toolbar}
       </div>
+
       <div
         className={cn(
-          "grid auto-rows-fr items-stretch gap-5 pt-2",
+          "grid gap-4 p-5",
           plans.length >= 4
-            ? "md:grid-cols-2 min-[1500px]:grid-cols-4"
+            ? "md:grid-cols-2 min-[1400px]:grid-cols-4"
             : "md:grid-cols-2 xl:grid-cols-3",
         )}
       >
@@ -48,6 +61,7 @@ export function PricingGrid({
           <PricingCard
             key={plan.id}
             billingPeriod={billingPeriod}
+            current={currentPlanId === plan.id}
             disabled={!canSelectPlan}
             onSelect={onSelectPlan}
             plan={plan}
@@ -56,6 +70,11 @@ export function PricingGrid({
           />
         ))}
       </div>
+
+      <p className="flex items-start gap-2 border-t border-[var(--line-soft)] bg-[var(--surface-muted)] px-5 py-3 text-xs leading-5 text-[var(--text-secondary)]">
+        <Lock size={14} strokeWidth={1.8} aria-hidden="true" className="mt-0.5 shrink-0" />
+        {t("subscription.security.cardData")}
+      </p>
     </section>
   );
 }

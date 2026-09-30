@@ -8,19 +8,20 @@ type PaymentSecurityNoticeProps = {
 
 export function PaymentSecurityNotice({ t }: PaymentSecurityNoticeProps) {
   return (
-    <section className="rounded-xl border border-[var(--accent-line)] bg-[var(--accent-soft)]/55 p-5">
-      <div className="flex items-start gap-3">
-        <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-[0.78rem] border border-[var(--line)] bg-[var(--panel)] text-[var(--accent-dark)]">
-          <ShieldCheck className="h-5 w-5" strokeWidth={1.7} aria-hidden="true" />
-        </span>
-        <div>
-          <h2 className="text-base font-medium text-[var(--ink)]">
-            {t("subscription.security.title")}
-          </h2>
-          <p className="mt-2 text-sm leading-6 text-[var(--ink-soft)]">
-            {t("subscription.security.description")}
-          </p>
-        </div>
+    <section className="flex items-start gap-3 rounded-[var(--radius-md)] border border-[var(--border)] bg-[var(--surface)] px-5 py-4">
+      <ShieldCheck
+        size={18}
+        strokeWidth={1.8}
+        aria-hidden="true"
+        className="mt-0.5 shrink-0 text-[var(--medical)]"
+      />
+      <div className="min-w-0">
+        <h2 className="text-sm font-semibold text-[var(--text-primary)]">
+          {t("subscription.security.title")}
+        </h2>
+        <p className="mt-1 text-sm leading-6 text-[var(--text-secondary)]">
+          {t("subscription.security.description")}
+        </p>
       </div>
     </section>
   );

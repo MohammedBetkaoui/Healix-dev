@@ -1,5 +1,11 @@
 import Link from "next/link";
-import { AlertTriangle, CheckCircle2, Clock3, ShieldAlert } from "lucide-react";
+import {
+  AlertTriangle,
+  ArrowRight,
+  CheckCircle2,
+  Clock3,
+  ShieldAlert,
+} from "lucide-react";
 
 import { type TranslationFunction } from "@/lib/i18n";
 import { cn } from "@/lib/utils";
@@ -11,35 +17,79 @@ type VerificationAccessBannerProps = {
   verificationHref: string;
 };
 
-function getBannerKey(context: SubscriptionContext) {
-  if (context.accountStatus === "SUSPENDED") {
+type BannerKey =
+  | "active"
+  | "pending"
+  | "rejected"
+  | "suspended"
+  | "unverified"
+  | "verified";
+
+function getBannerKey(context: SubscriptionContext): BannerKey {
+  if (
+    context.accountStatus === "SUSPENDED" ||
+    context.verificationStatus === "SUSPENDED"
+  ) {
     return "suspended";
   }
 
-  if (context.verificationStatus === "REJECTED") {
+  if (
+    context.accountStatus === "REJECTED" ||
+    context.verificationStatus === "REJECTED"
+  ) {
     return "rejected";
   }
 
-  if (context.verificationStatus === "PENDING_VERIFICATION") {
+  if (
+    context.accountStatus === "PENDING_VERIFICATION" ||
+    context.verificationStatus === "PENDING_VERIFICATION"
+  ) {
     return "pending";
   }
 
   if (
     context.accountStatus === "ACTIVE" &&
-    context.subscriptionStatus === "ACTIVE"
+    context.subscriptionStatus === "ACTIVE" &&
+    context.verificationStatus === "VERIFIED"
   ) {
     return "active";
   }
 
-  if (
-    context.accountStatus === "VERIFIED_NO_PLAN" &&
-    context.verificationStatus === "VERIFIED"
-  ) {
+  if (context.verificationStatus === "VERIFIED") {
     return "verified";
   }
 
   return "unverified";
 }
+
+// An official notice: neutral surface, a coloured inline-start rule and icon
+// carry the severity instead of a fully tinted block.
+const bannerTone: Record<BannerKey, { icon: string; rule: string }> = {
+  active: {
+    icon: "bg-[var(--success-soft)] text-[var(--success-ink)]",
+    rule: "border-s-[color:var(--success)]",
+  },
+  pending: {
+    icon: "bg-[var(--warning-soft)] text-[var(--warning-ink)]",
+    rule: "border-s-[color:var(--warning)]",
+  },
+  rejected: {
+    icon: "bg-[var(--danger-soft)] text-[var(--danger-ink)]",
+    rule: "border-s-[color:var(--danger)]",
+  },
+  suspended: {
+    icon: "bg-[var(--danger-soft)] text-[var(--danger-ink)]",
+    rule: "border-s-[color:var(--danger)]",
+  },
+  unverified: {
+    icon: "bg-[var(--warning-soft)] text-[var(--warning-ink)]",
+    rule: "border-s-[color:var(--warning)]",
+  },
+  verified: {
+    icon: "bg-[var(--success-soft)] text-[var(--success-ink)]",
+    rule: "border-s-[color:var(--success)]",
+  },
+};
 
 export function VerificationAccessBanner({
   context,
@@ -47,8 +97,15 @@ export function VerificationAccessBanner({
   verificationHref,
 }: VerificationAccessBannerProps) {
   const bannerKey = getBannerKey(context);
+
+  // An active subscription is already stated by SubscriptionStatusCard and the
+  // summary strip: the notice is only for situations that need attention.
+  if (bannerKey === "active") {
+    return null;
+  }
+
   const Icon =
-    bannerKey === "active" || bannerKey === "verified"
+    bannerKey === "verified"
       ? CheckCircle2
       : bannerKey === "pending"
         ? Clock3
@@ -61,38 +118,48 @@ export function VerificationAccessBanner({
 
   return (
     <section
+      role={
+        bannerKey === "suspended" || bannerKey === "rejected"
+          ? "alert"
+          : undefined
+      }
       className={cn(
-        "rounded-xl border p-5 shadow-sm",
-        bannerKey === "active" || bannerKey === "verified"
-          ? "border-[var(--success-line)] bg-[var(--success-soft)]"
-          : bannerKey === "suspended" || bannerKey === "rejected"
-            ? "border-[var(--danger-line)] bg-[var(--danger-soft)]"
-            : "border-[var(--warning-line)] bg-[var(--warning-soft)]",
+        "flex flex-col gap-4 rounded-[var(--radius-md)] border border-s-[3px] border-[var(--border)] bg-[var(--surface)] px-5 py-4 md:flex-row md:items-center md:justify-between",
+        bannerTone[bannerKey].rule,
       )}
     >
-      <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
-        <div className="flex items-start gap-4">
-          <span className="flex h-12 w-12 shrink-0 items-center justify-center rounded-[0.82rem] border border-[var(--line)] bg-[var(--panel)] text-[var(--accent-dark)]">
-            <Icon className="h-5 w-5" strokeWidth={1.7} aria-hidden="true" />
-          </span>
-          <div>
-            <h2 className="text-base font-medium text-[var(--ink)]">
-              {t(`subscription.access.${bannerKey}.title`)}
-            </h2>
-            <p className="mt-2 max-w-4xl text-sm leading-6 text-[var(--ink-soft)]">
-              {t(`subscription.access.${bannerKey}.description`)}
-            </p>
-          </div>
+      <div className="flex items-start gap-3">
+        <span
+          className={cn(
+            "flex h-9 w-9 shrink-0 items-center justify-center rounded-[var(--radius-sm)]",
+            bannerTone[bannerKey].icon,
+          )}
+        >
+          <Icon size={18} strokeWidth={1.8} aria-hidden="true" />
+        </span>
+        <div className="min-w-0">
+          <h2 className="text-sm font-semibold text-[var(--text-primary)]">
+            {t(`subscription.access.${bannerKey}.title`)}
+          </h2>
+          <p className="mt-1 max-w-3xl text-sm leading-6 text-[var(--text-secondary)]">
+            {t(`subscription.access.${bannerKey}.description`)}
+          </p>
         </div>
-        {canGoToVerification ? (
-          <Link
-            href={verificationHref}
-            className="inline-flex h-11 items-center justify-center rounded-[0.72rem] bg-primary px-5 text-sm font-medium text-primary-foreground shadow-sm transition hover:bg-[var(--action-hover)]"
-          >
-            {t(`subscription.access.${bannerKey}.action`)}
-          </Link>
-        ) : null}
       </div>
+      {canGoToVerification ? (
+        <Link
+          href={verificationHref}
+          className="clinical-button clinical-button-primary shrink-0 px-4"
+        >
+          {t(`subscription.access.${bannerKey}.action`)}
+          <ArrowRight
+            size={16}
+            strokeWidth={1.8}
+            aria-hidden="true"
+            className="rtl:rotate-180"
+          />
+        </Link>
+      ) : null}
     </section>
   );
 }

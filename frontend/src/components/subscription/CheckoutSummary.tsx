@@ -1,6 +1,6 @@
 import { LockKeyhole, ReceiptText } from "lucide-react";
+import { type ReactNode } from "react";
 
-import { Button } from "@/components/ui/button";
 import { type TranslationFunction } from "@/lib/i18n";
 import {
   type AccountType,
@@ -9,6 +9,8 @@ import {
   type SubscriptionContext,
   type SubscriptionPlan,
 } from "@/types/subscription";
+
+import { formatPlanAmount } from "./subscription-format";
 
 type CheckoutSummaryProps = {
   accountType: AccountType;
@@ -22,12 +24,16 @@ type CheckoutSummaryProps = {
   t: TranslationFunction;
 };
 
-function formatPrice(value: number | null | undefined, t: TranslationFunction) {
+function formatAmount(value: number | null | undefined, t: TranslationFunction): ReactNode {
   if (value === null || value === undefined) {
     return t("subscription.pricing.customPrice");
   }
 
-  return `${new Intl.NumberFormat("fr-DZ").format(value)} DA`;
+  return (
+    <bdi dir="ltr" className="tabular-nums">
+      {formatPlanAmount(value)} DA
+    </bdi>
+  );
 }
 
 function getPrice(plan: SubscriptionPlan | undefined, period: BillingPeriod) {
@@ -46,6 +52,15 @@ function getAnnualSaving(plan: SubscriptionPlan | undefined) {
   return plan.monthlyPrice * 12 - plan.annualPrice;
 }
 
+function SummaryRow({ children, label }: { children: ReactNode; label: string }) {
+  return (
+    <div className="flex items-baseline justify-between gap-4 py-2.5">
+      <dt className="text-[var(--text-secondary)]">{label}</dt>
+      <dd className="text-end font-medium text-[var(--text-primary)]">{children}</dd>
+    </div>
+  );
+}
+
 export function CheckoutSummary({
   accountType,
   billingPeriod,
@@ -61,85 +76,70 @@ export function CheckoutSummary({
   const saving = billingPeriod === "ANNUAL" ? getAnnualSaving(plan) : 0;
 
   return (
-    <section className="rounded-xl border border-[var(--line)] bg-[var(--panel)] p-5 shadow-sm">
-      <div className="flex items-start gap-3">
-        <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-[0.78rem] border border-[var(--accent-line)] bg-[var(--accent-soft)] text-[var(--accent-dark)]">
-          <ReceiptText className="h-5 w-5" strokeWidth={1.7} aria-hidden="true" />
-        </span>
-        <div>
-          <h2 className="font-[var(--font-auth-display)] text-2xl font-medium text-[var(--ink)]">
-            {t("subscription.checkout.title")}
-          </h2>
-          <p className="mt-1 text-sm text-[var(--ink-soft)]">
-            {t("subscription.checkout.subtitle")}
+    <section className="overflow-hidden rounded-[var(--radius-md)] border border-[var(--border)] bg-[var(--surface)]">
+      <div className="flex items-center gap-2.5 border-b border-[var(--line-soft)] px-5 py-4">
+        <ReceiptText size={18} strokeWidth={1.8} aria-hidden="true" className="shrink-0 text-[var(--text-secondary)]" />
+        <h2 className="text-sm font-semibold text-[var(--text-primary)]">
+          {t("subscription.checkout.title")}
+        </h2>
+      </div>
+
+      <div className="px-5 pt-2">
+        <dl className="divide-y divide-[var(--line-soft)] text-[.8rem]">
+          <SummaryRow label={t("subscription.checkout.accountType")}>
+            {t(`subscription.accountType.${accountType}`)}
+          </SummaryRow>
+          <SummaryRow label={t("subscription.checkout.plan")}>
+            {plan ? t(plan.name) : t("subscription.checkout.noPlan")}
+          </SummaryRow>
+          <SummaryRow label={t("subscription.checkout.period")}>
+            {t(`subscription.billing.${billingPeriod.toLowerCase()}`)}
+          </SummaryRow>
+          <SummaryRow label={t("subscription.checkout.method")}>
+            {paymentMethod
+              ? t(`subscription.payment.methodLabels.${paymentMethod}`)
+              : t("subscription.checkout.noPaymentMethod")}
+          </SummaryRow>
+          <SummaryRow label={t("subscription.checkout.status")}>
+            {t(`subscription.status.account.${context.accountStatus}`)}
+          </SummaryRow>
+          {saving > 0 ? (
+            <div className="flex items-baseline justify-between gap-4 py-2.5">
+              <dt className="text-[var(--text-secondary)]">{t("subscription.checkout.saving")}</dt>
+              <dd className="font-semibold text-[var(--success-ink)]">
+                − {formatAmount(saving, t)}
+              </dd>
+            </div>
+          ) : null}
+        </dl>
+
+        {/* Amount due, set apart as the total line of an invoice. */}
+        <div className="mt-1 flex items-baseline justify-between gap-4 border-t-2 border-[var(--border)] py-4">
+          <p className="text-sm font-semibold text-[var(--text-primary)]">
+            {t("subscription.checkout.price")}
+          </p>
+          <p className="text-xl font-semibold tracking-[-0.02em] text-[var(--text-primary)]">
+            {formatAmount(price, t)}
           </p>
         </div>
       </div>
 
-      <dl className="mt-5 divide-y divide-[var(--line-soft)] text-sm">
-        <div className="flex justify-between gap-4">
-          <dt className="py-3 text-[var(--ink-faint)]">{t("subscription.checkout.accountType")}</dt>
-          <dd className="py-3 font-medium text-[var(--ink)]">
-            {t(`subscription.accountType.${accountType}`)}
-          </dd>
-        </div>
-        <div className="flex justify-between gap-4">
-          <dt className="py-3 text-[var(--ink-faint)]">{t("subscription.checkout.plan")}</dt>
-          <dd className="py-3 font-medium text-[var(--ink)]">
-            {plan ? t(plan.name) : t("subscription.checkout.noPlan")}
-          </dd>
-        </div>
-        <div className="flex justify-between gap-4">
-          <dt className="py-3 text-[var(--ink-faint)]">{t("subscription.checkout.period")}</dt>
-          <dd className="py-3 font-medium text-[var(--ink)]">
-            {t(`subscription.billing.${billingPeriod.toLowerCase()}`)}
-          </dd>
-        </div>
-        <div className="flex justify-between gap-4">
-          <dt className="py-3 text-[var(--ink-faint)]">{t("subscription.checkout.price")}</dt>
-          <dd className="py-3 font-[var(--font-auth-display)] text-lg font-medium text-[var(--ink)]">
-            {formatPrice(price, t)}
-          </dd>
-        </div>
-        {saving > 0 ? (
-          <div className="flex justify-between gap-4">
-            <dt className="py-3 text-[var(--ink-faint)]">{t("subscription.checkout.saving")}</dt>
-            <dd className="py-3 font-medium text-[var(--ink)]">
-              {formatPrice(saving, t)}
-            </dd>
-          </div>
-        ) : null}
-        <div className="flex justify-between gap-4">
-          <dt className="py-3 text-[var(--ink-faint)]">{t("subscription.checkout.method")}</dt>
-          <dd className="py-3 text-end font-medium text-[var(--ink)]">
-            {paymentMethod
-              ? t(`subscription.payment.methodLabels.${paymentMethod}`)
-              : t("subscription.checkout.noPaymentMethod")}
-          </dd>
-        </div>
-        <div className="flex justify-between gap-4">
-          <dt className="py-3 text-[var(--ink-faint)]">{t("subscription.checkout.status")}</dt>
-          <dd className="py-3 font-medium text-[var(--ink)]">
-            {t(`subscription.status.account.${context.accountStatus}`)}
-          </dd>
-        </div>
-      </dl>
-
-      <div className="mt-5 rounded-[0.85rem] border border-[var(--accent-line)] bg-[var(--accent-soft)]/55 p-4 text-sm leading-6 text-[var(--ink-soft)]">
-        <LockKeyhole className="me-2 inline h-4 w-4 text-[var(--accent-dark)]" strokeWidth={1.7} />
-        {t("subscription.security.cardData")}
+      <div className="space-y-3 border-t border-[var(--line-soft)] bg-[var(--surface-muted)] px-5 py-4">
+        <button
+          type="button"
+          className="clinical-button clinical-button-primary w-full disabled:cursor-not-allowed disabled:opacity-60"
+          disabled={!canCheckout || isLoading}
+          onClick={onConfirm}
+        >
+          {isLoading
+            ? t("subscription.checkout.loading")
+            : t("subscription.checkout.confirm")}
+        </button>
+        <p className="flex items-start gap-2 text-xs leading-5 text-[var(--text-secondary)]">
+          <LockKeyhole size={14} strokeWidth={1.8} aria-hidden="true" className="mt-0.5 shrink-0" />
+          {t("subscription.security.cardData")}
+        </p>
       </div>
-
-      <Button
-        type="button"
-        className="mt-5 w-full rounded-[0.72rem]"
-        disabled={!canCheckout || isLoading}
-        onClick={onConfirm}
-      >
-        {isLoading
-          ? t("subscription.checkout.loading")
-          : t("subscription.checkout.confirm")}
-      </Button>
       {/* Payment confirmation must be verified later by backend webhook. Never activate a subscription from frontend only. */}
     </section>
   );

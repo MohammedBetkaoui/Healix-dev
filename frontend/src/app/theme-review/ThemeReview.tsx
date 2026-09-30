@@ -77,6 +77,22 @@ export function ThemeReview({ view }: { view: string }) {
       recentVerificationRequests: ["PENDING_VERIFICATION", "VERIFIED", "REJECTED"].map((status, i) => ({ id: `preview-${i}`, requesterName: ["Clinique Démonstration", "Dr Exemple", "Établissement Test"][i], type: i === 1 ? "INDEPENDENT_DOCTOR" : "ESTABLISHMENT", status, wilaya: "Alger" })),
     });
     seedAppointmentsPreview(query);
+    // GET /subscription/me shape (features/subscriptions/subscriptions.api.ts):
+    // an active establishment on a catalog plan, the richest page state.
+    query.setQueryData(["subscription", "me"], {
+      accountStatus: "ACTIVE",
+      accountType: "ESTABLISHMENT",
+      subscriptionStatus: "ACTIVE",
+      verificationStatus: "VERIFIED",
+      currentSubscription: {
+        id: "preview-subscription",
+        status: "ACTIVE",
+        billingPeriod: "ANNUAL",
+        startedAt: "2026-03-01T09:00:00.000Z",
+        expiresAt: "2027-03-01T09:00:00.000Z",
+        plan: { id: "preview-plan", name: "Pro Center", code: "EST_PRO_CENTER", monthlyPrice: 45000, annualPrice: 450000, currency: "DZD" },
+      },
+    });
     return query;
   });
   return <QueryClientProvider client={client}>{view === "admin" ? <AdminDashboardPage /> : view === "doctor" ? <DoctorDashboard /> : view === "patients" ? <EstablishmentPatientsPage /> : view === "appointments" ? <AppointmentsAgendaPage accountType="ESTABLISHMENT" /> : view === "verification" ? <EstablishmentVerificationPage /> : view === "subscription" ? <SubscriptionPage accountType="ESTABLISHMENT" /> : <EstablishmentDashboard />}</QueryClientProvider>;

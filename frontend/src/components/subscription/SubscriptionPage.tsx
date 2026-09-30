@@ -1,5 +1,6 @@
 "use client";
 
+import { Info } from "lucide-react";
 import { useCallback, useMemo, useState } from "react";
 
 import {
@@ -11,6 +12,7 @@ import { BillingToggle } from "@/components/subscription/BillingToggle";
 import { PaymentCheckoutModal } from "@/components/subscription/PaymentCheckoutModal";
 import { PlanComparisonTable } from "@/components/subscription/PlanComparisonTable";
 import { PricingGrid } from "@/components/subscription/PricingGrid";
+import { SubscriptionAccountSummary } from "@/components/subscription/SubscriptionAccountSummary";
 import { SubscriptionFAQ } from "@/components/subscription/SubscriptionFAQ";
 import { SubscriptionHeader } from "@/components/subscription/SubscriptionHeader";
 import { SubscriptionStatusCard } from "@/components/subscription/SubscriptionStatusCard";
@@ -20,6 +22,7 @@ import { useCreatePaymentIntent } from "@/features/payments/hooks/use-create-pay
 import { useMySubscription } from "@/features/subscriptions/hooks/use-my-subscription";
 import { toSubscriptionContext } from "@/features/subscriptions/subscriptions.api";
 import { useStoredLocale, useTranslation } from "@/lib/i18n";
+import { cn } from "@/lib/utils";
 import {
   type AccountType,
   type BillingPeriod,
@@ -37,6 +40,44 @@ function canSelectSubscriptionPlan(
   return (
     verificationStatus === "VERIFIED" &&
     (accountStatus === "VERIFIED_NO_PLAN" || accountStatus === "ACTIVE")
+  );
+}
+
+function SkeletonBlock({ className }: { className: string }) {
+  return <span className={cn("block animate-pulse rounded-[var(--radius-xs)] bg-[var(--surface-muted)]", className)} />;
+}
+
+// Same layout as the loaded page (heading, summary strip, plan cards), so
+// nothing jumps when the account data arrives.
+function SubscriptionPageSkeleton({ label }: { label: string }) {
+  return (
+    <div className="workspace-stack">
+      <p className="sr-only" role="status">{label}</p>
+      <div aria-hidden="true" className="space-y-2">
+        <SkeletonBlock className="h-3 w-28" />
+        <SkeletonBlock className="h-6 w-64" />
+        <SkeletonBlock className="h-3.5 w-80 max-w-full" />
+      </div>
+      <div aria-hidden="true" className="operational-metrics">
+        {Array.from({ length: 4 }, (_, index) => (
+          <div key={index} className="operational-metric space-y-3">
+            <SkeletonBlock className="h-3 w-24" />
+            <SkeletonBlock className="h-4 w-32" />
+            <SkeletonBlock className="h-3 w-20" />
+          </div>
+        ))}
+      </div>
+      <div aria-hidden="true" className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
+        {Array.from({ length: 3 }, (_, index) => (
+          <div key={index} className="space-y-4 rounded-[var(--radius-md)] border border-[var(--border)] bg-[var(--surface)] p-5">
+            <SkeletonBlock className="h-4 w-32" />
+            <SkeletonBlock className="h-3 w-full" />
+            <SkeletonBlock className="h-8 w-36" />
+            <SkeletonBlock className="h-10 w-full" />
+          </div>
+        ))}
+      </div>
+    </div>
   );
 }
 
@@ -145,32 +186,26 @@ export function SubscriptionPage({ accountType }: SubscriptionPageProps) {
       titleKey="subscription.header.title"
       user={getDashboardUser(accountType)}
     >
-      <div className="space-y-6">
+      <div role="status" aria-live="polite">
         {toastMessage ? (
-          <div
-            role="status"
-            className="fixed end-6 top-6 z-50 max-w-sm rounded-xl border border-[var(--accent-line)] bg-[var(--panel)] p-4 text-sm font-medium text-[var(--accent-dark)] shadow-sm"
-          >
+          <div className="fixed end-6 top-6 z-50 flex max-w-sm items-start gap-2.5 rounded-[var(--radius-md)] border border-[var(--accent-line)] bg-[var(--surface)] px-4 py-3 text-sm font-medium text-[var(--text-primary)] shadow-[var(--shadow-raised)]">
+            <Info size={17} strokeWidth={1.8} aria-hidden="true" className="mt-px shrink-0 text-[var(--accent-dark)]" />
             {toastMessage}
           </div>
         ) : null}
+      </div>
 
-        {isLoading ? (
-          <div
-            role="status"
-            className="rounded-2xl border border-border bg-card p-10 text-sm text-muted-foreground shadow-sm"
-          >
-            {t("subscription.page.loading")}
-          </div>
-        ) : error || !context ? (
-          <div
-            role="alert"
-            className="rounded-2xl border border-[var(--danger-line)] bg-[var(--danger-soft)] p-5 text-sm font-medium text-[var(--danger-ink)]"
-          >
-            {t("subscription.page.error")}
-          </div>
-        ) : (
-          <>
+      {isLoading ? (
+        <SubscriptionPageSkeleton label={t("subscription.page.loading")} />
+      ) : error || !context ? (
+        <div
+          role="alert"
+          className="rounded-[var(--radius-md)] border border-[var(--danger-line)] bg-[var(--danger-soft)] px-5 py-4 text-sm font-medium text-[var(--danger-ink)]"
+        >
+          {t("subscription.page.error")}
+        </div>
+      ) : (
+        <div className="workspace-stack">
             <SubscriptionHeader
               accountStatus={context.accountStatus}
               accountType={accountType}
@@ -181,6 +216,13 @@ export function SubscriptionPage({ accountType }: SubscriptionPageProps) {
               context={context}
               t={t}
               verificationHref={getVerificationHref(accountType)}
+            />
+
+            <SubscriptionAccountSummary
+              context={context}
+              currentPlan={currentPlan}
+              locale={locale}
+              t={t}
             />
 
             <SubscriptionStatusCard
@@ -194,19 +236,23 @@ export function SubscriptionPage({ accountType }: SubscriptionPageProps) {
               t={t}
             />
 
-            <BillingToggle
-              billingPeriod={billingPeriod}
-              onChange={setBillingPeriod}
-              t={t}
-            />
-
             <PricingGrid
               billingPeriod={billingPeriod}
               canSelectPlan={canSelectPlan}
+              currentPlanId={
+                context.subscriptionStatus === "ACTIVE" ? context.currentPlanId : null
+              }
               onSelectPlan={handleSelectPlan}
               plans={plans}
               selectedPlanId={selectedPlanId}
               t={t}
+              toolbar={
+                <BillingToggle
+                  billingPeriod={billingPeriod}
+                  onChange={setBillingPeriod}
+                  t={t}
+                />
+              }
             />
 
             <PlanComparisonTable
@@ -243,9 +289,8 @@ export function SubscriptionPage({ accountType }: SubscriptionPageProps) {
               plan={selectedPlan}
               t={t}
             />
-          </>
-        )}
-      </div>
+        </div>
+      )}
     </DashboardShell>
   );
 }

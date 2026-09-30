@@ -19,36 +19,22 @@ export function PlanFeatureList({
   const Icon = kind === "feature" ? Check : Minus;
 
   return (
-    <div
-      className={cn(
-        kind === "limit" &&
-          "rounded-[0.85rem] border border-[var(--line-soft)] bg-[var(--panel-soft)] p-3",
-      )}
-    >
-      <p
-        className={cn(
-          "font-[var(--font-auth-mono)] text-[0.64rem] font-medium uppercase tracking-[0.14em]",
-          kind === "feature"
-            ? "text-[var(--accent-dark)]"
-            : "text-[var(--ink-faint)]",
-        )}
-      >
-        {title}
-      </p>
-      <ul className="mt-3 space-y-2">
+    <div>
+      <p className="text-xs font-semibold text-[var(--text-primary)]">{title}</p>
+      <ul className="mt-2.5 space-y-2">
         {features.map((feature) => (
           <li
             key={feature}
-            className="flex items-start gap-2 text-sm leading-5 text-[var(--ink-soft)]"
+            className="flex items-start gap-2 text-[.8rem] leading-5 text-[var(--text-secondary)]"
           >
             <Icon
               className={cn(
                 "mt-0.5 h-4 w-4 shrink-0",
                 kind === "feature"
-                  ? "text-[var(--accent)]"
-                  : "text-[var(--ink-faint)]",
+                  ? "text-[var(--medical)]"
+                  : "text-[var(--text-muted)]",
               )}
-              strokeWidth={kind === "feature" ? 1.9 : 1.5}
+              strokeWidth={kind === "feature" ? 2 : 1.6}
               aria-hidden="true"
             />
             <span>{t(feature)}</span>

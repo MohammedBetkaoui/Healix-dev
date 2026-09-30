@@ -86,7 +86,7 @@ export const subscriptionFr = {
     items: {
       activation: {
         answer:
-          "Après paiement confirmé côté backend, le compte passera au statut actif.",
+          "Votre abonnement est activé dès la confirmation du paiement. Pour un paiement manuel, l'activation intervient après validation de la preuve par l'équipe HealixDZ.",
         question: "Quand mon compte sera activé ?",
       },
       annual: {
@@ -96,17 +96,17 @@ export const subscriptionFr = {
       },
       cardData: {
         answer:
-          "Non. Les données de carte seront traitées par une passerelle sécurisée.",
+          "Non. HealixDZ ne stocke aucune donnée de carte bancaire : le paiement en ligne est traité par une passerelle de paiement sécurisée.",
         question: "Est-ce que les données de carte sont stockées ?",
       },
       changePlan: {
         answer:
-          "Oui. Le changement de plan sera géré plus tard depuis le backend d'abonnement.",
+          "Le changement de plan depuis cet espace sera bientôt disponible. En attendant, l'équipe HealixDZ peut vous accompagner.",
         question: "Puis-je changer de plan ?",
       },
       manual: {
         answer:
-          "Oui. Le paiement manuel sera disponible avec dépôt sécurisé de preuve.",
+          "Oui. Vous pouvez régler par virement postal ou BaridiMob, puis déposer votre preuve de paiement, vérifiée par l'équipe HealixDZ.",
         question: "Puis-je payer manuellement ?",
       },
       verification: {
@@ -122,16 +122,16 @@ export const subscriptionFr = {
     doctorSubtitle: "Choisissez le plan adapté à votre activité médicale.",
     establishmentSubtitle:
       "Choisissez le plan adapté à votre structure médicale.",
-    eyebrow: "Subscription HealixDZ",
+    eyebrow: "Espace facturation",
     title: "Abonnement et paiement",
   },
   manual: {
     amount: "Montant à payer",
     beneficiary: "Nom du bénéficiaire",
     description:
-      "Utilisez ces informations comme instructions mock. L'envoi réel de preuve sera connecté plus tard au backend.",
+      "Après confirmation, vous serez redirigé vers votre espace de paiement pour effectuer le virement et déposer votre justificatif.",
     proof: "Preuve de paiement",
-    proofLater: "Envoi de preuve après intégration backend.",
+    proofLater: "Dépôt du justificatif à l'étape suivante.",
     reference: "Référence",
     title: "Paiement manuel",
     uploadSoon: "Envoyer la preuve bientôt disponible",
@@ -373,15 +373,18 @@ export const subscriptionFr = {
     customPrice: "Sur devis",
     features: "Fonctionnalités incluses",
     limits: "Limites du plan",
+    currentPlan: "Plan actuel",
     selected: "Plan sélectionné",
-    subtitle: "Les plans sont affichés en lecture seule si le compte n'est pas vérifié.",
+    subtitle:
+      "Tarifs en dinars algériens (DA). La souscription est ouverte aux comptes dont la vérification professionnelle est validée.",
+    verificationRequired: "Vérification requise",
     title: "Choisissez votre abonnement",
   },
   security: {
     cardData:
       "HealixDZ ne stocke aucune donnée de carte bancaire. Le paiement en ligne sera traité via une passerelle sécurisée.",
     description:
-      "Aucune donnée de carte bancaire n'est demandée sur cette page. L'activation réelle dépendra d'une confirmation backend sécurisée.",
+      "Aucune donnée de carte bancaire n'est demandée sur cette page. L'abonnement n'est activé qu'après confirmation sécurisée du paiement.",
     title: "Sécurité du paiement",
   },
   status: {
@@ -393,5 +396,30 @@ export const subscriptionFr = {
       SUSPENDED: "Compte suspendu",
       VERIFIED_NO_PLAN: "Compte vérifié",
     },
+    subscription: {
+      ACTIVE: "Actif",
+      CANCELED: "Annulé",
+      EXPIRED: "Expiré",
+      NO_PLAN: "Aucun abonnement",
+      PAYMENT_PENDING: "Paiement en attente",
+    },
+    verification: {
+      NOT_STARTED: "Non commencée",
+      PENDING_VERIFICATION: "En cours d'examen",
+      REJECTED: "Refusée",
+      SUSPENDED: "Suspendue",
+      VERIFIED: "Validée",
+    },
+  },
+  summary: {
+    account: "Statut du compte",
+    noPeriodHint: "Aucune période de facturation en cours",
+    noPlan: "Aucun plan",
+    period: "Échéance",
+    periodStart: "Depuis le {date}",
+    plan: "Plan souscrit",
+    title: "Synthèse du compte",
+    verification: "Vérification professionnelle",
+    verificationHint: "Condition requise pour souscrire",
   },
 };
