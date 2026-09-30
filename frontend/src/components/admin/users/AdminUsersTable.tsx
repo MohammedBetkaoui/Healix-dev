@@ -10,11 +10,12 @@ import { AdminUserStatusBadge } from "./AdminUserStatusBadge";
 
 type AdminUsersTableProps = {
   locale: Locale;
+  onToggleStatus: (user: RegisteredUser) => void;
   t: TranslationFunction;
   users: RegisteredUser[];
 };
 
-export function AdminUsersTable({ locale, t, users }: AdminUsersTableProps) {
+export function AdminUsersTable({ locale, onToggleStatus, t, users }: AdminUsersTableProps) {
   if (users.length === 0) {
     return (
       <div className="rounded-2xl border border-dashed border-border bg-card p-10 text-center text-sm text-muted-foreground">
@@ -64,7 +65,7 @@ export function AdminUsersTable({ locale, t, users }: AdminUsersTableProps) {
                     <Button type="button" variant="outline" size="sm">
                       {t("admin.actions.viewDetails")}
                     </Button>
-                    <Button type="button" variant="ghost" size="sm">
+                    <Button type="button" variant="ghost" size="sm" onClick={() => onToggleStatus(user)}>
                       {user.accountStatus === "SUSPENDED"
                         ? t("admin.actions.reactivate")
                         : t("admin.actions.suspend")}

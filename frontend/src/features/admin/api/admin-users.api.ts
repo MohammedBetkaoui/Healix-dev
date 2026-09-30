@@ -1,5 +1,9 @@
 import { apiClient } from "@/lib/api/http-client";
-import { type AdminUsersQuery, type AdminUsersResponse } from "@/types/admin";
+import {
+  type AdminUsersQuery,
+  type AdminUsersResponse,
+  type AdminUserStatusChangeResult,
+} from "@/types/admin";
 
 import { cleanAdminQuery } from "./admin-query.util";
 
@@ -9,6 +13,28 @@ export async function listAdminUsers(
   const { data } = await apiClient.get<AdminUsersResponse>("/admin/users", {
     params: cleanAdminQuery(query),
   });
+
+  return data;
+}
+
+export async function suspendUser(
+  id: string,
+  reason: string,
+): Promise<AdminUserStatusChangeResult> {
+  const { data } = await apiClient.patch<AdminUserStatusChangeResult>(
+    `/admin/users/${id}/suspend`,
+    { reason },
+  );
+
+  return data;
+}
+
+export async function reactivateUser(
+  id: string,
+): Promise<AdminUserStatusChangeResult> {
+  const { data } = await apiClient.patch<AdminUserStatusChangeResult>(
+    `/admin/users/${id}/reactivate`,
+  );
 
   return data;
 }

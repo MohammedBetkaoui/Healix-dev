@@ -5,12 +5,14 @@ import { useMemo, useState } from "react";
 import { AdminShell } from "@/components/admin/layout/AdminShell";
 import { useAdminUsers } from "@/features/admin/hooks/use-admin-users";
 import { useStoredLocale, useTranslation } from "@/lib/i18n";
+import { type RegisteredUser } from "@/types/admin";
 
 import {
   type AdminUserFilterState,
   AdminUserFilters,
 } from "./AdminUserFilters";
 import { AdminUsersTable } from "./AdminUsersTable";
+import { ToggleUserStatusModal } from "./ToggleUserStatusModal";
 
 const initialFilters: AdminUserFilterState = {
   role: "ALL",
@@ -23,6 +25,7 @@ export function AdminUsersPage() {
   const { locale } = useStoredLocale();
   const { t } = useTranslation(locale);
   const [filters, setFilters] = useState<AdminUserFilterState>(initialFilters);
+  const [toggleTarget, setToggleTarget] = useState<RegisteredUser | null>(null);
 
   const query = useMemo(
     () => ({
@@ -65,7 +68,12 @@ export function AdminUsersPage() {
           </div>
         ) : (
           <>
-            <AdminUsersTable locale={locale} t={t} users={data?.data ?? []} />
+            <AdminUsersTable
+              locale={locale}
+              onToggleStatus={setToggleTarget}
+              t={t}
+              users={data?.data ?? []}
+            />
             <p className="text-sm text-muted-foreground">
               {t("admin.users.pagination", {
                 page: data?.meta.page ?? 1,
@@ -76,6 +84,12 @@ export function AdminUsersPage() {
           </>
         )}
       </div>
+      <ToggleUserStatusModal
+        onClose={() => setToggleTarget(null)}
+        onDone={() => setToggleTarget(null)}
+        t={t}
+        user={toggleTarget}
+      />
     </AdminShell>
   );
 }

@@ -139,6 +139,15 @@ export type RegisteredUser = {
   createdAt: string;
 };
 
+// Wire shape returned by PATCH /admin/users/:id/suspend and /reactivate.
+// Mirrors backend/src/admin/users/admin-users.service.ts#suspendUser and
+// #reactivateUser. `status` is the resulting account status; after a
+// reactivation it depends on prior verification, not always ACTIVE.
+export type AdminUserStatusChangeResult = {
+  message: string;
+  status: RegisteredUserStatus;
+};
+
 export type AuditAction =
   | "ADMIN_LOGIN_SUCCESS"
   | "ADMIN_LOGIN_FAILED"
