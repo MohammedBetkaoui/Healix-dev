@@ -96,7 +96,9 @@ export class PaymentProofStorageService {
   }
 
   private resolveSafePath(...segments: string[]) {
-    return this.ensurePathInsideUploadRoot(resolve(this.uploadRoot, ...segments));
+    return this.ensurePathInsideUploadRoot(
+      resolve(this.uploadRoot, ...segments),
+    );
   }
 
   private ensurePathInsideUploadRoot(pathToCheck: string) {
@@ -114,7 +116,10 @@ export class PaymentProofStorageService {
   }
 
   private async removeEmptyParentDirectories(directory: string): Promise<void> {
-    if (directory === this.uploadRoot || !directory.startsWith(this.uploadRoot)) {
+    if (
+      directory === this.uploadRoot ||
+      !directory.startsWith(this.uploadRoot)
+    ) {
       return;
     }
 

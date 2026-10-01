@@ -7,10 +7,13 @@ import {
   MinLength,
 } from 'class-validator';
 
+import {
+  normalizeStringWhitespace,
+  removeStringWhitespace,
+} from '../../common/utils/transform-input';
+
 export class SyntheticChargilyPaymentDto {
-  @Transform(({ value }) =>
-    typeof value === 'string' ? value.replace(/\s+/g, '') : value,
-  )
+  @Transform(removeStringWhitespace)
   @Matches(/^\d{16}$/)
   cardNumber!: string;
 
@@ -27,8 +30,6 @@ export class SyntheticChargilyPaymentDto {
   @IsString()
   @MinLength(3)
   @MaxLength(120)
-  @Transform(({ value }) =>
-    typeof value === 'string' ? value.trim().replace(/\s+/g, ' ') : value,
-  )
+  @Transform(normalizeStringWhitespace)
   cardHolderName!: string;
 }

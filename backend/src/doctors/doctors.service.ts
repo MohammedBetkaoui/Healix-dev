@@ -11,6 +11,7 @@ import { UserRole } from '../common/enums/user-role.enum';
 import { VerificationStatus } from '../common/enums/verification-status.enum';
 import { PrismaService } from '../prisma/prisma.service';
 import { UsersService } from '../users/users.service';
+import { WorkspaceService } from '../workspaces/workspace.service';
 import { CreateAffiliatedDoctorDto } from './dto/create-affiliated-doctor.dto';
 import { UpdateAffiliatedDoctorDto } from './dto/update-affiliated-doctor.dto';
 
@@ -55,6 +56,7 @@ export class DoctorsService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly usersService: UsersService,
+    private readonly workspaceService: WorkspaceService,
     configService: ConfigService,
   ) {
     this.saltRounds = this.parseSaltRounds(
@@ -119,6 +121,12 @@ export class DoctorsService {
             subscriptionStatus: SubscriptionStatus.ACTIVE,
           },
         });
+
+        await this.workspaceService.addDoctorToEstablishment(
+          establishmentId,
+          createdUser.id,
+          transaction,
+        );
 
         return { user: createdUser, doctorProfile: createdDoctorProfile };
       },

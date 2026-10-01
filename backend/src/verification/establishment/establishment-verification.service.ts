@@ -80,7 +80,9 @@ export class EstablishmentVerificationService {
         request?.documents.map((document) =>
           this.documentService.toDocumentSummary(document),
         ) ?? [],
-      draftData: request?.data ? this.toVerificationDataResponse(request.data) : undefined,
+      draftData: request?.data
+        ? this.toVerificationDataResponse(request.data)
+        : undefined,
     };
   }
 
@@ -241,7 +243,9 @@ export class EstablishmentVerificationService {
       });
 
       if (existingDocument?.localPath) {
-        await this.fileStorageService.deleteLocalFile(existingDocument.localPath);
+        await this.fileStorageService.deleteLocalFile(
+          existingDocument.localPath,
+        );
       }
 
       return {
@@ -269,33 +273,35 @@ export class EstablishmentVerificationService {
       throw new NotFoundException('Document introuvable.');
     }
 
-    const deletedDocument = await this.prisma.$transaction(async (transaction) => {
-      const deleted = await this.documentService.deleteDocument(
-        document.id,
-        transaction,
-      );
+    const deletedDocument = await this.prisma.$transaction(
+      async (transaction) => {
+        const deleted = await this.documentService.deleteDocument(
+          document.id,
+          transaction,
+        );
 
-      await this.auditLogsService.createAuditLog(
-        {
-          userId,
-          action: 'ESTABLISHMENT_VERIFICATION_DOCUMENT_DELETED',
-          entityType: 'VERIFICATION_DOCUMENT',
-          entityId: deleted.id,
-          ipAddress: context.ipAddress,
-          userAgent: context.userAgent,
-          metadata: {
-            verificationRequestId: request.id,
-            establishmentId: establishment.id,
-            documentType: deleted.documentType,
-            status: request.status,
-            currentStep: request.currentStep,
+        await this.auditLogsService.createAuditLog(
+          {
+            userId,
+            action: 'ESTABLISHMENT_VERIFICATION_DOCUMENT_DELETED',
+            entityType: 'VERIFICATION_DOCUMENT',
+            entityId: deleted.id,
+            ipAddress: context.ipAddress,
+            userAgent: context.userAgent,
+            metadata: {
+              verificationRequestId: request.id,
+              establishmentId: establishment.id,
+              documentType: deleted.documentType,
+              status: request.status,
+              currentStep: request.currentStep,
+            },
           },
-        },
-        transaction,
-      );
+          transaction,
+        );
 
-      return deleted;
-    });
+        return deleted;
+      },
+    );
 
     await this.fileStorageService.deleteLocalFile(deletedDocument.localPath);
 
@@ -312,66 +318,69 @@ export class EstablishmentVerificationService {
     const establishment = await this.getOwnedEstablishment(userId);
     const request = await this.getDraftRequest(establishment.id);
 
-    const submittedRequest = await this.prisma.$transaction(async (transaction) => {
-      await transaction.establishmentVerificationData.update({
-        where: {
-          verificationRequestId: request.id,
-        },
-        data: {
-          confirmationAccuracy: dto.confirmationAccuracy,
-        },
-      });
-
-      const hydratedRequest = await transaction.verificationRequest.findUnique({
-        where: { id: request.id },
-        include: {
-          data: true,
-          documents: true,
-        },
-      });
-
-      if (!hydratedRequest) {
-        throw new NotFoundException('Demande de vérification introuvable.');
-      }
-
-      this.assertRequestCanBeSubmitted(hydratedRequest);
-
-      const submitted = await transaction.verificationRequest.update({
-        where: { id: request.id },
-        data: {
-          status: VerificationStatus.PENDING_VERIFICATION,
-          currentStep: VerificationStep.SUBMISSION,
-          submittedAt: new Date(),
-        },
-      });
-
-      await transaction.establishment.update({
-        where: { id: establishment.id },
-        data: {
-          verificationStatus: VerificationStatus.PENDING_VERIFICATION,
-        },
-      });
-
-      await this.auditLogsService.createAuditLog(
-        {
-          userId,
-          action: 'ESTABLISHMENT_VERIFICATION_SUBMITTED',
-          entityType: 'VERIFICATION_REQUEST',
-          entityId: submitted.id,
-          ipAddress: context.ipAddress,
-          userAgent: context.userAgent,
-          metadata: {
-            verificationRequestId: submitted.id,
-            establishmentId: establishment.id,
-            status: submitted.status,
-            currentStep: submitted.currentStep,
+    const submittedRequest = await this.prisma.$transaction(
+      async (transaction) => {
+        await transaction.establishmentVerificationData.update({
+          where: {
+            verificationRequestId: request.id,
           },
-        },
-        transaction,
-      );
+          data: {
+            confirmationAccuracy: dto.confirmationAccuracy,
+          },
+        });
 
-      return submitted;
-    });
+        const hydratedRequest =
+          await transaction.verificationRequest.findUnique({
+            where: { id: request.id },
+            include: {
+              data: true,
+              documents: true,
+            },
+          });
+
+        if (!hydratedRequest) {
+          throw new NotFoundException('Demande de vérification introuvable.');
+        }
+
+        this.assertRequestCanBeSubmitted(hydratedRequest);
+
+        const submitted = await transaction.verificationRequest.update({
+          where: { id: request.id },
+          data: {
+            status: VerificationStatus.PENDING_VERIFICATION,
+            currentStep: VerificationStep.SUBMISSION,
+            submittedAt: new Date(),
+          },
+        });
+
+        await transaction.establishment.update({
+          where: { id: establishment.id },
+          data: {
+            verificationStatus: VerificationStatus.PENDING_VERIFICATION,
+          },
+        });
+
+        await this.auditLogsService.createAuditLog(
+          {
+            userId,
+            action: 'ESTABLISHMENT_VERIFICATION_SUBMITTED',
+            entityType: 'VERIFICATION_REQUEST',
+            entityId: submitted.id,
+            ipAddress: context.ipAddress,
+            userAgent: context.userAgent,
+            metadata: {
+              verificationRequestId: submitted.id,
+              establishmentId: establishment.id,
+              status: submitted.status,
+              currentStep: submitted.currentStep,
+            },
+          },
+          transaction,
+        );
+
+        return submitted;
+      },
+    );
 
     return {
       message: 'Demande de vérification envoyée avec succès.',
@@ -632,7 +641,9 @@ export class EstablishmentVerificationService {
     }
   }
 
-  private assertAllowedDocumentType(documentType: VerificationDocumentType): void {
+  private assertAllowedDocumentType(
+    documentType: VerificationDocumentType,
+  ): void {
     if (
       !establishmentVerificationDocumentTypes.includes(
         documentType as (typeof establishmentVerificationDocumentTypes)[number],
@@ -722,8 +733,8 @@ export class EstablishmentVerificationService {
   private isRequestSubmittable(status?: string | null): boolean {
     return Boolean(
       status &&
-        status !== VerificationStatus.VERIFIED &&
-        status !== VerificationStatus.SUSPENDED,
+      status !== VerificationStatus.VERIFIED &&
+      status !== VerificationStatus.SUSPENDED,
     );
   }
 

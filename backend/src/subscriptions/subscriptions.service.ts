@@ -165,8 +165,14 @@ export class SubscriptionsService {
   getAccountContextFromUser(user: {
     accountStatus: string;
     role: string;
-    establishment?: { subscriptionStatus: string; verificationStatus: string } | null;
-    doctorProfile?: { subscriptionStatus: string; verificationStatus: string } | null;
+    establishment?: {
+      subscriptionStatus: string;
+      verificationStatus: string;
+    } | null;
+    doctorProfile?: {
+      subscriptionStatus: string;
+      verificationStatus: string;
+    } | null;
   }): AccountSubscriptionContext {
     if (user.role === UserRole.ESTABLISHMENT_ADMIN) {
       if (!user.establishment) {

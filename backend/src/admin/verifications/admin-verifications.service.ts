@@ -6,7 +6,7 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
-import { type Prisma, type VerificationRequest } from '@prisma/client';
+import { type Prisma } from '@prisma/client';
 import { createReadStream, existsSync } from 'node:fs';
 import { resolve } from 'node:path';
 
@@ -82,7 +82,9 @@ export class AdminVerificationsService {
       data: requests.map((request) =>
         mapVerificationListItem(
           request as VerificationRequestForAdmin,
-          this.getRequiredDocumentsCount(request as VerificationRequestForAdmin),
+          this.getRequiredDocumentsCount(
+            request as VerificationRequestForAdmin,
+          ),
         ),
       ),
       meta: createPaginationMeta(page, limit, total),
@@ -446,7 +448,10 @@ export class AdminVerificationsService {
     }
 
     return request.doctorData?.doctorType === DoctorType.SPECIALIST
-      ? [...requiredDoctorDocumentTypes, VerificationDocumentType.SPECIALITY_DEGREE]
+      ? [
+          ...requiredDoctorDocumentTypes,
+          VerificationDocumentType.SPECIALITY_DEGREE,
+        ]
       : requiredDoctorDocumentTypes;
   }
 
@@ -457,7 +462,9 @@ export class AdminVerificationsService {
   private getMissingRequiredDocuments(request: VerificationRequestForAdmin) {
     const uploadedTypes = new Set(
       request.documents
-        ?.filter((document) => document.status === VerificationDocumentStatus.UPLOADED)
+        ?.filter(
+          (document) => document.status === VerificationDocumentStatus.UPLOADED,
+        )
         .map((document) => document.documentType) ?? [],
     );
 
@@ -481,10 +488,16 @@ export class AdminVerificationsService {
     const identityProvided =
       request.type === 'ESTABLISHMENT'
         ? Boolean(request.data?.legalRepresentativeFullName)
-        : Boolean(request.doctorData?.fullName && request.doctorData?.ninOrIdNumber);
+        : Boolean(
+            request.doctorData?.fullName && request.doctorData?.ninOrIdNumber,
+          );
     const warnings = [
-      ...missingDocuments.map((documentType) => `Document manquant: ${documentType}`),
-      !legalInfoProvided ? 'Informations légales ou fiscales incomplètes.' : null,
+      ...missingDocuments.map(
+        (documentType) => `Document manquant: ${documentType}`,
+      ),
+      !legalInfoProvided
+        ? 'Informations légales ou fiscales incomplètes.'
+        : null,
       !professionalAuthorizationProvided
         ? 'Autorisation professionnelle non renseignée.'
         : null,
@@ -503,7 +516,9 @@ export class AdminVerificationsService {
     };
   }
 
-  private assertPendingVerification(request: VerificationRequestForAdmin): void {
+  private assertPendingVerification(
+    request: VerificationRequestForAdmin,
+  ): void {
     if (request.status !== VerificationStatus.PENDING_VERIFICATION) {
       throw new ConflictException(
         "Cette demande n'est pas en attente de vérification.",

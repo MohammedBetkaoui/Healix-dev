@@ -84,16 +84,14 @@ export class PaymentProofService {
   }
 
   toPublicProof(
-    proof:
-      | {
-          documentType: string;
-          id: string;
-          mimeType: string;
-          originalName: string;
-          size: number;
-          uploadedAt: Date;
-        }
-      | null,
+    proof: {
+      documentType: string;
+      id: string;
+      mimeType: string;
+      originalName: string;
+      size: number;
+      uploadedAt: Date;
+    } | null,
   ) {
     if (!proof) {
       return null;

@@ -5,7 +5,6 @@ import {
   type VerificationRequestForAdmin,
 } from '../shared/admin-response.mapper';
 import { VerificationStatus } from '../../common/enums/verification-status.enum';
-import { UserRole } from '../../common/enums/user-role.enum';
 import {
   requiredDoctorDocumentTypes,
   requiredEstablishmentDocumentTypes,
@@ -78,7 +77,9 @@ export class AdminDashboardService {
       recentVerificationRequests: recentVerificationRequests.map((request) =>
         mapVerificationListItem(
           request as VerificationRequestForAdmin,
-          this.getRequiredDocumentsCount(request as VerificationRequestForAdmin),
+          this.getRequiredDocumentsCount(
+            request as VerificationRequestForAdmin,
+          ),
         ),
       ),
       weeklyVerificationActivity:

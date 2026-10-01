@@ -2,7 +2,7 @@
 
 import { zodResolver } from "@hookform/resolvers/zod";
 import { Check, Copy, KeyRound, TriangleAlert, UserRoundPlus, X } from "lucide-react";
-import { useEffect, useId, useMemo, useState } from "react";
+import { useId, useMemo, useState } from "react";
 import { useForm } from "react-hook-form";
 import { z } from "zod";
 
@@ -23,6 +23,8 @@ type AddDoctorModalProps = {
   onClose: () => void;
   onCreated: () => void;
 };
+
+type AddDoctorModalContentProps = Omit<AddDoctorModalProps, "isOpen">;
 
 type DoctorFormValues = {
   email: string;
@@ -142,13 +144,25 @@ function FieldError({ id, message }: { id: string; message?: string }) {
   return message ? <p id={id} className="text-xs text-[var(--danger-ink)]">{message}</p> : null;
 }
 
-export function AddDoctorModal({
+export function AddDoctorModal(props: AddDoctorModalProps) {
+  if (!props.isOpen) return null;
+
+  return (
+    <AddDoctorModalContent
+      direction={props.direction}
+      locale={props.locale}
+      onClose={props.onClose}
+      onCreated={props.onCreated}
+    />
+  );
+}
+
+function AddDoctorModalContent({
   direction,
-  isOpen,
   locale,
   onClose,
   onCreated,
-}: AddDoctorModalProps) {
+}: AddDoctorModalContentProps) {
   const copy = modalCopy[locale];
   const baseId = useId();
   const ids = {
@@ -174,20 +188,6 @@ export function AddDoctorModal({
     defaultValues: getDefaultValues(),
     resolver: zodResolver(schema),
   });
-
-  useEffect(() => {
-    if (isOpen) {
-      reset(getDefaultValues());
-      createDoctorMutation.reset();
-      setResult(null);
-      setCopied(false);
-    }
-    // createDoctorMutation is a fresh object identity on every render; only
-    // .reset needs to run once when the modal opens.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [isOpen, reset]);
-
-  if (!isOpen) return null;
 
   const closeModal = () => {
     reset(getDefaultValues());

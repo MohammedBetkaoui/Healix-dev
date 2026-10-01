@@ -9,7 +9,6 @@ import {
 
 import { type Payment, type Prisma } from '@prisma/client';
 import { AuditLogsService } from '../audit-logs/audit-logs.service';
-import { AccountType } from '../common/enums/account-type.enum';
 import { BillingPeriod } from '../common/enums/billing-period.enum';
 import { PaymentMethod } from '../common/enums/payment-method.enum';
 import { PaymentProofDocumentType } from '../common/enums/payment-proof-document-type.enum';
@@ -19,7 +18,6 @@ import { SubscriptionPlansService } from '../subscriptions/plans/subscription-pl
 import { SubscriptionsService } from '../subscriptions/subscriptions.service';
 import { CreatePaymentIntentDto } from './dto/create-payment-intent.dto';
 import { SyntheticChargilyPaymentDto } from './dto/synthetic-chargily-payment.dto';
-import { UploadPaymentProofDto } from './dto/upload-payment-proof.dto';
 import { PaymentProofService } from './proofs/payment-proof.service';
 import { PaymentProofStorageService } from './proofs/payment-proof-storage.service';
 import { PaymentProofValidator } from './proofs/payment-proof-validator';
@@ -533,7 +531,10 @@ export class PaymentsService {
     return 'UPLOAD_PAYMENT_PROOF';
   }
 
-  private getCheckoutRedirect(method: PaymentMethod, paymentId: string): string {
+  private getCheckoutRedirect(
+    method: PaymentMethod,
+    paymentId: string,
+  ): string {
     if (method === PaymentMethod.SYNTHETIC_CHARGILY) {
       return `/subscription/checkout/synthetic-chargily?paymentId=${paymentId}`;
     }

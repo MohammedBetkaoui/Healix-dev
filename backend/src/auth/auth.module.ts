@@ -8,6 +8,7 @@ import { DoctorsModule } from '../doctors/doctors.module';
 import { EstablishmentsModule } from '../establishments/establishments.module';
 import { PrismaModule } from '../prisma/prisma.module';
 import { UsersModule } from '../users/users.module';
+import { WorkspaceModule } from '../workspaces/workspace.module';
 import { AuthController } from './auth.controller';
 import { AuthService } from './auth.service';
 import { JwtAuthGuard } from './guards/jwt-auth.guard';
@@ -31,6 +32,7 @@ import { RefreshTokenStrategy } from './strategies/refresh-token.strategy';
     EstablishmentsModule,
     DoctorsModule,
     AuditLogsModule,
+    WorkspaceModule,
   ],
   controllers: [AuthController],
   providers: [

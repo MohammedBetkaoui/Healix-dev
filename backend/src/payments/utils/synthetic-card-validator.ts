@@ -1,7 +1,4 @@
-import {
-  normalizeCardHolderName,
-  normalizeCardNumber,
-} from './card-mask.util';
+import { normalizeCardHolderName, normalizeCardNumber } from './card-mask.util';
 
 const demoCard = {
   cardHolderName: 'BARKAOUI MOURAD',

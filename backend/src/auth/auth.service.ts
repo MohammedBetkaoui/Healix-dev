@@ -39,6 +39,7 @@ import { DoctorsService } from '../doctors/doctors.service';
 import { EstablishmentsService } from '../establishments/establishments.service';
 import { PrismaService } from '../prisma/prisma.service';
 import { UsersService } from '../users/users.service';
+import { WorkspaceService } from '../workspaces/workspace.service';
 import { LoginDto, type LoginAccountType } from './dto/login.dto';
 import { RegisterEstablishmentDto } from './dto/register-establishment.dto';
 import { RegisterIndependentDoctorDto } from './dto/register-independent-doctor.dto';
@@ -165,6 +166,7 @@ export class AuthService {
     private readonly establishmentsService: EstablishmentsService,
     private readonly doctorsService: DoctorsService,
     private readonly auditLogsService: AuditLogsService,
+    private readonly workspaceService: WorkspaceService,
     private readonly jwtService: JwtService,
     configService: ConfigService,
   ) {
@@ -459,6 +461,15 @@ export class AuthService {
             transaction,
           );
 
+        await this.workspaceService.createForEstablishment(
+          {
+            establishmentId: establishment.id,
+            name: establishment.name,
+            ownerUserId: user.id,
+          },
+          transaction,
+        );
+
         await this.auditLogsService.createAuditLog(
           {
             userId: user.id,
@@ -537,6 +548,15 @@ export class AuthService {
             },
             transaction,
           );
+
+        await this.workspaceService.createForPrivatePractice(
+          {
+            name: user.fullName,
+            ownerDoctorProfileId: doctorProfile.id,
+            ownerUserId: user.id,
+          },
+          transaction,
+        );
 
         await this.auditLogsService.createAuditLog(
           {

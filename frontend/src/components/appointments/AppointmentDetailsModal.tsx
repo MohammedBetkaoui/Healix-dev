@@ -11,7 +11,7 @@ import {
   UserX,
   X,
 } from "lucide-react";
-import { useEffect, useId, useState } from "react";
+import { useId, useState } from "react";
 import { useForm } from "react-hook-form";
 
 import { Input } from "@/components/ui/input";
@@ -33,6 +33,13 @@ type AppointmentDetailsModalProps = {
   locale: Locale;
   onClose: () => void;
   onUpdated: () => void;
+};
+
+type AppointmentDetailsModalContentProps = Omit<
+  AppointmentDetailsModalProps,
+  "appointment"
+> & {
+  appointment: Appointment;
 };
 
 type EditFormValues = {
@@ -186,14 +193,30 @@ function FieldError({ id, message }: { id: string; message?: string }) {
   return message ? <p id={id} className="text-xs text-[var(--danger-ink)]">{message}</p> : null;
 }
 
-export function AppointmentDetailsModal({
+export function AppointmentDetailsModal(props: AppointmentDetailsModalProps) {
+  if (!props.appointment) return null;
+
+  return (
+    <AppointmentDetailsModalContent
+      key={props.appointment.id}
+      accountType={props.accountType}
+      appointment={props.appointment}
+      direction={props.direction}
+      locale={props.locale}
+      onClose={props.onClose}
+      onUpdated={props.onUpdated}
+    />
+  );
+}
+
+function AppointmentDetailsModalContent({
   accountType,
   appointment,
   direction,
   locale,
   onClose,
   onUpdated,
-}: AppointmentDetailsModalProps) {
+}: AppointmentDetailsModalContentProps) {
   const copy = detailsCopy[locale];
   const baseId = useId();
   const isEstablishment = accountType === "ESTABLISHMENT";
@@ -210,20 +233,6 @@ export function AppointmentDetailsModal({
   } = useForm<EditFormValues>({
     defaultValues: appointment ? getEditFormValues(appointment) : undefined,
   });
-
-  useEffect(() => {
-    setCurrent(appointment);
-    setMode("view");
-    setConfirmingCancel(false);
-    setConsultationPromptOpen(false);
-    updateMutation.reset();
-    if (appointment) reset(getEditFormValues(appointment));
-    // updateMutation is stable across renders (react-query mutation object identity
-    // is not; only .reset needs to run once per appointment change).
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [appointment]);
-
-  if (!current) return null;
 
   const intlLocale = locale === "ar" ? "ar-DZ" : "fr-DZ";
   const dateFormatter = new Intl.DateTimeFormat(intlLocale, { day: "numeric", month: "long", weekday: "long", year: "numeric" });

@@ -3,5 +3,4 @@ export const BillingPeriod = {
   ANNUAL: 'ANNUAL',
 } as const;
 
-export type BillingPeriod =
-  (typeof BillingPeriod)[keyof typeof BillingPeriod];
+export type BillingPeriod = (typeof BillingPeriod)[keyof typeof BillingPeriod];

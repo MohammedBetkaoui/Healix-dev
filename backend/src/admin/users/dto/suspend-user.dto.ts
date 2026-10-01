@@ -1,8 +1,10 @@
 import { Transform } from 'class-transformer';
 import { IsNotEmpty, IsString, MaxLength, MinLength } from 'class-validator';
 
+import { trimStringValue } from '../../../common/utils/transform-input';
+
 export class SuspendUserDto {
-  @Transform(({ value }) => (typeof value === 'string' ? value.trim() : value))
+  @Transform(trimStringValue)
   @IsString()
   @IsNotEmpty({ message: 'La raison est obligatoire.' })
   @MinLength(5, { message: 'La raison est trop courte.' })

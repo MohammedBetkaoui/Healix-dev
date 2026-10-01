@@ -1,16 +1,17 @@
 import { ValidationPipe } from '@nestjs/common';
 import { NestFactory } from '@nestjs/core';
+import { type NestExpressApplication } from '@nestjs/platform-express';
 import cookieParser from 'cookie-parser';
 import { AppModule } from './app.module';
 
 async function bootstrap() {
-  const app = await NestFactory.create(AppModule);
+  const app = await NestFactory.create<NestExpressApplication>(AppModule);
   const port = process.env.PORT ?? 3001;
   const frontendUrl = process.env.FRONTEND_URL ?? 'http://localhost:3000';
   const trustProxy = process.env.TRUST_PROXY ?? 'loopback';
 
   app.setGlobalPrefix('api');
-  app.getHttpAdapter().getInstance().set('trust proxy', trustProxy);
+  app.set('trust proxy', trustProxy);
   app.enableCors({
     origin: frontendUrl,
     credentials: true,

@@ -42,10 +42,7 @@ function normalizeIpAddress(value: string | null | undefined): string | null {
     return null;
   }
 
-  const firstIpAddress = value
-    .split(',')[0]
-    .trim()
-    .replace(/^"|"$/g, '');
+  const firstIpAddress = value.split(',')[0].trim().replace(/^"|"$/g, '');
 
   if (!firstIpAddress) {
     return null;

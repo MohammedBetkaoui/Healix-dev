@@ -45,17 +45,13 @@ export class PaymentProofValidator {
     }
 
     if (!this.allowedMimeTypes.has(file.mimetype)) {
-      throw new UnsupportedMediaTypeException(
-        'Format de fichier non accepte.',
-      );
+      throw new UnsupportedMediaTypeException('Format de fichier non accepte.');
     }
 
     const extension = getSafeFileExtension(file.originalname, file.mimetype);
 
     if (!extension) {
-      throw new UnsupportedMediaTypeException(
-        'Format de fichier non accepte.',
-      );
+      throw new UnsupportedMediaTypeException('Format de fichier non accepte.');
     }
 
     return extension;

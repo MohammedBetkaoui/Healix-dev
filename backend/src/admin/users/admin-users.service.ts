@@ -67,11 +67,7 @@ export class AdminUsersService {
     };
   }
 
-  async getUserById(
-    id: string,
-    adminId: string,
-    context: RequestContext = {},
-  ) {
+  async getUserById(id: string, adminId: string, context: RequestContext = {}) {
     const user = await this.prisma.user.findUnique({
       include: {
         doctorProfile: true,
@@ -154,7 +150,9 @@ export class AdminUsersService {
     context: RequestContext = {},
   ) {
     if (id === adminId) {
-      throw new ConflictException('Impossible de suspendre votre propre compte.');
+      throw new ConflictException(
+        'Impossible de suspendre votre propre compte.',
+      );
     }
 
     const user = await this.ensureUserExists(id);

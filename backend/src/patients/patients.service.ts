@@ -12,6 +12,7 @@ import {
   type PatientConsent,
   type PatientDocument,
   type Prisma,
+  WorkspaceType,
 } from '@prisma/client';
 
 import {
@@ -28,6 +29,7 @@ import {
   sanitizeTextInput,
 } from '../common/utils/sanitize';
 import { PrismaService } from '../prisma/prisma.service';
+import { WorkspaceContextService } from '../workspaces/workspace-context.service';
 import { CheckPatientDuplicateQueryDto } from './dto/check-patient-duplicate-query.dto';
 import { CreatePatientAiAnalysisDto } from './dto/create-patient-ai-analysis.dto';
 import { CreatePatientConsultationDto } from './dto/create-patient-consultation.dto';
@@ -42,6 +44,7 @@ import { findPatientMatches } from './patient-matching.util';
 import { PatientAuditService } from './patient-audit.service';
 
 type PatientOwnerScope = {
+  workspaceId: string;
   establishmentId: string | null;
   doctorProfileId: string | null;
 };
@@ -71,6 +74,7 @@ export class PatientsService {
     private readonly patientAuditService: PatientAuditService,
     private readonly fileValidator: PatientFileValidator,
     private readonly fileStorageService: PatientFileStorageService,
+    private readonly workspaceContext: WorkspaceContextService,
   ) {}
 
   async create(user: AuthenticatedUserPayload, dto: CreatePatientDto) {
@@ -102,6 +106,7 @@ export class PatientsService {
           ? sanitizeTextInput(dto.hospitalRecordNumber)
           : undefined,
         smsEnabled: dto.smsEnabled ?? true,
+        workspaceId: scope.workspaceId,
         establishmentId: scope.establishmentId ?? undefined,
         doctorProfileId: scope.doctorProfileId ?? undefined,
       },
@@ -303,7 +308,7 @@ export class PatientsService {
         appointment.doctorProfileId !== doctorProfile.id
       ) {
         throw new ForbiddenException(
-          "Ce rendez-vous ne correspond pas à ce patient et à ce médecin.",
+          'Ce rendez-vous ne correspond pas à ce patient et à ce médecin.',
         );
       }
 
@@ -553,7 +558,7 @@ export class PatientsService {
       role !== UserRole.INDEPENDENT_DOCTOR
     ) {
       throw new ForbiddenException(
-        "Seul un médecin peut créer une consultation.",
+        'Seul un médecin peut créer une consultation.',
       );
     }
   }
@@ -591,9 +596,7 @@ export class PatientsService {
 
   private assertValidConsentType(type: string): void {
     if (
-      !Object.values(PatientConsentType).includes(
-        type as PatientConsentType,
-      )
+      !Object.values(PatientConsentType).includes(type as PatientConsentType)
     ) {
       throw new BadRequestException('Type de consentement invalide.');
     }
@@ -640,59 +643,23 @@ export class PatientsService {
   private async resolveOwnerScope(
     user: AuthenticatedUserPayload,
   ): Promise<PatientOwnerScope> {
-    switch (user.role) {
-      case UserRole.INDEPENDENT_DOCTOR: {
-        const doctorProfile = await this.prisma.doctorProfile.findUnique({
-          where: { userId: user.sub },
-        });
+    const context = await this.workspaceContext.resolveWorkspaceForUser({
+      userId: user.sub,
+      role: user.role,
+    });
 
-        if (!doctorProfile) {
-          throw new NotFoundException('Profil médecin introuvable.');
-        }
-
-        return { establishmentId: null, doctorProfileId: doctorProfile.id };
-      }
-
-      case UserRole.ESTABLISHMENT_ADMIN: {
-        const establishment = await this.prisma.establishment.findUnique({
-          where: { ownerId: user.sub },
-        });
-
-        if (!establishment) {
-          throw new NotFoundException('Établissement introuvable.');
-        }
-
-        return { establishmentId: establishment.id, doctorProfileId: null };
-      }
-
-      case UserRole.AFFILIATED_DOCTOR: {
-        const doctorProfile = await this.prisma.doctorProfile.findUnique({
-          where: { userId: user.sub },
-        });
-
-        if (!doctorProfile?.establishmentId) {
-          throw new NotFoundException(
-            "Établissement d'affiliation introuvable.",
-          );
-        }
-
-        return {
-          establishmentId: doctorProfile.establishmentId,
-          doctorProfileId: null,
-        };
-      }
-
-      default:
-        throw new ForbiddenException(
-          "Vous n'êtes pas autorisé à accéder aux patients.",
-        );
-    }
+    return {
+      workspaceId: context.workspaceId,
+      establishmentId: context.establishmentId ?? null,
+      doctorProfileId:
+        context.workspaceType === WorkspaceType.PRIVATE_PRACTICE
+          ? (context.doctorProfileId ?? null)
+          : null,
+    };
   }
 
   private scopeToWhere(scope: PatientOwnerScope): Prisma.PatientWhereInput {
-    return scope.establishmentId
-      ? { establishmentId: scope.establishmentId }
-      : { doctorProfileId: scope.doctorProfileId };
+    return { workspaceId: scope.workspaceId };
   }
 
   private buildWhere(
@@ -815,6 +782,7 @@ export class PatientsService {
       medicalSummary: patient.medicalSummary as PatientMedicalSummaryJson,
       establishmentId: patient.establishmentId,
       doctorProfileId: patient.doctorProfileId,
+      workspaceId: patient.workspaceId,
       createdAt: patient.createdAt,
       updatedAt: patient.updatedAt,
     };

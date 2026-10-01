@@ -263,7 +263,9 @@ export class DoctorVerificationService {
       });
 
       if (existingDocument?.localPath) {
-        await this.fileStorageService.deleteLocalFile(existingDocument.localPath);
+        await this.fileStorageService.deleteLocalFile(
+          existingDocument.localPath,
+        );
       }
 
       return {
@@ -291,35 +293,37 @@ export class DoctorVerificationService {
       throw new NotFoundException('Document introuvable.');
     }
 
-    const deletedDocument = await this.prisma.$transaction(async (transaction) => {
-      const deleted = await this.documentService.deleteDocument(
-        document.id,
-        transaction,
-      );
+    const deletedDocument = await this.prisma.$transaction(
+      async (transaction) => {
+        const deleted = await this.documentService.deleteDocument(
+          document.id,
+          transaction,
+        );
 
-      await this.auditLogsService.createAuditLog(
-        {
-          userId,
-          action: 'DOCTOR_VERIFICATION_DOCUMENT_DELETED',
-          entityType: 'VERIFICATION_DOCUMENT',
-          entityId: deleted.id,
-          ipAddress: context.ipAddress,
-          userAgent: context.userAgent,
-          metadata: {
-            verificationRequestId: request.id,
-            doctorProfileId: doctorProfile.id,
+        await this.auditLogsService.createAuditLog(
+          {
             userId,
-            documentType: deleted.documentType,
-            status: request.status,
-            currentStep:
-              request.doctorCurrentStep ?? DoctorVerificationStep.IDENTITY,
+            action: 'DOCTOR_VERIFICATION_DOCUMENT_DELETED',
+            entityType: 'VERIFICATION_DOCUMENT',
+            entityId: deleted.id,
+            ipAddress: context.ipAddress,
+            userAgent: context.userAgent,
+            metadata: {
+              verificationRequestId: request.id,
+              doctorProfileId: doctorProfile.id,
+              userId,
+              documentType: deleted.documentType,
+              status: request.status,
+              currentStep:
+                request.doctorCurrentStep ?? DoctorVerificationStep.IDENTITY,
+            },
           },
-        },
-        transaction,
-      );
+          transaction,
+        );
 
-      return deleted;
-    });
+        return deleted;
+      },
+    );
 
     await this.fileStorageService.deleteLocalFile(deletedDocument.localPath);
 
@@ -336,69 +340,72 @@ export class DoctorVerificationService {
     const doctorProfile = await this.getOwnedDoctorProfile(userId);
     const request = await this.getDraftRequest(doctorProfile.id);
 
-    const submittedRequest = await this.prisma.$transaction(async (transaction) => {
-      await transaction.doctorVerificationData.update({
-        where: {
-          verificationRequestId: request.id,
-        },
-        data: {
-          confirmationAccuracy: dto.confirmationAccuracy,
-        },
-      });
-
-      const hydratedRequest = await transaction.verificationRequest.findUnique({
-        where: { id: request.id },
-        include: {
-          doctorData: true,
-          documents: true,
-        },
-      });
-
-      if (!hydratedRequest) {
-        throw new NotFoundException('Demande de vérification introuvable.');
-      }
-
-      this.assertRequestCanBeSubmitted(hydratedRequest);
-
-      const submitted = await transaction.verificationRequest.update({
-        where: { id: request.id },
-        data: {
-          status: VerificationStatus.PENDING_VERIFICATION,
-          doctorCurrentStep: DoctorVerificationStep.DOCUMENTS_SUBMISSION,
-          submittedAt: new Date(),
-        },
-      });
-
-      await transaction.doctorProfile.update({
-        where: { id: doctorProfile.id },
-        data: {
-          verificationStatus: VerificationStatus.PENDING_VERIFICATION,
-        },
-      });
-
-      await this.auditLogsService.createAuditLog(
-        {
-          userId,
-          action: 'DOCTOR_VERIFICATION_SUBMITTED',
-          entityType: 'VERIFICATION_REQUEST',
-          entityId: submitted.id,
-          ipAddress: context.ipAddress,
-          userAgent: context.userAgent,
-          metadata: {
-            verificationRequestId: submitted.id,
-            doctorProfileId: doctorProfile.id,
-            userId,
-            status: submitted.status,
-            currentStep:
-              submitted.doctorCurrentStep ??
-              DoctorVerificationStep.DOCUMENTS_SUBMISSION,
+    const submittedRequest = await this.prisma.$transaction(
+      async (transaction) => {
+        await transaction.doctorVerificationData.update({
+          where: {
+            verificationRequestId: request.id,
           },
-        },
-        transaction,
-      );
+          data: {
+            confirmationAccuracy: dto.confirmationAccuracy,
+          },
+        });
 
-      return submitted;
-    });
+        const hydratedRequest =
+          await transaction.verificationRequest.findUnique({
+            where: { id: request.id },
+            include: {
+              doctorData: true,
+              documents: true,
+            },
+          });
+
+        if (!hydratedRequest) {
+          throw new NotFoundException('Demande de vérification introuvable.');
+        }
+
+        this.assertRequestCanBeSubmitted(hydratedRequest);
+
+        const submitted = await transaction.verificationRequest.update({
+          where: { id: request.id },
+          data: {
+            status: VerificationStatus.PENDING_VERIFICATION,
+            doctorCurrentStep: DoctorVerificationStep.DOCUMENTS_SUBMISSION,
+            submittedAt: new Date(),
+          },
+        });
+
+        await transaction.doctorProfile.update({
+          where: { id: doctorProfile.id },
+          data: {
+            verificationStatus: VerificationStatus.PENDING_VERIFICATION,
+          },
+        });
+
+        await this.auditLogsService.createAuditLog(
+          {
+            userId,
+            action: 'DOCTOR_VERIFICATION_SUBMITTED',
+            entityType: 'VERIFICATION_REQUEST',
+            entityId: submitted.id,
+            ipAddress: context.ipAddress,
+            userAgent: context.userAgent,
+            metadata: {
+              verificationRequestId: submitted.id,
+              doctorProfileId: doctorProfile.id,
+              userId,
+              status: submitted.status,
+              currentStep:
+                submitted.doctorCurrentStep ??
+                DoctorVerificationStep.DOCUMENTS_SUBMISSION,
+            },
+          },
+          transaction,
+        );
+
+        return submitted;
+      },
+    );
 
     return {
       message: 'Demande de vérification envoyée avec succès.',
@@ -642,7 +649,9 @@ export class DoctorVerificationService {
       cabinetAddress: this.sanitizeOptionalText(dto.cabinetAddress),
       cabinetWilaya: this.sanitizeOptionalText(dto.cabinetWilaya),
       cabinetCommune: this.sanitizeOptionalText(dto.cabinetCommune),
-      cabinetPhone: dto.cabinetPhone ? sanitizePhone(dto.cabinetPhone) : undefined,
+      cabinetPhone: dto.cabinetPhone
+        ? sanitizePhone(dto.cabinetPhone)
+        : undefined,
       cabinetEmail: dto.cabinetEmail
         ? normalizeEmail(dto.cabinetEmail)
         : undefined,
@@ -670,7 +679,9 @@ export class DoctorVerificationService {
     }
   }
 
-  private assertAllowedDocumentType(documentType: VerificationDocumentType): void {
+  private assertAllowedDocumentType(
+    documentType: VerificationDocumentType,
+  ): void {
     if (
       !doctorVerificationDocumentTypes.includes(
         documentType as (typeof doctorVerificationDocumentTypes)[number],
@@ -810,12 +821,14 @@ export class DoctorVerificationService {
   private isRequestSubmittable(status?: string | null): boolean {
     return Boolean(
       status &&
-        status !== VerificationStatus.VERIFIED &&
-        status !== VerificationStatus.SUSPENDED,
+      status !== VerificationStatus.VERIFIED &&
+      status !== VerificationStatus.SUSPENDED,
     );
   }
 
-  private toRequestResponse(request: VerificationRequestWithDoctorDataAndDocuments) {
+  private toRequestResponse(
+    request: VerificationRequestWithDoctorDataAndDocuments,
+  ) {
     const doctorType = request.doctorData?.doctorType;
 
     return {

@@ -12,8 +12,15 @@ import {
 import { AccountStatus } from '../../../common/enums/account-status.enum';
 import { UserRole } from '../../../common/enums/user-role.enum';
 import { VerificationStatus } from '../../../common/enums/verification-status.enum';
+import { trimStringValue } from '../../../common/utils/transform-input';
 
-const sortFields = ['createdAt', 'fullName', 'email', 'role', 'accountStatus'] as const;
+const sortFields = [
+  'createdAt',
+  'fullName',
+  'email',
+  'role',
+  'accountStatus',
+] as const;
 const sortOrders = ['asc', 'desc'] as const;
 
 export class ListUsersQueryDto {
@@ -30,7 +37,7 @@ export class ListUsersQueryDto {
   @IsOptional()
   limit?: number = 10;
 
-  @Transform(({ value }) => (typeof value === 'string' ? value.trim() : value))
+  @Transform(trimStringValue)
   @IsString()
   @IsOptional()
   search?: string;
@@ -47,7 +54,7 @@ export class ListUsersQueryDto {
   @IsOptional()
   verificationStatus?: VerificationStatus;
 
-  @Transform(({ value }) => (typeof value === 'string' ? value.trim() : value))
+  @Transform(trimStringValue)
   @IsString()
   @IsOptional()
   wilaya?: string;

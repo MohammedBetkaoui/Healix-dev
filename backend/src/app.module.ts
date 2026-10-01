@@ -13,6 +13,7 @@ import { PatientsModule } from './patients/patients.module';
 import { PaymentsModule } from './payments/payments.module';
 import { SubscriptionsModule } from './subscriptions/subscriptions.module';
 import { VerificationModule } from './verification/verification.module';
+import { WorkspaceModule } from './workspaces/workspace.module';
 
 @Module({
   imports: [
@@ -31,6 +32,7 @@ import { VerificationModule } from './verification/verification.module';
     VerificationModule,
     PatientsModule,
     AppointmentsModule,
+    WorkspaceModule,
   ],
   controllers: [AppController],
   providers: [

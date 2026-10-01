@@ -1,4 +1,13 @@
-import { IsISO8601, IsInt, IsOptional, IsString, Max, MaxLength, Min, MinLength } from 'class-validator';
+import {
+  IsISO8601,
+  IsInt,
+  IsOptional,
+  IsString,
+  Max,
+  MaxLength,
+  Min,
+  MinLength,
+} from 'class-validator';
 
 // doctorProfileId is always present in the body, but for INDEPENDENT_DOCTOR
 // the service ignores it entirely and substitutes the caller's own profile

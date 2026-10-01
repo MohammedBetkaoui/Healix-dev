@@ -37,17 +37,13 @@ export class VerificationFileValidator {
     }
 
     if (!this.allowedMimeTypes.has(file.mimetype)) {
-      throw new UnsupportedMediaTypeException(
-        'Format de fichier non accepté.',
-      );
+      throw new UnsupportedMediaTypeException('Format de fichier non accepté.');
     }
 
     const extension = getSafeFileExtension(file.originalname, file.mimetype);
 
     if (!extension) {
-      throw new UnsupportedMediaTypeException(
-        'Format de fichier non accepté.',
-      );
+      throw new UnsupportedMediaTypeException('Format de fichier non accepté.');
     }
 
     return extension;

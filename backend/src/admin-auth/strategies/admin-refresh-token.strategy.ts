@@ -49,7 +49,11 @@ export class AdminRefreshTokenStrategy extends PassportStrategy(
       payload.role === UserRole.SUPER_ADMIN ||
       payload.role === UserRole.ADMIN_VERIFICATION;
 
-    if (!refreshToken || payload.tokenType !== 'admin-refresh' || !isAdminRole) {
+    if (
+      !refreshToken ||
+      payload.tokenType !== 'admin-refresh' ||
+      !isAdminRole
+    ) {
       throw new UnauthorizedException('Session administrateur invalide.');
     }
 

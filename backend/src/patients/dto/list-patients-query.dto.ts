@@ -15,6 +15,7 @@ import { PatientGender } from '../../common/enums/patient-gender.enum';
 import { PatientInsurance } from '../../common/enums/patient-insurance.enum';
 import { PatientSector } from '../../common/enums/patient-sector.enum';
 import { PatientStatus } from '../../common/enums/patient-status.enum';
+import { trimStringValue } from '../../common/utils/transform-input';
 
 // Mirrors PatientsListParams (frontend/src/features/patients/patients.types.ts).
 // ageGroup / lastVisit / registeredAt from PatientFilterState are left out:
@@ -33,7 +34,7 @@ export class ListPatientsQueryDto {
   @IsOptional()
   limit?: number = 10;
 
-  @Transform(({ value }) => (typeof value === 'string' ? value.trim() : value))
+  @Transform(trimStringValue)
   @IsString()
   @MaxLength(120)
   @IsOptional()

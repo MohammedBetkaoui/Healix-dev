@@ -257,6 +257,23 @@ enum AppointmentStatus {
   NO_SHOW
 }
 
+enum WorkspaceType {
+  ESTABLISHMENT
+  PRIVATE_PRACTICE
+}
+
+enum WorkspaceMembershipRole {
+  OWNER
+  ADMIN
+  DOCTOR
+  RECEPTIONIST
+}
+
+enum WorkspaceMembershipStatus {
+  ACTIVE
+  SUSPENDED
+}
+
 model User {
   id              String        @id @default(cuid())
   fullName        String        @map("full_name") @db.VarChar(120)
@@ -283,6 +300,7 @@ model User {
   uploadedPatientDocuments     PatientDocument[]
   requestedPatientAiAnalyses   PatientAiAnalysis[]
   createdAppointments          Appointment[]
+  workspaceMemberships         WorkspaceMembership[]
 
   @@map("users")
 }
@@ -306,6 +324,7 @@ model Establishment {
   doctorProfiles      DoctorProfile[]
   verificationRequest VerificationRequest?
   patients            Patient[]
+  workspace           Workspace?
 
   @@map("establishments")
 }
@@ -323,21 +342,21 @@ model DoctorProfile {
   createdAt           DateTime           @default(now()) @map("created_at")
   updatedAt           DateTime           @updatedAt @map("updated_at")
 
-  user                User                 @relation(fields: [userId], references: [id], onDelete: Cascade)
-  establishment       Establishment?       @relation(fields: [establishmentId], references: [id], onDelete: SetNull)
+  user                User                  @relation(fields: [userId], references: [id], onDelete: Cascade)
+  establishment       Establishment?        @relation(fields: [establishmentId], references: [id], onDelete: SetNull)
   verificationRequest VerificationRequest?
   patients            Patient[]
   consultations       PatientConsultation[]
   appointments        Appointment[]
+  ownedWorkspace      Workspace?            @relation("PrivatePracticeWorkspaceOwner")
 
   @@index([establishmentId])
   @@map("doctor_profiles")
 }
 
-// Exactly one of establishmentId / doctorProfileId must be set: the patient
-// record belongs either to an establishment or to the independent/affiliated
-// doctor who created it. This is an application-level rule, not a SQL
-// constraint — Prisma has no native XOR support across nullable relations.
+// establishmentId / doctorProfileId remain temporarily for legacy
+// compatibility. workspaceId is the new tenant boundary and stays nullable
+// until the backfill has been validated in every deployed environment.
 model Patient {
   id                    String                      @id @default(cuid())
   firstName             String                      @map("first_name") @db.VarChar(100)
@@ -369,11 +388,13 @@ model Patient {
   medicalSummary        Json?                       @map("medical_summary")
   establishmentId       String?                     @map("establishment_id")
   doctorProfileId       String?                     @map("doctor_profile_id")
+  workspaceId           String?                     @map("workspace_id")
   createdAt             DateTime                    @default(now()) @map("created_at")
   updatedAt             DateTime                    @updatedAt @map("updated_at")
 
-  establishment Establishment? @relation(fields: [establishmentId], references: [id], onDelete: SetNull)
-  doctorProfile DoctorProfile? @relation(fields: [doctorProfileId], references: [id], onDelete: SetNull)
+  establishment Establishment?        @relation(fields: [establishmentId], references: [id], onDelete: SetNull)
+  doctorProfile DoctorProfile?        @relation(fields: [doctorProfileId], references: [id], onDelete: SetNull)
+  workspace     Workspace?            @relation(fields: [workspaceId], references: [id], onDelete: SetNull)
   consents      PatientConsent[]
   consultations PatientConsultation[]
   documents     PatientDocument[]
@@ -382,7 +403,46 @@ model Patient {
 
   @@index([establishmentId])
   @@index([doctorProfileId])
+  @@index([workspaceId])
   @@map("patients")
+}
+
+model Workspace {
+  id                   String        @id @default(cuid())
+  type                 WorkspaceType
+  name                 String        @db.VarChar(150)
+  establishmentId      String?       @unique @map("establishment_id")
+  ownerDoctorProfileId String?       @unique @map("owner_doctor_profile_id")
+  createdAt            DateTime      @default(now()) @map("created_at")
+  updatedAt            DateTime      @updatedAt @map("updated_at")
+
+  establishment      Establishment?        @relation(fields: [establishmentId], references: [id], onDelete: SetNull)
+  ownerDoctorProfile DoctorProfile?        @relation("PrivatePracticeWorkspaceOwner", fields: [ownerDoctorProfileId], references: [id], onDelete: SetNull)
+  memberships        WorkspaceMembership[]
+  patients           Patient[]
+
+  @@index([type])
+  @@index([establishmentId])
+  @@index([ownerDoctorProfileId])
+  @@map("workspaces")
+}
+
+model WorkspaceMembership {
+  id          String                    @id @default(cuid())
+  workspaceId String                    @map("workspace_id")
+  userId      String                    @map("user_id")
+  role        WorkspaceMembershipRole
+  status      WorkspaceMembershipStatus @default(ACTIVE)
+  createdAt   DateTime                  @default(now()) @map("created_at")
+  updatedAt   DateTime                  @updatedAt @map("updated_at")
+
+  workspace Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([workspaceId, userId])
+  @@index([userId])
+  @@index([workspaceId])
+  @@map("workspace_memberships")
 }
 
 // A consent is its own record per purpose (type + status + timestamp + who
@@ -490,9 +550,9 @@ model Appointment {
   createdAt       DateTime          @default(now()) @map("created_at")
   updatedAt       DateTime          @updatedAt @map("updated_at")
 
-  patient       Patient       @relation(fields: [patientId], references: [id], onDelete: Cascade)
-  doctorProfile DoctorProfile @relation(fields: [doctorProfileId], references: [id], onDelete: Cascade)
-  createdBy     User          @relation(fields: [createdById], references: [id], onDelete: Restrict)
+  patient       Patient              @relation(fields: [patientId], references: [id], onDelete: Cascade)
+  doctorProfile DoctorProfile        @relation(fields: [doctorProfileId], references: [id], onDelete: Cascade)
+  createdBy     User                 @relation(fields: [createdById], references: [id], onDelete: Restrict)
   consultation  PatientConsultation?
 
   @@index([patientId])

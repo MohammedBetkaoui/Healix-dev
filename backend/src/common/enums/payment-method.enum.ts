@@ -5,5 +5,4 @@ export const PaymentMethod = {
   BARIDIMOB_RECEIPT: 'BARIDIMOB_RECEIPT',
 } as const;
 
-export type PaymentMethod =
-  (typeof PaymentMethod)[keyof typeof PaymentMethod];
+export type PaymentMethod = (typeof PaymentMethod)[keyof typeof PaymentMethod];

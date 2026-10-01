@@ -28,7 +28,11 @@ export class AdminAuthController {
     @Req() request: Request,
     @Res({ passthrough: true }) response: Response,
   ) {
-    return this.adminAuthService.login(dto, response, getRequestContext(request));
+    return this.adminAuthService.login(
+      dto,
+      response,
+      getRequestContext(request),
+    );
   }
 
   @Get('me')

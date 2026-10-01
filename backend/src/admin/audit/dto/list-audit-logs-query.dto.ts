@@ -10,6 +10,7 @@ import {
 } from 'class-validator';
 
 import { UserRole } from '../../../common/enums/user-role.enum';
+import { trimStringValue } from '../../../common/utils/transform-input';
 
 const sortFields = ['createdAt', 'action', 'entityType'] as const;
 const sortOrders = ['asc', 'desc'] as const;
@@ -28,12 +29,12 @@ export class ListAuditLogsQueryDto {
   @IsOptional()
   limit?: number = 10;
 
-  @Transform(({ value }) => (typeof value === 'string' ? value.trim() : value))
+  @Transform(trimStringValue)
   @IsString()
   @IsOptional()
   search?: string;
 
-  @Transform(({ value }) => (typeof value === 'string' ? value.trim() : value))
+  @Transform(trimStringValue)
   @IsString()
   @IsOptional()
   action?: string;
@@ -42,17 +43,17 @@ export class ListAuditLogsQueryDto {
   @IsOptional()
   role?: UserRole;
 
-  @Transform(({ value }) => (typeof value === 'string' ? value.trim() : value))
+  @Transform(trimStringValue)
   @IsString()
   @IsOptional()
   userId?: string;
 
-  @Transform(({ value }) => (typeof value === 'string' ? value.trim() : value))
+  @Transform(trimStringValue)
   @IsString()
   @IsOptional()
   entityType?: string;
 
-  @Transform(({ value }) => (typeof value === 'string' ? value.trim() : value))
+  @Transform(trimStringValue)
   @IsString()
   @IsOptional()
   ipAddress?: string;

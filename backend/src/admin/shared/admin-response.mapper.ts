@@ -16,7 +16,10 @@ export type VerificationRequestForAdmin = VerificationRequest & {
   documents?: VerificationDocument[];
   establishment?: Establishment | null;
   doctorProfile?: DoctorProfile | null;
-  user: Pick<User, 'id' | 'fullName' | 'email' | 'phone' | 'role' | 'accountStatus'>;
+  user: Pick<
+    User,
+    'id' | 'fullName' | 'email' | 'phone' | 'role' | 'accountStatus'
+  >;
 };
 
 export type PublicAdminVerificationDocument = {
@@ -72,7 +75,9 @@ export type PublicAdminAuditLog = {
 
 function getRequesterName(request: VerificationRequestForAdmin): string {
   if (request.type === 'ESTABLISHMENT') {
-    return request.data?.name ?? request.establishment?.name ?? request.user.fullName;
+    return (
+      request.data?.name ?? request.establishment?.name ?? request.user.fullName
+    );
   }
 
   return request.doctorData?.fullName ?? request.user.fullName;
@@ -124,7 +129,10 @@ export function mapVerificationListItem(
     requiredDocumentsCount,
     completenessScore:
       requiredDocumentsCount > 0
-        ? Math.min(100, Math.round((documentsCount / requiredDocumentsCount) * 100))
+        ? Math.min(
+            100,
+            Math.round((documentsCount / requiredDocumentsCount) * 100),
+          )
         : 100,
   };
 }
@@ -146,7 +154,13 @@ export function mapVerificationDocument(
 export function mapAdminUserListItem(
   user: Pick<
     User,
-    'id' | 'fullName' | 'email' | 'phone' | 'role' | 'accountStatus' | 'createdAt'
+    | 'id'
+    | 'fullName'
+    | 'email'
+    | 'phone'
+    | 'role'
+    | 'accountStatus'
+    | 'createdAt'
   > & {
     establishment?: Pick<Establishment, 'wilaya' | 'verificationStatus'> | null;
     doctorProfile?: Pick<DoctorProfile, 'wilaya' | 'verificationStatus'> | null;

@@ -10,6 +10,7 @@ import {
 } from 'class-validator';
 
 import { VerificationStatus } from '../../../common/enums/verification-status.enum';
+import { trimStringValue } from '../../../common/utils/transform-input';
 
 const verificationTypes = ['ESTABLISHMENT', 'INDEPENDENT_DOCTOR'] as const;
 const sortFields = ['submittedAt', 'updatedAt', 'status', 'type'] as const;
@@ -29,7 +30,7 @@ export class ListVerificationsQueryDto {
   @IsOptional()
   limit?: number = 10;
 
-  @Transform(({ value }) => (typeof value === 'string' ? value.trim() : value))
+  @Transform(trimStringValue)
   @IsString()
   @IsOptional()
   search?: string;
@@ -42,7 +43,7 @@ export class ListVerificationsQueryDto {
   @IsOptional()
   status?: VerificationStatus;
 
-  @Transform(({ value }) => (typeof value === 'string' ? value.trim() : value))
+  @Transform(trimStringValue)
   @IsString()
   @IsOptional()
   wilaya?: string;

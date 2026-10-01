@@ -37,9 +37,7 @@ export class PatientFileStorageService {
     );
   }
 
-  async storePatientDocument(
-    input: StoreFileInput,
-  ): Promise<StoredFileResult> {
+  async storePatientDocument(input: StoreFileInput): Promise<StoredFileResult> {
     const storedName = this.createStoredFileName(
       input.documentType,
       input.extension,
@@ -91,13 +89,18 @@ export class PatientFileStorageService {
     }
   }
 
-  private createStoredFileName(documentType: string, extension: string): string {
+  private createStoredFileName(
+    documentType: string,
+    extension: string,
+  ): string {
     const randomPart = randomBytes(6).toString('hex');
     return `${documentType}_${Date.now()}_${randomPart}${extension}`;
   }
 
   private resolveSafePath(...segments: string[]) {
-    return this.ensurePathInsideUploadRoot(resolve(this.uploadRoot, ...segments));
+    return this.ensurePathInsideUploadRoot(
+      resolve(this.uploadRoot, ...segments),
+    );
   }
 
   private ensurePathInsideUploadRoot(pathToCheck: string) {
@@ -115,7 +118,10 @@ export class PatientFileStorageService {
   }
 
   private async removeEmptyParentDirectories(directory: string): Promise<void> {
-    if (directory === this.uploadRoot || !directory.startsWith(this.uploadRoot)) {
+    if (
+      directory === this.uploadRoot ||
+      !directory.startsWith(this.uploadRoot)
+    ) {
       return;
     }
 

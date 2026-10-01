@@ -124,7 +124,9 @@ export class VerificationDocumentService {
   ): VerificationDocumentType[] {
     const uploadedTypes = new Set(
       documents
-        .filter((document) => document.status === VerificationDocumentStatus.UPLOADED)
+        .filter(
+          (document) => document.status === VerificationDocumentStatus.UPLOADED,
+        )
         .map((document) => document.documentType),
     );
 
@@ -139,7 +141,9 @@ export class VerificationDocumentService {
   ): VerificationDocumentType[] {
     const uploadedTypes = new Set(
       documents
-        .filter((document) => document.status === VerificationDocumentStatus.UPLOADED)
+        .filter(
+          (document) => document.status === VerificationDocumentStatus.UPLOADED,
+        )
         .map((document) => document.documentType),
     );
     const requiredTypes: VerificationDocumentType[] = [

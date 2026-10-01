@@ -79,6 +79,10 @@ export class AuthController {
     @Req() request: Request,
     @Res({ passthrough: true }) response: Response,
   ) {
-    return this.authService.logout(request, response, getRequestContext(request));
+    return this.authService.logout(
+      request,
+      response,
+      getRequestContext(request),
+    );
   }
 }

@@ -2,7 +2,10 @@ import { type DoctorType } from '../../common/enums/doctor-type.enum';
 import { type DoctorVerificationStep } from '../../common/enums/doctor-verification-step.enum';
 import { type VerificationDocumentType } from '../../common/enums/verification-document-type.enum';
 import { type VerificationStatus } from '../../common/enums/verification-status.enum';
-import { type RequestContext, type UploadedDocumentSummary } from './verification.types';
+import {
+  type RequestContext,
+  type UploadedDocumentSummary,
+} from './verification.types';
 
 export type DoctorPrefillResponse = {
   doctor: {

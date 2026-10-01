@@ -13,6 +13,7 @@ import {
 import { AccountType } from '../../common/enums/account-type.enum';
 import { PaymentMethod } from '../../common/enums/payment-method.enum';
 import { PaymentStatus } from '../../common/enums/payment-status.enum';
+import { trimStringValue } from '../../common/utils/transform-input';
 
 const sortFields = ['createdAt', 'amount', 'status', 'method'] as const;
 const sortOrders = ['asc', 'desc'] as const;
@@ -31,7 +32,7 @@ export class ListPaymentsQueryDto {
   @IsOptional()
   limit?: number = 10;
 
-  @Transform(({ value }) => (typeof value === 'string' ? value.trim() : value))
+  @Transform(trimStringValue)
   @IsString()
   @IsOptional()
   search?: string;

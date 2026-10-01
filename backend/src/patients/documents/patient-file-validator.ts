@@ -96,9 +96,7 @@ export class PatientFileValidator {
     );
 
     if (!isDicomFallback && !this.allowedMimeTypes.has(file.mimetype)) {
-      throw new UnsupportedMediaTypeException(
-        'Format de fichier non accepté.',
-      );
+      throw new UnsupportedMediaTypeException('Format de fichier non accepté.');
     }
 
     const extension = getSafePatientDocumentExtension(
@@ -107,9 +105,7 @@ export class PatientFileValidator {
     );
 
     if (!extension) {
-      throw new UnsupportedMediaTypeException(
-        'Format de fichier non accepté.',
-      );
+      throw new UnsupportedMediaTypeException('Format de fichier non accepté.');
     }
 
     return extension;
