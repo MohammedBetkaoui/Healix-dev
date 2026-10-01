@@ -7,8 +7,19 @@ import { dashboardFont } from "@/lib/dashboard-fonts";
 import { Providers } from "./providers";
 
 export const metadata: Metadata = {
-  title: commonFr.metadata.appTitle,
+  title: {
+    default: commonFr.metadata.appTitle,
+    template: "%s | HealixDz",
+  },
   description: commonFr.metadata.appDescription,
+  openGraph: {
+    title: commonFr.metadata.appTitle,
+    description: commonFr.metadata.appDescription,
+    siteName: "HealixDz",
+    locale: "fr_DZ",
+    alternateLocale: ["ar_DZ"],
+    type: "website",
+  },
   icons: {
     icon: [
       { url: "/HealixDz-logo/logo.svg", type: "image/svg+xml" },

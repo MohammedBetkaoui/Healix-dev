@@ -1,8 +1,9 @@
 export const commonFr = {
   brand: "HealixDZ",
   metadata: {
-    appTitle: "HealixDZ",
-    appDescription: "Système hospitalier intelligent pour la santé en Algérie.",
+    appTitle: "HealixDz | Plateforme numérique de santé en Algérie",
+    appDescription:
+      "HealixDz réunit patients, rendez-vous, consultations, documents, coordination d’équipe et services numériques dans des espaces adaptés aux établissements de santé et aux médecins.",
   },
   languageSwitcher: {
     label: "Changer la langue",

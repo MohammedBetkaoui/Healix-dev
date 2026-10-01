@@ -1,8 +1,9 @@
 export const commonAr = {
   brand: "HealixDZ",
   metadata: {
-    appTitle: "HealixDZ",
-    appDescription: "نظام مستشفى ذكي للصحة في الجزائر.",
+    appTitle: "HealixDz | منصة رقمية للصحة في الجزائر",
+    appDescription:
+      "تجمع HealixDz ملفات المرضى والمواعيد والاستشارات والوثائق وتنسيق الفرق والخدمات الرقمية ضمن مساحات تناسب المؤسسات الصحية والأطباء.",
   },
   languageSwitcher: {
     label: "تغيير اللغة",

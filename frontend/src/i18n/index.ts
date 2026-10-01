@@ -4,6 +4,7 @@ import { commonAr } from "./locales/ar/common";
 import { dashboardAr } from "./locales/ar/dashboard";
 import { doctorVerificationAr } from "./locales/ar/doctor-verification";
 import { loginAr } from "./locales/ar/login";
+import { landingAr } from "./locales/ar/landing";
 import { patientsAr } from "./locales/ar/patients";
 import { registerAr } from "./locales/ar/register";
 import { subscriptionAr } from "./locales/ar/subscription";
@@ -14,6 +15,7 @@ import { commonFr } from "./locales/fr/common";
 import { dashboardFr } from "./locales/fr/dashboard";
 import { doctorVerificationFr } from "./locales/fr/doctor-verification";
 import { loginFr } from "./locales/fr/login";
+import { landingFr } from "./locales/fr/landing";
 import { patientsFr } from "./locales/fr/patients";
 import { registerFr } from "./locales/fr/register";
 import { subscriptionFr } from "./locales/fr/subscription";
@@ -32,6 +34,7 @@ export const dictionaries = {
     dashboard: dashboardFr,
     doctorVerification: doctorVerificationFr,
     login: loginFr,
+    landing: landingFr,
     patients: patientsFr,
     register: registerFr,
     subscription: subscriptionFr,
@@ -44,6 +47,7 @@ export const dictionaries = {
     dashboard: dashboardAr,
     doctorVerification: doctorVerificationAr,
     login: loginAr,
+    landing: landingAr,
     patients: patientsAr,
     register: registerAr,
     subscription: subscriptionAr,
@@ -53,8 +57,8 @@ export const dictionaries = {
 
 type WidenDictionary<T> = T extends string
   ? string
-  : T extends readonly unknown[]
-    ? T
+  : T extends readonly (infer Item)[]
+    ? readonly WidenDictionary<Item>[]
     : T extends object
       ? { readonly [Key in keyof T]: WidenDictionary<T[Key]> }
       : T;
