@@ -7,11 +7,6 @@ export const doctorVerificationFr = {
     contextNotice:
       "Les informations demandees sont adaptees au contexte administratif algerien. Certains documents peuvent varier selon la wilaya, la specialite et le mode d'exercice du medecin.",
   },
-  profile: {
-    name: "Dr Ahmed Benali",
-    footerSubtitle: "Neurologie",
-    workspaceSubtitle: "Cabinet HealixDZ",
-  },
   form: {
     prefillLoading: "Chargement des informations enregistrees...",
     prefillError:

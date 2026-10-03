@@ -6,11 +6,6 @@ export const doctorVerificationAr = {
     contextNotice:
       "المعلومات المطلوبة مكيّفة مع السياق الإداري الجزائري. قد تختلف بعض الوثائق حسب الولاية والتخصص وطريقة ممارسة الطبيب.",
   },
-  profile: {
-    name: "د. أحمد بن علي",
-    footerSubtitle: "طب الأعصاب",
-    workspaceSubtitle: "عيادة HealixDZ",
-  },
   form: {
     prefillLoading: "جاري تحميل المعلومات المسجلة...",
     prefillError: "تعذر تحميل المعلومات المسجلة. يرجى تحديث الصفحة.",

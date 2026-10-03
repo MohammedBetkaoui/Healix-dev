@@ -9,6 +9,8 @@ import { useForm, useWatch } from "react-hook-form";
 import { doctorNavSections } from "@/components/dashboard/layout/navigation";
 import { DashboardShell } from "@/components/dashboard/layout/DashboardShell";
 import { PendingVerificationNotice } from "@/components/verification/shared/PendingVerificationNotice";
+import { useCurrentUser } from "@/features/auth/hooks/use-current-user";
+import { getAccountInitials } from "@/lib/format/get-account-initials";
 import { useStoredLocale, useTranslation } from "@/lib/i18n";
 import { cn } from "@/lib/utils";
 import {
@@ -519,6 +521,8 @@ export function DoctorVerificationPage() {
   const queryClient = useQueryClient();
   const { data: prefillData, isError: isPrefillError, isLoading: isPrefillLoading } =
     useDoctorVerificationPrefill();
+  const currentUser = useCurrentUser(undefined, { enabled: true });
+  const initials = getAccountInitials(currentUser.data?.fullName);
   const [submittedStatus, setSubmittedStatus] =
     useState<VerificationStatus | null>(null);
   const [activeStepIndexOverride, setActiveStepIndexOverride] = useState<
@@ -959,11 +963,11 @@ export function DoctorVerificationPage() {
       titleKey="doctorVerification.page.title"
       user={{
         accountType: "INDEPENDENT_DOCTOR",
-        footerSubtitle: t("doctorVerification.profile.footerSubtitle"),
-        initials: "AB",
-        name: t("doctorVerification.profile.name"),
+        footerSubtitle: t("dashboard.clinical.doctor.practice"),
+        initials,
+        name: currentUser.data?.fullName || t("dashboard.clinical.doctor.workspace"),
         roleKey: "dashboard.common.roles.doctor",
-        workspaceSubtitle: t("doctorVerification.profile.workspaceSubtitle"),
+        workspaceSubtitle: t("dashboard.clinical.doctor.workspace"),
       }}
     >
       {toastMessage ? (
