@@ -8,8 +8,8 @@ export const establishmentDemo = {
   metrics: { planned: 24, arrived: 18, upcoming: 6, waiting: 7, waitingMinutes: 14, doctorsActive: 11, doctorsTotal: 14, results: 8, priorityResults: 2 },
   attention: [
     { key: "biology", count: 3, href: "#lab", priority: true },
-    { key: "affiliations", count: 2, href: "#doctors", priority: false },
-    { key: "appointments", count: 4, href: "#appointments", priority: false },
+    { key: "affiliations", count: 2, href: "/establishment/doctors", priority: false },
+    { key: "appointments", count: 4, href: "/establishment/appointments", priority: false },
     { key: "records", count: 1, href: "/establishment/patients", priority: false },
     { key: "ai", count: 2, href: "#analyses", priority: false },
   ],

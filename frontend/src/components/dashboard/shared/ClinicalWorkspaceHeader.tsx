@@ -14,7 +14,7 @@ export function ClinicalWorkspaceHeader({ name, isVerified, t }: { name: string;
         <p className="mt-1 text-sm text-[var(--text-secondary)]">{t("dashboard.clinical.intro")}</p>
       </div>
       <div className="flex flex-wrap gap-2">
-        <Link href="#appointments" className="clinical-button"><CalendarPlus size={16} strokeWidth={1.8} aria-hidden="true" />{t("dashboard.clinical.actions.appointment")}</Link>
+        <Link href="/establishment/appointments" className="clinical-button"><CalendarPlus size={16} strokeWidth={1.8} aria-hidden="true" />{t("dashboard.clinical.actions.appointment")}</Link>
         <Link href="/establishment/patients" className="clinical-button clinical-button-primary"><Plus size={17} strokeWidth={1.8} aria-hidden="true" />{t("dashboard.clinical.actions.patient")}</Link>
       </div>
     </header>
