@@ -93,6 +93,17 @@ export function ThemeReview({ view }: { view: string }) {
         plan: { id: "preview-plan", name: "Pro Center", code: "EST_PRO_CENTER", monthlyPrice: 45000, annualPrice: 450000, currency: "DZD" },
       },
     });
+    // GET /subscription/plans, establishment plans from backend/prisma/seed.ts,
+    // in the order MariaDB returns them (monthlyPrice ASC puts NULL first).
+    const plan = (code: string, name: string, monthlyPrice: number | null, annualPrice: number | null, description: string, features: string[], limits: string[], flags: { custom?: boolean; recommended?: boolean } = {}) => ({
+      accountType: "ESTABLISHMENT", annualPrice, code, currency: "DZD", custom: flags.custom ?? false, description, features, id: `preview-${code}`, limits, monthlyPrice, name, recommended: flags.recommended ?? false,
+    });
+    query.setQueryData(["subscription", "plans"], [
+      plan("EST_CUSTOM", "Custom", null, null, "Pour hopital, reseau multi-sites ou integration specifique.", ["Offre personnalisee", "Multi-sites", "Integration HL7/FHIR", "Support dedie", "SLA personnalise", "Accompagnement technique"], ["Sur devis"], { custom: true }),
+      plan("EST_BASIC_CLINIC", "Basic Clinic", 14900, 149000, "Pour petite clinique, cabinet de groupe ou centre medical debutant.", ["Dashboard etablissement", "Gestion des patients", "Gestion des medecins affilies", "Rapports medicaux", "Analyses IA limitees", "Support standard"], ["5 medecins", "500 patients", "100 analyses IA / mois", "1 etablissement"]),
+      plan("EST_PRO_CENTER", "Pro Center", 29900, 299000, "Pour centre medical, laboratoire ou centre d'imagerie avec activite reguliere.", ["Toutes les fonctionnalites Basic Clinic", "Medecins affilies etendus", "Patients illimites", "Analyses IA avancees", "Rapports detailles", "Support prioritaire"], ["20 medecins", "Patients illimites", "500 analyses IA / mois", "3 services medicaux"], { recommended: true }),
+      plan("EST_ENTERPRISE", "Enterprise", 59900, 599000, "Pour grand etablissement avec plusieurs medecins, services ou volumes eleves.", ["Toutes les fonctionnalites Pro Center", "IA premium", "Gestion avancee des roles", "Audit logs avances", "Support premium", "Preparation HL7/FHIR"], ["100 medecins", "Patients illimites", "2 000 analyses IA / mois", "Multi-services"]),
+    ]);
     return query;
   });
   return <QueryClientProvider client={client}>{view === "admin" ? <AdminDashboardPage /> : view === "doctor" ? <DoctorDashboard /> : view === "patients" ? <EstablishmentPatientsPage /> : view === "appointments" ? <AppointmentsAgendaPage accountType="ESTABLISHMENT" /> : view === "verification" ? <EstablishmentVerificationPage /> : view === "subscription" ? <SubscriptionPage accountType="ESTABLISHMENT" /> : <EstablishmentDashboard />}</QueryClientProvider>;

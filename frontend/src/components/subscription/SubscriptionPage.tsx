@@ -17,11 +17,14 @@ import { SubscriptionFAQ } from "@/components/subscription/SubscriptionFAQ";
 import { SubscriptionHeader } from "@/components/subscription/SubscriptionHeader";
 import { SubscriptionStatusCard } from "@/components/subscription/SubscriptionStatusCard";
 import { VerificationAccessBanner } from "@/components/subscription/VerificationAccessBanner";
-import { getSubscriptionPlansByAccountType } from "@/config/subscription-plans";
 import { useCurrentUser } from "@/features/auth/hooks/use-current-user";
 import { useCreatePaymentIntent } from "@/features/payments/hooks/use-create-payment-intent";
 import { useMySubscription } from "@/features/subscriptions/hooks/use-my-subscription";
-import { toSubscriptionContext } from "@/features/subscriptions/subscriptions.api";
+import { useSubscriptionPlans } from "@/features/subscriptions/hooks/use-subscription-plans";
+import {
+  toSubscriptionContext,
+  toSubscriptionPlan,
+} from "@/features/subscriptions/subscriptions.api";
 import { useEstablishmentVerificationPrefill } from "@/features/verification/hooks/use-establishment-verification-prefill";
 import { getAccountInitials } from "@/lib/format/get-account-initials";
 import { useStoredLocale, useTranslation } from "@/lib/i18n";
@@ -128,11 +131,25 @@ export function SubscriptionPage({ accountType }: SubscriptionPageProps) {
     isLoading: isCreatingPaymentIntent,
   } = useCreatePaymentIntent();
 
+  const plansQuery = useSubscriptionPlans();
+  // The backend sorts by monthlyPrice ASC, and MariaDB puts NULL first: the
+  // custom (quote-based) plan is moved back to the end, after priced plans.
   const plans = useMemo(
-    () => getSubscriptionPlansByAccountType(accountType),
-    [accountType],
+    () =>
+      (plansQuery.data ?? [])
+        .map(toSubscriptionPlan)
+        .sort(
+          (a, b) =>
+            Number(a.monthlyPrice === null) - Number(b.monthlyPrice === null),
+        ),
+    [plansQuery.data],
   );
-  const { data, error, isLoading } = useMySubscription();
+  const {
+    data,
+    error,
+    isLoading: isLoadingSubscription,
+  } = useMySubscription();
+  const isLoading = isLoadingSubscription || plansQuery.isLoading;
   // Memoized so the context keeps a stable identity between renders for the
   // components it is passed to.
   const context = useMemo(
@@ -203,7 +220,7 @@ export function SubscriptionPage({ accountType }: SubscriptionPageProps) {
 
       {isLoading ? (
         <SubscriptionPageSkeleton label={t("subscription.page.loading")} />
-      ) : error || !context ? (
+      ) : error || plansQuery.isError || !context ? (
         <div
           role="alert"
           className="rounded-[var(--radius-md)] border border-[var(--danger-line)] bg-[var(--danger-soft)] px-5 py-4 text-sm font-medium text-[var(--danger-ink)]"
