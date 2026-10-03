@@ -10,7 +10,12 @@ import {
   type PatientSector,
   type PatientStatus,
 } from "./patient";
-import { type SubscriptionStatus } from "./subscription";
+import {
+  type AccountType,
+  type BillingPeriod,
+  type PaymentMethod,
+  type SubscriptionStatus,
+} from "./subscription";
 
 // Re-exported rather than redefined: they already exist with the exact
 // backend enum values (types/auth.ts, types/subscription.ts, types/patient.ts,
@@ -344,6 +349,97 @@ export type AdminPatientDetailResponse = {
   establishment: AdminPatientEstablishmentSummary | null;
   doctorProfile: AdminPatientDoctorProfileSummary | null;
   latestAuditLogs: AdminAuditLogItem[];
+};
+
+// GET /admin/payments — mirrors backend/src/payments/admin/
+// admin-payments.service.ts#listPayments (read-only in the admin UI for now).
+export type AdminPaymentStatus =
+  | "CREATED"
+  | "WAITING_PAYMENT"
+  | "WAITING_ADMIN_REVIEW"
+  | "PAID"
+  | "REJECTED"
+  | "FAILED"
+  | "CANCELED"
+  | "EXPIRED";
+
+// payment-proof.service.ts#toPublicProof (metadata only, never the file).
+export type AdminPaymentProof = {
+  id: string;
+  documentType: string;
+  originalName: string;
+  mimeType: string;
+  size: number;
+  uploadedAt: string;
+};
+
+export type AdminPaymentListItem = {
+  id: string;
+  reference: string;
+  userName: string;
+  userEmail: string;
+  userPhone: string;
+  userRole: string;
+  accountType: AccountType;
+  plan: { id: string; name: string; code: string };
+  amount: number;
+  currency: string;
+  billingPeriod: BillingPeriod;
+  method: PaymentMethod;
+  status: AdminPaymentStatus;
+  createdAt: string;
+  proof: AdminPaymentProof | null;
+};
+
+export type AdminPaymentsQuery = {
+  limit?: number;
+  page?: number;
+  search?: string;
+  method?: PaymentMethod;
+  status?: AdminPaymentStatus;
+  accountType?: AccountType;
+  from?: string;
+  to?: string;
+};
+
+export type AdminPaymentsResponse = {
+  data: AdminPaymentListItem[];
+  meta: PaginationMeta;
+};
+
+// GET /admin/payments/:id — #toAdminPaymentDetail. Not a superset of the list
+// item: user fields are nested under `user` (no userName/userEmail/…), and
+// plan carries accountType. subscription is the raw Prisma record, unused here.
+export type AdminPaymentDetail = {
+  id: string;
+  reference: string;
+  amount: number;
+  currency: string;
+  accountType: AccountType;
+  billingPeriod: BillingPeriod;
+  method: PaymentMethod;
+  status: AdminPaymentStatus;
+  provider: string | null;
+  providerStatus: string | null;
+  cardLast4: string | null;
+  cardHolderName: string | null;
+  paidAt: string | null;
+  reviewedAt: string | null;
+  adminNote: string | null;
+  rejectionReason: string | null;
+  createdAt: string;
+  updatedAt: string;
+  user: {
+    id: string;
+    accountStatus: RegisteredUserStatus;
+    email: string;
+    fullName: string;
+    phone: string;
+    role: string;
+  };
+  plan: { id: string; name: string; code: string; accountType: AccountType };
+  subscription: unknown;
+  proof: AdminPaymentProof | null;
 };
 
 export type AdminVerificationsQuery = {

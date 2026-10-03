@@ -1,6 +1,7 @@
 "use client";
 
 import {
+  CreditCard,
   FileClock,
   LayoutDashboard,
   LogOut,
@@ -44,6 +45,12 @@ const navItems: AdminNavItem[] = [
     icon: UsersRound,
     key: "patients",
     labelKey: "admin.layout.nav.patients",
+  },
+  {
+    href: adminRoutes.payments,
+    icon: CreditCard,
+    key: "payments",
+    labelKey: "admin.layout.nav.payments",
   },
   {
     href: adminRoutes.users,

@@ -3,6 +3,7 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { useState } from "react";
 import { AdminDashboardPage } from "@/components/admin/dashboard/AdminDashboardPage";
+import { AdminPaymentsPage } from "@/components/admin/payments/AdminPaymentsPage";
 import { AppointmentsAgendaPage } from "@/components/appointments/AppointmentsAgendaPage";
 import { EstablishmentDashboard } from "@/components/dashboard/establishment/EstablishmentDashboard";
 import { DoctorDashboard } from "@/components/dashboard/doctor/DoctorDashboard";
@@ -104,7 +105,20 @@ export function ThemeReview({ view }: { view: string }) {
       plan("EST_PRO_CENTER", "Pro Center", 29900, 299000, "Pour centre medical, laboratoire ou centre d'imagerie avec activite reguliere.", ["Toutes les fonctionnalites Basic Clinic", "Medecins affilies etendus", "Patients illimites", "Analyses IA avancees", "Rapports detailles", "Support prioritaire"], ["20 medecins", "Patients illimites", "500 analyses IA / mois", "3 services medicaux"], { recommended: true }),
       plan("EST_ENTERPRISE", "Enterprise", 59900, 599000, "Pour grand etablissement avec plusieurs medecins, services ou volumes eleves.", ["Toutes les fonctionnalites Pro Center", "IA premium", "Gestion avancee des roles", "Audit logs avances", "Support premium", "Preparation HL7/FHIR"], ["100 medecins", "Patients illimites", "2 000 analyses IA / mois", "Multi-services"]),
     ]);
+    // GET /admin/payments (+ one detail) shapes, for the admin-payments view.
+    // Key must equal AdminPaymentsPage's initial query ({ limit: 20, page: 1 }).
+    const payments = [
+      { id: "pay-1", reference: "HLX-PAY-2026-0142", userName: "Clinique Démonstration", userEmail: "contact@clinique-demo.dz", userPhone: "0550 12 34 56", userRole: "ESTABLISHMENT_ADMIN", accountType: "ESTABLISHMENT", plan: { id: "p1", name: "Pro Center", code: "EST_PRO_CENTER" }, amount: 299000, currency: "DZD", billingPeriod: "ANNUAL", method: "MANUAL_POST_TRANSFER", status: "WAITING_ADMIN_REVIEW", createdAt: "2026-10-02T09:14:00.000Z", proof: { id: "pr1", documentType: "PAYMENT_PROOF", originalName: "recu-ccp-octobre.pdf", mimeType: "application/pdf", size: 182000, uploadedAt: "2026-10-02T09:20:00.000Z" } },
+      { id: "pay-2", reference: "HLX-PAY-2026-0141", userName: "Dr Exemple", userEmail: "dr.exemple@healix.dz", userPhone: "0661 98 76 54", userRole: "INDEPENDENT_DOCTOR", accountType: "INDEPENDENT_DOCTOR", plan: { id: "p2", name: "Pro", code: "DOCTOR_PRO" }, amount: 5900, currency: "DZD", billingPeriod: "MONTHLY", method: "SYNTHETIC_CHARGILY", status: "PAID", createdAt: "2026-10-01T16:40:00.000Z", proof: null },
+      { id: "pay-3", reference: "HLX-PAY-2026-0139", userName: "Établissement Test", userEmail: "admin@etab-test.dz", userPhone: "0770 11 22 33", userRole: "ESTABLISHMENT_ADMIN", accountType: "ESTABLISHMENT", plan: { id: "p3", name: "Basic Clinic", code: "EST_BASIC_CLINIC" }, amount: 14900, currency: "DZD", billingPeriod: "MONTHLY", method: "BARIDIMOB_RECEIPT", status: "REJECTED", createdAt: "2026-09-29T11:05:00.000Z", proof: null },
+    ];
+    query.setQueryData(["admin", "payments", { limit: 20, page: 1 }], { data: payments, meta: { page: 1, limit: 20, total: 3, totalPages: 1 } });
+    query.setQueryData(["admin", "payments", "detail", "pay-1"], {
+      ...payments[0], provider: null, providerStatus: null, cardLast4: null, cardHolderName: null, paidAt: null, reviewedAt: null, adminNote: "Virement vérifié sur le relevé CCP, en attente de rapprochement.", rejectionReason: null, updatedAt: "2026-10-02T09:20:00.000Z",
+      user: { id: "u1", accountStatus: "VERIFIED_NO_PLAN", email: "contact@clinique-demo.dz", fullName: "Clinique Démonstration", phone: "0550 12 34 56", role: "ESTABLISHMENT_ADMIN" },
+      plan: { id: "p1", name: "Pro Center", code: "EST_PRO_CENTER", accountType: "ESTABLISHMENT" }, subscription: null,
+    });
     return query;
   });
-  return <QueryClientProvider client={client}>{view === "admin" ? <AdminDashboardPage /> : view === "doctor" ? <DoctorDashboard /> : view === "patients" ? <EstablishmentPatientsPage /> : view === "appointments" ? <AppointmentsAgendaPage accountType="ESTABLISHMENT" /> : view === "verification" ? <EstablishmentVerificationPage /> : view === "subscription" ? <SubscriptionPage accountType="ESTABLISHMENT" /> : <EstablishmentDashboard />}</QueryClientProvider>;
+  return <QueryClientProvider client={client}>{view === "admin" ? <AdminDashboardPage /> : view === "admin-payments" ? <AdminPaymentsPage /> : view === "doctor" ? <DoctorDashboard /> : view === "patients" ? <EstablishmentPatientsPage /> : view === "appointments" ? <AppointmentsAgendaPage accountType="ESTABLISHMENT" /> : view === "verification" ? <EstablishmentVerificationPage /> : view === "subscription" ? <SubscriptionPage accountType="ESTABLISHMENT" /> : <EstablishmentDashboard />}</QueryClientProvider>;
 }

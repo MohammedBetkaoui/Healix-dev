@@ -6,6 +6,7 @@ export const adminRoutes = {
   dashboard: `${ADMIN_GATE_PATH}/dashboard`,
   login: `${ADMIN_GATE_PATH}/login`,
   patients: `${ADMIN_GATE_PATH}/patients`,
+  payments: `${ADMIN_GATE_PATH}/payments`,
   settings: `${ADMIN_GATE_PATH}/settings`,
   users: `${ADMIN_GATE_PATH}/users`,
   verificationDetail: (id: string) => `${ADMIN_GATE_PATH}/verifications/${id}`,
