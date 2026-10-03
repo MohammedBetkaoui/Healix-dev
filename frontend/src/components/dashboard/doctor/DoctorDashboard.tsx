@@ -14,6 +14,7 @@ import { WorkspaceStatus } from "@/components/dashboard/shared/WorkspaceStatus";
 import { getDashboardAccountStatusPresentation } from "@/components/dashboard/shared/account-status-presentation";
 import { doctorDemo } from "@/data/dashboard-doctor.mock";
 import { useCurrentUser } from "@/features/auth/hooks/use-current-user";
+import { getAccountInitials } from "@/lib/format/get-account-initials";
 import { useStoredLocale, useTranslation } from "@/lib/i18n";
 import type { DashboardActivityColumn, DashboardActivityRow } from "@/types/dashboard";
 
@@ -34,7 +35,7 @@ export function DoctorDashboard() {
     t,
   });
   const userName = currentUser.data?.fullName || t("dashboard.clinical.doctor.workspace");
-  const initials = currentUser.data?.fullName?.split(/\s+/).filter(Boolean).slice(0, 2).map((part) => part[0]).join("") || "H";
+  const initials = getAccountInitials(currentUser.data?.fullName);
   const numberFormat = new Intl.NumberFormat(locale === "ar" ? "ar-DZ" : "fr-DZ");
   const formatNumber = (value: number) => numberFormat.format(value);
 

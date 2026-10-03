@@ -18,9 +18,12 @@ import { SubscriptionHeader } from "@/components/subscription/SubscriptionHeader
 import { SubscriptionStatusCard } from "@/components/subscription/SubscriptionStatusCard";
 import { VerificationAccessBanner } from "@/components/subscription/VerificationAccessBanner";
 import { getSubscriptionPlansByAccountType } from "@/config/subscription-plans";
+import { useCurrentUser } from "@/features/auth/hooks/use-current-user";
 import { useCreatePaymentIntent } from "@/features/payments/hooks/use-create-payment-intent";
 import { useMySubscription } from "@/features/subscriptions/hooks/use-my-subscription";
 import { toSubscriptionContext } from "@/features/subscriptions/subscriptions.api";
+import { useEstablishmentVerificationPrefill } from "@/features/verification/hooks/use-establishment-verification-prefill";
+import { getAccountInitials } from "@/lib/format/get-account-initials";
 import { useStoredLocale, useTranslation } from "@/lib/i18n";
 import { cn } from "@/lib/utils";
 import {
@@ -87,29 +90,32 @@ function getVerificationHref(accountType: AccountType) {
     : "/doctor/verification";
 }
 
-function getDashboardUser(accountType: AccountType) {
-  return accountType === "ESTABLISHMENT"
-    ? {
-        accountType,
-        footerSubtitle: "Administration",
-        initials: "HE",
-        name: "Healix Clinique",
-        roleKey: "dashboard.common.roles.establishment",
-        workspaceSubtitle: "Clinique El Shifa",
-      }
-    : {
-        accountType,
-        footerSubtitle: "Neurologie",
-        initials: "SB",
-        name: "Dr Samir Benali",
-        roleKey: "dashboard.common.roles.doctor",
-        workspaceSubtitle: "Cabinet HealixDZ",
-      };
-}
-
 export function SubscriptionPage({ accountType }: SubscriptionPageProps) {
   const { locale } = useStoredLocale();
   const { direction, t } = useTranslation(locale);
+  const currentUser = useCurrentUser(undefined, { enabled: true });
+  // Establishment name for the workspace subtitle; skipped for doctor
+  // accounts (ESTABLISHMENT_ADMIN-only endpoint).
+  const prefill = useEstablishmentVerificationPrefill({ enabled: accountType === "ESTABLISHMENT" });
+  const initials = getAccountInitials(currentUser.data?.fullName);
+  const dashboardUser =
+    accountType === "ESTABLISHMENT"
+      ? {
+          accountType,
+          footerSubtitle: t("dashboard.clinical.administration"),
+          initials,
+          name: currentUser.data?.fullName || t("dashboard.clinical.administration"),
+          roleKey: "dashboard.common.roles.establishment",
+          workspaceSubtitle: prefill.data?.establishment.name || t("dashboard.clinical.workspace"),
+        }
+      : {
+          accountType,
+          footerSubtitle: t("dashboard.clinical.doctor.practice"),
+          initials,
+          name: currentUser.data?.fullName || t("dashboard.clinical.doctor.workspace"),
+          roleKey: "dashboard.common.roles.doctor",
+          workspaceSubtitle: t("dashboard.clinical.doctor.workspace"),
+        };
   const [billingPeriod, setBillingPeriod] =
     useState<BillingPeriod>("MONTHLY");
   const [selectedPlanId, setSelectedPlanId] = useState<string | undefined>();
@@ -184,7 +190,7 @@ export function SubscriptionPage({ accountType }: SubscriptionPageProps) {
       activeKey="subscription"
       navSections={navSections}
       titleKey="subscription.header.title"
-      user={getDashboardUser(accountType)}
+      user={dashboardUser}
     >
       <div role="status" aria-live="polite">
         {toastMessage ? (

@@ -14,6 +14,7 @@ import {
   isAcceptedDocumentFile,
   isDocumentSizeValid,
 } from "@/lib/validations/establishment-verification.schema";
+import { getAccountInitials } from "@/lib/format/get-account-initials";
 import { useStoredLocale, useTranslation } from "@/lib/i18n";
 import {
   type DocumentUploadState,
@@ -24,6 +25,7 @@ import {
   type RequiredDocumentType,
   type VerificationStatus,
 } from "@/features/verification/types/verification.types";
+import { useCurrentUser } from "@/features/auth/hooks/use-current-user";
 import { useEstablishmentVerificationPrefill } from "@/features/verification/hooks/use-establishment-verification-prefill";
 import {
   createEstablishmentVerificationDraft,
@@ -186,6 +188,7 @@ export function EstablishmentVerificationPage() {
   const queryClient = useQueryClient();
   const { data: prefillData, isError: isPrefillError, isLoading: isPrefillLoading } =
     useEstablishmentVerificationPrefill();
+  const currentUser = useCurrentUser(undefined, { enabled: true });
   const [submittedStatus, setSubmittedStatus] =
     useState<VerificationStatus | null>(null);
   const [isSubmittingRequest, setSubmittingRequest] = useState(false);
@@ -443,11 +446,11 @@ export function EstablishmentVerificationPage() {
       titleKey="verification.page.title"
       user={{
         accountType: "ESTABLISHMENT",
-        footerSubtitle: "Administration",
-        initials: "HE",
-        name: "Healix Clinique",
+        footerSubtitle: t("dashboard.clinical.administration"),
+        initials: getAccountInitials(currentUser.data?.fullName),
+        name: currentUser.data?.fullName || t("dashboard.clinical.administration"),
         roleKey: "dashboard.common.roles.establishment",
-        workspaceSubtitle: "Clinique El Shifa",
+        workspaceSubtitle: prefillData?.establishment.name || t("dashboard.clinical.workspace"),
       }}
     >
       {toastMessage ? (

@@ -16,6 +16,7 @@ import { getDashboardAccountStatusPresentation } from "@/components/dashboard/sh
 import { establishmentDemo } from "@/data/dashboard-establishment.mock";
 import { useCurrentUser } from "@/features/auth/hooks/use-current-user";
 import { useEstablishmentVerificationPrefill } from "@/features/verification/hooks/use-establishment-verification-prefill";
+import { getAccountInitials } from "@/lib/format/get-account-initials";
 import { useStoredLocale, useTranslation } from "@/lib/i18n";
 import type { DashboardActivityColumn, DashboardActivityRow } from "@/types/dashboard";
 
@@ -32,7 +33,7 @@ export function EstablishmentDashboard() {
   });
   const workspaceName = prefill.data?.establishment.name || t("dashboard.clinical.workspace");
   const userName = currentUser.data?.fullName || t("dashboard.clinical.administration");
-  const initials = currentUser.data?.fullName?.split(/\s+/).filter(Boolean).slice(0, 2).map((part) => part[0]).join("") || "H";
+  const initials = getAccountInitials(currentUser.data?.fullName);
   const isVerified = !prefill.isError && prefill.data?.verification.status === "VERIFIED";
   const numberFormat = new Intl.NumberFormat(locale === "ar" ? "ar-DZ" : "fr-DZ");
   const formatNumber = (value: number) => numberFormat.format(value);

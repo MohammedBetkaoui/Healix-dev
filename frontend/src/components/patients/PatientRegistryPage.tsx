@@ -20,6 +20,8 @@ import { useMemo, useRef, useState, type KeyboardEvent } from "react";
 
 import { Button } from "@/components/ui/button";
 import { AddPatientModal } from "@/components/patients/AddPatientModal";
+import { useCurrentUser } from "@/features/auth/hooks/use-current-user";
+import { useEstablishmentVerificationPrefill } from "@/features/verification/hooks/use-establishment-verification-prefill";
 import { usePatients } from "@/features/patients/hooks/use-patients";
 import {
   algerianWilayas,
@@ -34,6 +36,7 @@ import {
   getPatientAge,
   patientMatchesSearch,
 } from "@/features/patients/patient-registry";
+import { getAccountInitials } from "@/lib/format/get-account-initials";
 import { useStoredLocale, useTranslation } from "@/lib/i18n";
 import { cn } from "@/lib/utils";
 import { type Patient } from "@/types/patient";
@@ -156,6 +159,11 @@ export function PatientRegistryPage({ accountType }: PatientRegistryPageProps) {
   const router = useRouter();
   const { locale } = useStoredLocale();
   const { direction, t } = useTranslation(locale);
+  const currentUser = useCurrentUser(undefined, { enabled: true });
+  // Establishment name for the workspace subtitle; skipped for doctor
+  // accounts (ESTABLISHMENT_ADMIN-only endpoint).
+  const prefill = useEstablishmentVerificationPrefill({ enabled: accountType === "ESTABLISHMENT" });
+  const initials = getAccountInitials(currentUser.data?.fullName);
   const copy = registryCopy[locale];
   const { data, isError, isLoading } = usePatients({ limit: 100 });
   const patients = data?.data ?? [];
@@ -223,13 +231,13 @@ export function PatientRegistryPage({ accountType }: PatientRegistryPageProps) {
         accountType: "ESTABLISHMENT" as const,
         navSections: establishmentNavSections,
         titleKey: "patients.page.title",
-        user: { accountType: "ESTABLISHMENT" as const, footerSubtitle: "Administration", initials: "HE", name: "Healix Clinique", roleKey: "dashboard.common.roles.establishment", workspaceSubtitle: "Clinique El Shifa" },
+        user: { accountType: "ESTABLISHMENT" as const, footerSubtitle: t("dashboard.clinical.administration"), initials, name: currentUser.data?.fullName || t("dashboard.clinical.administration"), roleKey: "dashboard.common.roles.establishment", workspaceSubtitle: prefill.data?.establishment.name || t("dashboard.clinical.workspace") },
       }
     : {
         accountType: "INDEPENDENT_DOCTOR" as const,
         navSections: doctorNavSections,
         titleKey: "patients.page.doctorTitle",
-        user: { accountType: "INDEPENDENT_DOCTOR" as const, footerSubtitle: "Neurologie", initials: "SB", name: "Dr Samir Benali", roleKey: "dashboard.common.roles.doctor", workspaceSubtitle: "Cabinet HealixDZ" },
+        user: { accountType: "INDEPENDENT_DOCTOR" as const, footerSubtitle: t("dashboard.clinical.doctor.practice"), initials, name: currentUser.data?.fullName || t("dashboard.clinical.doctor.workspace"), roleKey: "dashboard.common.roles.doctor", workspaceSubtitle: t("dashboard.clinical.doctor.workspace") },
       };
 
   return (

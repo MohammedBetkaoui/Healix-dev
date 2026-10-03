@@ -22,9 +22,12 @@ import { doctorNavSections, establishmentNavSections } from "@/components/dashbo
 import { OperationalMetricCard } from "@/components/dashboard/shared/OperationalMetricCard";
 import { StatusBadge } from "@/components/dashboard/shared/StatusBadge";
 import { Select } from "@/components/ui/select";
+import { useCurrentUser } from "@/features/auth/hooks/use-current-user";
+import { useEstablishmentVerificationPrefill } from "@/features/verification/hooks/use-establishment-verification-prefill";
 import { type Appointment, type AppointmentStatus } from "@/features/appointments/appointments.types";
 import { useAppointmentDoctors } from "@/features/appointments/hooks/use-appointment-doctors";
 import { useAppointments } from "@/features/appointments/hooks/use-appointments";
+import { getAccountInitials } from "@/lib/format/get-account-initials";
 import { useStoredLocale, useTranslation } from "@/lib/i18n";
 import { cn } from "@/lib/utils";
 import { type DashboardStatusTone } from "@/types/dashboard";
@@ -185,7 +188,12 @@ function SkeletonBlock({ className }: { className: string }) {
 
 export function AppointmentsAgendaPage({ accountType }: AppointmentsAgendaPageProps) {
   const { locale } = useStoredLocale();
-  const { direction } = useTranslation(locale);
+  const { direction, t } = useTranslation(locale);
+  const currentUser = useCurrentUser(undefined, { enabled: true });
+  // Establishment name for the workspace subtitle; skipped for doctor
+  // accounts (ESTABLISHMENT_ADMIN-only endpoint).
+  const prefill = useEstablishmentVerificationPrefill({ enabled: accountType === "ESTABLISHMENT" });
+  const initials = getAccountInitials(currentUser.data?.fullName);
   const copy = agendaCopy[locale];
   const [selectedDate, setSelectedDate] = useState(() => startOfDay(new Date()));
   const [isCreateOpen, setCreateOpen] = useState(false);
@@ -258,13 +266,13 @@ export function AppointmentsAgendaPage({ accountType }: AppointmentsAgendaPagePr
         accountType: "ESTABLISHMENT" as const,
         navSections: establishmentNavSections,
         titleKey: "dashboard.sidebar.establishment.appointments",
-        user: { accountType: "ESTABLISHMENT" as const, footerSubtitle: "Administration", initials: "HE", name: "Healix Clinique", roleKey: "dashboard.common.roles.establishment", workspaceSubtitle: "Clinique El Shifa" },
+        user: { accountType: "ESTABLISHMENT" as const, footerSubtitle: t("dashboard.clinical.administration"), initials, name: currentUser.data?.fullName || t("dashboard.clinical.administration"), roleKey: "dashboard.common.roles.establishment", workspaceSubtitle: prefill.data?.establishment.name || t("dashboard.clinical.workspace") },
       }
     : {
         accountType: "INDEPENDENT_DOCTOR" as const,
         navSections: doctorNavSections,
         titleKey: "dashboard.sidebar.doctor.appointments",
-        user: { accountType: "INDEPENDENT_DOCTOR" as const, footerSubtitle: "Neurologie", initials: "SB", name: "Dr Samir Benali", roleKey: "dashboard.common.roles.doctor", workspaceSubtitle: "Cabinet HealixDZ" },
+        user: { accountType: "INDEPENDENT_DOCTOR" as const, footerSubtitle: t("dashboard.clinical.doctor.practice"), initials, name: currentUser.data?.fullName || t("dashboard.clinical.doctor.workspace"), roleKey: "dashboard.common.roles.doctor", workspaceSubtitle: t("dashboard.clinical.doctor.workspace") },
       };
 
   const nowMarker = (

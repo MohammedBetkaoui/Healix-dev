@@ -24,6 +24,8 @@ import { doctorNavSections, establishmentNavSections } from "@/components/dashbo
 import { StatusBadge } from "@/components/dashboard/shared/StatusBadge";
 import { Button } from "@/components/ui/button";
 import { CreateConsultationModal } from "@/components/patients/CreateConsultationModal";
+import { useCurrentUser } from "@/features/auth/hooks/use-current-user";
+import { useEstablishmentVerificationPrefill } from "@/features/verification/hooks/use-establishment-verification-prefill";
 import { type Appointment, type AppointmentStatus } from "@/features/appointments/appointments.types";
 import { useAppointments } from "@/features/appointments/hooks/use-appointments";
 import { usePatient } from "@/features/patients/hooks/use-patient";
@@ -33,6 +35,7 @@ import { usePatientConsents } from "@/features/patients/hooks/use-patient-consen
 import { usePatientConsultations } from "@/features/patients/hooks/use-patient-consultations";
 import { usePatientDocuments } from "@/features/patients/hooks/use-patient-documents";
 import { formatPatientDate, formatPatientDateTime, getPatientAge } from "@/features/patients/patient-registry";
+import { getAccountInitials } from "@/lib/format/get-account-initials";
 import { useStoredLocale, useTranslation } from "@/lib/i18n";
 import { cn } from "@/lib/utils";
 import { type DashboardStatusTone } from "@/types/dashboard";
@@ -160,6 +163,11 @@ function EmptyTab({ label }: { label: string }) {
 export function PatientRecordPage({ accountType, patientId }: PatientRecordPageProps) {
   const { locale } = useStoredLocale();
   const { direction, t } = useTranslation(locale);
+  const currentUser = useCurrentUser(undefined, { enabled: true });
+  // Establishment name for the workspace subtitle; skipped for doctor
+  // accounts (ESTABLISHMENT_ADMIN-only endpoint).
+  const prefill = useEstablishmentVerificationPrefill({ enabled: accountType === "ESTABLISHMENT" });
+  const initials = getAccountInitials(currentUser.data?.fullName);
   const localized = copy[locale];
   const { data: patient, isError, isLoading } = usePatient(patientId);
   const { data: consents } = usePatientConsents(patientId);
@@ -202,12 +210,12 @@ export function PatientRecordPage({ accountType, patientId }: PatientRecordPageP
     ? {
         accountType: "ESTABLISHMENT" as const,
         navSections: establishmentNavSections,
-        user: { accountType: "ESTABLISHMENT" as const, footerSubtitle: "Administration", initials: "HE", name: "Healix Clinique", roleKey: "dashboard.common.roles.establishment", workspaceSubtitle: "Clinique El Shifa" },
+        user: { accountType: "ESTABLISHMENT" as const, footerSubtitle: t("dashboard.clinical.administration"), initials, name: currentUser.data?.fullName || t("dashboard.clinical.administration"), roleKey: "dashboard.common.roles.establishment", workspaceSubtitle: prefill.data?.establishment.name || t("dashboard.clinical.workspace") },
       }
     : {
         accountType: "INDEPENDENT_DOCTOR" as const,
         navSections: doctorNavSections,
-        user: { accountType: "INDEPENDENT_DOCTOR" as const, footerSubtitle: "Neurologie", initials: "SB", name: "Dr Samir Benali", roleKey: "dashboard.common.roles.doctor", workspaceSubtitle: "Cabinet HealixDZ" },
+        user: { accountType: "INDEPENDENT_DOCTOR" as const, footerSubtitle: t("dashboard.clinical.doctor.practice"), initials, name: currentUser.data?.fullName || t("dashboard.clinical.doctor.workspace"), roleKey: "dashboard.common.roles.doctor", workspaceSubtitle: t("dashboard.clinical.doctor.workspace") },
       };
 
   if (isLoading) {

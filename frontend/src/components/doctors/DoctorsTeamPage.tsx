@@ -10,8 +10,11 @@ import { ToggleDoctorStatusModal } from "@/components/doctors/ToggleDoctorStatus
 import { DashboardShell } from "@/components/dashboard/layout/DashboardShell";
 import { establishmentNavSections } from "@/components/dashboard/layout/navigation";
 import { StatusBadge } from "@/components/dashboard/shared/StatusBadge";
+import { useCurrentUser } from "@/features/auth/hooks/use-current-user";
+import { useEstablishmentVerificationPrefill } from "@/features/verification/hooks/use-establishment-verification-prefill";
 import { type AffiliatedDoctor } from "@/features/doctors/doctors.types";
 import { useAffiliatedDoctors } from "@/features/doctors/hooks/use-affiliated-doctors";
+import { getAccountInitials } from "@/lib/format/get-account-initials";
 import { useStoredLocale, useTranslation } from "@/lib/i18n";
 import { cn } from "@/lib/utils";
 import { type DashboardStatusTone } from "@/types/dashboard";
@@ -110,7 +113,10 @@ function SkeletonBlock({ className }: { className: string }) {
 
 export function DoctorsTeamPage() {
   const { locale } = useStoredLocale();
-  const { direction } = useTranslation(locale);
+  const { direction, t } = useTranslation(locale);
+  const currentUser = useCurrentUser(undefined, { enabled: true });
+  const prefill = useEstablishmentVerificationPrefill();
+  const initials = getAccountInitials(currentUser.data?.fullName);
   const copy = teamCopy[locale];
   const [isCreateOpen, setCreateOpen] = useState(false);
   const [notice, setNotice] = useState("");
@@ -126,7 +132,7 @@ export function DoctorsTeamPage() {
     accountType: "ESTABLISHMENT" as const,
     navSections: establishmentNavSections,
     titleKey: "dashboard.clinical.nav.team",
-    user: { accountType: "ESTABLISHMENT" as const, footerSubtitle: "Administration", initials: "HE", name: "Healix Clinique", roleKey: "dashboard.common.roles.establishment", workspaceSubtitle: "Clinique El Shifa" },
+    user: { accountType: "ESTABLISHMENT" as const, footerSubtitle: t("dashboard.clinical.administration"), initials, name: currentUser.data?.fullName || t("dashboard.clinical.administration"), roleKey: "dashboard.common.roles.establishment", workspaceSubtitle: prefill.data?.establishment.name || t("dashboard.clinical.workspace") },
   };
 
   return (
