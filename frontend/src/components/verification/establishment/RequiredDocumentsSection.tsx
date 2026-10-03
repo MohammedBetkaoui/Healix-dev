@@ -9,6 +9,7 @@ import {
 import { DocumentUploadCard } from "./DocumentUploadCard";
 
 type RequiredDocumentsSectionProps = {
+  deletingType?: RequiredDocumentDefinition["type"] | null;
   documentStates: Record<string, DocumentUploadState>;
   documents: RequiredDocumentDefinition[];
   errors: FieldErrors<EstablishmentVerificationFormInput>;
@@ -17,13 +18,17 @@ type RequiredDocumentsSectionProps = {
     type: RequiredDocumentDefinition["type"],
     file: File | null,
   ) => void;
+  // Omitted when deletion is not allowed (request under admin review).
+  onDelete?: (type: RequiredDocumentDefinition["type"]) => void;
   t: (key: string) => string;
 };
 
 export function RequiredDocumentsSection({
+  deletingType = null,
   documentStates,
   documents,
   errors,
+  onDelete,
   onFileSelect,
   t,
 }: RequiredDocumentsSectionProps) {
@@ -47,10 +52,15 @@ export function RequiredDocumentsSection({
             <DocumentUploadCard
               key={document.type}
               acceptedFormatsText={t("verification.documents.acceptedFormats")}
+              deleteLabel={t("verification.documents.deleteFile")}
               description={t(document.descriptionKey)}
               error={fieldError?.message as string | undefined}
               fileName={state?.fileName}
+              isDeleting={deletingType === document.type}
               maxSizeText={t("verification.documents.maxSize")}
+              // A documentId means the file is persisted server-side; a file
+              // only picked locally (READY) is simply replaced or re-picked.
+              onDelete={onDelete && state?.documentId ? () => onDelete(document.type) : undefined}
               onFileSelect={(file) => onFileSelect(document.fieldName, document.type, file)}
               replaceLabel={t("verification.documents.replaceFile")}
               selectLabel={t("verification.documents.selectFile")}

@@ -82,6 +82,10 @@ export const verificationAr = {
     maxSize: "الحد الأقصى: 5 MB",
     selectFile: "اختيار ملف",
     replaceFile: "استبدال",
+    deleteFile: "حذف",
+    deleteConfirm: "حذف هذه الوثيقة؟ سيُسحب الملف المرسل نهائيًا من طلبك.",
+    deleteSuccess: "تم حذف الوثيقة بنجاح.",
+    deleteFailed: "تعذر حذف الوثيقة. يرجى إعادة المحاولة.",
     dragDrop: "اسحب الملف هنا أو اضغط للاختيار",
     statuses: {
       MISSING: "غير مضاف",

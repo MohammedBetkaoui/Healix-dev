@@ -30,6 +30,7 @@ import {
 } from "@/features/verification/types/doctor-verification.types";
 import {
   createDoctorVerificationDraft,
+  deleteDoctorVerificationDocument,
   submitDoctorVerification,
   updateDoctorVerificationDraft,
   uploadDoctorVerificationDocument,
@@ -538,6 +539,8 @@ export function DoctorVerificationPage() {
   const [documentStateOverrides, setDocumentStateOverrides] = useState<
     Partial<Record<DoctorDocumentType, DoctorDocumentUploadState>>
   >({});
+  const [deletingDocumentType, setDeletingDocumentType] =
+    useState<DoctorDocumentType | null>(null);
 
   const schema = useMemo(
     () =>
@@ -771,6 +774,40 @@ export function DoctorVerificationPage() {
     }
   }
 
+  // Deletion is immediate on the backend, unlike "Replace" (applied on submit).
+  // It is not offered while the request is under admin review: deleting there
+  // and abandoning the modification would leave the reviewer an incomplete
+  // pending request.
+  async function handleDocumentDelete(type: DoctorDocumentType) {
+    const documentId = documentStates[type]?.documentId;
+
+    if (!documentId || !window.confirm(t("doctorVerification.documents.deleteConfirm"))) {
+      return;
+    }
+
+    setDeletingDocumentType(type);
+    setApiErrorMessage(null);
+
+    try {
+      await deleteDoctorVerificationDocument(documentId);
+      setDocumentStateOverrides((current) => ({
+        ...current,
+        [type]: { status: "MISSING", type },
+      }));
+      await queryClient.invalidateQueries({
+        queryKey: ["verification", "doctor", "prefill"],
+      });
+      setToastMessage(t("doctorVerification.documents.deleteSuccess"));
+      window.setTimeout(() => setToastMessage(null), 3000);
+    } catch (error) {
+      setApiErrorMessage(
+        getErrorMessage(error, t("doctorVerification.documents.deleteFailed")),
+      );
+    } finally {
+      setDeletingDocumentType(null);
+    }
+  }
+
   function handleDocumentSelect(
     fieldName: DoctorDocumentDefinition["fieldName"],
     type: DoctorDocumentDefinition["type"],
@@ -943,7 +980,9 @@ export function DoctorVerificationPage() {
     />,
     <DoctorSubmissionStep
       key="documents-submission"
+      deletingType={deletingDocumentType}
       documentStates={documentStates}
+      onDelete={isPendingReview ? undefined : handleDocumentDelete}
       documents={displayedDocuments}
       errors={errors}
       missingRequiredDocuments={missingRequiredDocuments}

@@ -95,3 +95,15 @@ export async function submitEstablishmentVerification(): Promise<EstablishmentVe
 
   return response.data;
 }
+
+// Only for a document already persisted on the backend (has a documentId).
+// The backend refuses it once the request is VERIFIED or SUSPENDED.
+export async function deleteEstablishmentVerificationDocument(
+  documentId: string,
+): Promise<{ message: string }> {
+  const response = await apiClient.delete<{ message: string }>(
+    `/verification/establishment/document/${documentId}`,
+  );
+
+  return response.data;
+}

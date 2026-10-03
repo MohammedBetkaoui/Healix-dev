@@ -11,10 +11,13 @@ import { StatusBadge } from "@/components/dashboard/shared/StatusBadge";
 
 type DocumentUploadCardProps = {
   acceptedFormatsText: string;
+  deleteLabel: string;
   description: string;
   error?: string;
   fileName?: string;
+  isDeleting?: boolean;
   maxSizeText: string;
+  onDelete?: () => void;
   onFileSelect: (file: File | null) => void;
   replaceLabel: string;
   selectLabel: string;
@@ -42,10 +45,13 @@ function mapStatusTone(status: DocumentUploadStatus) {
 
 export function DocumentUploadCard({
   acceptedFormatsText,
+  deleteLabel,
   description,
   error,
   fileName,
+  isDeleting = false,
   maxSizeText,
+  onDelete,
   onFileSelect,
   replaceLabel,
   selectLabel,
@@ -96,7 +102,7 @@ export function DocumentUploadCard({
               {error ? <p className="mt-2 text-sm font-medium text-[var(--danger-ink)]">{error}</p> : null}
             </div>
           </div>
-          <div className="shrink-0">
+          <div className="flex shrink-0 flex-wrap gap-2">
             <input
               ref={inputRef}
               type="file"
@@ -114,6 +120,18 @@ export function DocumentUploadCard({
             >
               {fileName ? replaceLabel : selectLabel}
             </Button>
+            {/* Only for a document already persisted on the backend. */}
+            {onDelete ? (
+              <Button
+                type="button"
+                variant="outline"
+                className="rounded-full px-4"
+                disabled={isDeleting}
+                onClick={onDelete}
+              >
+                {deleteLabel}
+              </Button>
+            ) : null}
           </div>
         </div>
       </div>

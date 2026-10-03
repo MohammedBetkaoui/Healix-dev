@@ -85,6 +85,10 @@ export const verificationFr = {
     maxSize: "Taille maximale : 5 MB",
     selectFile: "Choisir un fichier",
     replaceFile: "Remplacer",
+    deleteFile: "Supprimer",
+    deleteConfirm: "Supprimer ce document ? Le fichier envoyé sera définitivement retiré de votre demande.",
+    deleteSuccess: "Document supprimé avec succès.",
+    deleteFailed: "Impossible de supprimer le document. Veuillez réessayer.",
     dragDrop: "Deposez votre fichier ici ou cliquez pour selectionner",
     statuses: {
       MISSING: "Non ajoute",

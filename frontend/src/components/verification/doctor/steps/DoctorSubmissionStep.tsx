@@ -17,6 +17,7 @@ import {
 import { DoctorDocumentUploadCard } from "../DoctorDocumentUploadCard";
 
 type DoctorSubmissionStepProps = {
+  deletingType?: DoctorDocumentType | null;
   documentStates: Record<DoctorDocumentType, DoctorDocumentUploadState>;
   documents: DoctorDocumentDefinition[];
   errors: FieldErrors<DoctorVerificationFormInput>;
@@ -26,6 +27,8 @@ type DoctorSubmissionStepProps = {
     type: DoctorDocumentDefinition["type"],
     file: File | null,
   ) => void;
+  // Omitted when deletion is not allowed (request under admin review).
+  onDelete?: (type: DoctorDocumentType) => void;
   register: UseFormRegister<DoctorVerificationFormInput>;
   sectionCompletion: {
     fiscalSocial: boolean;
@@ -38,10 +41,12 @@ type DoctorSubmissionStepProps = {
 };
 
 export function DoctorSubmissionStep({
+  deletingType = null,
   documentStates,
   documents,
   errors,
   missingRequiredDocuments,
+  onDelete,
   onFileSelect,
   register,
   sectionCompletion,
@@ -141,10 +146,19 @@ export function DoctorSubmissionStep({
               <DoctorDocumentUploadCard
                 key={document.type}
                 acceptedFormatsText={t("doctorVerification.documents.acceptedFormats")}
+                deleteLabel={t("doctorVerification.documents.deleteFile")}
                 description={t(document.descriptionKey)}
                 error={fieldError}
                 fileName={state?.fileName}
+                isDeleting={deletingType === document.type}
                 maxSizeText={t("doctorVerification.documents.maxSize")}
+                // A documentId means the file is persisted server-side; a file
+                // only picked locally (READY) is simply replaced or re-picked.
+                onDelete={
+                  onDelete && state?.documentId
+                    ? () => onDelete(document.type)
+                    : undefined
+                }
                 onFileSelect={(file) =>
                   onFileSelect(document.fieldName, document.type, file)
                 }

@@ -29,6 +29,7 @@ import { useCurrentUser } from "@/features/auth/hooks/use-current-user";
 import { useEstablishmentVerificationPrefill } from "@/features/verification/hooks/use-establishment-verification-prefill";
 import {
   createEstablishmentVerificationDraft,
+  deleteEstablishmentVerificationDocument,
   submitEstablishmentVerification,
   updateEstablishmentVerificationDraft,
   uploadEstablishmentVerificationDocument,
@@ -198,6 +199,8 @@ export function EstablishmentVerificationPage() {
   const [documentStateOverrides, setDocumentStateOverrides] = useState<
     Partial<Record<RequiredDocumentType, DocumentUploadState>>
   >({});
+  const [deletingDocumentType, setDeletingDocumentType] =
+    useState<RequiredDocumentType | null>(null);
 
   const schema = useMemo(
     () =>
@@ -372,6 +375,40 @@ export function EstablishmentVerificationPage() {
         type,
       },
     }));
+  };
+
+  // Deletion is immediate on the backend, unlike "Replace" (applied on submit).
+  // It is not offered while the request is under admin review: deleting there
+  // and abandoning the modification would leave the reviewer an incomplete
+  // pending request.
+  const handleDocumentDelete = async (type: RequiredDocumentType) => {
+    const documentId = documentStates[type]?.documentId;
+
+    if (!documentId || !window.confirm(t("verification.documents.deleteConfirm"))) {
+      return;
+    }
+
+    setDeletingDocumentType(type);
+    setApiErrorMessage(null);
+
+    try {
+      await deleteEstablishmentVerificationDocument(documentId);
+      setDocumentStateOverrides((current) => ({
+        ...current,
+        [type]: { status: "MISSING", type },
+      }));
+      await queryClient.invalidateQueries({
+        queryKey: ["verification", "establishment", "prefill"],
+      });
+      setToastMessage(t("verification.documents.deleteSuccess"));
+      window.setTimeout(() => setToastMessage(null), 3000);
+    } catch (error) {
+      setApiErrorMessage(
+        getErrorMessage(error, t("verification.documents.deleteFailed")),
+      );
+    } finally {
+      setDeletingDocumentType(null);
+    }
   };
 
   const onSubmit = handleSubmit(async (values) => {
@@ -584,7 +621,9 @@ export function EstablishmentVerificationPage() {
           />
 
           <RequiredDocumentsSection
+            deletingType={deletingDocumentType}
             documentStates={documentStates}
+            onDelete={isPendingReview ? undefined : handleDocumentDelete}
             documents={requiredDocuments}
             errors={errors}
             onFileSelect={handleDocumentSelect}
