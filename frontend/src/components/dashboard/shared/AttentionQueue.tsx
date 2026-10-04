@@ -2,15 +2,17 @@ import { WorkspaceLink as Link } from "../layout/WorkspaceLink";
 import { ArrowRight, BrainCircuit, CalendarClock, FileWarning, FlaskConical, UserRoundPlus } from "lucide-react";
 import type { TranslationFunction } from "@/lib/i18n";
 
+import { DemoBadge } from "./DemoBadge";
+
 const icons = { biology: FlaskConical, affiliations: UserRoundPlus, appointments: CalendarClock, records: FileWarning, ai: BrainCircuit };
 type AttentionItem = { key: keyof typeof icons; count: number; href: string; priority: boolean };
 
-export function AttentionQueue({ items, t, formatNumber }: { items: readonly AttentionItem[]; t: TranslationFunction; formatNumber: (value: number) => string }) {
+export function AttentionQueue({ items, t, formatNumber, demoBadgeLabel }: { items: readonly AttentionItem[]; t: TranslationFunction; formatNumber: (value: number) => string; demoBadgeLabel?: string }) {
   return (
     <section className="surface-clinical" aria-labelledby="attention-heading">
       <div className="clinical-section-heading">
         <div><h2 id="attention-heading">{t("dashboard.clinical.queue.title")}</h2><p className="clinical-caption mt-1">{t("dashboard.clinical.queue.subtitle")}</p></div>
-        <span className="clinical-demo">{t("dashboard.clinical.demo")}</span>
+        {demoBadgeLabel ? <DemoBadge label={demoBadgeLabel} /> : null}
       </div>
       <ul className="attention-list">
         {items.map((item) => {

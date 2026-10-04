@@ -9,15 +9,13 @@ export const patientsFr = {
   common: { years: "ans", none: "Aucune" },
   header: {
     add: "Ajouter un patient",
-    export: "Exporter",
+    export: "Exporter la page affichée",
     import: "Importer des patients",
+    importComingSoon: "Bientôt disponible",
     kicker: "Registre administratif",
   },
   stats: {
-    total: { title: "Patients enregistrés", description: "Registre administratif", trend: "+8,4% ce trimestre" },
-    newThisMonth: { title: "Nouveaux ce mois", description: "Nouveaux enregistrements", trend: "+124" },
-    consultations: { title: "Consultations réalisées", description: "Suivi clinique documenté", trend: "+16% vs mois dernier" },
-    aiAnalyses: { title: "Analyses IA effectuées", description: "Examens assistés par IA", trend: "+32 cette semaine" },
+    total: { title: "Patients enregistrés", description: "Registre administratif" },
   },
   search: { placeholder: "Nom, ID patient, téléphone, NIN, naissance ou n° dossier hospitalier…" },
   filters: {

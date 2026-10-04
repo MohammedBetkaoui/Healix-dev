@@ -2,6 +2,8 @@ import { WorkspaceLink as Link } from "../layout/WorkspaceLink";
 import { ArrowRight, BrainCircuit } from "lucide-react";
 import type { TranslationFunction } from "@/lib/i18n";
 
+import { DemoBadge } from "./DemoBadge";
+
 type AIActivity = {
   specialties: readonly { key: string; count: number }[];
   completed?: number;
@@ -9,11 +11,12 @@ type AIActivity = {
   review?: number;
 };
 
-export function HealixAIWidget({ activity, t, formatNumber, periodLabel }: {
+export function HealixAIWidget({ activity, t, formatNumber, periodLabel, demoBadgeLabel }: {
   activity: AIActivity;
   t: TranslationFunction;
   formatNumber: (value: number) => string;
   periodLabel?: string;
+  demoBadgeLabel?: string;
 }) {
   const total = activity.specialties.reduce((sum, item) => sum + item.count, 0);
   const statusLabels = [
@@ -23,7 +26,7 @@ export function HealixAIWidget({ activity, t, formatNumber, periodLabel }: {
   return (
     <section className="surface-section ai-widget overflow-hidden" aria-labelledby="ai-heading">
       <div className="clinical-section-heading">
-        <div><h2 id="ai-heading">{t("dashboard.clinical.ai.title")}</h2><p className="clinical-caption mt-1">{t("dashboard.clinical.ai.subtitle")}</p></div>
+        <div><div className="flex flex-wrap items-center gap-2"><h2 id="ai-heading">{t("dashboard.clinical.ai.title")}</h2>{demoBadgeLabel ? <DemoBadge label={demoBadgeLabel} /> : null}</div><p className="clinical-caption mt-1">{t("dashboard.clinical.ai.subtitle")}</p></div>
         <BrainCircuit size={22} strokeWidth={1.7} aria-hidden="true" />
       </div>
       <div className="px-5 py-4">

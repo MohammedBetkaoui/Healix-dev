@@ -22,6 +22,12 @@ export function RegisterSuccessCard({
   const descriptionKey = isDoctorAccount
     ? "register.feedback.successCard.doctorDescription"
     : "register.feedback.successCard.description";
+  // The role dashboard is the product's demo mode. Both pages are gated by
+  // requireAuthenticatedPage, which sends a visitor without a session to /login.
+  const demoHref = isDoctorAccount ? "/doctor/dashboard" : "/establishment/dashboard";
+  const verificationHref = isDoctorAccount
+    ? "/doctor/verification"
+    : "/establishment/verification";
 
   return (
     <div
@@ -44,7 +50,7 @@ export function RegisterSuccessCard({
 
       <div className={styles.successActions}>
         <Link
-          href="/demo"
+          href={demoHref}
           className={styles.successPrimary}
         >
           <svg viewBox="0 0 24 24" fill="none" aria-hidden="true">
@@ -53,7 +59,7 @@ export function RegisterSuccessCard({
           {t("register.feedback.successCard.demoAction")}
         </Link>
         <Link
-          href="/verification"
+          href={verificationHref}
           className={styles.successSecondary}
         >
           <svg viewBox="0 0 24 24" fill="none" aria-hidden="true">

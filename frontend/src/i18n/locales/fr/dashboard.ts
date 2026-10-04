@@ -245,7 +245,11 @@ export const dashboardFr = {
     stats: {
       patients: {
         label: "Mes patients",
-        hint: "+4 ce mois",
+        hint: "Total de votre registre",
+      },
+      appointments: {
+        label: "Rendez-vous aujourd’hui",
+        hint: "{upcoming} à venir",
       },
       analyses: {
         label: "Analyses IA",

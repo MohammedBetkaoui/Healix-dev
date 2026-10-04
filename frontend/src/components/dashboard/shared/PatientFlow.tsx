@@ -1,12 +1,14 @@
 import type { TranslationFunction } from "@/lib/i18n";
 
+import { DemoBadge } from "./DemoBadge";
+
 type FlowStep = { key: "planned" | "arrived" | "waiting" | "consulting" | "completed"; count: number };
 
-export function PatientFlow({ steps, t, formatNumber }: { steps: readonly FlowStep[]; t: TranslationFunction; formatNumber: (value: number) => string }) {
+export function PatientFlow({ steps, t, formatNumber, demoBadgeLabel }: { steps: readonly FlowStep[]; t: TranslationFunction; formatNumber: (value: number) => string; demoBadgeLabel?: string }) {
   const total = Math.max(1, ...steps.map((step) => step.count));
   return (
     <section className="surface-section" aria-labelledby="flow-heading">
-      <div className="clinical-section-heading"><div><h2 id="flow-heading">{t("dashboard.clinical.flow.title")}</h2><p className="clinical-caption mt-1">{t("dashboard.clinical.flow.subtitle")}</p></div></div>
+      <div className="clinical-section-heading"><div><h2 id="flow-heading">{t("dashboard.clinical.flow.title")}</h2><p className="clinical-caption mt-1">{t("dashboard.clinical.flow.subtitle")}</p></div>{demoBadgeLabel ? <DemoBadge label={demoBadgeLabel} /> : null}</div>
       <dl className="patient-flow">
         {steps.map((step) => <div className="flow-step" key={step.key} data-tone={step.key}>
           <dt className="text-[var(--text-secondary)]">{t(`dashboard.clinical.flow.${step.key}`)}</dt>

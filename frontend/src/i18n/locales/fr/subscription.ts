@@ -143,10 +143,8 @@ export const subscriptionFr = {
     generatedLater: "Générée après confirmation",
   },
   mock: {
-    changePlanSoon: "Le changement de plan sera disponible bientôt.",
     paymentRedirect:
       "Redirection vers la passerelle de paiement bientôt disponible.",
-    renewSoon: "Le renouvellement sera disponible bientôt.",
   },
   page: {
     error: "Impossible de charger votre abonnement. Veuillez réessayer.",

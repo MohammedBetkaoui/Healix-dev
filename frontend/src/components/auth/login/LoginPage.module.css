@@ -761,7 +761,20 @@
   cursor: pointer;
 }
 
-.forgotButton:hover,
+.forgotPassword {
+  display: inline-flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  justify-content: flex-end;
+  gap: 0.2rem 0.45rem;
+}
+
+.forgotButton:disabled {
+  color: var(--login-ink-faint);
+  cursor: not-allowed;
+}
+
+.forgotButton:not(:disabled):hover,
 .signupLink:hover {
   color: var(--login-accent);
   text-decoration: underline;

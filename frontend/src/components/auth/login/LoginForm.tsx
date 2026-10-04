@@ -262,12 +262,17 @@ export function LoginForm({ direction, t }: LoginFormProps) {
             <input type="checkbox" {...register("rememberMe")} />
             <span>{t("login.form.rememberMe")}</span>
           </label>
-          <button
-            type="button"
-            className={styles.forgotButton}
-          >
-            {t("login.form.forgotPassword")}
-          </button>
+          {/* No self-service password reset endpoint exists yet. */}
+          <span className={styles.forgotPassword}>
+            <button
+              type="button"
+              className={styles.forgotButton}
+              disabled
+            >
+              {t("login.form.forgotPassword")}
+            </button>
+            <span>{t("login.form.forgotPasswordComingSoon")}</span>
+          </span>
         </div>
 
         <button

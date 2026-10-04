@@ -300,7 +300,6 @@
 .clinical-theme .clinical-section-heading { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 12px; padding: 18px 20px; }
 .clinical-theme .clinical-section-heading h2 { font-size: 1rem; font-weight: 650; }
 .clinical-theme .clinical-caption { color: var(--text-secondary); font-size: .75rem; line-height: 1.6; }
-.clinical-theme .clinical-demo { display: inline-flex; align-items: center; gap: 6px; color: var(--text-secondary); font-size: .7rem; border: 1px dashed var(--border-strong); padding: 3px 8px; border-radius: var(--radius-xs); }
 .clinical-theme .clinical-button { display: inline-flex; min-height: 42px; align-items: center; justify-content: center; gap: 8px; padding: 8px 12px; border: 1px solid var(--border); border-radius: var(--radius-sm); background: var(--surface); color: var(--text-primary); font-size: .8rem; font-weight: 550; }
 .clinical-theme .clinical-button:hover { background: var(--surface-muted); }
 .clinical-theme .clinical-button-primary { background: var(--primary); color: var(--primary-foreground); border-color: var(--primary); }
@@ -332,7 +331,6 @@
 .clinical-theme .operational-metric[data-tone="medical"] { background: var(--medical-soft); }
 .clinical-theme .operational-metric[data-tone="ai"] .metric-value,
 .clinical-theme .operational-metric[data-tone="ai"] dt svg { color: var(--ai); }
-.clinical-theme .doctor-metrics { grid-template-columns: repeat(3, minmax(0, 1fr)); }
 .clinical-theme .operational-metric[data-tone="warning"] .metric-value { color: var(--warning-ink); }
 .clinical-theme .metric-value { font-size: 2rem; font-weight: 600; line-height: 1.25; letter-spacing: -.035em; color: var(--text-primary); }
 .clinical-theme .attention-list { padding: 0 20px 8px; }
@@ -394,8 +392,6 @@
   .clinical-theme .operational-metrics { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .clinical-theme .operational-metric:nth-child(2) { border-inline-end: 0; }
   .clinical-theme .operational-metric:nth-child(-n+2) { border-bottom: 1px solid var(--border); }
-  .clinical-theme .doctor-metrics .operational-metric:first-child { grid-column: 1 / -1; border-inline-end: 0; }
-  .clinical-theme .doctor-metrics .operational-metric:nth-child(2) { border-inline-end: 1px solid var(--border); border-bottom: 0; }
   .clinical-theme .metric-value { font-size: 1.75rem; }
   .clinical-theme .clinical-header-inner { gap: 4px; padding-inline: 12px; min-height: 60px; }
   .clinical-theme .workspace-search-trigger { width: 42px; justify-content: center; padding: 8px; border-color: transparent; background: transparent; }

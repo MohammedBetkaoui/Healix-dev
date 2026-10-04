@@ -139,9 +139,7 @@ export const subscriptionAr = {
     generatedLater: "يتم إنشاؤه بعد التأكيد",
   },
   mock: {
-    changePlanSoon: "تغيير الباقة سيكون متاحًا قريبًا.",
     paymentRedirect: "إعادة التوجيه إلى بوابة الدفع ستكون متاحة قريبًا.",
-    renewSoon: "تجديد الاشتراك سيكون متاحًا قريبًا.",
   },
   page: {
     error: "تعذر تحميل اشتراكك. يرجى إعادة المحاولة.",

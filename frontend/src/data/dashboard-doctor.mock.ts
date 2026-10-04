@@ -1,10 +1,11 @@
 import type { DashboardStatusTone } from "@/types/dashboard";
 
-/** Local presentation data only. Real identity/account status is fetched separately.
+/** Local presentation data only. Real identity/account status, the patient total and
+ * today's appointments are fetched separately; everything here is badged as demo.
  * Keep all demo volumes here, never combine them with patient API responses. */
 export const doctorDemo = {
   source: "demo",
-  metrics: { patients: 36, analyses: 89, reports: 24 },
+  metrics: { analyses: 89, reports: 24 },
   activity: [
     { day: -29, primary: 8, secondary: 12 },
     { day: -23, primary: 14, secondary: 16 },

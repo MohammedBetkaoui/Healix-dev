@@ -5,7 +5,8 @@ import { useMemo, useState } from "react";
 import { AdminShell } from "@/components/admin/layout/AdminShell";
 import { Button } from "@/components/ui/button";
 import { useAdminVerifications } from "@/features/admin/hooks/use-admin-verifications";
-import { formatAdminDateTime } from "@/lib/date-format";
+import { downloadCsv } from "@/lib/csv";
+import { formatAdminDateTime, getLocalDateStamp } from "@/lib/date-format";
 import { useStoredLocale, useTranslation } from "@/lib/i18n";
 import {
   type AdminVerificationListItem,
@@ -43,47 +44,6 @@ function getDerivedPriority(
   }
 
   return "NORMAL";
-}
-
-// Cells starting with = + - @ (or tab/CR) are run as formulas by Excel, and
-// requester names, emails and wilayas are user-supplied: prefix them with an
-// apostrophe (OWASP CSV injection guidance). Purely numeric values such as
-// "+213 555 12 34 56" cannot hold a formula and are left untouched.
-const csvFormulaTrigger = /^[=+\-@\t\r]/;
-const csvHarmlessNumeric = /^[+-]?[\d\s().-]+$/;
-
-function toCsvCell(value: string | number) {
-  let text = String(value);
-
-  if (csvFormulaTrigger.test(text) && !csvHarmlessNumeric.test(text)) {
-    text = `'${text}`;
-  }
-
-  return /[",\n\r]/.test(text) ? `"${text.replace(/"/g, '""')}"` : text;
-}
-
-function downloadCsv(rows: (string | number)[][], fileName: string) {
-  const csv = rows.map((row) => row.map(toCsvCell).join(",")).join("\r\n");
-  // The BOM makes Excel read the file as UTF-8 (Arabic headers and names).
-  const blob = new Blob([`\uFEFF${csv}`], { type: "text/csv;charset=utf-8;" });
-  const url = URL.createObjectURL(blob);
-  const link = document.createElement("a");
-  link.href = url;
-  link.download = fileName;
-  document.body.appendChild(link);
-  link.click();
-  link.remove();
-  // Revoked on the next tick: revoking synchronously can cancel the
-  // download in some browsers.
-  window.setTimeout(() => URL.revokeObjectURL(url), 0);
-}
-
-// Local date (not toISOString, which is UTC) so the file name matches the
-// admin's calendar day.
-function getLocalDateStamp(date: Date) {
-  const month = String(date.getMonth() + 1).padStart(2, "0");
-  const day = String(date.getDate()).padStart(2, "0");
-  return `${date.getFullYear()}-${month}-${day}`;
 }
 
 export function AdminVerificationsPage() {

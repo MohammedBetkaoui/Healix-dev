@@ -14,6 +14,8 @@ import {
   toPatientBloodGroupCode,
 } from "@/features/admin/api/admin-patients.api";
 import { useAdminPatients } from "@/features/admin/hooks/use-admin-patients";
+import { downloadCsv } from "@/lib/csv";
+import { getLocalDateStamp } from "@/lib/date-format";
 import { useStoredLocale, useTranslation } from "@/lib/i18n";
 import { cn } from "@/lib/utils";
 import { type AdminPatientsQuery } from "@/types/admin";
@@ -203,6 +205,34 @@ export function AdminPatientsPage() {
     });
   }, [filters.ageGroup, filters.registeredAt, patients]);
 
+  // Browser-side export of the rows currently displayed (this page, after
+  // filters), with the columns of the table. lastVisit is left out: it has
+  // no data source yet and is always empty. Not recorded in the audit log.
+  const exportDisplayedPage = () => {
+    const headers = [
+      t("patients.table.columns.fullName"),
+      t("patients.drawer.fields.email"),
+      t("patients.table.columns.id"),
+      t("patients.table.columns.gender"),
+      t("patients.table.columns.birthDate"),
+      t("patients.table.columns.assignedDoctor"),
+      t("patients.table.columns.status"),
+      t("patients.table.columns.phone"),
+    ];
+    const rows = filteredPatients.map((patient) => [
+      `${patient.firstName} ${patient.lastName}`,
+      patient.email,
+      patient.id,
+      t(`patients.genders.${patient.gender}`),
+      patient.birthDate.slice(0, 10),
+      patient.assignedDoctor,
+      t(`patients.statuses.${patient.status}`),
+      patient.phone,
+    ]);
+
+    downloadCsv([headers, ...rows], `patients-page-${page}-${getLocalDateStamp(new Date())}.csv`);
+  };
+
   const totalPages = Math.max(1, data?.meta.totalPages ?? 1);
   const canGoPrevious = page > 1;
   const canGoNext = page < totalPages;
@@ -215,7 +245,9 @@ export function AdminPatientsPage() {
       <div className="space-y-6">
         <PatientsHeader
           accountType="ESTABLISHMENT"
+          isExportDisabled={filteredPatients.length === 0}
           onAddPatient={() => undefined}
+          onExport={exportDisplayedPage}
           t={t}
         />
 
@@ -242,7 +274,7 @@ export function AdminPatientsPage() {
           </div>
         </section>
 
-        <PatientsStats patients={filteredPatients} t={t} />
+        {data ? <PatientsStats total={data.meta.total} t={t} /> : null}
 
         <PatientsFilters
           direction={direction}

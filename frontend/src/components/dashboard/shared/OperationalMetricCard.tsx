@@ -1,12 +1,18 @@
 import type { LucideIcon } from "lucide-react";
 
-export function OperationalMetricCard({ label, value, denominator, hint, icon: Icon, tone = "default" }: {
-  label: string; value: string; denominator?: string; hint: string; icon: LucideIcon; tone?: "default" | "medical" | "warning" | "ai";
+import { DemoBadge } from "./DemoBadge";
+
+export function OperationalMetricCard({ label, value, denominator, hint, icon: Icon, tone = "default", demoBadgeLabel }: {
+  label: string; value: string; denominator?: string; hint: string; icon: LucideIcon; tone?: "default" | "medical" | "warning" | "ai"; demoBadgeLabel?: string;
 }) {
   return (
     <div className="operational-metric" data-tone={tone}>
       <dt className="flex items-center justify-between gap-2 text-xs font-medium text-[var(--text-secondary)]">
-        {label}<Icon size={17} strokeWidth={1.8} aria-hidden="true" className="shrink-0" />
+        <span className="flex min-w-0 flex-wrap items-center gap-1.5">
+          {label}
+          {demoBadgeLabel ? <DemoBadge label={demoBadgeLabel} /> : null}
+        </span>
+        <Icon size={17} strokeWidth={1.8} aria-hidden="true" className="shrink-0" />
       </dt>
       <dd className="mt-3">
         <bdi dir="ltr">

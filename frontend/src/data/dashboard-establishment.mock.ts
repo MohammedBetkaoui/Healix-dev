@@ -1,11 +1,13 @@
 import type { DashboardStatusTone } from "@/types/dashboard";
 
 /** Presentation-only fixtures. Never merge these with API responses or interpret
- * them as patient alerts. The dashboard labels this entire activity area as demo.
- * Account identity and verification are supplied independently by existing hooks. */
+ * them as patient alerts. Every widget fed from here carries the demo badge: the
+ * Appointment.status enum has no arrived/waiting state and no aggregate exists for
+ * results. Today's appointments, the doctor count, account identity and verification
+ * are supplied independently by existing hooks. */
 export const establishmentDemo = {
   source: "demo",
-  metrics: { planned: 24, arrived: 18, upcoming: 6, waiting: 7, waitingMinutes: 14, doctorsActive: 11, doctorsTotal: 14, results: 8, priorityResults: 2 },
+  metrics: { waiting: 7, waitingMinutes: 14, results: 8, priorityResults: 2 },
   attention: [
     { key: "biology", count: 3, href: "#lab", priority: true },
     { key: "affiliations", count: 2, href: "/establishment/doctors", priority: false },

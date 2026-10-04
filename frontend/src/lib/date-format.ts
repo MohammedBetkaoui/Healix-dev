@@ -14,6 +14,14 @@ function parseDate(value: string | null | undefined): Date | null {
   return Number.isNaN(date.getTime()) ? null : date;
 }
 
+// YYYY-MM-DD in local time (not toISOString, which is UTC) so export file
+// names match the admin's calendar day.
+export function getLocalDateStamp(date: Date) {
+  const month = String(date.getMonth() + 1).padStart(2, "0");
+  const day = String(date.getDate()).padStart(2, "0");
+  return `${date.getFullYear()}-${month}-${day}`;
+}
+
 export function formatAdminDateTime(
   value: string | null | undefined,
   locale: Locale,

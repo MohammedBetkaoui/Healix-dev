@@ -192,6 +192,23 @@ export function SubscriptionPage({ accountType }: SubscriptionPageProps) {
     setIsPaymentModalOpen(true);
   };
 
+  // Direct trigger from the status card: the current plan's own card stays
+  // disabled in the grid. A custom (quote-based) plan has no payment flow.
+  const handleRenew = () => {
+    if (!currentPlan || currentPlan.custom) {
+      return;
+    }
+
+    handleSelectPlan(currentPlan.id);
+  };
+
+  // Any other plan card in the grid below already starts a real checkout.
+  const handleChangePlan = () => {
+    document
+      .getElementById("subscription-plans-heading")
+      ?.scrollIntoView({ behavior: "smooth", block: "start" });
+  };
+
   const handleClosePaymentModal = useCallback(() => {
     setIsPaymentModalOpen(false);
   }, []);
@@ -252,10 +269,8 @@ export function SubscriptionPage({ accountType }: SubscriptionPageProps) {
               context={context}
               currentPlan={currentPlan}
               locale={locale}
-              onChangePlan={() =>
-                showMockToast(t("subscription.mock.changePlanSoon"))
-              }
-              onRenew={() => showMockToast(t("subscription.mock.renewSoon"))}
+              onChangePlan={handleChangePlan}
+              onRenew={handleRenew}
               t={t}
             />
 

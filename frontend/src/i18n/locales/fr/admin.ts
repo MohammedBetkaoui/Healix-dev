@@ -408,7 +408,6 @@ export const adminFr = {
   header: {
     notification: "Notifications",
     role: "SUPER_ADMIN",
-    searchPlaceholder: "Recherche admin mock...",
     secureSession: "Session sécurisée",
     today: "Aujourd'hui",
   },

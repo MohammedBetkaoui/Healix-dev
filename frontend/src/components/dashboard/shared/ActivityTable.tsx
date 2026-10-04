@@ -5,6 +5,7 @@ import {
   type DashboardActivityRow,
 } from "@/types/dashboard";
 
+import { DemoBadge } from "./DemoBadge";
 import { StatusBadge } from "./StatusBadge";
 
 type ActivityTableProps = {
@@ -12,6 +13,7 @@ type ActivityTableProps = {
   rows: DashboardActivityRow[];
   title: string;
   subtitle?: string;
+  demoBadgeLabel?: string;
 };
 
 export function ActivityTable({
@@ -19,11 +21,15 @@ export function ActivityTable({
   rows,
   title,
   subtitle,
+  demoBadgeLabel,
 }: ActivityTableProps) {
   return (
     <section className="clinical-table min-w-0 overflow-hidden rounded-xl border border-[var(--line)] bg-[var(--panel)]/94 shadow-sm">
       <div className="border-b border-[var(--line-soft)] px-6 py-5">
-        <h2 className="font-[var(--font-auth-display)] text-[1.2rem] font-medium text-[var(--ink)]">{title}</h2>
+        <div className="flex flex-wrap items-center gap-2">
+          <h2 className="font-[var(--font-auth-display)] text-[1.2rem] font-medium text-[var(--ink)]">{title}</h2>
+          {demoBadgeLabel ? <DemoBadge label={demoBadgeLabel} /> : null}
+        </div>
         {subtitle ? <p className="mt-1 text-xs text-[var(--ink-soft)]">{subtitle}</p> : null}
       </div>
       <div className="overflow-x-auto" role="region" aria-label={title} tabIndex={0}>

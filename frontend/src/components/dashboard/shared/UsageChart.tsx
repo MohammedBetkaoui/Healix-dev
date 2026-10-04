@@ -3,7 +3,9 @@
 import { useId } from "react";
 import { type DashboardBarPoint, type DashboardLinePoint } from "@/types/dashboard";
 
-type UsageChartProps = { variant?: "default" | "clinical" } & (
+import { DemoBadge } from "./DemoBadge";
+
+type UsageChartProps = { variant?: "default" | "clinical"; demoBadgeLabel?: string } & (
   | {
       data: DashboardLinePoint[];
       legendPrimary: string;
@@ -74,7 +76,10 @@ export function UsageChart(props: UsageChartProps) {
     return (
       <section className="relative overflow-hidden rounded-xl border border-[var(--line)] bg-[var(--panel)]/94 p-6 shadow-sm">
         <div className="mb-6">
-          <h2 className="font-[var(--font-auth-display)] text-[1.2rem] font-medium text-[var(--ink)]">{props.title}</h2>
+          <div className="flex flex-wrap items-center gap-2">
+            <h2 className="font-[var(--font-auth-display)] text-[1.2rem] font-medium text-[var(--ink)]">{props.title}</h2>
+            {props.demoBadgeLabel ? <DemoBadge label={props.demoBadgeLabel} /> : null}
+          </div>
           <p className="mt-1 text-sm text-[var(--ink-soft)]">{props.subtitle}</p>
         </div>
         <div className="relative flex h-[252px] items-end justify-between gap-3 border-b border-dashed border-[var(--line)] px-2 pt-2">
@@ -151,7 +156,10 @@ export function UsageChart(props: UsageChartProps) {
     <section className={isClinical ? "surface-section clinical-usage-chart" : "rounded-xl border border-[var(--line)] bg-[var(--panel)]/94 p-6 shadow-sm"}>
       <div className={isClinical ? "clinical-section-heading" : "mb-6 flex flex-wrap items-start justify-between gap-4"}>
         <div>
-          <h2 className="font-[var(--font-auth-display)] text-[1.2rem] font-medium text-[var(--ink)]">{props.title}</h2>
+          <div className="flex flex-wrap items-center gap-2">
+            <h2 className="font-[var(--font-auth-display)] text-[1.2rem] font-medium text-[var(--ink)]">{props.title}</h2>
+            {props.demoBadgeLabel ? <DemoBadge label={props.demoBadgeLabel} /> : null}
+          </div>
           <p className={isClinical ? "clinical-caption mt-1" : "mt-1 text-sm text-[var(--ink-soft)]"}>{props.subtitle}</p>
         </div>
         <div className={isClinical ? "clinical-caption rounded-md bg-[var(--surface-muted)] px-3 py-2" : "inline-flex items-center rounded-full border border-[var(--line)] bg-[var(--panel-soft)] px-4 py-2 font-[var(--font-auth-mono)] text-[0.66rem] font-medium text-[var(--ink-soft)]"}>

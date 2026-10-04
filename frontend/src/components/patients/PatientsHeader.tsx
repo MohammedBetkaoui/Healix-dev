@@ -8,13 +8,17 @@ import { type PatientAccountType } from "@/types/patient";
 
 type PatientsHeaderProps = {
   accountType: PatientAccountType;
+  isExportDisabled: boolean;
   onAddPatient: () => void;
+  onExport: () => void;
   t: TranslationFunction;
 };
 
 export function PatientsHeader({
   accountType,
+  isExportDisabled,
   onAddPatient,
+  onExport,
   t,
 }: PatientsHeaderProps) {
   const title =
@@ -43,11 +47,20 @@ export function PatientsHeader({
         </div>
 
         <div className="flex flex-col gap-2 sm:flex-row">
-          <Button variant="outline" className="rounded-xl">
+          {/* No bulk-import endpoint exists yet (only single-patient creation). */}
+          <Button variant="outline" className="rounded-xl" disabled>
             <FileUp className="h-4 w-4" />
             {t("patients.header.import")}
+            <span className="text-xs font-normal text-muted-foreground">
+              {t("patients.header.importComingSoon")}
+            </span>
           </Button>
-          <Button variant="outline" className="rounded-xl">
+          <Button
+            variant="outline"
+            className="rounded-xl"
+            disabled={isExportDisabled}
+            onClick={onExport}
+          >
             <Download className="h-4 w-4" />
             {t("patients.header.export")}
           </Button>

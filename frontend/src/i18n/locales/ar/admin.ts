@@ -391,7 +391,6 @@ export const adminAr = {
   header: {
     notification: "الإشعارات",
     role: "SUPER_ADMIN",
-    searchPlaceholder: "بحث إداري تجريبي...",
     secureSession: "جلسة آمنة",
     today: "اليوم",
   },

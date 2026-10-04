@@ -241,7 +241,11 @@ export const dashboardAr = {
     stats: {
       patients: {
         label: "مرضاي",
-        hint: "+4 هذا الشهر",
+        hint: "إجمالي سجل مرضاكم",
+      },
+      appointments: {
+        label: "مواعيد اليوم",
+        hint: "قادمة: {upcoming}",
       },
       analyses: {
         label: "تحاليل الذكاء الاصطناعي",

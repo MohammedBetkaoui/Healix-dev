@@ -9,15 +9,13 @@ export const patientsAr = {
   common: { years: "سنة", none: "لا يوجد" },
   header: {
     add: "إضافة مريض",
-    export: "تصدير",
+    export: "تصدير الصفحة المعروضة",
     import: "استيراد المرضى",
+    importComingSoon: "متاح قريبًا",
     kicker: "السجل الإداري",
   },
   stats: {
-    total: { title: "المرضى المسجلون", description: "السجل الإداري", trend: "+8.4% هذا الثلاثي" },
-    newThisMonth: { title: "الجدد هذا الشهر", description: "تسجيلات جديدة", trend: "+124" },
-    consultations: { title: "الاستشارات المنجزة", description: "متابعة سريرية موثقة", trend: "+16% مقارنة بالشهر الماضي" },
-    aiAnalyses: { title: "تحاليل الذكاء الاصطناعي", description: "فحوصات مدعومة بالذكاء الاصطناعي", trend: "+32 هذا الأسبوع" },
+    total: { title: "المرضى المسجلون", description: "السجل الإداري" },
   },
   search: { placeholder: "الاسم، رقم المريض، الهاتف، رقم التعريف، الميلاد أو رقم الملف…" },
   filters: {

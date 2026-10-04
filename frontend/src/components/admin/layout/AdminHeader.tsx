@@ -4,16 +4,13 @@ import {
   Bell,
   CalendarDays,
   ChevronDown,
-  Command,
   Menu,
-  Search,
   ShieldCheck,
 } from "lucide-react";
 
 import { LanguageSwitcher } from "@/components/shared/LanguageSwitcher";
 import { DashboardThemeControl } from "@/components/dashboard/layout/DashboardThemeControl";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
 import { type Locale } from "@/i18n";
 import { type Direction, type TranslationFunction } from "@/lib/i18n";
 import { cn } from "@/lib/utils";
@@ -82,36 +79,6 @@ export function AdminHeader({
           </div>
         </div>
 
-        <div className="hidden min-w-[200px] max-w-sm flex-1 2xl:block">
-          <div className="relative">
-            <Search
-              className={cn(
-                "absolute top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground",
-                direction === "rtl" ? "right-4" : "left-4",
-              )}
-              aria-hidden="true"
-            />
-            <Input
-              type="search"
-              dir={direction}
-              className={cn(
-                "h-12 rounded-2xl border-border bg-card text-start shadow-sm shadow-slate-950/5 transition focus-visible:border-[var(--accent-line)] focus-visible:ring-ring",
-                direction === "rtl" ? "pr-11 pl-20" : "pl-11 pr-20",
-              )}
-              placeholder={t("admin.header.searchPlaceholder")}
-            />
-            <span
-              className={cn(
-                "pointer-events-none absolute top-1/2 hidden -translate-y-1/2 items-center gap-1 rounded-lg border border-border bg-muted px-2 py-1 text-[11px] font-semibold text-muted-foreground xl:flex",
-                direction === "rtl" ? "left-3" : "right-3",
-              )}
-            >
-              <Command className="h-3 w-3" aria-hidden="true" />
-              K
-            </span>
-          </div>
-        </div>
-
         <div className="hidden items-center gap-2 2xl:flex">
           <div className="inline-flex items-center gap-2 rounded-lg border border-[var(--accent-line)] bg-[var(--accent-soft)] px-3 py-2 text-xs font-semibold text-[var(--accent-dark)]">
             <ShieldCheck className="h-4 w-4" aria-hidden="true" />
@@ -167,34 +134,14 @@ export function AdminHeader({
           <ChevronDown className="h-4 w-4 text-muted-foreground" aria-hidden="true" />
         </div>
       </div>
-      <div className="grid gap-3 border-t border-border px-4 py-3 lg:hidden">
-        <div className="relative">
-          <Search
-            className={cn(
-              "absolute top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground",
-              direction === "rtl" ? "right-3" : "left-3",
-            )}
-            aria-hidden="true"
-          />
-          <Input
-            type="search"
-            dir={direction}
-            className={cn(
-              "h-11 rounded-2xl border-border bg-card text-start shadow-sm",
-              direction === "rtl" ? "pr-10" : "pl-10",
-            )}
-            placeholder={t("admin.header.searchPlaceholder")}
-          />
-        </div>
-        <div className="flex flex-wrap items-center justify-between gap-2 lg:hidden">
-          <LanguageSwitcher
-            locale={locale}
-            onLocaleChange={onLocaleChange}
-            t={t}
-            variant="compact"
-          />
-          <div className="sm:hidden"><DashboardThemeControl t={t} /></div>
-        </div>
+      <div className="flex flex-wrap items-center justify-between gap-2 border-t border-border px-4 py-3 lg:hidden">
+        <LanguageSwitcher
+          locale={locale}
+          onLocaleChange={onLocaleChange}
+          t={t}
+          variant="compact"
+        />
+        <div className="sm:hidden"><DashboardThemeControl t={t} /></div>
       </div>
     </header>
   );

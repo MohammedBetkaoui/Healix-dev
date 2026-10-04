@@ -1,6 +1,6 @@
 "use client";
 
-import { BadgeCheck, BrainCircuit, ClipboardPlus, FileText, Info, Plus, ScanLine } from "lucide-react";
+import { BadgeCheck, BrainCircuit, CalendarClock, ClipboardPlus, FileText, Info, Plus, ScanLine } from "lucide-react";
 
 import { doctorNavSections } from "@/components/dashboard/layout/navigation";
 import { DashboardShell } from "@/components/dashboard/layout/DashboardShell";
@@ -13,7 +13,9 @@ import { UsageChart } from "@/components/dashboard/shared/UsageChart";
 import { WorkspaceStatus } from "@/components/dashboard/shared/WorkspaceStatus";
 import { getDashboardAccountStatusPresentation } from "@/components/dashboard/shared/account-status-presentation";
 import { doctorDemo } from "@/data/dashboard-doctor.mock";
+import { useTodayAppointments } from "@/features/appointments/hooks/use-today-appointments";
 import { useCurrentUser } from "@/features/auth/hooks/use-current-user";
+import { usePatients } from "@/features/patients/hooks/use-patients";
 import { getAccountInitials } from "@/lib/format/get-account-initials";
 import { useStoredLocale, useTranslation } from "@/lib/i18n";
 import type { DashboardActivityColumn, DashboardActivityRow } from "@/types/dashboard";
@@ -38,6 +40,12 @@ export function DoctorDashboard() {
   const initials = getAccountInitials(currentUser.data?.fullName);
   const numberFormat = new Intl.NumberFormat(locale === "ar" ? "ar-DZ" : "fr-DZ");
   const formatNumber = (value: number) => numberFormat.format(value);
+  // "—" until the API answers (or if it fails), like the agenda metrics.
+  const formatCount = (value: number | undefined) => (value === undefined ? "—" : formatNumber(value));
+  const demoBadgeLabel = t("dashboard.common.demoBadge");
+  // limit 1: only meta.total is read.
+  const patients = usePatients({ limit: 1 });
+  const todayAppointments = useTodayAppointments();
 
   const columns: DashboardActivityColumn[] = [
     { key: "action", label: t("dashboard.doctor.table.columns.action") },
@@ -95,27 +103,31 @@ export function DoctorDashboard() {
 
         <div className="flex items-start gap-2 border-s-2 border-[var(--border-strong)] ps-3 text-xs leading-relaxed text-[var(--text-secondary)]" role="note">
           <Info size={15} strokeWidth={1.8} className="mt-0.5 shrink-0" aria-hidden="true" />
-          <p><span className="font-semibold">{t("dashboard.clinical.demo")}. </span>{t("dashboard.clinical.demoNotice")}</p>
+          <p><span className="font-semibold">{t("dashboard.clinical.demo")}. </span>{t("dashboard.clinical.demoNotice", { badge: demoBadgeLabel })}</p>
         </div>
 
-        <section aria-labelledby="doctor-metrics-heading" data-source={doctorDemo.source}>
-          <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
-            <h2 id="doctor-metrics-heading" className="text-sm font-semibold">{t("dashboard.clinical.doctor.activity")}</h2>
-            <span className="clinical-caption">{t("dashboard.clinical.doctor.period")}</span>
-          </div>
-          <dl className="operational-metrics doctor-metrics">
+        <section aria-labelledby="doctor-metrics-heading">
+          <h2 id="doctor-metrics-heading" className="mb-3 text-sm font-semibold">{t("dashboard.clinical.doctor.activity")}</h2>
+          <dl className="operational-metrics">
             <OperationalMetricCard
               label={t("dashboard.doctor.stats.patients.label")}
-              value={formatNumber(doctorDemo.metrics.patients)}
+              value={formatCount(patients.data?.meta.total)}
               hint={t("dashboard.doctor.stats.patients.hint")}
               icon={ClipboardPlus}
               tone="medical"
+            />
+            <OperationalMetricCard
+              label={t("dashboard.doctor.stats.appointments.label")}
+              value={formatCount(todayAppointments.count)}
+              hint={t("dashboard.doctor.stats.appointments.hint", { upcoming: formatCount(todayAppointments.upcomingCount) })}
+              icon={CalendarClock}
             />
             <OperationalMetricCard
               label={t("dashboard.doctor.stats.reports.label")}
               value={formatNumber(doctorDemo.metrics.reports)}
               hint={t("dashboard.doctor.stats.reports.hint")}
               icon={FileText}
+              demoBadgeLabel={demoBadgeLabel}
             />
             <OperationalMetricCard
               label={t("dashboard.doctor.stats.analyses.label")}
@@ -123,6 +135,7 @@ export function DoctorDashboard() {
               hint={t("dashboard.doctor.stats.analyses.hint")}
               icon={BrainCircuit}
               tone="ai"
+              demoBadgeLabel={demoBadgeLabel}
             />
           </dl>
         </section>
@@ -137,12 +150,14 @@ export function DoctorDashboard() {
             periodLabel={t("dashboard.common.charts.days30")}
             subtitle={t("dashboard.clinical.doctor.chartSubtitle")}
             title={t("dashboard.clinical.doctor.chartTitle")}
+            demoBadgeLabel={demoBadgeLabel}
           />
           <HealixAIWidget
             activity={doctorDemo.ai}
             periodLabel={t("dashboard.clinical.doctor.analysesPeriod")}
             t={t}
             formatNumber={formatNumber}
+            demoBadgeLabel={demoBadgeLabel}
           />
         </div>
 
@@ -150,7 +165,7 @@ export function DoctorDashboard() {
           columns={columns}
           rows={rows}
           title={t("dashboard.doctor.table.title")}
-          subtitle={t("dashboard.clinical.demo")}
+          demoBadgeLabel={demoBadgeLabel}
         />
 
         <div className="workspace-split">

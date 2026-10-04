@@ -1,6 +1,8 @@
 import { useId } from "react";
 import type { TranslationFunction } from "@/lib/i18n";
 
+import { DemoBadge } from "./DemoBadge";
+
 type ClinicalPoint = { day: number; consultations: number; records: number; exams: number };
 const series = [
   { key: "consultations", color: "var(--chart-primary)", dash: undefined },
@@ -8,7 +10,7 @@ const series = [
   { key: "exams", color: "var(--chart-tertiary)", dash: "2 4" },
 ] as const;
 
-export function ClinicalActivityChart({ points, t, formatNumber }: { points: readonly ClinicalPoint[]; t: TranslationFunction; formatNumber: (value: number) => string }) {
+export function ClinicalActivityChart({ points, t, formatNumber, demoBadgeLabel }: { points: readonly ClinicalPoint[]; t: TranslationFunction; formatNumber: (value: number) => string; demoBadgeLabel?: string }) {
   const id = useId();
   const max = Math.max(10, Math.ceil(Math.max(...points.flatMap((point) => series.map(({ key }) => point[key]))) / 10) * 10);
   const first = points[0]?.day ?? -29;
@@ -20,7 +22,7 @@ export function ClinicalActivityChart({ points, t, formatNumber }: { points: rea
   return (
     <section className="surface-section" aria-labelledby={`${id}-heading`}>
       <div className="clinical-section-heading">
-        <div><h2 id={`${id}-heading`}>{t("dashboard.clinical.chart.title")}</h2><p className="clinical-caption mt-1">{t("dashboard.clinical.chart.subtitle")}</p></div>
+        <div><div className="flex flex-wrap items-center gap-2"><h2 id={`${id}-heading`}>{t("dashboard.clinical.chart.title")}</h2>{demoBadgeLabel ? <DemoBadge label={demoBadgeLabel} /> : null}</div><p className="clinical-caption mt-1">{t("dashboard.clinical.chart.subtitle")}</p></div>
         <div className="flex items-center gap-1 rounded-md bg-[var(--surface-muted)] p-1" role="group" aria-label={t("dashboard.clinical.chart.period")}>
           {[7, 30, 90].map((days) => <button key={days} type="button" disabled={days !== 30} aria-pressed={days === 30}
             title={days !== 30 ? t("dashboard.clinical.chart.unavailable") : undefined}
