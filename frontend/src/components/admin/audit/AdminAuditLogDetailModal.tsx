@@ -11,7 +11,7 @@ import {
   UserRound,
   X,
 } from "lucide-react";
-import { type ComponentType } from "react";
+import { type ComponentType, type ReactNode } from "react";
 
 import { Button } from "@/components/ui/button";
 import { type Locale } from "@/i18n";
@@ -36,6 +36,7 @@ type AdminAuditLogDetailModalProps = {
 };
 
 type DetailItemProps = {
+  action?: ReactNode;
   icon: ComponentType<{ className?: string }>;
   label: string;
   value: string;
@@ -64,7 +65,7 @@ const toneStyles = {
   },
 };
 
-export function DetailItem({ icon: Icon, label, value }: DetailItemProps) {
+export function DetailItem({ action, icon: Icon, label, value }: DetailItemProps) {
   return (
     <div className="rounded-2xl border border-border bg-card p-4 shadow-sm">
       <div className="flex items-start gap-3">
@@ -78,6 +79,7 @@ export function DetailItem({ icon: Icon, label, value }: DetailItemProps) {
           <p className="mt-1 break-words text-sm font-medium leading-6 text-foreground">
             {value}
           </p>
+          {action ? <div className="mt-3">{action}</div> : null}
         </div>
       </div>
     </div>

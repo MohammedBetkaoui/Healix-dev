@@ -15,6 +15,7 @@ import {
   useStoredLocale,
   useTranslation,
 } from "@/lib/i18n";
+import { formatFileSize } from "@/lib/format/format-file-size";
 import { cn } from "@/lib/utils";
 import {
   type AdminVerificationDetailResponse,
@@ -105,14 +106,6 @@ function createInfoSection(
   return Object.fromEntries(
     keys.map((key) => [key, readRecordValue(source, key)]),
   );
-}
-
-function formatFileSize(size: number): string {
-  if (size < 1024 * 1024) {
-    return `${Math.max(1, Math.round(size / 1024))} KB`;
-  }
-
-  return `${(size / (1024 * 1024)).toFixed(1)} MB`;
 }
 
 function AdminDecisionResult({

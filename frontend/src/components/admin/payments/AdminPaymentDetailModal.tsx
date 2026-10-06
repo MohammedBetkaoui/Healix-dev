@@ -6,6 +6,7 @@ import {
   CalendarClock,
   CalendarSearch,
   CreditCard,
+  Eye,
   FileText,
   Hash,
   Mail,
@@ -18,7 +19,7 @@ import {
   Wallet,
   X,
 } from "lucide-react";
-import { type ReactNode, useId } from "react";
+import { type ReactNode, useId, useState } from "react";
 
 import { DetailItem } from "@/components/admin/audit/AdminAuditLogDetailModal";
 import { Button } from "@/components/ui/button";
@@ -26,10 +27,11 @@ import { useAdminPaymentDetail } from "@/features/admin/hooks/use-admin-payment-
 import { type Locale } from "@/i18n";
 import { formatAdminDateTime } from "@/lib/date-format";
 import { type TranslationFunction } from "@/lib/i18n";
-import { type AdminPaymentListItem } from "@/types/admin";
+import { type AdminPaymentListItem, type AdminPaymentProof } from "@/types/admin";
 
 import { formatPaymentAmount } from "./payment-format";
 import { PaymentMethodBadge } from "./PaymentMethodBadge";
+import { PaymentProofModal } from "./PaymentProofModal";
 import { PaymentStatusBadge } from "./PaymentStatusBadge";
 
 type AdminPaymentDetailModalProps = {
@@ -51,26 +53,54 @@ function DetailSection({ children, title }: { children: ReactNode; title: string
 }
 
 export function AdminPaymentDetailModal({
+  onClose,
   payment,
   ...dialogProps
 }: AdminPaymentDetailModalProps) {
+  // Held here so the viewer renders beside the dialog, not inside it (its
+  // Escape key must not reach the dialog's handler). This component stays
+  // mounted between payments, so closing the dialog clears it.
+  const [previewProof, setPreviewProof] = useState<AdminPaymentProof | null>(null);
+
   // Mounted only while a payment is targeted; keyed by id so switching
   // payments never shows the previous one's details.
   if (!payment) {
     return null;
   }
 
-  return <AdminPaymentDetailDialog key={payment.id} payment={payment} {...dialogProps} />;
+  return (
+    <>
+      <AdminPaymentDetailDialog
+        key={payment.id}
+        onClose={() => {
+          setPreviewProof(null);
+          onClose();
+        }}
+        onPreviewProof={setPreviewProof}
+        payment={payment}
+        {...dialogProps}
+      />
+      <PaymentProofModal
+        onClose={() => setPreviewProof(null)}
+        paymentId={payment.id}
+        proof={previewProof}
+        t={dialogProps.t}
+      />
+    </>
+  );
 }
 
-// Read-only: no approve/reject action and no access to the proof file itself
-// (only its name), both left to a separate workflow step.
+// Read-only: no approve/reject action, left to a separate workflow step.
 function AdminPaymentDetailDialog({
   locale,
   onClose,
+  onPreviewProof,
   payment,
   t,
-}: Omit<AdminPaymentDetailModalProps, "payment"> & { payment: AdminPaymentListItem }) {
+}: Omit<AdminPaymentDetailModalProps, "payment"> & {
+  onPreviewProof: (proof: AdminPaymentProof) => void;
+  payment: AdminPaymentListItem;
+}) {
   const titleId = useId();
   const { data, isError, isLoading } = useAdminPaymentDetail(payment.id);
   const formatDate = (value: string | null) => (value ? formatAdminDateTime(value, locale) : "-");
@@ -153,8 +183,28 @@ function AdminPaymentDetailDialog({
                   <DetailItem icon={CalendarClock} label={t("admin.payments.detail.fields.createdAt")} value={formatDate(data.createdAt)} />
                   <DetailItem icon={CalendarCheck} label={t("admin.payments.detail.fields.paidAt")} value={formatDate(data.paidAt)} />
                   <DetailItem icon={CalendarSearch} label={t("admin.payments.detail.fields.reviewedAt")} value={formatDate(data.reviewedAt)} />
-                  {/* File name only: viewing/downloading the proof is out of scope. */}
-                  <DetailItem icon={FileText} label={t("admin.payments.detail.fields.proof")} value={data.proof?.originalName ?? t("admin.payments.detail.fields.noProof")} />
+                  {data.proof ? (
+                    <DetailItem
+                      icon={FileText}
+                      label={t("admin.payments.detail.fields.proof")}
+                      value={data.proof.originalName}
+                      action={
+                        <Button
+                          type="button"
+                          variant="outline"
+                          size="sm"
+                          onClick={() => {
+                            if (data.proof) onPreviewProof(data.proof);
+                          }}
+                        >
+                          <Eye className="h-4 w-4" aria-hidden="true" />
+                          {t("admin.actions.viewDocument")}
+                        </Button>
+                      }
+                    />
+                  ) : (
+                    <DetailItem icon={FileText} label={t("admin.payments.detail.fields.proof")} value={t("admin.payments.detail.fields.noProof")} />
+                  )}
                 </div>
               </DetailSection>
 

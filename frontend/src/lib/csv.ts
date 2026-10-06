@@ -1,3 +1,5 @@
+import { downloadBlob } from "./download-blob";
+
 // Cells starting with = + - @ (or tab/CR) are run as formulas by Excel, and
 // exported values (names, emails, wilayas…) are user-supplied: prefix them
 // with an apostrophe (OWASP CSV injection guidance). Purely numeric values
@@ -18,15 +20,5 @@ function toCsvCell(value: string | number) {
 export function downloadCsv(rows: (string | number)[][], fileName: string) {
   const csv = rows.map((row) => row.map(toCsvCell).join(",")).join("\r\n");
   // The BOM makes Excel read the file as UTF-8 (Arabic headers and names).
-  const blob = new Blob([`﻿${csv}`], { type: "text/csv;charset=utf-8;" });
-  const url = URL.createObjectURL(blob);
-  const link = document.createElement("a");
-  link.href = url;
-  link.download = fileName;
-  document.body.appendChild(link);
-  link.click();
-  link.remove();
-  // Revoked on the next tick: revoking synchronously can cancel the
-  // download in some browsers.
-  window.setTimeout(() => URL.revokeObjectURL(url), 0);
+  downloadBlob(new Blob([`\uFEFF${csv}`], { type: "text/csv;charset=utf-8;" }), fileName);
 }
