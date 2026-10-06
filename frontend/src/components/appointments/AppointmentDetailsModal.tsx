@@ -22,8 +22,8 @@ import { CreateConsultationModal } from "@/components/patients/CreateConsultatio
 import { type Appointment, type AppointmentStatus } from "@/features/appointments/appointments.types";
 import { useUpdateAppointment } from "@/features/appointments/hooks/use-update-appointment";
 import { type Locale } from "@/i18n";
-import { getServerErrorMessage } from "@/lib/api/get-server-error-message";
-import { type Direction } from "@/lib/i18n";
+import { getMutationErrorMessage } from "@/lib/api/get-mutation-error-message";
+import { type Direction, useTranslation } from "@/lib/i18n";
 import { type DashboardStatusTone } from "@/types/dashboard";
 
 type AppointmentDetailsModalProps = {
@@ -218,6 +218,7 @@ function AppointmentDetailsModalContent({
   onUpdated,
 }: AppointmentDetailsModalContentProps) {
   const copy = detailsCopy[locale];
+  const { t } = useTranslation(locale);
   const baseId = useId();
   const isEstablishment = accountType === "ESTABLISHMENT";
   const updateMutation = useUpdateAppointment();
@@ -388,7 +389,7 @@ function AppointmentDetailsModalContent({
                 {updateMutation.isError ? (
                   <p role="alert" className="flex items-start gap-2 rounded-[var(--radius-sm)] border border-[var(--danger-line)] bg-[var(--danger-soft)] px-3 py-2.5 text-xs leading-relaxed text-[var(--danger-ink)]">
                     <TriangleAlert size={15} strokeWidth={1.8} className="mt-px shrink-0" aria-hidden="true" />
-                    {getServerErrorMessage(updateMutation.error) ?? copy.updateError}
+                    {getMutationErrorMessage(updateMutation.error, t, copy.updateError)}
                   </p>
                 ) : null}
 
@@ -481,7 +482,7 @@ function AppointmentDetailsModalContent({
                 {updateMutation.isError ? (
                   <p role="alert" className="flex items-start gap-2 rounded-[var(--radius-sm)] border border-[var(--danger-line)] bg-[var(--danger-soft)] px-3 py-2.5 text-xs leading-relaxed text-[var(--danger-ink)]">
                     <TriangleAlert size={15} strokeWidth={1.8} className="mt-px shrink-0" aria-hidden="true" />
-                    {getServerErrorMessage(updateMutation.error) ?? copy.updateError}
+                    {getMutationErrorMessage(updateMutation.error, t, copy.updateError)}
                   </p>
                 ) : null}
               </div>

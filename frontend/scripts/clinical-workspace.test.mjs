@@ -28,9 +28,8 @@ test("presentation data is explicitly demo, with a consistent patient flow", () 
   assert.equal(establishmentDemo.source, "demo");
   const { metrics, flow } = establishmentDemo;
   const count = (key) => flow.find((step) => step.key === key).count;
-  assert.equal(metrics.planned, metrics.arrived + metrics.upcoming);
-  assert.equal(count("planned"), metrics.planned);
-  assert.equal(count("arrived"), metrics.arrived);
+  // planned/arrived/upcoming are no longer demo metrics: the dashboard reads
+  // today's real appointments for them. Only the demo waiting count remains.
   assert.equal(count("waiting"), metrics.waiting);
   assert.equal(count("arrived"), count("waiting") + count("consulting") + count("completed"));
 });

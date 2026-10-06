@@ -19,6 +19,7 @@ export const dashboardFr = {
     },
     title: "Tableau de bord",
     demoBadge: "Mode démo",
+    verificationRequiredHint: "Vérification requise",
     header: {
       searchPlaceholder: "Rechercher patient, rapport, analyse...",
       secureWorkspace: "Espace sécurisé",

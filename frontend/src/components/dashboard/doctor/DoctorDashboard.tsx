@@ -16,6 +16,7 @@ import { doctorDemo } from "@/data/dashboard-doctor.mock";
 import { useTodayAppointments } from "@/features/appointments/hooks/use-today-appointments";
 import { useCurrentUser } from "@/features/auth/hooks/use-current-user";
 import { usePatients } from "@/features/patients/hooks/use-patients";
+import { isVerificationRequiredError } from "@/lib/api/api-error";
 import { getAccountInitials } from "@/lib/format/get-account-initials";
 import { useStoredLocale, useTranslation } from "@/lib/i18n";
 import type { DashboardActivityColumn, DashboardActivityRow } from "@/types/dashboard";
@@ -46,6 +47,8 @@ export function DoctorDashboard() {
   // limit 1: only meta.total is read.
   const patients = usePatients({ limit: 1 });
   const todayAppointments = useTodayAppointments();
+  // A refused counter keeps "—"; its sub-text says why instead of the usual hint.
+  const verificationRequiredHint = t("dashboard.common.verificationRequiredHint");
 
   const columns: DashboardActivityColumn[] = [
     { key: "action", label: t("dashboard.doctor.table.columns.action") },
@@ -112,14 +115,14 @@ export function DoctorDashboard() {
             <OperationalMetricCard
               label={t("dashboard.doctor.stats.patients.label")}
               value={formatCount(patients.data?.meta.total)}
-              hint={t("dashboard.doctor.stats.patients.hint")}
+              hint={isVerificationRequiredError(patients.error) ? verificationRequiredHint : t("dashboard.doctor.stats.patients.hint")}
               icon={ClipboardPlus}
               tone="medical"
             />
             <OperationalMetricCard
               label={t("dashboard.doctor.stats.appointments.label")}
               value={formatCount(todayAppointments.count)}
-              hint={t("dashboard.doctor.stats.appointments.hint", { upcoming: formatCount(todayAppointments.upcomingCount) })}
+              hint={todayAppointments.isVerificationRequired ? verificationRequiredHint : t("dashboard.doctor.stats.appointments.hint", { upcoming: formatCount(todayAppointments.upcomingCount) })}
               icon={CalendarClock}
             />
             <OperationalMetricCard

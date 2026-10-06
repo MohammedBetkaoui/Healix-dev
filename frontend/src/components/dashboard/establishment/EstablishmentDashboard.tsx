@@ -18,6 +18,7 @@ import { useAppointmentDoctors } from "@/features/appointments/hooks/use-appoint
 import { useTodayAppointments } from "@/features/appointments/hooks/use-today-appointments";
 import { useCurrentUser } from "@/features/auth/hooks/use-current-user";
 import { useEstablishmentVerificationPrefill } from "@/features/verification/hooks/use-establishment-verification-prefill";
+import { isVerificationRequiredError } from "@/lib/api/api-error";
 import { getAccountInitials } from "@/lib/format/get-account-initials";
 import { useStoredLocale, useTranslation } from "@/lib/i18n";
 import type { DashboardActivityColumn, DashboardActivityRow } from "@/types/dashboard";
@@ -46,6 +47,8 @@ export function EstablishmentDashboard() {
   // notion of an "active" doctor, so a single total). The remaining metrics stay demo.
   const todayAppointments = useTodayAppointments();
   const doctors = useAppointmentDoctors();
+  // A refused counter keeps "—"; its sub-text says why instead of the usual hint.
+  const verificationRequiredHint = t("dashboard.common.verificationRequiredHint");
   const { metrics } = establishmentDemo;
 
   const columns: DashboardActivityColumn[] = [
@@ -79,11 +82,11 @@ export function EstablishmentDashboard() {
           <h2 id="today-heading" className="mb-3 text-sm font-semibold">{t("dashboard.clinical.today")}</h2>
           <dl className="operational-metrics">
             <OperationalMetricCard label={t("dashboard.clinical.metrics.planned")} value={formatCount(todayAppointments.count)} icon={CalendarClock} tone="medical"
-              hint={t("dashboard.clinical.metrics.plannedHint", { upcoming: formatCount(todayAppointments.upcomingCount) })} />
+              hint={todayAppointments.isVerificationRequired ? verificationRequiredHint : t("dashboard.clinical.metrics.plannedHint", { upcoming: formatCount(todayAppointments.upcomingCount) })} />
             <OperationalMetricCard label={t("dashboard.clinical.metrics.waiting")} value={formatNumber(metrics.waiting)} icon={Clock3} tone="warning"
               hint={t("dashboard.clinical.metrics.waitingHint", { minutes: formatNumber(metrics.waitingMinutes) })} demoBadgeLabel={demoBadgeLabel} />
             <OperationalMetricCard label={t("dashboard.clinical.metrics.doctors")} value={formatCount(doctors.data?.length)} icon={Stethoscope}
-              hint={t("dashboard.clinical.metrics.doctorsHint")} />
+              hint={isVerificationRequiredError(doctors.error) ? verificationRequiredHint : t("dashboard.clinical.metrics.doctorsHint")} />
             <OperationalMetricCard label={t("dashboard.clinical.metrics.results")} value={formatNumber(metrics.results)} icon={ClipboardCheck} tone="warning"
               hint={t("dashboard.clinical.metrics.resultsHint", { count: formatNumber(metrics.priorityResults) })} demoBadgeLabel={demoBadgeLabel} />
           </dl>

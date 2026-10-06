@@ -19,6 +19,7 @@ export const dashboardAr = {
     },
     title: "لوحة التحكم",
     demoBadge: "الوضع التجريبي",
+    verificationRequiredHint: "التحقق مطلوب",
     header: {
       searchPlaceholder: "البحث عن مريض، تقرير أو تحليل...",
       secureWorkspace: "فضاء آمن",

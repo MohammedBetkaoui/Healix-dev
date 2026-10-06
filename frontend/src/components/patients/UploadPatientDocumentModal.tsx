@@ -6,7 +6,7 @@ import { useId, useRef, useState } from "react";
 import { Label } from "@/components/ui/label";
 import { Select } from "@/components/ui/select";
 import { useUploadPatientDocument } from "@/features/patients/hooks/use-upload-patient-document";
-import { getServerErrorMessage } from "@/lib/api/get-server-error-message";
+import { getMutationErrorMessage } from "@/lib/api/get-mutation-error-message";
 import { type Direction, type TranslationFunction } from "@/lib/i18n";
 import { type PatientDocumentType } from "@/types/patient";
 
@@ -188,7 +188,7 @@ function UploadPatientDocumentDialog({
               {uploadDocumentMutation.isError ? (
                 <p role="alert" className="flex items-start gap-2 rounded-[var(--radius-sm)] border border-[var(--danger-line)] bg-[var(--danger-soft)] px-3 py-2.5 text-xs leading-relaxed text-[var(--danger-ink)]">
                   <TriangleAlert size={15} strokeWidth={1.8} className="mt-px shrink-0" aria-hidden="true" />
-                  {getServerErrorMessage(uploadDocumentMutation.error) ?? t("patients.modal.uploadDocument.submitError")}
+                  {getMutationErrorMessage(uploadDocumentMutation.error, t, t("patients.modal.uploadDocument.submitError"))}
                 </p>
               ) : null}
             </div>

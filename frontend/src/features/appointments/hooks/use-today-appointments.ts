@@ -2,6 +2,8 @@
 
 import { useEffect, useMemo, useState } from "react";
 
+import { isVerificationRequiredError } from "@/lib/api/api-error";
+
 import { useAppointments } from "./use-appointments";
 
 // Today's appointments (local 00:00–23:59:59.999), sent as UTC instants: the
@@ -22,7 +24,7 @@ export function useTodayAppointments() {
     const nextDay = new Date(start.getFullYear(), start.getMonth(), start.getDate() + 1);
     return { from: start.toISOString(), to: new Date(nextDay.getTime() - 1).toISOString() };
   }, [dayStart]);
-  const { data } = useAppointments(range);
+  const { data, error } = useAppointments(range);
 
   return {
     // Every appointment returned for the day, whatever its status.
@@ -32,5 +34,7 @@ export function useTodayAppointments() {
       (appointment.status === "SCHEDULED" || appointment.status === "CONFIRMED")
       && new Date(appointment.scheduledAt).getTime() > now.getTime(),
     ).length,
+    // Refused by VerifiedAccountGuard: the counts stay undefined ("—").
+    isVerificationRequired: isVerificationRequiredError(error),
   };
 }

@@ -9,7 +9,7 @@ import { Label } from "@/components/ui/label";
 import { Select } from "@/components/ui/select";
 import { useCreatePatientAiAnalysis } from "@/features/patients/hooks/use-create-patient-ai-analysis";
 import { usePatientDocuments } from "@/features/patients/hooks/use-patient-documents";
-import { getServerErrorMessage } from "@/lib/api/get-server-error-message";
+import { getMutationErrorMessage } from "@/lib/api/get-mutation-error-message";
 import { type Direction, type TranslationFunction } from "@/lib/i18n";
 import { type PatientAiAnalysisResult, type PatientAiAnalysisType } from "@/types/patient";
 
@@ -280,7 +280,7 @@ function CreateAiAnalysisDialog({
                   {/* A missing/withdrawn consent (403) already carries its own
                       server message; the fallback only covers errors without
                       one (network, timeout), so it must stay generic. */}
-                  {getServerErrorMessage(createAiAnalysisMutation.error) ?? t("patients.modal.createAiAnalysis.submitError")}
+                  {getMutationErrorMessage(createAiAnalysisMutation.error, t, t("patients.modal.createAiAnalysis.submitError"))}
                 </p>
               ) : null}
             </div>

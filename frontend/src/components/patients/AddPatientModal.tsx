@@ -16,6 +16,7 @@ import {
 import { checkPatientDuplicate } from "@/features/patients/patients.api";
 import { type CreatePatientPayload } from "@/features/patients/patients.types";
 import { type Locale } from "@/i18n";
+import { getVerificationRequiredMessage } from "@/lib/api/get-mutation-error-message";
 import { type Direction, type TranslationFunction } from "@/lib/i18n";
 import { cn } from "@/lib/utils";
 import {
@@ -168,7 +169,7 @@ export function AddPatientModal({
         <form className="max-h-[calc(94vh-110px)] overflow-y-auto px-5 py-6 sm:px-7" onSubmit={handleSubmit(submit)}>
           <PatientFormFields direction={direction} errors={errors} register={register} t={t} watch={watch} />
           {createPatientMutation.isError ? (
-            <p className="mt-4 font-[var(--font-auth-mono)] text-[0.7rem] text-[var(--danger-ink)]">{t("patients.states.submitError")}</p>
+            <p className="mt-4 font-[var(--font-auth-mono)] text-[0.7rem] text-[var(--danger-ink)]">{getVerificationRequiredMessage(createPatientMutation.error, t) ?? t("patients.states.submitError")}</p>
           ) : null}
           <footer className="mt-8 flex flex-col-reverse gap-3 border-t border-[var(--line)] pt-5 sm:flex-row sm:justify-end">
             <Button className="rounded-full border-[var(--line)] bg-transparent px-5 text-[var(--ink-soft)]" type="button" variant="outline" onClick={closeModal}>{t("patients.actions.cancel")}</Button>

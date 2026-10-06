@@ -8,7 +8,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select } from "@/components/ui/select";
 import { useUpsertPatientConsent } from "@/features/patients/hooks/use-upsert-patient-consent";
-import { getServerErrorMessage } from "@/lib/api/get-server-error-message";
+import { getMutationErrorMessage } from "@/lib/api/get-mutation-error-message";
 import { type Direction, type TranslationFunction } from "@/lib/i18n";
 import { type PatientConsentStatus, type PatientConsentType } from "@/types/patient";
 
@@ -188,7 +188,7 @@ function UpsertConsentDialog({
               {upsertConsentMutation.isError ? (
                 <p role="alert" className="flex items-start gap-2 rounded-[var(--radius-sm)] border border-[var(--danger-line)] bg-[var(--danger-soft)] px-3 py-2.5 text-xs leading-relaxed text-[var(--danger-ink)]">
                   <TriangleAlert size={15} strokeWidth={1.8} className="mt-px shrink-0" aria-hidden="true" />
-                  {getServerErrorMessage(upsertConsentMutation.error) ?? t("patients.modal.upsertConsent.submitError")}
+                  {getMutationErrorMessage(upsertConsentMutation.error, t, t("patients.modal.upsertConsent.submitError"))}
                 </p>
               ) : null}
             </div>

@@ -20,6 +20,7 @@ import { useMemo, useState } from "react";
 import { AppointmentDetailsModal } from "@/components/appointments/AppointmentDetailsModal";
 import { CreateAppointmentModal } from "@/components/appointments/CreateAppointmentModal";
 import { DashboardShell } from "@/components/dashboard/layout/DashboardShell";
+import { VerificationRequiredNotice } from "@/components/shared/VerificationRequiredNotice";
 import { doctorNavSections, establishmentNavSections } from "@/components/dashboard/layout/navigation";
 import { StatusBadge } from "@/components/dashboard/shared/StatusBadge";
 import { Button } from "@/components/ui/button";
@@ -35,6 +36,7 @@ import { usePatientConsents } from "@/features/patients/hooks/use-patient-consen
 import { usePatientConsultations } from "@/features/patients/hooks/use-patient-consultations";
 import { usePatientDocuments } from "@/features/patients/hooks/use-patient-documents";
 import { formatPatientDate, formatPatientDateTime, getPatientAge } from "@/features/patients/patient-registry";
+import { isVerificationRequiredError } from "@/lib/api/api-error";
 import { getAccountInitials } from "@/lib/format/get-account-initials";
 import { useStoredLocale, useTranslation } from "@/lib/i18n";
 import { cn } from "@/lib/utils";
@@ -169,7 +171,7 @@ export function PatientRecordPage({ accountType, patientId }: PatientRecordPageP
   const prefill = useEstablishmentVerificationPrefill({ enabled: accountType === "ESTABLISHMENT" });
   const initials = getAccountInitials(currentUser.data?.fullName);
   const localized = copy[locale];
-  const { data: patient, isError, isLoading } = usePatient(patientId);
+  const { data: patient, error, isError, isLoading } = usePatient(patientId);
   const { data: consents } = usePatientConsents(patientId);
   const { data: consultations } = usePatientConsultations(patientId);
   const { data: documents } = usePatientDocuments(patientId);
@@ -229,7 +231,11 @@ export function PatientRecordPage({ accountType, patientId }: PatientRecordPageP
   if (isError || !patient) {
     return (
       <DashboardShell {...shellProps} activeKey="patients" breadcrumbLabel={t("patients.page.breadcrumb")} titleKey={accountType === "ESTABLISHMENT" ? "patients.page.title" : "patients.page.doctorTitle"}>
-        <EmptyTab label={localized.notFound} />
+        {isVerificationRequiredError(error) ? (
+          <VerificationRequiredNotice accountType={accountType} t={t} />
+        ) : (
+          <EmptyTab label={localized.notFound} />
+        )}
       </DashboardShell>
     );
   }

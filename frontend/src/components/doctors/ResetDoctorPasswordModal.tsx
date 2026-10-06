@@ -6,8 +6,8 @@ import { useId, useState } from "react";
 import { useResetAffiliatedDoctorPassword } from "@/features/doctors/hooks/use-reset-affiliated-doctor-password";
 import { type ResetAffiliatedDoctorPasswordResult } from "@/features/doctors/doctors.types";
 import { type Locale } from "@/i18n";
-import { getServerErrorMessage } from "@/lib/api/get-server-error-message";
-import { type Direction } from "@/lib/i18n";
+import { getMutationErrorMessage } from "@/lib/api/get-mutation-error-message";
+import { type Direction, useTranslation } from "@/lib/i18n";
 
 type ResetDoctorPasswordModalProps = {
   direction: Direction;
@@ -74,6 +74,7 @@ function ResetDoctorPasswordDialog({
   onReset,
 }: Omit<ResetDoctorPasswordModalProps, "isOpen">) {
   const copy = modalCopy[locale];
+  const { t } = useTranslation(locale);
   const baseId = useId();
   const ids = {
     description: `${baseId}-description`,
@@ -196,7 +197,7 @@ function ResetDoctorPasswordDialog({
                 {resetPasswordMutation.isError ? (
                   <p role="alert" className="flex items-start gap-2 rounded-[var(--radius-sm)] border border-[var(--danger-line)] bg-[var(--danger-soft)] px-3 py-2.5 text-xs leading-relaxed text-[var(--danger-ink)]">
                     <TriangleAlert size={15} strokeWidth={1.8} className="mt-px shrink-0" aria-hidden="true" />
-                    {getServerErrorMessage(resetPasswordMutation.error) ?? copy.submitError}
+                    {getMutationErrorMessage(resetPasswordMutation.error, t, copy.submitError)}
                   </p>
                 ) : null}
               </div>

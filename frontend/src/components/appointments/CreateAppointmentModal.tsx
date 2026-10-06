@@ -14,8 +14,8 @@ import { useCreateAppointment } from "@/features/appointments/hooks/use-create-a
 import { usePatients } from "@/features/patients/hooks/use-patients";
 import { formatPatientDate, patientMatchesSearch } from "@/features/patients/patient-registry";
 import { type Locale } from "@/i18n";
-import { getServerErrorMessage } from "@/lib/api/get-server-error-message";
-import { type Direction } from "@/lib/i18n";
+import { getMutationErrorMessage } from "@/lib/api/get-mutation-error-message";
+import { type Direction, useTranslation } from "@/lib/i18n";
 import { cn } from "@/lib/utils";
 import { type Patient } from "@/types/patient";
 
@@ -178,6 +178,7 @@ export function CreateAppointmentModal({
   onCreate,
 }: CreateAppointmentModalProps) {
   const copy = modalCopy[locale];
+  const { t } = useTranslation(locale);
   const baseId = useId();
   const ids = {
     date: `${baseId}-date`,
@@ -446,7 +447,7 @@ export function CreateAppointmentModal({
               {createAppointmentMutation.isError ? (
                 <p role="alert" className="flex items-start gap-2 rounded-[var(--radius-sm)] border border-[var(--danger-line)] bg-[var(--danger-soft)] px-3 py-2.5 text-xs leading-relaxed text-[var(--danger-ink)]">
                   <TriangleAlert size={15} strokeWidth={1.8} className="mt-px shrink-0" aria-hidden="true" />
-                  {getServerErrorMessage(createAppointmentMutation.error) ?? copy.submitError}
+                  {getMutationErrorMessage(createAppointmentMutation.error, t, copy.submitError)}
                 </p>
               ) : null}
             </div>

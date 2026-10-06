@@ -12,8 +12,8 @@ import { Select } from "@/components/ui/select";
 import { useUpdateAffiliatedDoctor } from "@/features/doctors/hooks/use-update-affiliated-doctor";
 import { type AffiliatedDoctor } from "@/features/doctors/doctors.types";
 import { type Locale } from "@/i18n";
-import { getServerErrorMessage } from "@/lib/api/get-server-error-message";
-import { type Direction } from "@/lib/i18n";
+import { getMutationErrorMessage } from "@/lib/api/get-mutation-error-message";
+import { type Direction, useTranslation } from "@/lib/i18n";
 import { ALGERIAN_WILAYAS } from "@/types/auth";
 
 type EditDoctorModalProps = {
@@ -133,6 +133,7 @@ function EditDoctorDialog({
   onUpdated,
 }: Omit<EditDoctorModalProps, "doctor" | "isOpen"> & { doctor: AffiliatedDoctor }) {
   const copy = modalCopy[locale];
+  const { t } = useTranslation(locale);
   const baseId = useId();
   const ids = {
     address: `${baseId}-address`,
@@ -241,7 +242,7 @@ function EditDoctorDialog({
               {updateDoctorMutation.isError ? (
                 <p role="alert" className="flex items-start gap-2 rounded-[var(--radius-sm)] border border-[var(--danger-line)] bg-[var(--danger-soft)] px-3 py-2.5 text-xs leading-relaxed text-[var(--danger-ink)]">
                   <TriangleAlert size={15} strokeWidth={1.8} className="mt-px shrink-0" aria-hidden="true" />
-                  {getServerErrorMessage(updateDoctorMutation.error) ?? copy.submitError}
+                  {getMutationErrorMessage(updateDoctorMutation.error, t, copy.submitError)}
                 </p>
               ) : null}
             </div>

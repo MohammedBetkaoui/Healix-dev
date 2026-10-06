@@ -8,6 +8,7 @@ import { useForm } from "react-hook-form";
 import { Button } from "@/components/ui/button";
 import { useUpdatePatient } from "@/features/patients/hooks/use-update-patient";
 import { type UpdatePatientPayload } from "@/features/patients/patients.types";
+import { getVerificationRequiredMessage } from "@/lib/api/get-mutation-error-message";
 import { type Direction, type TranslationFunction } from "@/lib/i18n";
 import { cn } from "@/lib/utils";
 import {
@@ -139,7 +140,7 @@ export function EditPatientModal({
           />
           {updatePatientMutation.isError ? (
             <p className="mt-4 text-xs text-destructive">
-              {t("patients.states.submitError")}
+              {getVerificationRequiredMessage(updatePatientMutation.error, t) ?? t("patients.states.submitError")}
             </p>
           ) : null}
           <div className="mt-8 flex flex-col-reverse gap-3 border-t border-border pt-5 sm:flex-row sm:justify-end">

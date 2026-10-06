@@ -10,10 +10,12 @@ import { ToggleDoctorStatusModal } from "@/components/doctors/ToggleDoctorStatus
 import { DashboardShell } from "@/components/dashboard/layout/DashboardShell";
 import { establishmentNavSections } from "@/components/dashboard/layout/navigation";
 import { StatusBadge } from "@/components/dashboard/shared/StatusBadge";
+import { VerificationRequiredNotice } from "@/components/shared/VerificationRequiredNotice";
 import { useCurrentUser } from "@/features/auth/hooks/use-current-user";
 import { useEstablishmentVerificationPrefill } from "@/features/verification/hooks/use-establishment-verification-prefill";
 import { type AffiliatedDoctor } from "@/features/doctors/doctors.types";
 import { useAffiliatedDoctors } from "@/features/doctors/hooks/use-affiliated-doctors";
+import { isVerificationRequiredError } from "@/lib/api/api-error";
 import { getAccountInitials } from "@/lib/format/get-account-initials";
 import { useStoredLocale, useTranslation } from "@/lib/i18n";
 import { cn } from "@/lib/utils";
@@ -123,7 +125,7 @@ export function DoctorsTeamPage() {
   const [editTarget, setEditTarget] = useState<AffiliatedDoctor | null>(null);
   const [resetTarget, setResetTarget] = useState<{ id: string; fullName: string } | null>(null);
   const [statusTarget, setStatusTarget] = useState<{ id: string; fullName: string; action: "suspend" | "reactivate" } | null>(null);
-  const { data: doctors, isError, isLoading, refetch } = useAffiliatedDoctors();
+  const { data: doctors, error, isError, isLoading, refetch } = useAffiliatedDoctors();
 
   const list = doctors ?? [];
   const hasData = doctors !== undefined;
@@ -177,6 +179,10 @@ export function DoctorsTeamPage() {
                 ))}
               </ol>
             </>
+          ) : isError && isVerificationRequiredError(error) ? (
+            <div className="p-5">
+              <VerificationRequiredNotice accountType="ESTABLISHMENT" t={t} />
+            </div>
           ) : isError ? (
             <div className="flex flex-col items-center px-6 py-14 text-center" role="alert">
               <span className="flex h-12 w-12 items-center justify-center rounded-full bg-[var(--danger-soft)] text-[var(--danger-ink)]">
