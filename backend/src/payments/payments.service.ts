@@ -37,6 +37,13 @@ type UploadPaymentProofInput = {
   proofType: PaymentProofDocumentType;
 };
 
+// A payment still in progress: at most one per user (see createIntent).
+const OPEN_PAYMENT_STATUSES: PaymentStatus[] = [
+  PaymentStatus.CREATED,
+  PaymentStatus.WAITING_PAYMENT,
+  PaymentStatus.WAITING_ADMIN_REVIEW,
+];
+
 @Injectable()
 export class PaymentsService {
   constructor(
@@ -93,54 +100,125 @@ export class PaymentsService {
 
     const amount = this.getPlanAmount(plan, dto.billingPeriod);
     const status = this.getInitialPaymentStatus(dto.paymentMethod);
-    const reference = await this.generateUniqueReference();
 
-    const payment = await this.prisma.payment.create({
-      data: {
-        accountType: accountContext.accountType,
-        amount,
-        billingPeriod: dto.billingPeriod,
-        currency: plan.currency,
-        method: dto.paymentMethod,
-        planId: plan.id,
-        provider:
-          dto.paymentMethod === PaymentMethod.SYNTHETIC_CHARGILY
-            ? 'CHARGILY_DEMO'
-            : null,
-        reference,
-        status,
-        syntheticMode: true,
-        userId,
-      },
+    const payment = await this.prisma.$transaction(async (transaction) => {
+      // Locks the user row: a concurrent createIntent of the same user waits
+      // here until this transaction ends, then reads the payment it created.
+      // The transaction alone is not enough: under REPEATABLE READ both
+      // requests would read "no open payment" and both create one.
+      await transaction.$queryRaw`SELECT id FROM users WHERE id = ${userId} FOR UPDATE`;
+
+      const openPayments = await transaction.payment.findMany({
+        orderBy: { createdAt: 'desc' },
+        where: { status: { in: OPEN_PAYMENT_STATUSES }, userId },
+      });
+
+      // Checked over every open payment, not only the latest: a proof or a
+      // cash request under review is never cancelled nor doubled.
+      const underReview = openPayments.find(
+        (openPayment) =>
+          openPayment.status === PaymentStatus.WAITING_ADMIN_REVIEW,
+      );
+
+      if (underReview) {
+        throw this.paymentAlreadyPendingError(underReview.id);
+      }
+
+      const sameRequest = openPayments.find(
+        (openPayment) =>
+          openPayment.planId === plan.id &&
+          openPayment.billingPeriod === dto.billingPeriod &&
+          openPayment.method === dto.paymentMethod,
+      );
+
+      if (sameRequest) {
+        return sameRequest;
+      }
+
+      // Left: CREATED / WAITING_PAYMENT payments for another plan, period or
+      // method. The status condition skips one that moved on since the read
+      // (proof uploaded, card paid), which must not be cancelled.
+      for (const superseded of openPayments) {
+        const { count } = await transaction.payment.updateMany({
+          data: { status: PaymentStatus.CANCELED },
+          where: {
+            id: superseded.id,
+            status: {
+              in: [PaymentStatus.CREATED, PaymentStatus.WAITING_PAYMENT],
+            },
+          },
+        });
+
+        if (count === 0) {
+          throw this.paymentAlreadyPendingError(superseded.id);
+        }
+      }
+
+      const reference = await this.generateUniqueReference();
+      const createdPayment = await transaction.payment.create({
+        data: {
+          accountType: accountContext.accountType,
+          amount,
+          billingPeriod: dto.billingPeriod,
+          currency: plan.currency,
+          method: dto.paymentMethod,
+          planId: plan.id,
+          provider:
+            dto.paymentMethod === PaymentMethod.SYNTHETIC_CHARGILY
+              ? 'CHARGILY_DEMO'
+              : null,
+          reference,
+          status,
+          syntheticMode: true,
+          userId,
+        },
+      });
+
+      for (const superseded of openPayments) {
+        await this.auditLogsService.createAuditLog(
+          {
+            action: 'PAYMENT_INTENT_SUPERSEDED',
+            entityId: superseded.id,
+            entityType: 'PAYMENT',
+            ipAddress: context.ipAddress,
+            metadata: {
+              billingPeriod: superseded.billingPeriod,
+              method: superseded.method,
+              planId: superseded.planId,
+              reference: superseded.reference,
+              supersededByPaymentId: createdPayment.id,
+            },
+            userAgent: context.userAgent,
+            userId,
+          },
+          transaction,
+        );
+      }
+
+      await this.auditLogsService.createAuditLog(
+        {
+          action: 'PAYMENT_INTENT_CREATED',
+          entityId: createdPayment.id,
+          entityType: 'PAYMENT',
+          ipAddress: context.ipAddress,
+          metadata: {
+            accountType: accountContext.accountType,
+            amount,
+            billingPeriod: dto.billingPeriod,
+            method: dto.paymentMethod,
+            planId: plan.id,
+            reference,
+          },
+          userAgent: context.userAgent,
+          userId,
+        },
+        transaction,
+      );
+
+      return createdPayment;
     });
 
-    await this.auditLogsService.createAuditLog({
-      action: 'PAYMENT_INTENT_CREATED',
-      entityId: payment.id,
-      entityType: 'PAYMENT',
-      ipAddress: context.ipAddress,
-      metadata: {
-        accountType: accountContext.accountType,
-        amount,
-        billingPeriod: dto.billingPeriod,
-        method: dto.paymentMethod,
-        planId: plan.id,
-        reference,
-      },
-      userAgent: context.userAgent,
-      userId,
-    });
-
-    return {
-      paymentId: payment.id,
-      reference: payment.reference,
-      amount: payment.amount,
-      currency: payment.currency,
-      method: payment.method,
-      nextAction: this.getNextAction(payment.method),
-      redirectTo: this.getCheckoutRedirect(payment.method, payment.id),
-      ccp: this.getCcpForMethod(payment.method),
-    };
+    return this.toPaymentIntentResponse(payment);
   }
 
   async payWithSyntheticChargily(
@@ -284,6 +362,12 @@ export class PaymentsService {
 
     if (payment.status === PaymentStatus.PAID) {
       throw new ConflictException('Ce paiement est deja valide.');
+    }
+
+    // Superseded by a newer intent (createIntent): a proof would send it back
+    // to admin review next to the payment that replaced it.
+    if (payment.status === PaymentStatus.CANCELED) {
+      throw new ConflictException('Ce paiement a ete annule.');
     }
 
     this.proofService.assertProofTypeMatchesPaymentMethod(
@@ -505,6 +589,27 @@ export class PaymentsService {
     if (!Number.isInteger(year) || year < currentYear) {
       throw new BadRequestException('Date expiration invalide.');
     }
+  }
+
+  private toPaymentIntentResponse(payment: Payment) {
+    return {
+      paymentId: payment.id,
+      reference: payment.reference,
+      amount: payment.amount,
+      currency: payment.currency,
+      method: payment.method,
+      nextAction: this.getNextAction(payment.method),
+      redirectTo: this.getCheckoutRedirect(payment.method, payment.id),
+      ccp: this.getCcpForMethod(payment.method),
+    };
+  }
+
+  private paymentAlreadyPendingError(paymentId: string) {
+    return new ConflictException({
+      code: 'PAYMENT_ALREADY_PENDING',
+      message: 'Un paiement est déjà en cours de vérification.',
+      paymentId,
+    });
   }
 
   private getInitialPaymentStatus(method: PaymentMethod): PaymentStatus {
