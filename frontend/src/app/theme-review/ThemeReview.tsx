@@ -4,6 +4,7 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { useState } from "react";
 import { AdminDashboardPage } from "@/components/admin/dashboard/AdminDashboardPage";
 import { AdminPaymentsPage } from "@/components/admin/payments/AdminPaymentsPage";
+import { AiAnalysesHubPage } from "@/components/ai-analyses/AiAnalysesHubPage";
 import { AppointmentsAgendaPage } from "@/components/appointments/AppointmentsAgendaPage";
 import { EstablishmentDashboard } from "@/components/dashboard/establishment/EstablishmentDashboard";
 import { DoctorDashboard } from "@/components/dashboard/doctor/DoctorDashboard";
@@ -120,5 +121,5 @@ export function ThemeReview({ view }: { view: string }) {
     });
     return query;
   });
-  return <QueryClientProvider client={client}>{view === "admin" ? <AdminDashboardPage /> : view === "admin-payments" ? <AdminPaymentsPage /> : view === "doctor" ? <DoctorDashboard /> : view === "patients" ? <EstablishmentPatientsPage /> : view === "appointments" ? <AppointmentsAgendaPage accountType="ESTABLISHMENT" /> : view === "verification" ? <EstablishmentVerificationPage /> : view === "subscription" ? <SubscriptionPage accountType="ESTABLISHMENT" /> : <EstablishmentDashboard />}</QueryClientProvider>;
+  return <QueryClientProvider client={client}>{view === "admin" ? <AdminDashboardPage /> : view === "admin-payments" ? <AdminPaymentsPage /> : view === "doctor" ? <DoctorDashboard /> : view === "patients" ? <EstablishmentPatientsPage /> : view === "appointments" ? <AppointmentsAgendaPage accountType="ESTABLISHMENT" /> : view === "verification" ? <EstablishmentVerificationPage /> : view === "subscription" ? <SubscriptionPage accountType="ESTABLISHMENT" /> : view === "ai-analyses" ? <AiAnalysesHubPage accountType="ESTABLISHMENT" /> : <EstablishmentDashboard />}</QueryClientProvider>;
 }

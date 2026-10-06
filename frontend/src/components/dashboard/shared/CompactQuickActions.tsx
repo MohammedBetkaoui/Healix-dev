@@ -13,7 +13,7 @@ const establishmentActions: readonly CompactQuickAction[] = [
   { key: "patient", href: "/establishment/patients", icon: Plus, labelKey: "dashboard.clinical.actions.patient" },
   { key: "appointment", href: "/establishment/appointments", icon: CalendarPlus, labelKey: "dashboard.clinical.actions.appointment" },
   { key: "invite", href: "/establishment/doctors", icon: UserRoundPlus, labelKey: "dashboard.clinical.actions.invite" },
-  { key: "analysis", href: "#analyses", icon: ScanLine, labelKey: "dashboard.clinical.actions.analysis" },
+  { key: "analysis", href: "/establishment/ai-analyses", icon: ScanLine, labelKey: "dashboard.clinical.actions.analysis" },
 ];
 
 export function CompactQuickActions({ t, actions = establishmentActions }: { t: TranslationFunction; actions?: readonly CompactQuickAction[] }) {

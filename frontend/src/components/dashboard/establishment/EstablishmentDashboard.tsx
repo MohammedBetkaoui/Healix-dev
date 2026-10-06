@@ -99,7 +99,7 @@ export function EstablishmentDashboard() {
         <ClinicalActivityChart points={establishmentDemo.activity} t={t} formatNumber={formatNumber} demoBadgeLabel={demoBadgeLabel} />
         <div className="workspace-split workspace-split-activity" data-source={establishmentDemo.source}>
           <ActivityTable columns={columns} rows={rows} title={t("dashboard.clinical.activity.title")} demoBadgeLabel={demoBadgeLabel} />
-          <HealixAIWidget activity={establishmentDemo.ai} t={t} formatNumber={formatNumber} demoBadgeLabel={demoBadgeLabel} />
+          <HealixAIWidget activity={establishmentDemo.ai} analysesHref="/establishment/ai-analyses" t={t} formatNumber={formatNumber} demoBadgeLabel={demoBadgeLabel} />
         </div>
         <div className="workspace-split">
           <CompactQuickActions t={t} />

@@ -23,7 +23,7 @@ import type { DashboardActivityColumn, DashboardActivityRow } from "@/types/dash
 
 const doctorQuickActions: readonly CompactQuickAction[] = [
   { href: "/doctor/patients", icon: ClipboardPlus, key: "addPatient", labelKey: "dashboard.doctor.quickActions.addPatient.label" },
-  { href: "#analyses", icon: ScanLine, key: "newAnalysis", labelKey: "dashboard.doctor.quickActions.newAnalysis.label" },
+  { href: "/doctor/ai-analyses", icon: ScanLine, key: "newAnalysis", labelKey: "dashboard.doctor.quickActions.newAnalysis.label" },
   { href: "#reports", icon: FileText, key: "generateReport", labelKey: "dashboard.doctor.quickActions.generateReport.label" },
   { href: "/doctor/verification", icon: BadgeCheck, key: "verification", labelKey: "dashboard.doctor.quickActions.verification.label" },
 ];
@@ -93,7 +93,7 @@ export function DoctorDashboard() {
             <p className="mt-1 text-sm text-[var(--text-secondary)]">{t("dashboard.clinical.doctor.intro")}</p>
           </div>
           <div className="flex flex-wrap gap-2">
-            <WorkspaceLink href="#analyses" className="clinical-button">
+            <WorkspaceLink href="/doctor/ai-analyses" className="clinical-button">
               <ScanLine size={16} strokeWidth={1.8} aria-hidden="true" />
               {t("dashboard.doctor.quickActions.newAnalysis.label")}
             </WorkspaceLink>
@@ -157,6 +157,7 @@ export function DoctorDashboard() {
           />
           <HealixAIWidget
             activity={doctorDemo.ai}
+            analysesHref="/doctor/ai-analyses"
             periodLabel={t("dashboard.clinical.doctor.analysesPeriod")}
             t={t}
             formatNumber={formatNumber}

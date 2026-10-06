@@ -40,7 +40,7 @@ export const establishmentNavSections: DashboardNavSection[] = [
   {
     key: "ai", titleKey: "dashboard.clinical.nav.intelligence",
     items: [
-      { href: "#analyses", icon: BrainCircuit, key: "analyses", labelKey: "dashboard.clinical.nav.ai" },
+      { href: "/establishment/ai-analyses", icon: BrainCircuit, key: "analyses", labelKey: "dashboard.clinical.nav.ai" },
       { href: "#reports", icon: FileBarChart, key: "reports", labelKey: "dashboard.sidebar.establishment.reports" },
     ],
   },
@@ -105,7 +105,7 @@ export const doctorNavSections: DashboardNavSection[] = [
     items: [
       {
         badge: { text: "IA", tone: "blue" },
-        href: "#analyses",
+        href: "/doctor/ai-analyses",
         icon: Brain,
         key: "analyses",
         labelKey: "dashboard.sidebar.doctor.analyses",

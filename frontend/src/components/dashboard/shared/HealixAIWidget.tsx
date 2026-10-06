@@ -11,8 +11,10 @@ type AIActivity = {
   review?: number;
 };
 
-export function HealixAIWidget({ activity, t, formatNumber, periodLabel, demoBadgeLabel }: {
+export function HealixAIWidget({ activity, analysesHref, t, formatNumber, periodLabel, demoBadgeLabel }: {
   activity: AIActivity;
+  /** AI analyses hub of the account's role. */
+  analysesHref: string;
   t: TranslationFunction;
   formatNumber: (value: number) => string;
   periodLabel?: string;
@@ -40,7 +42,7 @@ export function HealixAIWidget({ activity, t, formatNumber, periodLabel, demoBad
             {statusLabels.length > 0 ? <p className="clinical-caption mt-1">{statusLabels.join(" · ")}</p> : null}
           </div>
         ) : null}
-        <Link href="#analyses" className="clinical-link mt-2">{t("dashboard.clinical.actions.ai")}<ArrowRight size={15} strokeWidth={1.8} className="clinical-directional" /></Link>
+        <Link href={analysesHref} className="clinical-link mt-2">{t("dashboard.clinical.actions.ai")}<ArrowRight size={15} strokeWidth={1.8} className="clinical-directional" /></Link>
         <p className="clinical-caption mt-1">{t("dashboard.clinical.ai.disclaimer")}</p>
       </div>
     </section>
