@@ -12,4 +12,10 @@ export const commonFr = {
       ar: "العربية",
     },
   },
+  verificationRequired: {
+    title: "Vérification professionnelle requise",
+    description:
+      "Les fonctionnalités médicales (dossiers patients, rendez-vous) sont réservées aux comptes dont la vérification professionnelle est validée. Complétez ou suivez votre vérification pour y accéder.",
+    action: "Accéder à la vérification",
+  },
 } as const;

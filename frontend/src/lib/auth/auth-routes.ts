@@ -65,6 +65,15 @@ export function getDefaultProtectedPathForRole(role: string | undefined) {
   return "/login";
 }
 
+// Verification page of the account's role (only the establishment differs).
+export function getVerificationHref(
+  accountType: "DOCTOR" | "ESTABLISHMENT" | "INDEPENDENT_DOCTOR",
+) {
+  return accountType === "ESTABLISHMENT"
+    ? "/establishment/verification"
+    : "/doctor/verification";
+}
+
 export function buildLoginPath(nextPath?: string) {
   if (!nextPath) {
     return "/login";

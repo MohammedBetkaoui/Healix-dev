@@ -27,6 +27,7 @@ import {
 } from "@/features/subscriptions/subscriptions.api";
 import { useEstablishmentVerificationPrefill } from "@/features/verification/hooks/use-establishment-verification-prefill";
 import { getAccountInitials } from "@/lib/format/get-account-initials";
+import { getVerificationHref } from "@/lib/auth/auth-routes";
 import { useStoredLocale, useTranslation } from "@/lib/i18n";
 import { cn } from "@/lib/utils";
 import {
@@ -85,12 +86,6 @@ function SubscriptionPageSkeleton({ label }: { label: string }) {
       </div>
     </div>
   );
-}
-
-function getVerificationHref(accountType: AccountType) {
-  return accountType === "ESTABLISHMENT"
-    ? "/establishment/verification"
-    : "/doctor/verification";
 }
 
 export function SubscriptionPage({ accountType }: SubscriptionPageProps) {

@@ -177,6 +177,17 @@ function uniqueMessages(values: string[]) {
   return Array.from(new Set(values.filter(Boolean)));
 }
 
+// 403 raised by the backend VerifiedAccountGuard on patients, appointments
+// and establishment doctors: body { code: "VERIFICATION_REQUIRED", message }.
+export function isVerificationRequiredError(error: unknown): boolean {
+  if (!isAxiosError(error) || error.response?.status !== 403) {
+    return false;
+  }
+
+  const code = (error.response.data as { code?: unknown } | undefined)?.code;
+  return code === "VERIFICATION_REQUIRED";
+}
+
 export function normalizeApiError(
   error: unknown,
   messages: ApiErrorMessages = defaultMessages,

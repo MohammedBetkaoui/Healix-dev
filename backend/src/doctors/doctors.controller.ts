@@ -15,13 +15,14 @@ import { CurrentUser } from '../common/decorators/current-user.decorator';
 import { Roles } from '../common/decorators/roles.decorator';
 import { UserRole } from '../common/enums/user-role.enum';
 import { RolesGuard } from '../common/guards/roles.guard';
+import { VerifiedAccountGuard } from '../common/guards/verified-account.guard';
 import { PrismaService } from '../prisma/prisma.service';
 import { CreateAffiliatedDoctorDto } from './dto/create-affiliated-doctor.dto';
 import { UpdateAffiliatedDoctorDto } from './dto/update-affiliated-doctor.dto';
 import { DoctorsService } from './doctors.service';
 
 @Controller('establishment/doctors')
-@UseGuards(JwtAuthGuard, RolesGuard)
+@UseGuards(JwtAuthGuard, RolesGuard, VerifiedAccountGuard)
 export class DoctorsController {
   constructor(
     private readonly doctorsService: DoctorsService,

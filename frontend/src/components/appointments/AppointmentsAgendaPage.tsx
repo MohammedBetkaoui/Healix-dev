@@ -21,12 +21,14 @@ import { DashboardShell } from "@/components/dashboard/layout/DashboardShell";
 import { doctorNavSections, establishmentNavSections } from "@/components/dashboard/layout/navigation";
 import { OperationalMetricCard } from "@/components/dashboard/shared/OperationalMetricCard";
 import { StatusBadge } from "@/components/dashboard/shared/StatusBadge";
+import { VerificationRequiredNotice } from "@/components/shared/VerificationRequiredNotice";
 import { Select } from "@/components/ui/select";
 import { useCurrentUser } from "@/features/auth/hooks/use-current-user";
 import { useEstablishmentVerificationPrefill } from "@/features/verification/hooks/use-establishment-verification-prefill";
 import { type Appointment, type AppointmentStatus } from "@/features/appointments/appointments.types";
 import { useAppointmentDoctors } from "@/features/appointments/hooks/use-appointment-doctors";
 import { useAppointments } from "@/features/appointments/hooks/use-appointments";
+import { isVerificationRequiredError } from "@/lib/api/api-error";
 import { getAccountInitials } from "@/lib/format/get-account-initials";
 import { useStoredLocale, useTranslation } from "@/lib/i18n";
 import { cn } from "@/lib/utils";
@@ -217,7 +219,7 @@ export function AppointmentsAgendaPage({ accountType }: AppointmentsAgendaPagePr
     to: new Date(addDays(selectedDate, 1).getTime() - 1).toISOString(),
     ...(selectedDoctorId ? { doctorProfileId: selectedDoctorId } : {}),
   }), [selectedDate, selectedDoctorId]);
-  const { data: appointments, isError, isLoading, refetch } = useAppointments(range);
+  const { data: appointments, error, isError, isLoading, refetch } = useAppointments(range);
 
   const intlLocale = locale === "ar" ? "ar-DZ" : "fr-DZ";
   const numberFormat = new Intl.NumberFormat(intlLocale);
@@ -408,6 +410,10 @@ export function AppointmentsAgendaPage({ accountType }: AppointmentsAgendaPagePr
                 ))}
               </ol>
             </>
+          ) : isError && isVerificationRequiredError(error) ? (
+            <div className="p-5">
+              <VerificationRequiredNotice accountType={accountType} t={t} />
+            </div>
           ) : isError ? (
             <div className="flex flex-col items-center px-6 py-14 text-center" role="alert">
               <span className="flex h-12 w-12 items-center justify-center rounded-full bg-[var(--danger-soft)] text-[var(--danger-ink)]">

@@ -36,12 +36,14 @@ import {
   getPatientAge,
   patientMatchesSearch,
 } from "@/features/patients/patient-registry";
+import { isVerificationRequiredError } from "@/lib/api/api-error";
 import { getAccountInitials } from "@/lib/format/get-account-initials";
 import { useStoredLocale, useTranslation } from "@/lib/i18n";
 import { cn } from "@/lib/utils";
 import { type Patient } from "@/types/patient";
 
 import { DashboardShell } from "@/components/dashboard/layout/DashboardShell";
+import { VerificationRequiredNotice } from "@/components/shared/VerificationRequiredNotice";
 import { doctorNavSections, establishmentNavSections } from "@/components/dashboard/layout/navigation";
 
 type PatientRegistryPageProps = {
@@ -165,7 +167,7 @@ export function PatientRegistryPage({ accountType }: PatientRegistryPageProps) {
   const prefill = useEstablishmentVerificationPrefill({ enabled: accountType === "ESTABLISHMENT" });
   const initials = getAccountInitials(currentUser.data?.fullName);
   const copy = registryCopy[locale];
-  const { data, isError, isLoading } = usePatients({ limit: 100 });
+  const { data, error, isError, isLoading } = usePatients({ limit: 100 });
   const patients = data?.data ?? [];
   const [search, setSearch] = useState("");
   const [filters, setFilters] = useState(initialFilters);
@@ -300,7 +302,11 @@ export function PatientRegistryPage({ accountType }: PatientRegistryPageProps) {
         {isLoading ? (
           <div className="rounded-xl border border-[var(--line)] bg-[var(--panel)] px-6 py-16 text-center text-sm text-[var(--ink-faint)]">{t("patients.states.loading")}</div>
         ) : isError ? (
-          <div className="rounded-xl border border-[var(--danger-line)] bg-[var(--danger-soft)] px-6 py-16 text-center text-sm text-[var(--danger-ink)]">{t("patients.states.error")}</div>
+          isVerificationRequiredError(error) ? (
+            <VerificationRequiredNotice accountType={accountType} t={t} />
+          ) : (
+            <div className="rounded-xl border border-[var(--danger-line)] bg-[var(--danger-soft)] px-6 py-16 text-center text-sm text-[var(--danger-ink)]">{t("patients.states.error")}</div>
+          )
         ) : (
         <section className="overflow-hidden rounded-xl border border-[var(--line)] bg-[var(--panel)] shadow-sm">
           <header className="flex flex-wrap items-center justify-between gap-3 border-b border-[var(--line)] px-5 py-4">

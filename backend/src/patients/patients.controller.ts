@@ -18,6 +18,7 @@ import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { type AuthenticatedUserPayload } from '../auth/types/authenticated-request.type';
 import { CurrentUser } from '../common/decorators/current-user.decorator';
 import { RolesGuard } from '../common/guards/roles.guard';
+import { VerifiedAccountGuard } from '../common/guards/verified-account.guard';
 import { CheckPatientDuplicateQueryDto } from './dto/check-patient-duplicate-query.dto';
 import { CreatePatientAiAnalysisDto } from './dto/create-patient-ai-analysis.dto';
 import { CreatePatientConsultationDto } from './dto/create-patient-consultation.dto';
@@ -29,7 +30,7 @@ import { UpsertPatientConsentDto } from './dto/upsert-patient-consent.dto';
 import { PatientsService } from './patients.service';
 
 @Controller('patients')
-@UseGuards(JwtAuthGuard, RolesGuard)
+@UseGuards(JwtAuthGuard, RolesGuard, VerifiedAccountGuard)
 export class PatientsController {
   constructor(private readonly patientsService: PatientsService) {}
 
