@@ -1,51 +1,43 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { useEffect } from "react";
 
 import { normalizeApiError } from "@/lib/api/api-error";
 
 import { getPaymentStatus } from "../api/payments.api";
-import { type PaymentSummary } from "../types/payment.types";
 
+// GET /payments/:id is a plain owner-scoped read (no audit entry), so polling
+// it has no side effect.
 export function usePaymentStatus(paymentId: string) {
-  const [data, setData] = useState<PaymentSummary | null>(null);
-  const [error, setError] = useState<string | null>(null);
-  const [isLoading, setIsLoading] = useState(true);
+  const queryClient = useQueryClient();
+  const query = useQuery({
+    queryFn: () => getPaymentStatus(paymentId),
+    queryKey: ["payments", "status", paymentId],
+    // Only an admin review can move the payment on by itself. CREATED and
+    // WAITING_PAYMENT wait for the user; the other statuses are final.
+    refetchInterval: (current) =>
+      current.state.data?.status === "WAITING_ADMIN_REVIEW" ? 15_000 : false,
+  });
+  const status = query.data?.status;
 
+  // Once paid, the subscription (plan) and the current user (account status)
+  // change server-side. Both queries have no staleTime, so plain invalidation
+  // would only re-mark them stale: "all" also refetches them while their pages
+  // are unmounted, so the subscription page and the dashboard are current on
+  // the way back. status stays PAID afterwards, so this runs once.
   useEffect(() => {
-    let mounted = true;
-
-    async function loadPayment() {
-      setIsLoading(true);
-      setError(null);
-
-      try {
-        const payment = await getPaymentStatus(paymentId);
-
-        if (mounted) {
-          setData(payment);
-        }
-      } catch (caughtError) {
-        if (mounted) {
-          setError(normalizeApiError(caughtError).message);
-        }
-      } finally {
-        if (mounted) {
-          setIsLoading(false);
-        }
-      }
+    if (status !== "PAID") {
+      return;
     }
 
-    void loadPayment();
-
-    return () => {
-      mounted = false;
-    };
-  }, [paymentId]);
+    void queryClient.invalidateQueries({ queryKey: ["subscription", "me"], refetchType: "all" });
+    void queryClient.invalidateQueries({ queryKey: ["auth", "me"], refetchType: "all" });
+  }, [queryClient, status]);
 
   return {
-    data,
-    error,
-    isLoading,
+    data: query.data ?? null,
+    error: query.error ? normalizeApiError(query.error).message : null,
+    isLoading: query.isLoading,
   };
 }

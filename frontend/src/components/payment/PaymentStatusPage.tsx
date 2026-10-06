@@ -33,16 +33,32 @@ export function PaymentStatusPage({ paymentId }: { paymentId: string }) {
           </p>
         ) : null}
 
-        <Link
-          className="inline-flex h-11 items-center justify-center rounded-full bg-[#0b3b5f] px-5 text-sm font-medium text-white shadow-sm shadow-sky-950/15 transition hover:bg-[#092f4d]"
-          href={
-            data?.accountType === "ESTABLISHMENT"
-              ? "/establishment/dashboard"
-              : "/doctor/dashboard"
-          }
-        >
-          {t("subscription.paymentFlow.dashboard")}
-        </Link>
+        <div className="flex flex-wrap gap-3">
+          <Link
+            className="inline-flex h-11 items-center justify-center rounded-full bg-[#0b3b5f] px-5 text-sm font-medium text-white shadow-sm shadow-sky-950/15 transition hover:bg-[#092f4d]"
+            href={
+              data?.accountType === "ESTABLISHMENT"
+                ? "/establishment/dashboard"
+                : "/doctor/dashboard"
+            }
+          >
+            {t("subscription.paymentFlow.dashboard")}
+          </Link>
+          {/* A refused or failed payment is final: a new attempt starts from
+              the plan choice on the role's subscription page. */}
+          {data?.status === "REJECTED" || data?.status === "FAILED" ? (
+            <Link
+              className="inline-flex h-11 items-center justify-center rounded-full border border-slate-300 bg-white px-5 text-sm font-medium text-slate-700 shadow-sm transition hover:bg-slate-100"
+              href={
+                data.accountType === "ESTABLISHMENT"
+                  ? "/establishment/subscription"
+                  : "/doctor/subscription"
+              }
+            >
+              {t("subscription.paymentFlow.retry")}
+            </Link>
+          ) : null}
+        </div>
       </div>
     </main>
   );

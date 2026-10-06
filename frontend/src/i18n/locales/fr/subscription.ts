@@ -199,6 +199,7 @@ export const subscriptionFr = {
     psv: "PSV",
     reference: "Référence",
     rejected: "Paiement refusé.",
+    retry: "Réessayer",
     security:
       "Ne saisissez jamais une vraie carte bancaire. Ce flux est strictement démo.",
     selectFile: "Choisir un fichier",

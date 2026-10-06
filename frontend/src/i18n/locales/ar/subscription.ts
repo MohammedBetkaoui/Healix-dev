@@ -193,6 +193,7 @@ export const subscriptionAr = {
     psv: "PSV",
     reference: "المرجع",
     rejected: "تم رفض الدفع.",
+    retry: "إعادة المحاولة",
     security:
       "لا تُدخل أبدًا بطاقة بنكية حقيقية. هذا المسار مخصص للتجربة فقط.",
     selectFile: "اختيار ملف",

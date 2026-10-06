@@ -1,5 +1,6 @@
 "use client";
 
+import { useQueryClient } from "@tanstack/react-query";
 import { useRouter } from "next/navigation";
 import { useCallback, useState } from "react";
 
@@ -9,6 +10,7 @@ import { paySyntheticChargily } from "../api/payments.api";
 import { type SyntheticChargilyPayload } from "../types/payment.types";
 
 export function useSyntheticCardPayment(paymentId: string) {
+  const queryClient = useQueryClient();
   const router = useRouter();
   const [error, setError] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(false);
@@ -24,6 +26,10 @@ export function useSyntheticCardPayment(paymentId: string) {
 
       try {
         await paySyntheticChargily(paymentId, payload);
+        // The payment page shares the ["payments", "status", id] cache with the
+        // status page: refresh it first so the status page opens on the new
+        // status instead of flashing the pre-submit one.
+        await queryClient.invalidateQueries({ queryKey: ["payments", "status", paymentId] });
         router.push(`/subscription/payment-status/${paymentId}`);
       } catch (caughtError) {
         setError(normalizeApiError(caughtError).message);
@@ -31,7 +37,7 @@ export function useSyntheticCardPayment(paymentId: string) {
         setIsLoading(false);
       }
     },
-    [isLoading, paymentId, router],
+    [isLoading, paymentId, queryClient, router],
   );
 
   return {
