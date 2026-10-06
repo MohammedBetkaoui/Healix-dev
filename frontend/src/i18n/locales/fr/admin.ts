@@ -429,6 +429,9 @@ export const adminFr = {
   },
   payments: {
     detail: {
+      actions: {
+        activateCash: "Activer",
+      },
       error: "Impossible de charger ce paiement.",
       fields: {
         accountStatus: "Statut du compte",
@@ -451,6 +454,17 @@ export const adminFr = {
         role: "Rôle",
       },
       loading: "Chargement du paiement...",
+      review: {
+        activated: "Paiement cash activé : l’abonnement de l’utilisateur est actif.",
+        adminNoteHint: "Facultative, 500 caractères maximum.",
+        approved: "Paiement approuvé : l’abonnement de l’utilisateur est actif.",
+        conflict: "Ce paiement a déjà été traité, peut-être par un autre administrateur. Le détail a été actualisé.",
+        error: "L’action n’a pas pu aboutir. Veuillez réessayer.",
+        reasonHint: "Obligatoire pour refuser, entre 5 et 1000 caractères.",
+        reasonRequired: "Indiquez un motif de refus d’au moins 5 caractères.",
+        rejected: "Paiement refusé.",
+        title: "Revue du paiement",
+      },
       sections: {
         notes: "Notes de revue",
         payment: "Paiement",

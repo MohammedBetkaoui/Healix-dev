@@ -442,6 +442,33 @@ export type AdminPaymentDetail = {
   proof: AdminPaymentProof | null;
 };
 
+// PATCH /admin/payments/:id/{approve,activate-cash,reject} — the three
+// admin-payments.service.ts methods return { message, payment } where payment
+// is PaymentsService#toPublicPayment applied to the bare updated row (no
+// include): plan and subscription are absent from the JSON, proof is null.
+export type AdminReviewedPayment = {
+  id: string;
+  reference: string;
+  accountType: AccountType;
+  amount: number;
+  currency: string;
+  billingPeriod: BillingPeriod;
+  method: PaymentMethod;
+  status: AdminPaymentStatus;
+  cardLast4: string | null;
+  cardHolderName: string | null;
+  paidAt: string | null;
+  createdAt: string;
+  updatedAt: string;
+  rejectionReason: string | null;
+  proof: null;
+};
+
+export type AdminPaymentReviewResponse = {
+  message: string;
+  payment: AdminReviewedPayment;
+};
+
 export type AdminVerificationsQuery = {
   limit?: number;
   page?: number;

@@ -24,6 +24,10 @@ import { type ReactNode, useId, useState } from "react";
 import { DetailItem } from "@/components/admin/audit/AdminAuditLogDetailModal";
 import { Button } from "@/components/ui/button";
 import { useAdminPaymentDetail } from "@/features/admin/hooks/use-admin-payment-detail";
+import {
+  isPaymentReviewConflict,
+  useReviewAdminPayment,
+} from "@/features/admin/hooks/use-review-admin-payment";
 import { type Locale } from "@/i18n";
 import { formatAdminDateTime } from "@/lib/date-format";
 import { type TranslationFunction } from "@/lib/i18n";
@@ -32,6 +36,7 @@ import { type AdminPaymentListItem, type AdminPaymentProof } from "@/types/admin
 import { formatPaymentAmount } from "./payment-format";
 import { PaymentMethodBadge } from "./PaymentMethodBadge";
 import { PaymentProofModal } from "./PaymentProofModal";
+import { type PaymentReviewDecision, PaymentReviewPanel } from "./PaymentReviewPanel";
 import { PaymentStatusBadge } from "./PaymentStatusBadge";
 
 type AdminPaymentDetailModalProps = {
@@ -90,7 +95,8 @@ export function AdminPaymentDetailModal({
   );
 }
 
-// Read-only: no approve/reject action, left to a separate workflow step.
+// Review actions (approve / activate-cash / reject) are offered only while the
+// payment is WAITING_ADMIN_REVIEW; every other status is read-only.
 function AdminPaymentDetailDialog({
   locale,
   onClose,
@@ -103,7 +109,44 @@ function AdminPaymentDetailDialog({
 }) {
   const titleId = useId();
   const { data, isError, isLoading } = useAdminPaymentDetail(payment.id);
+  const review = useReviewAdminPayment(payment.id);
+  // Kept outside the review panel: after a success or a 409 the refreshed
+  // status hides the panel, but the outcome must stay visible.
+  const [reviewFeedback, setReviewFeedback] = useState<{
+    message: string;
+    tone: "error" | "success";
+  } | null>(null);
   const formatDate = (value: string | null) => (value ? formatAdminDateTime(value, locale) : "-");
+
+  const handleDecision = (
+    decision: PaymentReviewDecision,
+    { adminNote, reason }: { adminNote?: string; reason: string },
+  ) => {
+    setReviewFeedback(null);
+    const callbacks = (successKey: string) => ({
+      onError: (error: unknown) => {
+        setReviewFeedback({
+          message: t(
+            isPaymentReviewConflict(error)
+              ? "admin.payments.detail.review.conflict"
+              : "admin.payments.detail.review.error",
+          ),
+          tone: "error",
+        });
+      },
+      onSuccess: () => {
+        setReviewFeedback({ message: t(successKey), tone: "success" });
+      },
+    });
+
+    if (decision === "ACTIVATE_CASH") {
+      review.activateCash.mutate(adminNote, callbacks("admin.payments.detail.review.activated"));
+    } else if (decision === "APPROVE") {
+      review.approve.mutate(adminNote, callbacks("admin.payments.detail.review.approved"));
+    } else {
+      review.reject.mutate({ adminNote, reason }, callbacks("admin.payments.detail.review.rejected"));
+    }
+  };
 
   return (
     <div
@@ -145,7 +188,7 @@ function AdminPaymentDetailDialog({
                   <bdi dir="ltr" className="font-mono">{payment.reference}</bdi>
                 </p>
                 <div className="mt-3 flex flex-wrap gap-2">
-                  <PaymentStatusBadge status={payment.status} t={t} />
+                  <PaymentStatusBadge status={data?.status ?? payment.status} t={t} />
                   <PaymentMethodBadge method={payment.method} t={t} />
                 </div>
               </div>
@@ -237,6 +280,30 @@ function AdminPaymentDetailDialog({
                     ) : null}
                   </div>
                 </DetailSection>
+              ) : null}
+
+              {data.status === "WAITING_ADMIN_REVIEW" ? (
+                <DetailSection title={t("admin.payments.detail.review.title")}>
+                  <PaymentReviewPanel
+                    isPending={review.isPending}
+                    method={data.method}
+                    onDecision={handleDecision}
+                    t={t}
+                  />
+                </DetailSection>
+              ) : null}
+
+              {reviewFeedback ? (
+                <p
+                  role={reviewFeedback.tone === "error" ? "alert" : "status"}
+                  className={
+                    reviewFeedback.tone === "error"
+                      ? "mt-4 rounded-xl border border-[var(--danger-line)] bg-[var(--danger-soft)] p-3 text-sm font-medium text-[var(--danger-ink)]"
+                      : "mt-4 rounded-xl border border-[var(--success-line)] bg-[var(--success-soft)] p-3 text-sm font-medium text-[var(--success-ink)]"
+                  }
+                >
+                  {reviewFeedback.message}
+                </p>
               ) : null}
             </>
           )}
