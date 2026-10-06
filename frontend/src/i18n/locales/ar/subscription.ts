@@ -175,6 +175,7 @@ export const subscriptionAr = {
   },
   paymentFlow: {
     acceptedFormats: "PDF أو JPG أو PNG - الحجم الأقصى 5 MB",
+    alreadyPending: "يوجد دفع قيد التحقق بالفعل. إليك متابعته.",
     amount: "المبلغ",
     baridimobTitle: "الدفع عبر BaridiMob",
     cardDemo: "بطاقة اختبار تجريبية",

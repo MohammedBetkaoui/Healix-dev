@@ -181,6 +181,8 @@ export const subscriptionFr = {
   },
   paymentFlow: {
     acceptedFormats: "PDF, JPG ou PNG - 5 MB maximum",
+    alreadyPending:
+      "Un paiement est déjà en cours de vérification. Voici son suivi.",
     amount: "Montant",
     baridimobTitle: "Paiement par BaridiMob",
     cardDemo: "Carte de test démo",

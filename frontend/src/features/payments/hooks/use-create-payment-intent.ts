@@ -3,7 +3,10 @@
 import { useRouter } from "next/navigation";
 import { useCallback, useState } from "react";
 
-import { normalizeApiError } from "@/lib/api/api-error";
+import {
+  getPaymentAlreadyPendingId,
+  normalizeApiError,
+} from "@/lib/api/api-error";
 
 import { createPaymentIntent } from "../api/payments.api";
 import {
@@ -32,6 +35,17 @@ export function useCreatePaymentIntent() {
         router.push(response.redirectTo);
         return response;
       } catch (caughtError) {
+        // A payment is already under admin review: open its status page
+        // (pending=1 explains why) rather than an error the user cannot act on.
+        const pendingPaymentId = getPaymentAlreadyPendingId(caughtError);
+
+        if (pendingPaymentId) {
+          router.push(
+            `/subscription/payment-status/${encodeURIComponent(pendingPaymentId)}?pending=1`,
+          );
+          return null;
+        }
+
         setError(normalizeApiError(caughtError).message);
         return null;
       } finally {

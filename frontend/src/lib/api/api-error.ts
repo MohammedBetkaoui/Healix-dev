@@ -188,6 +188,25 @@ export function isVerificationRequiredError(error: unknown): boolean {
   return code === "VERIFICATION_REQUIRED";
 }
 
+// 409 raised by the backend PaymentsService.createIntent while a payment of
+// the user is under admin review: body { code: "PAYMENT_ALREADY_PENDING",
+// message, paymentId }. Returns that payment's id, or null for any other error.
+export function getPaymentAlreadyPendingId(error: unknown): string | null {
+  if (!isAxiosError(error) || error.response?.status !== 409) {
+    return null;
+  }
+
+  const data = error.response.data as
+    | { code?: unknown; paymentId?: unknown }
+    | undefined;
+
+  return data?.code === "PAYMENT_ALREADY_PENDING" &&
+    typeof data.paymentId === "string" &&
+    data.paymentId !== ""
+    ? data.paymentId
+    : null;
+}
+
 export function normalizeApiError(
   error: unknown,
   messages: ApiErrorMessages = defaultMessages,

@@ -7,7 +7,15 @@ import { PaymentSummaryCard } from "@/components/payment/PaymentSummaryCard";
 import { usePaymentStatus } from "@/features/payments/hooks/use-payment-status";
 import { useStoredLocale, useTranslation } from "@/lib/i18n";
 
-export function PaymentStatusPage({ paymentId }: { paymentId: string }) {
+type PaymentStatusPageProps = {
+  paymentId: string;
+  redirectedFromPendingPayment?: boolean;
+};
+
+export function PaymentStatusPage({
+  paymentId,
+  redirectedFromPendingPayment = false,
+}: PaymentStatusPageProps) {
   const { locale } = useStoredLocale();
   const { t } = useTranslation(locale);
   const { data, error, isLoading } = usePaymentStatus(paymentId);
@@ -15,6 +23,17 @@ export function PaymentStatusPage({ paymentId }: { paymentId: string }) {
   return (
     <main className="min-h-screen bg-slate-50 px-4 py-8 text-slate-950">
       <div className="mx-auto max-w-3xl space-y-6">
+        {/* Only while the payment is still under review: a reloaded ?pending=1
+            URL must not claim so once an admin has decided. */}
+        {redirectedFromPendingPayment &&
+        data?.status === "WAITING_ADMIN_REVIEW" ? (
+          <p
+            role="status"
+            className="rounded-2xl border border-slate-200 bg-white p-4 text-sm text-slate-600"
+          >
+            {t("subscription.paymentFlow.alreadyPending")}
+          </p>
+        ) : null}
         <PaymentStatusCard
           rejectionReason={data?.rejectionReason}
           status={data?.status}
