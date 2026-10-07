@@ -69,16 +69,19 @@ export function shortSha256(sha256: string | null): string | null {
   return sha256 ? sha256.slice(0, 12) : null;
 }
 
-const KNOWN_RUN_ERRORS = new Set([
+/** errorCode values the result page explains (aiAnalyses.run.errors.<code>). */
+export const knownRunErrorCodes = [
   "SERVICE_UNAVAILABLE",
   "SERVICE_TIMEOUT",
   "MODEL_NOT_LOADED",
   "SERVICE_NOT_CONFIGURED",
   "SERVICE_ERROR",
   "MASK_STORAGE_FAILED",
+  "RUN_INTERRUPTED",
   "INVALID_IMAGE",
   "IMAGE_TOO_LARGE",
-]);
+] as const;
+const KNOWN_RUN_ERRORS = new Set<string>(knownRunErrorCodes);
 
 /** Key under aiAnalyses.run.errors for a run errorCode. */
 export function getRunErrorKey(errorCode: string | null): string {

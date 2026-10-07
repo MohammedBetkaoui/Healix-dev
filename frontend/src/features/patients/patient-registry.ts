@@ -67,9 +67,11 @@ export function formatPatientDateTime(value: string, locale: Locale, emptyLabel 
   const date = new Date(value);
   if (Number.isNaN(date.getTime())) return emptyLabel;
 
+  // fr-DZ defaults to a 12-hour clock ("05:57 PM"); clinical times read in 24 h.
   return new Intl.DateTimeFormat(locale === "ar" ? "ar-DZ" : "fr-DZ", {
     day: "2-digit",
     hour: "2-digit",
+    hourCycle: "h23",
     minute: "2-digit",
     month: "long",
     year: "numeric",

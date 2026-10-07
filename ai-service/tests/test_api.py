@@ -166,3 +166,44 @@ def test_one_deterministic_pass(real_registry):
         second = analyze(client, png_bytes()).json()
     assert first["classification"] == second["classification"]
     assert first["segmentation"] == second["segmentation"]
+
+
+# --- Weight loading ----------------------------------------------------------
+
+
+def test_unreadable_weights_leave_the_model_unloaded_without_stopping(tmp_path):
+    from app.models import MODEL_SPECS, load_model
+
+    spec = MODEL_SPECS[0]
+    (tmp_path / spec.file_name).write_bytes(b"not a torch checkpoint")
+
+    entry = load_model(spec, tmp_path)
+
+    assert entry.loaded is False
+    assert entry.error == "load_failed"
+    assert entry.weights_sha256 is not None
+
+
+def test_mismatched_weights_are_never_loaded_non_strictly(tmp_path):
+    import torch
+
+    from app.models import MODEL_SPECS, load_model
+
+    spec = MODEL_SPECS[0]
+    # A real state dict missing a key: strict=True refuses it.
+    state = spec.build().state_dict()
+    state.pop(next(iter(state)))
+    torch.save({"model_state": state}, tmp_path / spec.file_name)
+
+    entry = load_model(spec, tmp_path)
+
+    assert entry.loaded is False
+    assert entry.error == "load_failed"
+
+
+def test_default_models_dir_is_the_repository_folder(monkeypatch):
+    from app.config import DEFAULT_MODELS_DIR, load_settings
+
+    monkeypatch.delenv("AI_MODELS_DIR", raising=False)
+    assert load_settings().models_dir == DEFAULT_MODELS_DIR.resolve()
+    assert DEFAULT_MODELS_DIR.name == "models"

@@ -2,7 +2,6 @@
 
 import { AlertTriangle, ArrowLeft, Clock3, RefreshCw, ShieldAlert } from "lucide-react";
 import Link from "next/link";
-import { useEffect, useState, type ReactNode } from "react";
 import { isAxiosError } from "axios";
 
 import { DashboardShell } from "@/components/dashboard/layout/DashboardShell";
@@ -42,14 +41,6 @@ type AiAnalysisRunPageProps = {
   patientId: string;
   runId: string;
 };
-
-function MaskObjectUrl({ blob, children }: { blob: Blob; children: (url: string) => ReactNode }) {
-  const [url] = useState(() => URL.createObjectURL(blob));
-
-  useEffect(() => () => URL.revokeObjectURL(url), [url]);
-
-  return children(url);
-}
 
 export function AiAnalysisRunPage({ accountType, patientId, runId }: AiAnalysisRunPageProps) {
   const { locale } = useStoredLocale();
@@ -178,28 +169,14 @@ export function AiAnalysisRunPage({ accountType, patientId, runId }: AiAnalysisR
             <h2 id="ai-run-image" className="mb-3 text-base font-semibold text-[var(--text-primary)]">
               {t("aiAnalyses.run.image")}
             </h2>
-            {maskQuery.data ? (
-              <MaskObjectUrl blob={maskQuery.data}>
-                {(maskUrl) => (
-                  <ImageViewer
-                    blob={imageQuery.data ?? null}
-                    fileName={imageName}
-                    module="brain"
-                    overlay={{ color: "var(--ai-module-color)", opacity: 0.4, src: maskUrl }}
-                    placeholder={imageQuery.isError ? t("aiAnalyses.run.imageError") : t("aiAnalyses.run.imageLoading")}
-                    t={t}
-                  />
-                )}
-              </MaskObjectUrl>
-            ) : (
-              <ImageViewer
-                blob={imageQuery.data ?? null}
-                fileName={imageName}
-                module="brain"
-                placeholder={imageQuery.isError ? t("aiAnalyses.run.imageError") : t("aiAnalyses.run.imageLoading")}
-                t={t}
-              />
-            )}
+            <ImageViewer
+              blob={imageQuery.data ?? null}
+              fileName={imageName}
+              module="brain"
+              overlay={maskQuery.data ? { color: "var(--ai-module-color)", opacity: 0.4, src: maskQuery.data } : undefined}
+              placeholder={imageQuery.isError ? t("aiAnalyses.run.imageError") : t("aiAnalyses.run.imageLoading")}
+              t={t}
+            />
           </section>
 
           <div className="space-y-5">

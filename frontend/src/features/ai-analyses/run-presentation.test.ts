@@ -91,6 +91,8 @@ describe("run helpers", () => {
 
   it("maps known error codes and falls back to unknown", () => {
     expect(getRunErrorKey("SERVICE_TIMEOUT")).toBe("SERVICE_TIMEOUT");
+    // Set by the backend on a run left RUNNING after a restart.
+    expect(getRunErrorKey("RUN_INTERRUPTED")).toBe("RUN_INTERRUPTED");
     expect(getRunErrorKey("SOMETHING_NEW")).toBe("unknown");
     expect(getRunErrorKey(null)).toBe("unknown");
   });

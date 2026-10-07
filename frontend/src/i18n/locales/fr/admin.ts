@@ -92,6 +92,14 @@ export const adminFr = {
         description: "{actor} a enregistré une analyse IA dans un dossier patient.",
         label: "Analyse IA enregistrée",
       },
+      AI_ANALYSIS_RUN_COMPLETED: {
+        description: "Une analyse IA lancée par {actor} s’est terminée (réussite, image refusée ou échec).",
+        label: "Analyse IA terminée",
+      },
+      AI_ANALYSIS_RUN_CREATED: {
+        description: "{actor} a lancé une analyse IA sur une image d’un dossier patient.",
+        label: "Analyse IA lancée",
+      },
       DOCUMENT_VIEWED: {
         description: "{actor} a consulté un document d’un dossier patient.",
         label: "Document patient consulté",

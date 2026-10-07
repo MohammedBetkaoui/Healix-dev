@@ -313,6 +313,7 @@ export const aiAnalysesAr = {
       SERVICE_NOT_CONFIGURED: "خدمة التحليل غير مهيأة على الخادم.",
       SERVICE_ERROR: "أعادت خدمة التحليل استجابة غير صالحة.",
       MASK_STORAGE_FAILED: "تعذر حفظ قناع التجزئة.",
+      RUN_INTERRUPTED: "توقف التحليل قبل اكتماله (إعادة تشغيل الخادم). أعيدوا إطلاقه.",
       INVALID_IMAGE: "تعذرت قراءة الملف كصورة PNG أو JPEG.",
       IMAGE_TOO_LARGE: "تتجاوز الصورة الحجم الأقصى المقبول.",
       unknown: "السبب غير محدد.",

@@ -17,6 +17,7 @@ import { PatientAuditService } from '../patients/patient-audit.service';
 import { PatientsService } from '../patients/patients.service';
 import { PrismaService } from '../prisma/prisma.service';
 import {
+  AI_SERVICE_TIMEOUT_MS,
   AiServiceClient,
   AiServiceError,
   type AiServiceFailure,
@@ -26,7 +27,14 @@ import { CreateAiAnalysisRunDto } from './dto/create-ai-analysis-run.dto';
 // The inference service decodes PNG and JPEG only (no DICOM).
 const SUPPORTED_IMAGE_TYPES = new Set(['image/png', 'image/jpeg']);
 
-type RunErrorCode = AiServiceFailure | 'MASK_STORAGE_FAILED';
+// A run still RUNNING this long after its creation lost its request (backend
+// restarted mid-analysis): the service call itself stops at the timeout.
+const STALE_RUN_AFTER_MS = AI_SERVICE_TIMEOUT_MS + 60_000;
+
+type RunErrorCode =
+  | AiServiceFailure
+  | 'MASK_STORAGE_FAILED'
+  | 'RUN_INTERRUPTED';
 
 @Injectable()
 export class AiAnalysisRunsService {
@@ -152,8 +160,11 @@ export class AiAnalysisRunsService {
       orderBy: { createdAt: 'desc' },
       where: { patientId },
     });
+    const current = await Promise.all(
+      runs.map((run) => this.expireIfStale(user, run)),
+    );
 
-    return runs.map((run) => this.toRunResponse(run));
+    return current.map((run) => this.toRunResponse(run));
   }
 
   async findOne(
@@ -161,7 +172,50 @@ export class AiAnalysisRunsService {
     patientId: string,
     runId: string,
   ) {
-    return this.toRunResponse(await this.getRunInScope(user, patientId, runId));
+    const run = await this.getRunInScope(user, patientId, runId);
+    return this.toRunResponse(await this.expireIfStale(user, run));
+  }
+
+  // Without this, a run whose request died (backend restart) would stay
+  // RUNNING for good and the result page would poll it forever.
+  private async expireIfStale(
+    user: AuthenticatedUserPayload,
+    run: AiAnalysisRun,
+    now: Date = new Date(),
+  ): Promise<AiAnalysisRun> {
+    if (
+      run.status !== AiAnalysisRunStatus.RUNNING ||
+      now.getTime() - run.createdAt.getTime() < STALE_RUN_AFTER_MS
+    ) {
+      return run;
+    }
+
+    // Guarded on RUNNING: a request finishing at the same moment wins.
+    const { count } = await this.prisma.aiAnalysisRun.updateMany({
+      data: {
+        errorCode: 'RUN_INTERRUPTED',
+        status: AiAnalysisRunStatus.FAILED,
+      },
+      where: { id: run.id, status: AiAnalysisRunStatus.RUNNING },
+    });
+
+    if (count > 0) {
+      await this.patientAuditService.log(
+        user,
+        'AI_ANALYSIS_RUN_COMPLETED',
+        run.id,
+        {
+          errorCode: 'RUN_INTERRUPTED',
+          segmentationModelId: null,
+          status: AiAnalysisRunStatus.FAILED,
+        },
+      );
+    }
+
+    const current = await this.prisma.aiAnalysisRun.findFirst({
+      where: { id: run.id },
+    });
+    return current ?? run;
   }
 
   async getMask(
@@ -260,6 +314,13 @@ export class AiAnalysisRunsService {
           body(
             'AI_SERVICE_UNAVAILABLE',
             "Le service d'analyse est indisponible.",
+          ),
+        );
+      case 'RUN_INTERRUPTED':
+        return new InternalServerErrorException(
+          body(
+            'AI_RUN_INTERRUPTED',
+            "L'analyse a été interrompue avant sa fin.",
           ),
         );
       case 'MASK_STORAGE_FAILED':

@@ -35,7 +35,8 @@ import { type TranslationFunction } from "@/lib/i18n";
 
 /** Future segmentation mask drawn over the image; white areas of `src` take `color`. */
 export type ImageViewerOverlay = {
-  src: string;
+  /** The mask image; a Blob gets its object URL created and revoked here. */
+  src: Blob | string;
   /** 0 to 1. */
   opacity: number;
   color: string;
@@ -63,6 +64,7 @@ export function ImageViewer({ blob, fileName, module, overlay, placeholder, t }:
   const figureRef = useRef<HTMLElement>(null);
   const viewportRef = useRef<HTMLDivElement>(null);
   const imageRef = useRef<HTMLImageElement>(null);
+  const overlayRef = useRef<HTMLDivElement>(null);
   const dragRef = useRef<{ pointerId: number; x: number; y: number } | null>(null);
   const [state, dispatch] = useReducer(viewerReducer, initialViewerState);
   const [natural, setNatural] = useState<{ blob: Blob; height: number; width: number } | null>(null);
@@ -88,6 +90,29 @@ export function ImageViewer({ blob, fileName, module, overlay, placeholder, t }:
       URL.revokeObjectURL(url);
     };
   }, [blob]);
+
+  // Same for the overlay mask, set on the element itself: under Strict Mode
+  // the effect runs, is cleaned up (URL revoked) and runs again with a new URL.
+  const overlaySrc = overlay?.src;
+  useEffect(() => {
+    const element = overlayRef.current;
+
+    if (!element || !overlaySrc) {
+      return;
+    }
+
+    const url = typeof overlaySrc === "string" ? overlaySrc : URL.createObjectURL(overlaySrc);
+    element.style.maskImage = `url("${url}")`;
+    element.style.setProperty("-webkit-mask-image", `url("${url}")`);
+
+    return () => {
+      element.style.maskImage = "";
+      element.style.removeProperty("-webkit-mask-image");
+      if (typeof overlaySrc !== "string") {
+        URL.revokeObjectURL(url);
+      }
+    };
+  }, [overlaySrc]);
 
   // Wheel zoom needs preventDefault, which React's (passive) onWheel ignores.
   useEffect(() => {
@@ -269,16 +294,15 @@ export function ImageViewer({ blob, fileName, module, overlay, placeholder, t }:
               }
             }}
           />
-          {overlay && isOverlayVisible ? (
+          {overlay ? (
+            // Kept mounted (hidden when switched off) so its mask URL lives
+            // as long as the overlay, not as long as one display.
             <div
+              ref={overlayRef}
               aria-hidden="true"
               className="ai-viewer-overlay"
-              style={{
-                backgroundColor: overlay.color,
-                maskImage: `url(${overlay.src})`,
-                opacity: overlayOpacity,
-                WebkitMaskImage: `url(${overlay.src})`,
-              }}
+              hidden={!isOverlayVisible}
+              style={{ backgroundColor: overlay.color, opacity: overlayOpacity }}
             />
           ) : null}
         </div>

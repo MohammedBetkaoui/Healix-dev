@@ -83,6 +83,14 @@ export const adminAr = {
         description: "سجّل {actor} تحليلاً بالذكاء الاصطناعي في ملف مريض.",
         label: "تسجيل تحليل بالذكاء الاصطناعي",
       },
+      AI_ANALYSIS_RUN_COMPLETED: {
+        description: "انتهى تحليل بالذكاء الاصطناعي أطلقه {actor} (نجاح أو صورة مرفوضة أو فشل).",
+        label: "انتهاء تحليل بالذكاء الاصطناعي",
+      },
+      AI_ANALYSIS_RUN_CREATED: {
+        description: "أطلق {actor} تحليلًا بالذكاء الاصطناعي على صورة من ملف مريض.",
+        label: "إطلاق تحليل بالذكاء الاصطناعي",
+      },
       DOCUMENT_VIEWED: {
         description: "اطلع {actor} على وثيقة من ملف مريض.",
         label: "الاطلاع على وثيقة مريض",

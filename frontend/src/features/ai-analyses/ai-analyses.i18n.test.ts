@@ -6,6 +6,7 @@ import { translate } from "@/lib/i18n";
 
 import { aiModelStatuses, aiModelTasks, aiModules } from "./ai-analyses.types";
 import { aiModels, aiPipelines } from "./ai-models.registry";
+import { knownRunErrorCodes } from "./run-presentation";
 import { qualityCheckKeys, qualityCheckStatuses } from "./quality-check";
 
 // Mirrors the steps of components/ai-analyses/wizard/AiAnalysisWizardPage.
@@ -48,7 +49,7 @@ function registryKeys() {
   for (const state of ["loading", "status_error", "service_unavailable", "service_not_configured", "service_unauthorized", "service_error", "classifier_not_loaded"]) {
     keys.add(`aiAnalyses.wizard.reading.launchStates.${state}`);
   }
-  for (const code of ["SERVICE_UNAVAILABLE", "SERVICE_TIMEOUT", "MODEL_NOT_LOADED", "SERVICE_NOT_CONFIGURED", "SERVICE_ERROR", "MASK_STORAGE_FAILED", "INVALID_IMAGE", "IMAGE_TOO_LARGE", "unknown"]) {
+  for (const code of [...knownRunErrorCodes, "unknown"]) {
     keys.add(`aiAnalyses.run.errors.${code}`);
   }
   for (const reason of ["not_applicable_for_class", "model_not_loaded"]) {

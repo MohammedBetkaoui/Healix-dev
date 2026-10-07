@@ -313,6 +313,7 @@ export const aiAnalysesFr = {
       SERVICE_NOT_CONFIGURED: "Le service d’analyse n’est pas configuré sur le serveur.",
       SERVICE_ERROR: "Le service d’analyse a renvoyé une réponse invalide.",
       MASK_STORAGE_FAILED: "Le masque de segmentation n’a pas pu être enregistré.",
+      RUN_INTERRUPTED: "L’analyse a été interrompue avant sa fin (redémarrage du serveur). Relancez-la.",
       INVALID_IMAGE: "Le fichier n’a pas pu être lu comme une image PNG ou JPEG.",
       IMAGE_TOO_LARGE: "L’image dépasse la taille maximale acceptée.",
       unknown: "Motif non précisé.",

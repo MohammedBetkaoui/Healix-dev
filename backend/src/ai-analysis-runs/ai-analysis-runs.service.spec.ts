@@ -104,6 +104,7 @@ describe('AiAnalysisRunsService (POST /patients/:id/ai-analysis-runs)', () => {
     [{ data: RunData; where: { id: string } }]
   >();
   const runFindFirst = jest.fn();
+  const runUpdateMany = jest.fn();
   const log = jest.fn<Promise<void>, [unknown, string, string, unknown?]>();
   const fetchMock = jest.fn<Promise<Response>, Parameters<typeof fetch>>();
   const originalFetch = global.fetch;
@@ -113,6 +114,7 @@ describe('AiAnalysisRunsService (POST /patients/:id/ai-analysis-runs)', () => {
       create: runCreate,
       findFirst: runFindFirst,
       update: runUpdate,
+      updateMany: runUpdateMany,
     },
     patient: { findFirst: patientFindFirst },
     patientConsent: { findMany: consentFindMany },
@@ -435,6 +437,52 @@ describe('AiAnalysisRunsService (POST /patients/:id/ai-analysis-runs)', () => {
       errorCode: 'SERVICE_NOT_CONFIGURED',
       status: AiAnalysisRunStatus.FAILED,
     });
+  });
+
+  it('expires a run left RUNNING past the service delay (backend restarted mid-run)', async () => {
+    const stale = {
+      createdAt: new Date(Date.now() - 125_000),
+      id: 'run-stale',
+      maskPath: null,
+      patientId: 'patient-a',
+      status: 'RUNNING',
+    };
+    runFindFirst.mockResolvedValueOnce(stale).mockResolvedValueOnce({
+      ...stale,
+      errorCode: 'RUN_INTERRUPTED',
+      status: 'FAILED',
+    });
+    runUpdateMany.mockResolvedValue({ count: 1 });
+
+    const run = await service.findOne(doctor, 'patient-a', 'run-stale');
+
+    expect(runUpdateMany).toHaveBeenCalledWith({
+      data: { errorCode: 'RUN_INTERRUPTED', status: 'FAILED' },
+      where: { id: 'run-stale', status: 'RUNNING' },
+    });
+    expect(run).toEqual(
+      expect.objectContaining({
+        errorCode: 'RUN_INTERRUPTED',
+        status: 'FAILED',
+      }),
+    );
+    expect(auditActions()).toEqual(['AI_ANALYSIS_RUN_COMPLETED']);
+  });
+
+  it('leaves a recent RUNNING run untouched', async () => {
+    runFindFirst.mockResolvedValue({
+      createdAt: new Date(Date.now() - 30_000),
+      id: 'run-live',
+      maskPath: null,
+      patientId: 'patient-a',
+      status: 'RUNNING',
+    });
+
+    const run = await service.findOne(doctor, 'patient-a', 'run-live');
+
+    expect(run.status).toBe('RUNNING');
+    expect(runUpdateMany).not.toHaveBeenCalled();
+    expect(log).not.toHaveBeenCalled();
   });
 
   it('answers 404 for a run of another patient', async () => {

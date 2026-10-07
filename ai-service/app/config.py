@@ -6,6 +6,10 @@ import os
 from dataclasses import dataclass
 from pathlib import Path
 
+# <repo>/models, next to ai-service/: where the weights sit in development
+# (the folder the tests read), whatever the working directory.
+DEFAULT_MODELS_DIR = Path(__file__).resolve().parents[2] / "models"
+
 
 @dataclass(frozen=True)
 class Settings:
@@ -24,7 +28,7 @@ class Settings:
 def load_settings() -> Settings:
     return Settings(
         service_token=os.environ.get("AI_SERVICE_TOKEN", ""),
-        models_dir=Path(os.environ.get("AI_MODELS_DIR", "models")).resolve(),
+        models_dir=Path(os.environ.get("AI_MODELS_DIR") or DEFAULT_MODELS_DIR).resolve(),
         host=os.environ.get("AI_SERVICE_HOST", "127.0.0.1"),
         port=int(os.environ.get("AI_SERVICE_PORT", "8001")),
         max_image_bytes=int(os.environ.get("AI_MAX_IMAGE_BYTES", str(20 * 1024 * 1024))),

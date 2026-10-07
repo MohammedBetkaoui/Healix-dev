@@ -136,8 +136,10 @@ def load_model(spec: ModelSpec, models_dir: Path) -> LoadedModel:
         checkpoint = torch.load(path, map_location="cpu", weights_only=True)
         module = spec.build()
         module.load_state_dict(checkpoint["model_state"], strict=True)
-    except (KeyError, RuntimeError, TypeError) as error:
-        # A mismatched checkpoint stays unloaded: no strict=False fallback.
+    except Exception as error:  # noqa: BLE001
+        # A mismatched or unreadable checkpoint (a weights_only refusal raises
+        # an UnpicklingError) stays unloaded, without stopping the service: no
+        # strict=False fallback.
         entry.error = "load_failed"
         logger.error("Model %s not loaded: strict load failed: %s", spec.model_id, error)
         return entry

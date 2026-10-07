@@ -63,7 +63,7 @@ uv pip install --python .venv -r requirements-dev.txt \
 | Variable | Default | |
 | --- | --- | --- |
 | `AI_SERVICE_TOKEN` | *(empty: every protected call refused)* | Shared secret, sent by the backend as `X-Service-Token` |
-| `AI_MODELS_DIR` | `models` | Folder holding the `.pth` files |
+| `AI_MODELS_DIR` | `<repo>/models` | Folder holding the `.pth` files |
 | `AI_SERVICE_HOST` | `127.0.0.1` | |
 | `AI_SERVICE_PORT` | `8001` | |
 | `AI_MAX_IMAGE_BYTES` | `20971520` (20 MB) | Larger uploads: 413 |

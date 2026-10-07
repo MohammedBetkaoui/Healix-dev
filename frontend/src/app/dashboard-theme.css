@@ -372,8 +372,9 @@
 .clinical-theme .ai-viewer-button { display: inline-flex; align-items: center; justify-content: center; min-width: 36px; height: 36px; padding: 0 8px; border: 1px solid var(--viewer-line); border-radius: var(--radius-sm); background: var(--viewer-bg); color: var(--viewer-ink); }
 .clinical-theme .ai-viewer-button:hover:not(:disabled) { border-color: var(--viewer-ink-soft); }
 .clinical-theme .ai-viewer-button:disabled { cursor: not-allowed; opacity: .45; }
-/* Pressed = filled, not only a hue change. */
-.clinical-theme .ai-viewer-button[aria-pressed="true"] { border-color: var(--ai-module-color); background: var(--ai-module-color); color: var(--viewer-bg); }
+/* On state: module-colour border, thickened to 2 px, over a tint of that colour;
+   light text stays at about 10:1 (a full fill under dark text is 4.2:1 for brain). */
+.clinical-theme .ai-viewer-button:is([aria-pressed="true"], [aria-checked="true"]) { border-color: var(--ai-module-color); box-shadow: inset 0 0 0 1px var(--ai-module-color); background: color-mix(in srgb, var(--ai-module-color) 35%, var(--viewer-bg)); color: var(--viewer-ink); }
 .clinical-theme .ai-viewer-readout { min-width: 4.5rem; text-align: center; font-size: .78rem; color: var(--viewer-ink); }
 .clinical-theme .ai-viewer-slider { display: inline-flex; align-items: center; gap: 8px; font-size: .75rem; color: var(--viewer-ink-soft); }
 .clinical-theme .ai-viewer-slider input { width: 110px; accent-color: var(--ai-module-color); }
