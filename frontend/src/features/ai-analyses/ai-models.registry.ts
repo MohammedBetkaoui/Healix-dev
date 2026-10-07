@@ -170,3 +170,11 @@ export const aiModels = [
 ] as const satisfies readonly AiModel[];
 
 export type AiModelId = (typeof aiModels)[number]["id"];
+
+/**
+ * The model a new analysis can be prepared with (?model= of the "new
+ * analysis" route): known and available, else undefined.
+ */
+export function findLaunchableModel(modelId: string | undefined) {
+  return aiModels.find((model) => model.id === modelId && model.status === "available");
+}

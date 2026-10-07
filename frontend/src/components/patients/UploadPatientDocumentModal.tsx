@@ -8,18 +8,20 @@ import { Select } from "@/components/ui/select";
 import { useUploadPatientDocument } from "@/features/patients/hooks/use-upload-patient-document";
 import { getMutationErrorMessage } from "@/lib/api/get-mutation-error-message";
 import { type Direction, type TranslationFunction } from "@/lib/i18n";
-import { type PatientDocumentType } from "@/types/patient";
+import { type PatientDocument, type PatientDocumentType } from "@/types/patient";
 
 type UploadPatientDocumentModalProps = {
   direction: Direction;
+  /** Types offered in the select; all of them by default. */
+  documentTypes?: readonly PatientDocumentType[];
   isOpen: boolean;
   onClose: () => void;
-  onUploaded: () => void;
+  onUploaded: (document: PatientDocument) => void;
   patientId: string;
   t: TranslationFunction;
 };
 
-const documentTypes: PatientDocumentType[] = ["PRESCRIPTION", "MEDICAL_REPORT", "MEDICAL_IMAGE", "DICOM"];
+const allDocumentTypes: readonly PatientDocumentType[] = ["PRESCRIPTION", "MEDICAL_REPORT", "MEDICAL_IMAGE", "DICOM"];
 
 const fieldClass = "h-[42px] rounded-[var(--radius-sm)] border-[var(--border)] bg-[var(--surface)] text-sm text-[var(--text-primary)] shadow-none placeholder:text-[var(--text-muted)] focus:border-[var(--accent)] focus:ring-2 focus:ring-[var(--accent-soft)]";
 const labelClass = "text-[.8rem] font-medium text-[var(--text-primary)]";
@@ -41,6 +43,7 @@ export function UploadPatientDocumentModal({
 
 function UploadPatientDocumentDialog({
   direction,
+  documentTypes = allDocumentTypes,
   onClose,
   onUploaded,
   patientId,
@@ -78,8 +81,8 @@ function UploadPatientDocumentDialog({
     uploadDocumentMutation.mutate(
       { documentType, file, patientId },
       {
-        onSuccess: () => {
-          onUploaded();
+        onSuccess: (document) => {
+          onUploaded(document);
           onClose();
         },
       },

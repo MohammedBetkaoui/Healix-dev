@@ -47,6 +47,7 @@ export function AiAnalysesHubPage({ accountType }: AiAnalysesHubPageProps) {
   const initials = getAccountInitials(currentUser.data?.fullName);
   const [sheetModelId, setSheetModelId] = useState<AiModelId | null>(null);
   const sheetModel = aiModels.find((model) => model.id === sheetModelId) ?? null;
+  const roleBase = accountType === "ESTABLISHMENT" ? "/establishment" : "/doctor";
 
   const shellProps = accountType === "ESTABLISHMENT"
     ? {
@@ -112,6 +113,7 @@ export function AiAnalysesHubPage({ accountType }: AiAnalysesHubPageProps) {
                       <AiModelCard
                         locale={locale}
                         model={model}
+                        newAnalysisHref={`${roleBase}/ai-analyses/new?model=${encodeURIComponent(model.id)}`}
                         onOpenSheet={() => setSheetModelId(model.id)}
                         t={t}
                       />

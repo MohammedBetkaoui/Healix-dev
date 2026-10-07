@@ -66,6 +66,8 @@ export type PatientDocument = {
   date: string;
   fileName: string;
   id: string;
+  /** As stored by the backend; empty for a .dcm upload the browser sent without one. */
+  mimeType: string;
   size: string;
   type: PatientDocumentType;
 };

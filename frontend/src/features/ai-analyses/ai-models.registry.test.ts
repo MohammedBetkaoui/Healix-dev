@@ -4,7 +4,7 @@ import {
   aiModules,
   type AiModel,
 } from "./ai-analyses.types";
-import { aiModels as registry } from "./ai-models.registry";
+import { aiModels as registry, findLaunchableModel } from "./ai-models.registry";
 
 // Through the declared type: the tests check data, not the literal types
 // "as const" gives each entry.
@@ -96,6 +96,14 @@ describe("aiModels registry", () => {
       "pathology-hovernet-nuclei-segmentation": "exploring",
       "pathology-breakhis-classification": "exploring",
     });
+  });
+
+  it("only lets an available model start a new analysis", () => {
+    expect(findLaunchableModel("brain-efficientnetb4-tumor-classification")?.status).toBe("available");
+    expect(findLaunchableModel("cardiology-acdc-segmentation")).toBeUndefined();
+    expect(findLaunchableModel("pathology-breakhis-classification")).toBeUndefined();
+    expect(findLaunchableModel("unknown-model")).toBeUndefined();
+    expect(findLaunchableModel(undefined)).toBeUndefined();
   });
 
   it("lists every model as not certified", () => {

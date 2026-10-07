@@ -225,6 +225,7 @@ function toPatientDocumentViewModel(
     date: record.createdAt,
     fileName: record.originalName,
     id: record.id,
+    mimeType: record.mimeType,
     size: formatDocumentSize(record.size),
     type: record.documentType,
   };
@@ -238,6 +239,20 @@ export async function getPatientDocuments(
   );
 
   return response.data.map(toPatientDocumentViewModel);
+}
+
+// GET /patients/:id/documents/:documentId/view: the file itself, inline.
+// Each call is audited server-side (DOCUMENT_VIEWED), so callers cache it.
+export async function getPatientDocumentBlob(
+  patientId: string,
+  documentId: string,
+): Promise<Blob> {
+  const response = await apiClient.get<Blob>(
+    `/patients/${patientId}/documents/${documentId}/view`,
+    { responseType: "blob" },
+  );
+
+  return response.data;
 }
 
 export async function uploadPatientDocument(

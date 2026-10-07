@@ -359,10 +359,47 @@
 .clinical-theme .ai-widget .clinical-section-heading { color: var(--ai); background: var(--ai-soft); }
 .clinical-theme .ai-widget .clinical-link { color: var(--ai); }
 .clinical-theme .ai-module { border-inline-start: 3px solid var(--ai-module-color); }
-.clinical-theme .ai-module[data-module="brain"] { --ai-module-color: var(--specialty-brain); }
-.clinical-theme .ai-module[data-module="cardiology"] { --ai-module-color: var(--specialty-cardiology); }
-.clinical-theme .ai-module[data-module="pathology"] { --ai-module-color: var(--specialty-pathology); }
+.clinical-theme :is(.ai-module, .ai-viewer)[data-module="brain"] { --ai-module-color: var(--specialty-brain); }
+.clinical-theme :is(.ai-module, .ai-viewer)[data-module="cardiology"] { --ai-module-color: var(--specialty-cardiology); }
+.clinical-theme :is(.ai-module, .ai-viewer)[data-module="pathology"] { --ai-module-color: var(--specialty-pathology); }
 .clinical-theme .ai-module-icon { color: var(--ai-module-color); }
+/* AI image viewer: always dark, whatever the theme (image reading). Its
+   specialty accent uses the dark-theme value: the light cardiology red is
+   2.98:1 on this background, under the 3:1 non-text minimum. */
+.clinical-theme .ai-viewer { --viewer-bg: #0b1220; --viewer-panel: #131c2e; --viewer-line: #2a3650; --viewer-ink: #e2e8f0; --viewer-ink-soft: #94a3b8; --specialty-cardiology: #f43f5e; display: flex; flex-direction: column; margin: 0; overflow: hidden; border: 1px solid var(--viewer-line); border-inline-start: 3px solid var(--ai-module-color); border-radius: var(--radius-md); background: var(--viewer-bg); color: var(--viewer-ink); }
+.clinical-theme .ai-viewer :where(a, button, input, [tabindex]):focus-visible { outline: 2px solid var(--ai-module-color); outline-offset: 2px; }
+.clinical-theme .ai-viewer-controls { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 10px 16px; padding: 10px 12px; border-bottom: 1px solid var(--viewer-line); background: var(--viewer-panel); }
+.clinical-theme .ai-viewer-button { display: inline-flex; align-items: center; justify-content: center; min-width: 36px; height: 36px; padding: 0 8px; border: 1px solid var(--viewer-line); border-radius: var(--radius-sm); background: var(--viewer-bg); color: var(--viewer-ink); }
+.clinical-theme .ai-viewer-button:hover:not(:disabled) { border-color: var(--viewer-ink-soft); }
+.clinical-theme .ai-viewer-button:disabled { cursor: not-allowed; opacity: .45; }
+/* Pressed = filled, not only a hue change. */
+.clinical-theme .ai-viewer-button[aria-pressed="true"] { border-color: var(--ai-module-color); background: var(--ai-module-color); color: var(--viewer-bg); }
+.clinical-theme .ai-viewer-readout { min-width: 4.5rem; text-align: center; font-size: .78rem; color: var(--viewer-ink); }
+.clinical-theme .ai-viewer-slider { display: inline-flex; align-items: center; gap: 8px; font-size: .75rem; color: var(--viewer-ink-soft); }
+.clinical-theme .ai-viewer-slider input { width: 110px; accent-color: var(--ai-module-color); }
+.clinical-theme .ai-viewer-viewport { position: relative; height: clamp(320px, 60vh, 720px); overflow: hidden; touch-action: none; cursor: grab; }
+.clinical-theme .ai-viewer-viewport[data-dragging] { cursor: grabbing; }
+.clinical-theme .ai-viewer-viewport[tabindex="-1"] { cursor: default; }
+.clinical-theme .ai-viewer-viewport:focus-visible { outline-offset: -3px; }
+.clinical-theme .ai-viewer-stage { position: absolute; inset: 0; transform-origin: center; }
+.clinical-theme .ai-viewer-image { width: 100%; height: 100%; object-fit: contain; user-select: none; }
+/* Same "contain" geometry as the image, so a mask of that image aligns. */
+.clinical-theme .ai-viewer-overlay { position: absolute; inset: 0; pointer-events: none; mask-mode: luminance; mask-size: contain; mask-repeat: no-repeat; mask-position: center; -webkit-mask-size: contain; -webkit-mask-repeat: no-repeat; -webkit-mask-position: center; }
+.clinical-theme .ai-viewer-placeholder { position: absolute; inset: 0; display: grid; place-items: center; padding: 24px; text-align: center; font-size: .85rem; color: var(--viewer-ink-soft); }
+.clinical-theme .ai-viewer-status { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 8px; padding: 8px 12px; border-top: 1px solid var(--viewer-line); background: var(--viewer-panel); font-size: .72rem; color: var(--viewer-ink-soft); }
+.clinical-theme .ai-viewer-mono { font-family: var(--font-auth-mono), ui-monospace, monospace; font-variant-numeric: tabular-nums; }
+.clinical-theme .ai-viewer:fullscreen { border-radius: 0; }
+.clinical-theme .ai-viewer:fullscreen .ai-viewer-viewport { flex: 1; height: auto; }
+/* Wizard stepper: state shown by the marker (number, check) and by text. */
+.clinical-theme .ai-stepper { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 8px; }
+.clinical-theme .ai-step { display: flex; min-width: 0; align-items: center; gap: 10px; padding: 10px 12px; border: 1px solid var(--border); border-radius: var(--radius-sm); background: var(--surface); color: var(--text-secondary); font-size: .8rem; }
+.clinical-theme .ai-step[aria-current="step"] { border-color: var(--accent); box-shadow: inset 0 -2px 0 var(--accent); color: var(--text-primary); font-weight: 600; }
+.clinical-theme .ai-step-marker { display: inline-flex; width: 26px; height: 26px; flex-shrink: 0; align-items: center; justify-content: center; border: 1px solid var(--border-strong); border-radius: 999px; font-size: .75rem; }
+/* Same fill as the primary buttons: --accent lightens in dark mode (2.2:1 under white). */
+.clinical-theme .ai-step[aria-current="step"] .ai-step-marker { border: 2px solid var(--accent); background: var(--primary); color: var(--primary-foreground); }
+.clinical-theme .ai-step[data-state="done"] .ai-step-marker { border-color: var(--success-ink); color: var(--success-ink); }
+.clinical-theme button.ai-step:hover { background: var(--surface-muted); }
+@media (max-width: 767px) { .clinical-theme .ai-stepper { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
 .clinical-theme .clinical-status-badge { font-family: var(--font-auth-sans); letter-spacing: normal; }
 .clinical-theme .clinical-table { border-radius: var(--radius-md); box-shadow: none; background: var(--surface); }
 .clinical-theme .clinical-table th { text-align: start; background: var(--surface-muted); font-family: var(--font-auth-sans); text-transform: none; letter-spacing: normal; font-size: .72rem; padding: 12px 16px; }

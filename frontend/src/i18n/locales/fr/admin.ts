@@ -92,6 +92,10 @@ export const adminFr = {
         description: "{actor} a enregistré une analyse IA dans un dossier patient.",
         label: "Analyse IA enregistrée",
       },
+      DOCUMENT_VIEWED: {
+        description: "{actor} a consulté un document d’un dossier patient.",
+        label: "Document patient consulté",
+      },
       PATIENT_CONSENT_UPDATED: {
         description: "{actor} a mis à jour un consentement patient.",
         label: "Consentement mis à jour",

@@ -1,10 +1,11 @@
 "use client";
 
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { AdminDashboardPage } from "@/components/admin/dashboard/AdminDashboardPage";
 import { AdminPaymentsPage } from "@/components/admin/payments/AdminPaymentsPage";
 import { AiAnalysesHubPage } from "@/components/ai-analyses/AiAnalysesHubPage";
+import { AiAnalysisWizardPage } from "@/components/ai-analyses/wizard/AiAnalysisWizardPage";
 import { AppointmentsAgendaPage } from "@/components/appointments/AppointmentsAgendaPage";
 import { EstablishmentDashboard } from "@/components/dashboard/establishment/EstablishmentDashboard";
 import { DoctorDashboard } from "@/components/dashboard/doctor/DoctorDashboard";
@@ -61,6 +62,55 @@ function seedAppointmentsPreview(query: QueryClient) {
   query.setQueryData(["patients", "list", { limit: 100 }], { data: patients, meta: { limit: 100, page: 1, total: patients.length, totalPages: 1 } });
 }
 
+// "New analysis" wizard: the first patient has signed the AI consent and
+// has two images (a PNG test pattern, a DICOM file), the second has not
+// signed it (blocking state).
+const wizardPatientId = "PAT-2026-000123";
+const wizardDocuments = [
+  { date: "2026-09-30", fileName: "mire-de-test.png", id: "doc-test-pattern", mimeType: "image/png", size: "38 KB", type: "MEDICAL_IMAGE" },
+  { date: "2026-09-28", fileName: "serie-axiale.dcm", id: "doc-dicom", mimeType: "application/dicom", size: "2.1 MB", type: "DICOM" },
+  { date: "2026-09-12", fileName: "compte-rendu.pdf", id: "doc-report", mimeType: "application/pdf", size: "120 KB", type: "MEDICAL_REPORT" },
+];
+
+function seedAiAnalysisWizardPreview(query: QueryClient) {
+  // The patient hooks set a 15 s staleTime: dated a day ahead, the seeded
+  // data stays fresh during a review instead of being refetched (401 here).
+  const fresh = { updatedAt: Date.now() + 86_400_000 };
+  const patients = getMockPatients("fr");
+  query.setQueryData(["patients", "list", { limit: 20 }], { data: patients, meta: { limit: 20, page: 1, total: patients.length, totalPages: 1 } }, fresh);
+  query.setQueryData(["patients", "consents", wizardPatientId], [
+    { documentName: undefined, recordedAt: "2026-09-01T10:00:00.000Z", recordedBy: "preview", status: "SIGNED", type: "DIAGNOSTIC_AI" },
+  ], fresh);
+  query.setQueryData(["patients", "consents", "PAT-2026-000124"], [], fresh);
+  query.setQueryData(["patients", "documents", wizardPatientId], wizardDocuments, fresh);
+}
+
+// A geometric test pattern drawn in the browser (client only), labelled as
+// such: the viewer needs an image to review, and this is not a medical one.
+function drawTestPattern(): Promise<Blob | null> {
+  const canvas = document.createElement("canvas");
+  canvas.width = 640;
+  canvas.height = 480;
+  const context = canvas.getContext("2d");
+  if (!context) return Promise.resolve(null);
+  const gradient = context.createLinearGradient(0, 0, 640, 0);
+  gradient.addColorStop(0, "#000000");
+  gradient.addColorStop(1, "#ffffff");
+  context.fillStyle = gradient;
+  context.fillRect(0, 0, 640, 480);
+  context.strokeStyle = "rgba(255, 255, 255, 0.35)";
+  for (let x = 0; x <= 640; x += 40) { context.beginPath(); context.moveTo(x, 0); context.lineTo(x, 480); context.stroke(); }
+  for (let y = 0; y <= 480; y += 40) { context.beginPath(); context.moveTo(0, y); context.lineTo(640, y); context.stroke(); }
+  context.strokeStyle = "#808080";
+  context.lineWidth = 4;
+  for (const radius of [60, 120, 180]) { context.beginPath(); context.arc(320, 240, radius, 0, Math.PI * 2); context.stroke(); }
+  context.fillStyle = "#ff0000";
+  context.font = "bold 28px sans-serif";
+  context.textAlign = "center";
+  context.fillText("MIRE DE TEST · 640 × 480", 320, 250);
+  return new Promise((resolve) => canvas.toBlob(resolve, "image/png"));
+}
+
 export function ThemeReview({ view }: { view: string }) {
   const [client] = useState(() => {
     const query = new QueryClient({ defaultOptions: { queries: { retry: false, enabled: false, staleTime: Infinity } } });
@@ -79,6 +129,7 @@ export function ThemeReview({ view }: { view: string }) {
       recentVerificationRequests: ["PENDING_VERIFICATION", "VERIFIED", "REJECTED"].map((status, i) => ({ id: `preview-${i}`, requesterName: ["Clinique Démonstration", "Dr Exemple", "Établissement Test"][i], type: i === 1 ? "INDEPENDENT_DOCTOR" : "ESTABLISHMENT", status, wilaya: "Alger" })),
     });
     seedAppointmentsPreview(query);
+    seedAiAnalysisWizardPreview(query);
     // GET /subscription/me shape (features/subscriptions/subscriptions.api.ts):
     // an active establishment on a catalog plan, the richest page state.
     query.setQueryData(["subscription", "me"], {
@@ -121,5 +172,12 @@ export function ThemeReview({ view }: { view: string }) {
     });
     return query;
   });
-  return <QueryClientProvider client={client}>{view === "admin" ? <AdminDashboardPage /> : view === "admin-payments" ? <AdminPaymentsPage /> : view === "doctor" ? <DoctorDashboard /> : view === "patients" ? <EstablishmentPatientsPage /> : view === "appointments" ? <AppointmentsAgendaPage accountType="ESTABLISHMENT" /> : view === "verification" ? <EstablishmentVerificationPage /> : view === "subscription" ? <SubscriptionPage accountType="ESTABLISHMENT" /> : view === "ai-analyses" ? <AiAnalysesHubPage accountType="ESTABLISHMENT" /> : <EstablishmentDashboard />}</QueryClientProvider>;
+  useEffect(() => {
+    if (view !== "ai-analyses-new") return;
+    void drawTestPattern().then((blob) => {
+      if (blob) client.setQueryData(["patients", "document-view", wizardPatientId, "doc-test-pattern"], blob);
+    });
+  }, [client, view]);
+
+  return <QueryClientProvider client={client}>{view === "admin" ? <AdminDashboardPage /> : view === "admin-payments" ? <AdminPaymentsPage /> : view === "doctor" ? <DoctorDashboard /> : view === "patients" ? <EstablishmentPatientsPage /> : view === "appointments" ? <AppointmentsAgendaPage accountType="ESTABLISHMENT" /> : view === "verification" ? <EstablishmentVerificationPage /> : view === "subscription" ? <SubscriptionPage accountType="ESTABLISHMENT" /> : view === "ai-analyses" ? <AiAnalysesHubPage accountType="ESTABLISHMENT" /> : view === "ai-analyses-new" ? <AiAnalysisWizardPage accountType="ESTABLISHMENT" modelId="brain-efficientnetb4-tumor-classification" /> : <EstablishmentDashboard />}</QueryClientProvider>;
 }

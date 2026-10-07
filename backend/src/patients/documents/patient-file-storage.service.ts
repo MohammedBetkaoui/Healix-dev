@@ -2,9 +2,11 @@ import {
   Injectable,
   InternalServerErrorException,
   Logger,
+  NotFoundException,
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { randomBytes } from 'node:crypto';
+import { createReadStream, existsSync, type ReadStream } from 'node:fs';
 import { mkdir, rm, writeFile } from 'node:fs/promises';
 import { dirname, resolve } from 'node:path';
 
@@ -73,6 +75,18 @@ export class PatientFileStorageService {
         'Une erreur est survenue lors du stockage du document.',
       );
     }
+  }
+
+  // Read stream of a stored document. The path comes from the database, so it
+  // is re-checked against the upload root before anything is opened.
+  openStoredFile(localPath: string): ReadStream {
+    const safePath = this.ensurePathInsideUploadRoot(localPath);
+
+    if (!existsSync(safePath)) {
+      throw new NotFoundException('Document introuvable.');
+    }
+
+    return createReadStream(safePath);
   }
 
   async deleteLocalFile(localPath: string): Promise<void> {

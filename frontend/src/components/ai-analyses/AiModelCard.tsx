@@ -1,6 +1,7 @@
 "use client";
 
 import { Clock3, FileText, ScanLine } from "lucide-react";
+import Link from "next/link";
 import { useId } from "react";
 
 import { StatusBadge } from "@/components/dashboard/shared/StatusBadge";
@@ -15,24 +16,26 @@ import { cn } from "@/lib/utils";
 import { type DashboardStatusTone } from "@/types/dashboard";
 
 // Workflow status colors, never the specialty ones; the badge text carries
-// the status, the tone only reinforces it.
+// the status, the tone only reinforces it. "exploring" is neutral: an early
+// study, not a problem.
 export const aiModelStatusTone: Record<AiModelStatus, DashboardStatusTone> = {
   available: "success",
   in_design: "warning",
-  exploring: "danger",
+  exploring: "neutral",
 };
 
 type AiModelCardProps = {
   locale: Locale;
   model: AiModel;
+  /** "New analysis" route of the account's role, with ?model= set. */
+  newAnalysisHref: string;
   onOpenSheet: () => void;
   t: TranslationFunction;
 };
 
-export function AiModelCard({ locale, model, onOpenSheet, t }: AiModelCardProps) {
+export function AiModelCard({ locale, model, newAnalysisHref, onOpenSheet, t }: AiModelCardProps) {
   const id = useId();
   const nameId = `${id}-name`;
-  const hintId = `${id}-hint`;
   const name = t(`aiAnalyses.models.${model.id}.name`);
   const notProvided = t("aiAnalyses.card.notProvided");
   const isAvailable = model.status === "available";
@@ -96,23 +99,21 @@ export function AiModelCard({ locale, model, onOpenSheet, t }: AiModelCardProps)
           <FileText size={16} strokeWidth={1.8} aria-hidden="true" />
           {t("aiAnalyses.card.openSheet")}
         </button>
-        {/* No analysis can run yet: no inference service exists. */}
         {isAvailable ? (
-          <button type="button" className="clinical-button clinical-button-unavailable" disabled aria-describedby={hintId}>
+          <Link
+            href={newAnalysisHref}
+            className="clinical-button clinical-button-primary"
+            aria-label={t("aiAnalyses.card.newAnalysisFor", { name })}
+          >
             <ScanLine size={16} strokeWidth={1.8} aria-hidden="true" />
             {t("aiAnalyses.card.newAnalysis")}
-          </button>
+          </Link>
         ) : (
           <button type="button" className="clinical-button clinical-button-unavailable" disabled>
             <Clock3 size={16} strokeWidth={1.8} aria-hidden="true" />
             {t("aiAnalyses.card.comingSoon")}
           </button>
         )}
-        {isAvailable ? (
-          <p id={hintId} className="w-full text-xs text-[var(--text-secondary)]">
-            {t("aiAnalyses.card.nextStep")}
-          </p>
-        ) : null}
       </div>
     </article>
   );

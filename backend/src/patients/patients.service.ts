@@ -408,6 +408,45 @@ export class PatientsService {
     }
   }
 
+  // Same access rule as the document list: a document is readable by whoever
+  // has the patient in scope. Looked up by (id, patientId) so a document id
+  // of another patient answers 404 like an unknown one.
+  async getDocumentStream(
+    user: AuthenticatedUserPayload,
+    patientId: string,
+    documentId: string,
+  ) {
+    await this.getPatientInScope(user, patientId);
+
+    const document = await this.prisma.patientDocument.findFirst({
+      where: { id: documentId, patientId },
+    });
+
+    if (!document) {
+      throw new NotFoundException('Document introuvable.');
+    }
+
+    // Opened before logging: a missing file is a 404, not a consultation.
+    const stream = this.fileStorageService.openStoredFile(document.localPath);
+
+    try {
+      await this.patientAuditService.log(user, 'DOCUMENT_VIEWED', document.id, {
+        documentType: document.documentType,
+        patientId,
+      });
+    } catch (error) {
+      stream.destroy();
+      throw error;
+    }
+
+    return {
+      mimeType: document.mimeType,
+      originalName: document.originalName,
+      size: document.size,
+      stream,
+    };
+  }
+
   private toDocumentResponse(document: PatientDocument) {
     return {
       id: document.id,

@@ -132,6 +132,7 @@ function createMockPatient(index: number, locale: Locale): Patient {
       date: lastVisit,
       fileName: `rapport-medical-${recordNumber}.pdf`,
       id: `document-${patientNumber}-1`,
+      mimeType: "application/pdf",
       size: "840 KB",
       type: "MEDICAL_REPORT",
     }],

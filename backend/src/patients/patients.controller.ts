@@ -8,10 +8,12 @@ import {
   Put,
   Query,
   UploadedFile,
+  Res,
   UseGuards,
   UseInterceptors,
 } from '@nestjs/common';
 import { FileInterceptor } from '@nestjs/platform-express';
+import { type Response } from 'express';
 import { memoryStorage } from 'multer';
 
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
@@ -118,6 +120,47 @@ export class PatientsController {
     @Param('id') id: string,
   ) {
     return this.patientsService.listDocuments(user, id);
+  }
+
+  // Streams the file inline for the clinical viewer; each consultation is
+  // audited (DOCUMENT_VIEWED).
+  @Get(':id/documents/:documentId/view')
+  async viewDocument(
+    @CurrentUser() user: AuthenticatedUserPayload,
+    @Param('id') id: string,
+    @Param('documentId') documentId: string,
+    @Res() response: Response,
+  ) {
+    const document = await this.patientsService.getDocumentStream(
+      user,
+      id,
+      documentId,
+    );
+
+    // A .dcm upload may have no browser-provided MIME type: it is stored
+    // empty, so the file is served as opaque bytes (never sniffed).
+    response.setHeader(
+      'Content-Type',
+      document.mimeType || 'application/octet-stream',
+    );
+    response.setHeader('Content-Length', String(document.size));
+    response.setHeader(
+      'Content-Disposition',
+      `inline; filename="${encodeURIComponent(document.originalName)}"`,
+    );
+    response.setHeader('Cache-Control', 'private, no-store');
+    response.setHeader('X-Content-Type-Options', 'nosniff');
+
+    // Without a listener, a read error (file removed mid-stream) would be an
+    // unhandled 'error' event and stop the process.
+    document.stream.on('error', () => {
+      if (!response.headersSent) {
+        response.status(404).end();
+      } else {
+        response.destroy();
+      }
+    });
+    document.stream.pipe(response);
   }
 
   @Post(':id/documents')

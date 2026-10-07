@@ -83,6 +83,10 @@ export const adminAr = {
         description: "سجّل {actor} تحليلاً بالذكاء الاصطناعي في ملف مريض.",
         label: "تسجيل تحليل بالذكاء الاصطناعي",
       },
+      DOCUMENT_VIEWED: {
+        description: "اطلع {actor} على وثيقة من ملف مريض.",
+        label: "الاطلاع على وثيقة مريض",
+      },
       PATIENT_CONSENT_UPDATED: {
         description: "حدّث {actor} موافقة مريض.",
         label: "تحديث موافقة",

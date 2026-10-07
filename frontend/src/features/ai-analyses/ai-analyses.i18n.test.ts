@@ -6,6 +6,11 @@ import { translate } from "@/lib/i18n";
 
 import { aiModelStatuses, aiModelTasks, aiModules } from "./ai-analyses.types";
 import { aiModels } from "./ai-models.registry";
+import { qualityCheckKeys, qualityCheckStatuses } from "./quality-check";
+
+// Mirrors the steps of components/ai-analyses/wizard/AiAnalysisWizardPage.
+const wizardSteps = ["patient", "image", "quality", "reading"];
+const wizardStepStates = ["done", "current", "upcoming"];
 
 // Keys the hub builds from the registry: t(`aiAnalyses.models.${id}.name`)…
 function registryKeys() {
@@ -25,15 +30,24 @@ function registryKeys() {
     for (const metric of model.metrics ?? []) keys.add(`aiAnalyses.metrics.${metric.key}`);
     for (const limitation of model.knownLimitations) keys.add(`aiAnalyses.limitations.${limitation}`);
   }
+  // Built by the wizard from its step and check lists.
+  for (const step of wizardSteps) {
+    keys.add(`aiAnalyses.wizard.steps.${step}`);
+    keys.add(`aiAnalyses.wizard.${step}.title`);
+  }
+  for (const state of wizardStepStates) keys.add(`aiAnalyses.wizard.stepStates.${state}`);
+  for (const check of qualityCheckKeys) keys.add(`aiAnalyses.wizard.quality.checks.${check}`);
+  for (const status of qualityCheckStatuses) keys.add(`aiAnalyses.wizard.quality.statuses.${status}`);
 
   return [...keys];
 }
 
-// Literal keys written in the hub components: t("aiAnalyses.…").
+// Literal keys written in the module's components (wizard/ and viewer/
+// included): t("aiAnalyses.…").
 function componentKeys() {
   const directory = join(__dirname, "../../components/ai-analyses");
 
-  return readdirSync(directory)
+  return readdirSync(directory, { recursive: true, encoding: "utf8" })
     .filter((file) => file.endsWith(".tsx"))
     .flatMap((file) =>
       [...readFileSync(join(directory, file), "utf8").matchAll(/\bt\("(aiAnalyses\.[\w.-]+)"/g)].map(
@@ -45,7 +59,7 @@ function componentKeys() {
 describe("aiAnalyses i18n keys", () => {
   it("finds the keys to check", () => {
     expect(registryKeys().length).toBeGreaterThan(40);
-    expect(componentKeys().length).toBeGreaterThan(20);
+    expect(componentKeys().length).toBeGreaterThan(80);
   });
 
   it.each(locales)("translates every key of the registry and the components in %s", (locale) => {

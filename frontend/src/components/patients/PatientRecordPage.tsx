@@ -50,6 +50,8 @@ import { UpsertConsentModal } from "./UpsertConsentModal";
 
 type PatientRecordPageProps = {
   accountType: "DOCTOR" | "ESTABLISHMENT";
+  /** Raw ?tab= value (e.g. "consents" from the AI analysis consent check); ignored unless it names a tab. */
+  initialTab?: string;
   patientId: string;
 };
 
@@ -162,7 +164,7 @@ function EmptyTab({ label }: { label: string }) {
   );
 }
 
-export function PatientRecordPage({ accountType, patientId }: PatientRecordPageProps) {
+export function PatientRecordPage({ accountType, initialTab, patientId }: PatientRecordPageProps) {
   const { locale } = useStoredLocale();
   const { direction, t } = useTranslation(locale);
   const currentUser = useCurrentUser(undefined, { enabled: true });
@@ -193,7 +195,9 @@ export function PatientRecordPage({ accountType, patientId }: PatientRecordPageP
   const hasSignedAiConsent = (consents ?? []).some(
     (consent) => consent.type === "DIAGNOSTIC_AI" && consent.status === "SIGNED",
   );
-  const [activeTab, setActiveTab] = useState<RecordTab>("summary");
+  const [activeTab, setActiveTab] = useState<RecordTab>(() =>
+    tabs.find((tab) => tab === initialTab) ?? "summary",
+  );
   const [isConsultationModalOpen, setConsultationModalOpen] = useState(false);
   const [isEditModalOpen, setEditModalOpen] = useState(false);
   const [isAppointmentModalOpen, setAppointmentModalOpen] = useState(false);

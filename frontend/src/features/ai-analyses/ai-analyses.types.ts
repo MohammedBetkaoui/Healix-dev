@@ -45,7 +45,11 @@ export type AiModel = {
   architecture: string | null;
   task: AiModelTask;
   inputModality: AiModalityKey | null;
-  /** File formats accepted as input; null when not provided. */
+  /**
+   * File formats accepted as input, as lowercase extensions without the dot
+   * ("png", "jpeg", "dcm"; "jpg" and "jpeg" are equivalent). null when not
+   * provided: the quality check then shows "non renseigné" and does not block.
+   */
   acceptedFormats: readonly string[] | null;
   /** Classification classes, or the structures a segmentation delimits; empty when not provided. */
   outputClasses: readonly AiOutputClassKey[];
