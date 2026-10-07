@@ -4,6 +4,7 @@ import { PlayCircle } from "lucide-react";
 import { useId } from "react";
 
 import { type AiModule } from "@/features/ai-analyses/ai-analyses.types";
+import { type LaunchState } from "@/features/ai-analyses/run-presentation";
 import { type TranslationFunction } from "@/lib/i18n";
 
 import { ImageViewer } from "../viewer/ImageViewer";
@@ -16,8 +17,12 @@ type ReadingStepProps = {
   impression: string;
   isDicom: boolean;
   isError: boolean;
+  isLaunching: boolean;
+  launchError: boolean;
+  launchState: LaunchState;
   module: AiModule;
   onImpressionChange: (value: string) => void;
+  onLaunch: () => void;
   t: TranslationFunction;
 };
 
@@ -27,12 +32,24 @@ export function ReadingStep({
   impression,
   isDicom,
   isError,
+  isLaunching,
+  launchError,
+  launchState,
   module,
   onImpressionChange,
+  onLaunch,
   t,
 }: ReadingStepProps) {
   const id = useId();
   const ids = { counter: `${id}-counter`, hint: `${id}-hint`, launch: `${id}-launch`, textarea: `${id}-impression` };
+  const isReady = launchState === "ready";
+  const launchMessage = isLaunching
+    ? t("aiAnalyses.wizard.reading.running")
+    : launchError
+      ? t("aiAnalyses.wizard.reading.launchError")
+      : isReady
+        ? null
+        : t(`aiAnalyses.wizard.reading.launchStates.${launchState}`);
 
   return (
     <div className="space-y-5">
@@ -71,15 +88,22 @@ export function ReadingStep({
         </p>
       </div>
 
-      {/* No inference service exists yet: the launch stays disabled. */}
       <div className="flex flex-wrap items-center gap-3">
-        <button type="button" className="clinical-button clinical-button-unavailable" disabled aria-describedby={ids.launch}>
+        <button
+          type="button"
+          className={`clinical-button ${isReady ? "clinical-button-primary" : "clinical-button-unavailable"} disabled:cursor-not-allowed disabled:opacity-60`}
+          disabled={!isReady || isLaunching}
+          aria-describedby={launchMessage ? ids.launch : undefined}
+          onClick={onLaunch}
+        >
           <PlayCircle size={16} strokeWidth={1.8} aria-hidden="true" />
-          {t("aiAnalyses.wizard.reading.launch")}
+          {isLaunching ? t("aiAnalyses.wizard.reading.running") : t("aiAnalyses.wizard.reading.launch")}
         </button>
-        <p id={ids.launch} className="text-sm text-[var(--text-secondary)]">
-          {t("aiAnalyses.wizard.reading.notConnected")}
-        </p>
+        {launchMessage ? (
+          <p id={ids.launch} role={launchError ? "alert" : undefined} className="text-sm text-[var(--text-secondary)]">
+            {launchMessage}
+          </p>
+        ) : null}
       </div>
     </div>
   );

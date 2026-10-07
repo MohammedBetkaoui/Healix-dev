@@ -8,6 +8,7 @@ import { AppController } from './app.controller';
 import { AppService } from './app.service';
 import { AdminAuthModule } from './admin-auth/admin-auth.module';
 import { AdminModule } from './admin/admin.module';
+import { AiAnalysisRunsModule } from './ai-analysis-runs/ai-analysis-runs.module';
 import { AppointmentsModule } from './appointments/appointments.module';
 import { AuthModule } from './auth/auth.module';
 import { PatientsModule } from './patients/patients.module';
@@ -33,6 +34,7 @@ import { WorkspaceModule } from './workspaces/workspace.module';
     PaymentsModule,
     VerificationModule,
     PatientsModule,
+    AiAnalysisRunsModule,
     AppointmentsModule,
     WorkspaceModule,
   ],

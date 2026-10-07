@@ -10,7 +10,15 @@ export type AiModule = (typeof aiModules)[number];
 export const aiModelTasks = ["classification", "segmentation"] as const;
 export type AiModelTask = (typeof aiModelTasks)[number];
 
-export const aiModelStatuses = ["available", "in_design", "exploring"] as const;
+// requires_multisequence and documentation_pending are not launchable: the
+// card explains why (aiAnalyses.statusNotes).
+export const aiModelStatuses = [
+  "available",
+  "in_design",
+  "exploring",
+  "requires_multisequence",
+  "documentation_pending",
+] as const;
 export type AiModelStatus = (typeof aiModelStatuses)[number];
 
 // Label vocabularies are the keys of the fr dictionary (the reference one):
@@ -21,16 +29,24 @@ export type AiModalityKey = keyof AiAnalysesCopy["modalities"];
 export type AiOutputClassKey = keyof AiAnalysesCopy["classes"];
 export type AiMetricKey = keyof AiAnalysesCopy["metrics"];
 export type AiLimitationKey = keyof AiAnalysesCopy["limitations"];
+export type AiDatasetKey = keyof AiAnalysesCopy["datasets"];
 
 export type AiModelMetric = {
   key: AiMetricKey;
-  /** As communicated by the model team; a fraction for a percentage (0.9927 = 99.27 %). */
+  /** As read in the training notebooks; a fraction for a percentage (0.9544 = 95.44 %). */
   value: number;
   unit: "percent" | "score";
   /** Given as "≈" by the source. */
   approximate: boolean;
-  /** Evaluation dataset; null when not provided. */
-  dataset: string | null;
+  /** Evaluation dataset (aiAnalyses.datasets); null when not provided. */
+  dataset: AiDatasetKey | null;
+};
+
+/** Per-class precision and recall of a classifier, on its test set. */
+export type AiClassMetric = {
+  classKey: AiOutputClassKey;
+  precision: number;
+  recall: number;
 };
 
 /**
@@ -53,8 +69,12 @@ export type AiModel = {
   acceptedFormats: readonly string[] | null;
   /** Classification classes, or the structures a segmentation delimits; empty when not provided. */
   outputClasses: readonly AiOutputClassKey[];
-  /** Internal validation metrics, the first one being the main one; null when none was provided. */
+  /** Internal evaluation metrics, the first one being the main one; null when none was provided. */
   metrics: readonly AiModelMetric[] | null;
+  /** Classifiers only; null when not provided. */
+  classMetrics: readonly AiClassMetric[] | null;
+  /** Evaluation dataset of classMetrics. */
+  classMetricsDataset: AiDatasetKey | null;
   trainingData: string | null;
   knownLimitations: readonly AiLimitationKey[];
   /** Not documented for any model yet: shown as "non renseigné". */
@@ -63,65 +83,66 @@ export type AiModel = {
 };
 
 // ---------------------------------------------------------------------------
-// Analysis run
+// Pipelines
 // ---------------------------------------------------------------------------
-// Contract only: no inference service exists yet. The backend will serve
-// these runs later (per patient, like GET /patients/:id/ai-analyses); until
-// then nothing in the frontend may build one, so no result is ever simulated.
 
-export type AiAnalysisRunStatus =
-  | "queued"
-  | "running"
-  | "succeeded"
-  | "failed"
-  | "rejected_input";
+export const aiPipelineIds = ["brain"] as const;
+export type AiPipelineId = (typeof aiPipelineIds)[number];
 
-/** Input check run before inference; the reason of a "rejected_input" run. Shape to confirm with the backend. */
-export type AiInputQualityCheck = {
-  passed: boolean;
-  /** Machine-readable reasons (e.g. "unsupported_modality"), translated on display. */
-  issues: readonly string[];
+/**
+ * A launchable chain of registry models: the classifier always runs, then the
+ * segmenter routed by the predicted class, if any. Segmenters are never
+ * launched on their own (evaluated only on images with their tumour type).
+ */
+export type AiPipeline = {
+  id: AiPipelineId;
+  module: AiModule;
+  classifierId: string;
+  segmenterByClass: Partial<Record<AiOutputClassKey, string>>;
 };
 
-export type AiPrediction = {
-  /** Raw output label of the model (an outputClasses key of its registry entry). */
+// ---------------------------------------------------------------------------
+// Analysis run (GET/POST /patients/:id/ai-analysis-runs)
+// ---------------------------------------------------------------------------
+// Mirrors backend/src/ai-analysis-runs/ai-analysis-runs.service.ts#toRunResponse.
+
+export type AiAnalysisRunStatus = "RUNNING" | "SUCCEEDED" | "FAILED" | "REJECTED_INPUT";
+
+export type AiRunPrediction = {
+  /** A classifier output class (glioma, meningioma, notumor, pituitary). */
   label: string;
   /** 0 to 1. */
   probability: number;
 };
 
-export type AiSegmentationResult = {
-  maskUrl: string;
-  areaPx: number;
-  /** Share of the image covered by the mask, 0 to 1. */
-  areaRatio: number;
-};
-
-export type AiClinicianDecision = {
-  status: "validated" | "corrected" | "rejected";
-  reason?: string;
-  /** ISO date. */
-  decidedAt: string;
-};
-
 export type AiAnalysisRun = {
   id: string;
   patientId: string;
-  /** Id of an ai-models.registry entry. */
-  modelId: string;
-  modelVersion: string;
-  /** Patient document the analysis ran on. */
   sourceDocumentId: string;
+  pipeline: AiPipelineId;
   status: AiAnalysisRunStatus;
-  /** null until the check has run (queued). */
-  qualityCheck: AiInputQualityCheck | null;
-  /** Empty unless the run succeeded. */
-  predictions: readonly AiPrediction[];
-  segmentation?: AiSegmentationResult;
-  clinicianImpression?: string;
-  decision?: AiClinicianDecision;
-  /** null while queued or running. */
+  classificationModelId: string | null;
+  classificationWeightsSha256: string | null;
+  /** Descending, as returned by the service; null unless SUCCEEDED. */
+  predictions: AiRunPrediction[] | null;
+  segmentationModelId: string | null;
+  segmentationWeightsSha256: string | null;
+  hasMask: boolean;
+  maskAreaPx: number | null;
+  /** Share of the image covered by the mask, 0 to 1. */
+  maskAreaRatio: number | null;
+  segmentationSkippedReason: "not_applicable_for_class" | "model_not_loaded" | null;
+  clinicianImpression: string | null;
+  /** SERVICE_UNAVAILABLE, SERVICE_TIMEOUT, MODEL_NOT_LOADED, INVALID_IMAGE… */
+  errorCode: string | null;
   durationMs: number | null;
-  /** ISO date. */
+  requestedById: string;
   createdAt: string;
+  updatedAt: string;
+};
+
+/** GET /ai-models/status: the inference service as seen by the backend. */
+export type AiServiceStatus = {
+  service: "available" | "unavailable" | "not_configured" | "unauthorized" | "error";
+  models: { modelId: string; loaded: boolean; weightsSha256: string | null; error: string | null }[];
 };

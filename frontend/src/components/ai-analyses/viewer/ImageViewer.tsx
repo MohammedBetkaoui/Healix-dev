@@ -68,7 +68,8 @@ export function ImageViewer({ blob, fileName, module, overlay, placeholder, t }:
   const [natural, setNatural] = useState<{ blob: Blob; height: number; width: number } | null>(null);
   const [isFullscreen, setFullscreen] = useState(false);
   const [isDragging, setDragging] = useState(false);
-  const [overlayOpacity, setOverlayOpacity] = useState(overlay?.opacity ?? 0.5);
+  const [overlayOpacity, setOverlayOpacity] = useState(overlay?.opacity ?? 0.4);
+  const [isOverlayVisible, setOverlayVisible] = useState(true);
 
   // The blob is shown through an object URL set on the <img> directly and
   // revoked when the blob changes or the viewer unmounts.
@@ -205,12 +206,23 @@ export function ImageViewer({ blob, fileName, module, overlay, placeholder, t }:
             <span className="ai-viewer-mono w-12 text-end">{state.contrast} %</span>
           </label>
           {overlay ? (
-            <label className="ai-viewer-slider">
-              <Layers size={16} strokeWidth={1.8} aria-hidden="true" />
-              <span>{t("aiAnalyses.viewer.overlayOpacity")}</span>
-              <input type="range" min={0} max={100} step={5} value={Math.round(overlayOpacity * 100)} aria-valuetext={`${Math.round(overlayOpacity * 100)} %`} onChange={(event) => setOverlayOpacity(Number(event.target.value) / 100)} />
-              <span className="ai-viewer-mono w-12 text-end">{Math.round(overlayOpacity * 100)} %</span>
-            </label>
+            <>
+              <button
+                type="button"
+                role="switch"
+                aria-checked={isOverlayVisible}
+                className="ai-viewer-button gap-2 text-xs"
+                onClick={() => setOverlayVisible((visible) => !visible)}
+              >
+                <Layers size={16} strokeWidth={1.8} aria-hidden="true" />
+                {t("aiAnalyses.viewer.showOverlay")}
+              </button>
+              <label className="ai-viewer-slider">
+                <span>{t("aiAnalyses.viewer.overlayOpacity")}</span>
+                <input type="range" min={0} max={100} step={5} value={Math.round(overlayOpacity * 100)} disabled={!isOverlayVisible} aria-valuetext={`${Math.round(overlayOpacity * 100)} %`} onChange={(event) => setOverlayOpacity(Number(event.target.value) / 100)} />
+                <span className="ai-viewer-mono w-12 text-end">{Math.round(overlayOpacity * 100)} %</span>
+              </label>
+            </>
           ) : null}
         </div>
       </div>
@@ -257,7 +269,7 @@ export function ImageViewer({ blob, fileName, module, overlay, placeholder, t }:
               }
             }}
           />
-          {overlay ? (
+          {overlay && isOverlayVisible ? (
             <div
               aria-hidden="true"
               className="ai-viewer-overlay"

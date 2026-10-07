@@ -7,7 +7,7 @@ import {
 import { ConfigService } from '@nestjs/config';
 import { randomBytes } from 'node:crypto';
 import { createReadStream, existsSync, type ReadStream } from 'node:fs';
-import { mkdir, rm, writeFile } from 'node:fs/promises';
+import { mkdir, readFile, rm, writeFile } from 'node:fs/promises';
 import { dirname, resolve } from 'node:path';
 
 import { createSha256Checksum } from '../../common/utils/checksum.util';
@@ -87,6 +87,52 @@ export class PatientFileStorageService {
     }
 
     return createReadStream(safePath);
+  }
+
+  // Whole content of a stored document (an image sent for inference).
+  async readStoredFile(localPath: string): Promise<Buffer> {
+    const safePath = this.ensurePathInsideUploadRoot(localPath);
+
+    if (!existsSync(safePath)) {
+      throw new NotFoundException('Document introuvable.');
+    }
+
+    return readFile(safePath);
+  }
+
+  // Segmentation mask of an AI analysis run, next to the patient's documents:
+  // patients/<patientId>/ai-masks/<runId>.png.
+  async storeAiMask(input: {
+    patientId: string;
+    png: Buffer;
+    runId: string;
+  }): Promise<{ checksum: string; localPath: string }> {
+    const targetDirectory = this.resolveSafePath(
+      'patients',
+      input.patientId,
+      'ai-masks',
+    );
+    const localPath = this.resolveSafePath(
+      'patients',
+      input.patientId,
+      'ai-masks',
+      `${input.runId}.png`,
+    );
+
+    try {
+      await mkdir(targetDirectory, { recursive: true });
+      await writeFile(localPath, input.png);
+
+      return { checksum: createSha256Checksum(input.png), localPath };
+    } catch (error) {
+      this.logger.error(
+        'Failed to store an AI segmentation mask.',
+        error instanceof Error ? error.message : 'Unknown error',
+      );
+      throw new InternalServerErrorException(
+        'Une erreur est survenue lors du stockage du masque.',
+      );
+    }
   }
 
   async deleteLocalFile(localPath: string): Promise<void> {

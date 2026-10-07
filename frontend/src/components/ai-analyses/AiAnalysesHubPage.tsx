@@ -1,12 +1,15 @@
 "use client";
 
 import {
+  ArrowRight,
   Brain,
   HeartPulse,
   Microscope,
+  ScanLine,
   ShieldAlert,
   type LucideIcon,
 } from "lucide-react";
+import Link from "next/link";
 import { useState } from "react";
 
 import { DashboardShell } from "@/components/dashboard/layout/DashboardShell";
@@ -15,7 +18,12 @@ import {
   establishmentNavSections,
 } from "@/components/dashboard/layout/navigation";
 import { aiModules, type AiModule } from "@/features/ai-analyses/ai-analyses.types";
-import { aiModels, type AiModelId } from "@/features/ai-analyses/ai-models.registry";
+import {
+  aiModels,
+  aiPipelines,
+  getPipelineRole,
+  type AiModelId,
+} from "@/features/ai-analyses/ai-models.registry";
 import { useCurrentUser } from "@/features/auth/hooks/use-current-user";
 import { useEstablishmentVerificationPrefill } from "@/features/verification/hooks/use-establishment-verification-prefill";
 import { getAccountInitials } from "@/lib/format/get-account-initials";
@@ -89,6 +97,12 @@ export function AiAnalysesHubPage({ accountType }: AiAnalysesHubPageProps) {
         {aiModules.map((module) => {
           const Icon = moduleIcons[module];
           const headingId = `ai-module-${module}`;
+          const pipeline = aiPipelines.find((candidate) => candidate.module === module);
+          const pipelineModels = pipeline
+            ? [pipeline.classifierId, ...Object.values(pipeline.segmenterByClass)]
+                .map((id) => aiModels.find((model) => model.id === id))
+                .filter((model) => model !== undefined)
+            : [];
 
           return (
             // The specialty color is only an accent (rule + icon): the heading
@@ -105,20 +119,77 @@ export function AiAnalysesHubPage({ accountType }: AiAnalysesHubPageProps) {
                   </div>
                 </div>
               </div>
+              {pipeline ? (
+                <div className="px-5 pb-5">
+                  <article className="rounded-[var(--radius-md)] border border-[var(--border-strong)] bg-[var(--medical-soft)] p-5">
+                    <div className="flex flex-wrap items-start justify-between gap-4">
+                      <div className="min-w-0 max-w-3xl">
+                        <p className="text-xs font-semibold text-[var(--medical)]">{t("aiAnalyses.pipelines.eyebrow")}</p>
+                        <h3 className="mt-1 text-lg font-semibold text-[var(--text-primary)]">
+                          {t(`aiAnalyses.pipelines.${pipeline.id}.name`)}
+                        </h3>
+                        <p className="mt-2 text-sm leading-6 text-[var(--text-secondary)]">
+                          {t(`aiAnalyses.pipelines.${pipeline.id}.description`)}
+                        </p>
+                      </div>
+                      <Link
+                        href={`${roleBase}/ai-analyses/new?pipeline=${encodeURIComponent(pipeline.id)}`}
+                        className="clinical-button clinical-button-primary shrink-0"
+                      >
+                        <ScanLine size={16} strokeWidth={1.8} aria-hidden="true" />
+                        {t(`aiAnalyses.pipelines.${pipeline.id}.launch`)}
+                        <ArrowRight size={16} strokeWidth={1.8} aria-hidden="true" className="clinical-directional" />
+                      </Link>
+                    </div>
+                    <div className="mt-4 grid gap-4 border-t border-[var(--border)] pt-4 lg:grid-cols-2">
+                      <div>
+                        <p className="text-xs font-semibold text-[var(--text-secondary)]">{t("aiAnalyses.pipelines.components")}</p>
+                        <ul className="mt-2 flex flex-wrap gap-2">
+                          {pipelineModels.map((model) => (
+                            <li key={model.id} className="rounded-full border border-[var(--border)] bg-[var(--surface)] px-2.5 py-1 text-xs text-[var(--text-primary)]">
+                              {t(`aiAnalyses.models.${model.id}.name`)}
+                            </li>
+                          ))}
+                        </ul>
+                      </div>
+                      <ol className="space-y-1.5 text-xs text-[var(--text-secondary)]">
+                        <li>1. {t(`aiAnalyses.pipelines.${pipeline.id}.steps.classify`)}</li>
+                        <li>2. {t(`aiAnalyses.pipelines.${pipeline.id}.steps.segmentMeningioma`)}</li>
+                        <li>3. {t(`aiAnalyses.pipelines.${pipeline.id}.steps.segmentPituitary`)}</li>
+                      </ol>
+                    </div>
+                  </article>
+                </div>
+              ) : null}
               <ul className="grid gap-4 px-5 pb-5 md:grid-cols-2 xl:grid-cols-3">
                 {aiModels
                   .filter((model) => model.module === module)
-                  .map((model) => (
-                    <li key={model.id} className="min-w-0">
-                      <AiModelCard
-                        locale={locale}
-                        model={model}
-                        newAnalysisHref={`${roleBase}/ai-analyses/new?model=${encodeURIComponent(model.id)}`}
-                        onOpenSheet={() => setSheetModelId(model.id)}
-                        t={t}
-                      />
-                    </li>
-                  ))}
+                  .map((model) => {
+                    const role = getPipelineRole(model.id);
+                    const pipelineRole = role?.role === "classifier"
+                      ? t("aiAnalyses.card.pipelineRole.classifier")
+                      : role?.role === "segmenter"
+                        ? t("aiAnalyses.card.pipelineRole.segmenter", { class: t(`aiAnalyses.classes.${role.classKey}`) })
+                        : undefined;
+                    const unavailableReason = model.status === "requires_multisequence"
+                      ? t("aiAnalyses.statusNotes.requires_multisequence")
+                      : model.status === "documentation_pending"
+                        ? t("aiAnalyses.statusNotes.documentation_pending")
+                        : t("aiAnalyses.statusNotes.noPipeline");
+
+                    return (
+                      <li key={model.id} className="min-w-0">
+                        <AiModelCard
+                          locale={locale}
+                          model={model}
+                          onOpenSheet={() => setSheetModelId(model.id)}
+                          pipelineRole={pipelineRole}
+                          unavailableReason={pipelineRole ? undefined : unavailableReason}
+                          t={t}
+                        />
+                      </li>
+                    );
+                  })}
               </ul>
             </section>
           );

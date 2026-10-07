@@ -1,0 +1,307 @@
+import {
+  BadGatewayException,
+  GatewayTimeoutException,
+  HttpException,
+  Injectable,
+  InternalServerErrorException,
+  NotFoundException,
+  ServiceUnavailableException,
+  UnprocessableEntityException,
+} from '@nestjs/common';
+import { AiAnalysisRunStatus, type AiAnalysisRun } from '@prisma/client';
+
+import { type AuthenticatedUserPayload } from '../auth/types/authenticated-request.type';
+import { sanitizeTextInput } from '../common/utils/sanitize';
+import { PatientFileStorageService } from '../patients/documents/patient-file-storage.service';
+import { PatientAuditService } from '../patients/patient-audit.service';
+import { PatientsService } from '../patients/patients.service';
+import { PrismaService } from '../prisma/prisma.service';
+import {
+  AiServiceClient,
+  AiServiceError,
+  type AiServiceFailure,
+} from './ai-service.client';
+import { CreateAiAnalysisRunDto } from './dto/create-ai-analysis-run.dto';
+
+// The inference service decodes PNG and JPEG only (no DICOM).
+const SUPPORTED_IMAGE_TYPES = new Set(['image/png', 'image/jpeg']);
+
+type RunErrorCode = AiServiceFailure | 'MASK_STORAGE_FAILED';
+
+@Injectable()
+export class AiAnalysisRunsService {
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly patientsService: PatientsService,
+    private readonly fileStorageService: PatientFileStorageService,
+    private readonly patientAuditService: PatientAuditService,
+    private readonly aiServiceClient: AiServiceClient,
+  ) {}
+
+  async create(
+    user: AuthenticatedUserPayload,
+    patientId: string,
+    dto: CreateAiAnalysisRunDto,
+  ) {
+    await this.patientsService.getPatientInScope(user, patientId);
+    await this.patientsService.assertDiagnosticAiConsentSigned(patientId);
+
+    // (id, patientId): a document of another patient answers 404.
+    const document = await this.prisma.patientDocument.findFirst({
+      where: { id: dto.sourceDocumentId, patientId },
+    });
+
+    if (!document) {
+      throw new NotFoundException('Document introuvable.');
+    }
+
+    if (!SUPPORTED_IMAGE_TYPES.has(document.mimeType)) {
+      throw new UnprocessableEntityException({
+        code: 'AI_UNSUPPORTED_DOCUMENT',
+        message: 'Seules les images PNG ou JPEG peuvent être analysées.',
+      });
+    }
+
+    const image = await this.fileStorageService.readStoredFile(
+      document.localPath,
+    );
+    const impression = dto.clinicianImpression
+      ? sanitizeTextInput(dto.clinicianImpression)
+      : '';
+
+    const run = await this.prisma.aiAnalysisRun.create({
+      data: {
+        clinicianImpression: impression || null,
+        patientId,
+        pipeline: dto.pipeline,
+        requestedById: user.sub,
+        sourceDocumentId: document.id,
+        status: AiAnalysisRunStatus.RUNNING,
+      },
+    });
+
+    await this.patientAuditService.log(
+      user,
+      'AI_ANALYSIS_RUN_CREATED',
+      run.id,
+      {
+        patientId,
+        pipeline: dto.pipeline,
+        sourceDocumentId: document.id,
+      },
+    );
+
+    let result: Awaited<ReturnType<AiServiceClient['analyzeBrain']>>;
+    try {
+      result = await this.aiServiceClient.analyzeBrain(
+        image,
+        document.originalName,
+        document.mimeType,
+      );
+    } catch (error) {
+      const code =
+        error instanceof AiServiceError ? error.code : 'SERVICE_ERROR';
+      const rejected = code === 'INVALID_IMAGE' || code === 'IMAGE_TOO_LARGE';
+      await this.finish(user, run.id, {
+        errorCode: code,
+        status: rejected
+          ? AiAnalysisRunStatus.REJECTED_INPUT
+          : AiAnalysisRunStatus.FAILED,
+      });
+      throw this.toHttpError(code, run.id);
+    }
+
+    let maskPath: string | null = null;
+    if (result.segmentation) {
+      try {
+        ({ localPath: maskPath } = await this.fileStorageService.storeAiMask({
+          patientId,
+          png: result.segmentation.maskPng,
+          runId: run.id,
+        }));
+      } catch {
+        await this.finish(user, run.id, {
+          errorCode: 'MASK_STORAGE_FAILED',
+          status: AiAnalysisRunStatus.FAILED,
+        });
+        throw this.toHttpError('MASK_STORAGE_FAILED', run.id);
+      }
+    }
+
+    const completed = await this.finish(user, run.id, {
+      classificationModelId: result.classification.modelId,
+      classificationWeightsSha256: result.classification.weightsSha256,
+      durationMs: result.durationMs,
+      maskAreaPx: result.segmentation?.areaPx ?? null,
+      maskAreaRatio: result.segmentation?.areaRatio ?? null,
+      maskPath,
+      predictions: result.classification.predictions,
+      segmentationModelId: result.segmentation?.modelId ?? null,
+      segmentationSkippedReason: result.segmentationSkippedReason,
+      segmentationWeightsSha256: result.segmentation?.weightsSha256 ?? null,
+      status: AiAnalysisRunStatus.SUCCEEDED,
+    });
+
+    return this.toRunResponse(completed);
+  }
+
+  async list(user: AuthenticatedUserPayload, patientId: string) {
+    await this.patientsService.getPatientInScope(user, patientId);
+
+    const runs = await this.prisma.aiAnalysisRun.findMany({
+      orderBy: { createdAt: 'desc' },
+      where: { patientId },
+    });
+
+    return runs.map((run) => this.toRunResponse(run));
+  }
+
+  async findOne(
+    user: AuthenticatedUserPayload,
+    patientId: string,
+    runId: string,
+  ) {
+    return this.toRunResponse(await this.getRunInScope(user, patientId, runId));
+  }
+
+  async getMask(
+    user: AuthenticatedUserPayload,
+    patientId: string,
+    runId: string,
+  ) {
+    const run = await this.getRunInScope(user, patientId, runId);
+
+    if (!run.maskPath) {
+      throw new NotFoundException('Masque introuvable.');
+    }
+
+    return {
+      fileName: `masque-${run.id}.png`,
+      png: await this.fileStorageService.readStoredFile(run.maskPath),
+    };
+  }
+
+  private async getRunInScope(
+    user: AuthenticatedUserPayload,
+    patientId: string,
+    runId: string,
+  ) {
+    await this.patientsService.getPatientInScope(user, patientId);
+
+    // (id, patientId): a run of another patient answers 404.
+    const run = await this.prisma.aiAnalysisRun.findFirst({
+      where: { id: runId, patientId },
+    });
+
+    if (!run) {
+      throw new NotFoundException('Analyse introuvable.');
+    }
+
+    return run;
+  }
+
+  private async finish(
+    user: AuthenticatedUserPayload,
+    runId: string,
+    data: Partial<Omit<AiAnalysisRun, 'predictions'>> & {
+      errorCode?: RunErrorCode;
+      predictions?: { label: string; probability: number }[];
+      status: AiAnalysisRunStatus;
+    },
+  ) {
+    const run = await this.prisma.aiAnalysisRun.update({
+      data,
+      where: { id: runId },
+    });
+
+    await this.patientAuditService.log(
+      user,
+      'AI_ANALYSIS_RUN_COMPLETED',
+      run.id,
+      {
+        errorCode: run.errorCode,
+        segmentationModelId: run.segmentationModelId,
+        status: run.status,
+      },
+    );
+
+    return run;
+  }
+
+  // Every failure carries the runId: the result page shows its state.
+  private toHttpError(code: RunErrorCode, runId: string): HttpException {
+    const body = (status: string, message: string) => ({
+      code: status,
+      message,
+      reason: code,
+      runId,
+    });
+
+    switch (code) {
+      case 'INVALID_IMAGE':
+      case 'IMAGE_TOO_LARGE':
+        return new UnprocessableEntityException(
+          body(
+            'AI_INPUT_REJECTED',
+            "L'image a été refusée par le service d'analyse.",
+          ),
+        );
+      case 'SERVICE_TIMEOUT':
+        return new GatewayTimeoutException(
+          body(
+            'AI_SERVICE_TIMEOUT',
+            "Le service d'analyse n'a pas répondu à temps.",
+          ),
+        );
+      case 'SERVICE_UNAVAILABLE':
+      case 'SERVICE_NOT_CONFIGURED':
+      case 'MODEL_NOT_LOADED':
+        return new ServiceUnavailableException(
+          body(
+            'AI_SERVICE_UNAVAILABLE',
+            "Le service d'analyse est indisponible.",
+          ),
+        );
+      case 'MASK_STORAGE_FAILED':
+        return new InternalServerErrorException(
+          body(
+            'AI_MASK_STORAGE_FAILED',
+            "Le masque de segmentation n'a pas pu être enregistré.",
+          ),
+        );
+      case 'SERVICE_ERROR':
+        return new BadGatewayException(
+          body(
+            'AI_SERVICE_ERROR',
+            "Le service d'analyse a renvoyé une réponse invalide.",
+          ),
+        );
+    }
+  }
+
+  // maskPath stays server-side; the client gets hasMask and the mask route.
+  private toRunResponse(run: AiAnalysisRun) {
+    return {
+      id: run.id,
+      patientId: run.patientId,
+      sourceDocumentId: run.sourceDocumentId,
+      pipeline: run.pipeline,
+      status: run.status,
+      classificationModelId: run.classificationModelId,
+      classificationWeightsSha256: run.classificationWeightsSha256,
+      predictions: run.predictions,
+      segmentationModelId: run.segmentationModelId,
+      segmentationWeightsSha256: run.segmentationWeightsSha256,
+      hasMask: run.maskPath !== null,
+      maskAreaPx: run.maskAreaPx,
+      maskAreaRatio: run.maskAreaRatio,
+      segmentationSkippedReason: run.segmentationSkippedReason,
+      clinicianImpression: run.clinicianImpression,
+      errorCode: run.errorCode,
+      durationMs: run.durationMs,
+      requestedById: run.requestedById,
+      createdAt: run.createdAt,
+      updatedAt: run.updatedAt,
+    };
+  }
+}

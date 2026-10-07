@@ -526,20 +526,25 @@ export class PatientsService {
   async listAuditLog(user: AuthenticatedUserPayload, patientId: string) {
     await this.getPatientInScope(user, patientId);
 
-    const [consultations, documents, analyses] = await Promise.all([
-      this.prisma.patientConsultation.findMany({
-        where: { patientId },
-        select: { id: true },
-      }),
-      this.prisma.patientDocument.findMany({
-        where: { patientId },
-        select: { id: true },
-      }),
-      this.prisma.patientAiAnalysis.findMany({
-        where: { patientId },
-        select: { id: true },
-      }),
-    ]);
+    const [consultations, documents, analyses, analysisRuns] =
+      await Promise.all([
+        this.prisma.patientConsultation.findMany({
+          where: { patientId },
+          select: { id: true },
+        }),
+        this.prisma.patientDocument.findMany({
+          where: { patientId },
+          select: { id: true },
+        }),
+        this.prisma.patientAiAnalysis.findMany({
+          where: { patientId },
+          select: { id: true },
+        }),
+        this.prisma.aiAnalysisRun.findMany({
+          where: { patientId },
+          select: { id: true },
+        }),
+      ]);
 
     // AuditLog has no patientId column: entries for sub-resources
     // (consultations/documents/AI analyses) are recorded against their own
@@ -550,6 +555,7 @@ export class PatientsService {
       ...consultations.map((consultation) => consultation.id),
       ...documents.map((document) => document.id),
       ...analyses.map((analysis) => analysis.id),
+      ...analysisRuns.map((run) => run.id),
     ];
 
     const entries = await this.prisma.auditLog.findMany({
@@ -617,7 +623,8 @@ export class PatientsService {
     };
   }
 
-  private async getPatientInScope(
+  // Public for the AI analysis runs module: same scope rule everywhere.
+  async getPatientInScope(
     user: AuthenticatedUserPayload,
     id: string,
   ): Promise<Patient> {
@@ -648,9 +655,8 @@ export class PatientsService {
     });
   }
 
-  private async assertDiagnosticAiConsentSigned(
-    patientId: string,
-  ): Promise<void> {
+  // Public for the AI analysis runs module (an inference needs it too).
+  async assertDiagnosticAiConsentSigned(patientId: string): Promise<void> {
     const consents = await this.findPatientConsents(patientId);
     const hasSignedConsent = consents.some(
       (consent) =>

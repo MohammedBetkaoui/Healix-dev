@@ -1,0 +1,15 @@
+# Direct dependencies. requirements.txt is compiled from this file:
+#   uv pip compile requirements.in -o requirements.txt --python-version 3.12 \
+#     --index-url https://pypi.org/simple --extra-index-url https://download.pytorch.org/whl/cpu \
+#     --index-strategy unsafe-best-match
+# torch and timm are pinned to the training versions (see README).
+torch==2.10.0
+torchvision==0.25.0
+timm==1.0.25
+segmentation-models-pytorch==0.5.0
+fastapi
+uvicorn
+python-multipart
+numpy
+# OpenCV 4: the training stack (albumentations 2.0.8) decoded and resized with it.
+opencv-python-headless<5

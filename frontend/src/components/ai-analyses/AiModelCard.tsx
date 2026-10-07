@@ -1,7 +1,6 @@
 "use client";
 
-import { Clock3, FileText, ScanLine } from "lucide-react";
-import Link from "next/link";
+import { Clock3, FileText } from "lucide-react";
 import { useId } from "react";
 
 import { StatusBadge } from "@/components/dashboard/shared/StatusBadge";
@@ -22,18 +21,28 @@ export const aiModelStatusTone: Record<AiModelStatus, DashboardStatusTone> = {
   available: "success",
   in_design: "warning",
   exploring: "neutral",
+  requires_multisequence: "warning",
+  documentation_pending: "warning",
 };
 
 type AiModelCardProps = {
   locale: Locale;
   model: AiModel;
-  /** "New analysis" route of the account's role, with ?model= set. */
-  newAnalysisHref: string;
   onOpenSheet: () => void;
+  /** Role in a launchable pipeline; absent when the model has no launch path. */
+  pipelineRole?: string;
+  unavailableReason?: string;
   t: TranslationFunction;
 };
 
-export function AiModelCard({ locale, model, newAnalysisHref, onOpenSheet, t }: AiModelCardProps) {
+export function AiModelCard({
+  locale,
+  model,
+  onOpenSheet,
+  pipelineRole,
+  unavailableReason,
+  t,
+}: AiModelCardProps) {
   const id = useId();
   const nameId = `${id}-name`;
   const name = t(`aiAnalyses.models.${model.id}.name`);
@@ -88,6 +97,12 @@ export function AiModelCard({ locale, model, newAnalysisHref, onOpenSheet, t }: 
         )}
       </div>
 
+      {pipelineRole || unavailableReason ? (
+        <p className="mt-3 text-xs leading-5 text-[var(--text-secondary)]">
+          {pipelineRole ?? unavailableReason}
+        </p>
+      ) : null}
+
       <div className="mt-auto flex flex-wrap items-center gap-2 pt-4">
         <button
           type="button"
@@ -99,21 +114,12 @@ export function AiModelCard({ locale, model, newAnalysisHref, onOpenSheet, t }: 
           <FileText size={16} strokeWidth={1.8} aria-hidden="true" />
           {t("aiAnalyses.card.openSheet")}
         </button>
-        {isAvailable ? (
-          <Link
-            href={newAnalysisHref}
-            className="clinical-button clinical-button-primary"
-            aria-label={t("aiAnalyses.card.newAnalysisFor", { name })}
-          >
-            <ScanLine size={16} strokeWidth={1.8} aria-hidden="true" />
-            {t("aiAnalyses.card.newAnalysis")}
-          </Link>
-        ) : (
+        {!pipelineRole ? (
           <button type="button" className="clinical-button clinical-button-unavailable" disabled>
             <Clock3 size={16} strokeWidth={1.8} aria-hidden="true" />
             {t("aiAnalyses.card.comingSoon")}
           </button>
-        )}
+        ) : null}
       </div>
     </article>
   );

@@ -17,6 +17,8 @@ const entityTypeByAction: Record<string, string> = {
   PATIENT_CONSULTATION_CREATED: 'PatientConsultation',
   PATIENT_DOCUMENT_UPLOADED: 'PatientDocument',
   DOCUMENT_VIEWED: 'PatientDocument',
+  AI_ANALYSIS_RUN_CREATED: 'AiAnalysisRun',
+  AI_ANALYSIS_RUN_COMPLETED: 'AiAnalysisRun',
   PATIENT_AI_ANALYSIS_CREATED: 'PatientAiAnalysis',
 };
 

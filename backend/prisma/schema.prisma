@@ -249,6 +249,13 @@ enum PatientAiAnalysisResult {
   ANOMALY_DETECTED
 }
 
+enum AiAnalysisRunStatus {
+  RUNNING
+  SUCCEEDED
+  FAILED
+  REJECTED_INPUT
+}
+
 enum AppointmentStatus {
   SCHEDULED
   CONFIRMED
@@ -299,6 +306,7 @@ model User {
   recordedPatientConsents      PatientConsent[]
   uploadedPatientDocuments     PatientDocument[]
   requestedPatientAiAnalyses   PatientAiAnalysis[]
+  requestedAiAnalysisRuns      AiAnalysisRun[]
   createdAppointments          Appointment[]
   workspaceMemberships         WorkspaceMembership[]
 
@@ -392,14 +400,15 @@ model Patient {
   createdAt             DateTime                    @default(now()) @map("created_at")
   updatedAt             DateTime                    @updatedAt @map("updated_at")
 
-  establishment Establishment?        @relation(fields: [establishmentId], references: [id], onDelete: SetNull)
-  doctorProfile DoctorProfile?        @relation(fields: [doctorProfileId], references: [id], onDelete: SetNull)
-  workspace     Workspace?            @relation(fields: [workspaceId], references: [id], onDelete: SetNull)
-  consents      PatientConsent[]
-  consultations PatientConsultation[]
-  documents     PatientDocument[]
-  aiAnalyses    PatientAiAnalysis[]
-  appointments  Appointment[]
+  establishment  Establishment?        @relation(fields: [establishmentId], references: [id], onDelete: SetNull)
+  doctorProfile  DoctorProfile?        @relation(fields: [doctorProfileId], references: [id], onDelete: SetNull)
+  workspace      Workspace?            @relation(fields: [workspaceId], references: [id], onDelete: SetNull)
+  consents       PatientConsent[]
+  consultations  PatientConsultation[]
+  documents      PatientDocument[]
+  aiAnalyses     PatientAiAnalysis[]
+  aiAnalysisRuns AiAnalysisRun[]
+  appointments   Appointment[]
 
   @@index([establishmentId])
   @@index([doctorProfileId])
@@ -504,9 +513,10 @@ model PatientDocument {
   createdAt    DateTime            @default(now()) @map("created_at")
   updatedAt    DateTime            @updatedAt @map("updated_at")
 
-  patient    Patient             @relation(fields: [patientId], references: [id], onDelete: Cascade)
-  uploadedBy User                @relation(fields: [uploadedById], references: [id], onDelete: Restrict)
-  aiAnalyses PatientAiAnalysis[]
+  patient        Patient             @relation(fields: [patientId], references: [id], onDelete: Cascade)
+  uploadedBy     User                @relation(fields: [uploadedById], references: [id], onDelete: Restrict)
+  aiAnalyses     PatientAiAnalysis[]
+  aiAnalysisRuns AiAnalysisRun[]
 
   @@index([patientId])
   @@map("patient_documents")
@@ -843,4 +853,40 @@ model PaymentProofDocument {
   payment Payment @relation(fields: [paymentId], references: [id], onDelete: Cascade)
 
   @@map("payment_proof_documents")
+}
+
+// One execution of an inference pipeline (today: "brain" = classification,
+// then segmentation for meningioma/pituitary) on a patient image. Separate
+// from PatientAiAnalysis, which records manually entered analyses. The
+// classification fields stay null while RUNNING and on a failure.
+model AiAnalysisRun {
+  id                          String              @id @default(cuid())
+  patientId                   String              @map("patient_id")
+  sourceDocumentId            String              @map("source_document_id")
+  pipeline                    String              @db.VarChar(40)
+  status                      AiAnalysisRunStatus
+  classificationModelId       String?             @map("classification_model_id") @db.VarChar(120)
+  classificationWeightsSha256 String?             @map("classification_weights_sha256") @db.Char(64)
+  predictions                 Json?
+  segmentationModelId         String?             @map("segmentation_model_id") @db.VarChar(120)
+  segmentationWeightsSha256   String?             @map("segmentation_weights_sha256") @db.Char(64)
+  maskPath                    String?             @map("mask_path") @db.VarChar(512)
+  maskAreaPx                  Int?                @map("mask_area_px")
+  maskAreaRatio               Float?              @map("mask_area_ratio")
+  segmentationSkippedReason   String?             @map("segmentation_skipped_reason") @db.VarChar(60)
+  clinicianImpression         String?             @map("clinician_impression") @db.Text
+  errorCode                   String?             @map("error_code") @db.VarChar(60)
+  durationMs                  Int?                @map("duration_ms")
+  requestedById               String              @map("requested_by_id")
+  createdAt                   DateTime            @default(now()) @map("created_at")
+  updatedAt                   DateTime            @updatedAt @map("updated_at")
+
+  patient        Patient         @relation(fields: [patientId], references: [id], onDelete: Cascade)
+  sourceDocument PatientDocument @relation(fields: [sourceDocumentId], references: [id], onDelete: Restrict)
+  requestedBy    User            @relation(fields: [requestedById], references: [id], onDelete: Restrict)
+
+  @@index([patientId])
+  @@index([sourceDocumentId])
+  @@index([requestedById])
+  @@map("ai_analysis_runs")
 }

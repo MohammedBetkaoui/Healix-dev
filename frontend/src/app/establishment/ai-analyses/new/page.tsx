@@ -1,7 +1,10 @@
 import { redirect } from "next/navigation";
 
 import { AiAnalysisWizardPage } from "@/components/ai-analyses/wizard/AiAnalysisWizardPage";
-import { findLaunchableModel } from "@/features/ai-analyses/ai-models.registry";
+import {
+  findPipeline,
+  pipelineForLegacyModel,
+} from "@/features/ai-analyses/ai-models.registry";
 import { requireAuthenticatedPage } from "@/lib/auth/server-auth";
 
 type PageProps = {
@@ -9,10 +12,12 @@ type PageProps = {
 };
 
 export default async function Page({ searchParams }: PageProps) {
-  const { model, patient } = await searchParams;
+  const { model, patient, pipeline } = await searchParams;
   const modelId = typeof model === "string" ? model : undefined;
+  const pipelineId = typeof pipeline === "string" ? pipeline : undefined;
   const patientId = typeof patient === "string" && patient ? patient : undefined;
   const query = new URLSearchParams();
+  if (pipelineId) query.set("pipeline", pipelineId);
   if (modelId) query.set("model", modelId);
   if (patientId) query.set("patient", patientId);
 
@@ -21,17 +26,26 @@ export default async function Page({ searchParams }: PageProps) {
     `/establishment/ai-analyses/new${query.size > 0 ? `?${query}` : ""}`,
   );
 
-  // Unknown, or not available yet: back to the catalog.
-  const launchable = findLaunchableModel(modelId);
-  if (!launchable) {
+  const selectedPipeline = pipelineId
+    ? findPipeline(pipelineId)
+    : pipelineForLegacyModel(modelId);
+
+  if (!selectedPipeline) {
     redirect("/establishment/ai-analyses");
+  }
+
+  // Canonicalize old ?model=<component> links to the single launchable chain.
+  if (modelId || pipelineId !== selectedPipeline.id) {
+    const canonical = new URLSearchParams({ pipeline: selectedPipeline.id });
+    if (patientId) canonical.set("patient", patientId);
+    redirect(`/establishment/ai-analyses/new?${canonical}`);
   }
 
   return (
     <AiAnalysisWizardPage
       accountType="ESTABLISHMENT"
       initialPatientId={patientId}
-      modelId={launchable.id}
+      pipelineId={selectedPipeline.id}
     />
   );
 }

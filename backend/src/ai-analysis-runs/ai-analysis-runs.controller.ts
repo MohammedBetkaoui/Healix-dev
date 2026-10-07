@@ -1,0 +1,83 @@
+import {
+  Body,
+  Controller,
+  Get,
+  Param,
+  Post,
+  Res,
+  UseGuards,
+} from '@nestjs/common';
+import { type Response } from 'express';
+
+import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
+import { type AuthenticatedUserPayload } from '../auth/types/authenticated-request.type';
+import { CurrentUser } from '../common/decorators/current-user.decorator';
+import { RolesGuard } from '../common/guards/roles.guard';
+import { VerifiedAccountGuard } from '../common/guards/verified-account.guard';
+import { AiAnalysisRunsService } from './ai-analysis-runs.service';
+import { AiServiceClient } from './ai-service.client';
+import { CreateAiAnalysisRunDto } from './dto/create-ai-analysis-run.dto';
+
+// Same guards as the patient record the runs belong to.
+@Controller('patients/:id/ai-analysis-runs')
+@UseGuards(JwtAuthGuard, RolesGuard, VerifiedAccountGuard)
+export class AiAnalysisRunsController {
+  constructor(private readonly runsService: AiAnalysisRunsService) {}
+
+  // Synchronous: answers once the service is done (60 s at most).
+  @Post()
+  create(
+    @CurrentUser() user: AuthenticatedUserPayload,
+    @Param('id') id: string,
+    @Body() dto: CreateAiAnalysisRunDto,
+  ) {
+    return this.runsService.create(user, id, dto);
+  }
+
+  @Get()
+  list(@CurrentUser() user: AuthenticatedUserPayload, @Param('id') id: string) {
+    return this.runsService.list(user, id);
+  }
+
+  @Get(':runId')
+  findOne(
+    @CurrentUser() user: AuthenticatedUserPayload,
+    @Param('id') id: string,
+    @Param('runId') runId: string,
+  ) {
+    return this.runsService.findOne(user, id, runId);
+  }
+
+  // Same headers as GET /patients/:id/documents/:documentId/view.
+  @Get(':runId/mask')
+  async mask(
+    @CurrentUser() user: AuthenticatedUserPayload,
+    @Param('id') id: string,
+    @Param('runId') runId: string,
+    @Res() response: Response,
+  ) {
+    const mask = await this.runsService.getMask(user, id, runId);
+
+    response.setHeader('Content-Type', 'image/png');
+    response.setHeader('Content-Length', String(mask.png.length));
+    response.setHeader(
+      'Content-Disposition',
+      `inline; filename="${encodeURIComponent(mask.fileName)}"`,
+    );
+    response.setHeader('Cache-Control', 'private, no-store');
+    response.setHeader('X-Content-Type-Options', 'nosniff');
+    response.end(mask.png);
+  }
+}
+
+@Controller('ai-models')
+@UseGuards(JwtAuthGuard, RolesGuard, VerifiedAccountGuard)
+export class AiModelsController {
+  constructor(private readonly aiServiceClient: AiServiceClient) {}
+
+  // Relays GET /models of the inference service; the token never leaves.
+  @Get('status')
+  status() {
+    return this.aiServiceClient.getStatus();
+  }
+}

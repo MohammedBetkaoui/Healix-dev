@@ -218,7 +218,9 @@ export function AiModelSheet({ locale, model, onClose, t }: AiModelSheetProps) {
                           <td className="py-1.5 pe-3">
                             <bdi dir="ltr" className="font-[var(--font-auth-mono)] tabular-nums">{formatAiMetricValue(metric, locale)}</bdi>
                           </td>
-                          <td className="py-1.5">{metric.dataset ? <bdi>{metric.dataset}</bdi> : notProvided}</td>
+                          <td className="py-1.5">
+                            {metric.dataset ? t(`aiAnalyses.datasets.${metric.dataset}`) : notProvided}
+                          </td>
                         </tr>
                       ))}
                     </tbody>
@@ -229,6 +231,40 @@ export function AiModelSheet({ locale, model, onClose, t }: AiModelSheetProps) {
                 <p>{notProvided}</p>
               )}
             </SheetSection>
+
+            {model.classMetrics ? (
+              <SheetSection title={t("aiAnalyses.sheet.classMetrics")}>
+                <table className="w-full text-sm">
+                  <thead>
+                    <tr className="text-xs text-[var(--text-secondary)]">
+                      <th scope="col" className="pb-1 text-start font-medium">{t("aiAnalyses.sheet.class")}</th>
+                      <th scope="col" className="pb-1 text-start font-medium">{t("aiAnalyses.sheet.precision")}</th>
+                      <th scope="col" className="pb-1 text-start font-medium">{t("aiAnalyses.sheet.recall")}</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {model.classMetrics.map((metric) => (
+                      <tr key={metric.classKey} className="border-t border-[var(--line-soft)]">
+                        <th scope="row" className="py-1.5 pe-3 text-start font-normal">
+                          {t(`aiAnalyses.classes.${metric.classKey}`)}
+                        </th>
+                        <td className="py-1.5 pe-3 font-[var(--font-auth-mono)] tabular-nums">
+                          {new Intl.NumberFormat(locale === "ar" ? "ar-DZ" : "fr-DZ", { style: "percent", maximumFractionDigits: 2 }).format(metric.precision)}
+                        </td>
+                        <td className="py-1.5 font-[var(--font-auth-mono)] tabular-nums">
+                          {new Intl.NumberFormat(locale === "ar" ? "ar-DZ" : "fr-DZ", { style: "percent", maximumFractionDigits: 2 }).format(metric.recall)}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+                {model.classMetricsDataset ? (
+                  <p className="mt-2 text-xs text-[var(--text-secondary)]">
+                    {t(`aiAnalyses.datasets.${model.classMetricsDataset}`)}
+                  </p>
+                ) : null}
+              </SheetSection>
+            ) : null}
 
             <SheetSection title={t("aiAnalyses.sheet.limitations")}>
               <ul className="list-disc space-y-1.5 ps-5 leading-6">

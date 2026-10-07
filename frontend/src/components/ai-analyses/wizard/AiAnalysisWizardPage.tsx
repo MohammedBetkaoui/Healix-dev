@@ -2,6 +2,7 @@
 
 import { ArrowLeft, ArrowRight, ShieldAlert } from "lucide-react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
 
 import { DashboardShell } from "@/components/dashboard/layout/DashboardShell";
@@ -11,10 +12,14 @@ import {
 } from "@/components/dashboard/layout/navigation";
 import { UploadPatientDocumentModal } from "@/components/patients/UploadPatientDocumentModal";
 import { VerificationRequiredNotice } from "@/components/shared/VerificationRequiredNotice";
-import { findLaunchableModel, type AiModelId } from "@/features/ai-analyses/ai-models.registry";
+import { type AiPipelineId } from "@/features/ai-analyses/ai-analyses.types";
+import { findModel, findPipeline } from "@/features/ai-analyses/ai-models.registry";
+import { useCreateAiAnalysisRun } from "@/features/ai-analyses/hooks/use-create-ai-analysis-run";
 import { useDebouncedValue } from "@/features/ai-analyses/hooks/use-debounced-value";
+import { useAiModelsStatus } from "@/features/ai-analyses/hooks/use-ai-models-status";
 import { useImageProbe } from "@/features/ai-analyses/hooks/use-image-probe";
 import { evaluateQualityChecks, isDicomDocument } from "@/features/ai-analyses/quality-check";
+import { getFailedRunId, getLaunchState } from "@/features/ai-analyses/run-presentation";
 import { useCurrentUser } from "@/features/auth/hooks/use-current-user";
 import { usePatient } from "@/features/patients/hooks/use-patient";
 import { usePatientConsents } from "@/features/patients/hooks/use-patient-consents";
@@ -38,15 +43,14 @@ const imageDocumentTypes: readonly PatientDocumentType[] = ["MEDICAL_IMAGE", "DI
 
 type AiAnalysisWizardPageProps = {
   accountType: "DOCTOR" | "ESTABLISHMENT";
-  /** Already checked by the route (findLaunchableModel). */
-  modelId: AiModelId;
+  /** Already checked by the route (findPipeline). */
+  pipelineId: AiPipelineId;
   /** ?patient= of the route, preselected when it is in the caller's scope. */
   initialPatientId?: string;
 };
 
-// "New analysis" wizard, up to the launch (excluded: no inference service
-// exists, so no result is ever produced or simulated here).
-export function AiAnalysisWizardPage({ accountType, initialPatientId, modelId }: AiAnalysisWizardPageProps) {
+export function AiAnalysisWizardPage({ accountType, initialPatientId, pipelineId }: AiAnalysisWizardPageProps) {
+  const router = useRouter();
   const { locale } = useStoredLocale();
   const { direction, t } = useTranslation(locale);
   const currentUser = useCurrentUser(undefined, { enabled: true });
@@ -54,7 +58,8 @@ export function AiAnalysisWizardPage({ accountType, initialPatientId, modelId }:
   // accounts (ESTABLISHMENT_ADMIN-only endpoint).
   const prefill = useEstablishmentVerificationPrefill({ enabled: accountType === "ESTABLISHMENT" });
   const initials = getAccountInitials(currentUser.data?.fullName);
-  const model = findLaunchableModel(modelId);
+  const pipeline = findPipeline(pipelineId);
+  const model = findModel(pipeline?.classifierId);
   const roleBase = accountType === "ESTABLISHMENT" ? "/establishment" : "/doctor";
 
   const [stepIndex, setStepIndex] = useState(0);
@@ -66,12 +71,14 @@ export function AiAnalysisWizardPage({ accountType, initialPatientId, modelId }:
   const [notice, setNotice] = useState("");
   const headingRef = useRef<HTMLHeadingElement>(null);
   const hasNavigated = useRef(false);
+  const modelsStatusQuery = useAiModelsStatus({ enabled: stepIndex === steps.length - 1 });
 
   const debouncedSearch = useDebouncedValue(search.trim(), 300);
   const patientsQuery = usePatients({ limit: 20, search: debouncedSearch || undefined });
   const preselected = usePatient(initialPatientId ?? "");
   const selectedPatient = chosenPatient ?? preselected.data ?? null;
   const patientId = selectedPatient?.id ?? "";
+  const createRunMutation = useCreateAiAnalysisRun(patientId);
   const consentsQuery = usePatientConsents(patientId);
 
   const consentState: ConsentState = !selectedPatient
@@ -108,6 +115,8 @@ export function AiAnalysisWizardPage({ accountType, initialPatientId, modelId }:
     consentsQuery.error,
     documentsQuery.error,
     documentView.error,
+    modelsStatusQuery.error,
+    createRunMutation.error,
   ].some(isVerificationRequiredError);
 
   // Focus follows the step change (not the first render).
@@ -124,6 +133,7 @@ export function AiAnalysisWizardPage({ accountType, initialPatientId, modelId }:
 
   const selectPatient = (patient: Patient) => {
     if (patient.id !== selectedPatient?.id) {
+      createRunMutation.reset();
       setChosenPatient(patient);
       setDocumentId(null);
       setImpression("");
@@ -132,6 +142,7 @@ export function AiAnalysisWizardPage({ accountType, initialPatientId, modelId }:
 
   const selectDocument = (id: string) => {
     if (id !== documentId) {
+      createRunMutation.reset();
       setDocumentId(id);
       setImpression("");
     }
@@ -172,13 +183,39 @@ export function AiAnalysisWizardPage({ accountType, initialPatientId, modelId }:
         user: { accountType: "INDEPENDENT_DOCTOR" as const, footerSubtitle: t("dashboard.clinical.doctor.practice"), initials, name: currentUser.data?.fullName || t("dashboard.clinical.doctor.workspace"), roleKey: "dashboard.common.roles.doctor", workspaceSubtitle: t("dashboard.clinical.doctor.workspace") },
       };
 
-  if (!model) {
+  if (!pipeline || !model) {
     return null;
   }
 
-  const modelName = t(`aiAnalyses.models.${model.id}.name`);
+  const pipelineName = t(`aiAnalyses.pipelines.${pipeline.id}.name`);
   const step = steps[stepIndex];
   const blockedId = "ai-wizard-blocked";
+  const launchState = getLaunchState(modelsStatusQuery, pipeline.classifierId);
+
+  const launchAnalysis = () => {
+    if (!selectedDocument || !patientId || launchState !== "ready") {
+      return;
+    }
+
+    const resultHref = (runId: string) =>
+      `${roleBase}/ai-analyses/runs/${encodeURIComponent(runId)}?patient=${encodeURIComponent(patientId)}`;
+    const trimmedImpression = impression.trim();
+
+    createRunMutation.mutate(
+      {
+        pipeline: pipeline.id,
+        sourceDocumentId: selectedDocument.id,
+        ...(trimmedImpression ? { clinicianImpression: trimmedImpression } : {}),
+      },
+      {
+        onError: (error) => {
+          const runId = getFailedRunId(error);
+          if (runId) router.push(resultHref(runId));
+        },
+        onSuccess: (run) => router.push(resultHref(run.id)),
+      },
+    );
+  };
 
   return (
     <DashboardShell
@@ -191,11 +228,11 @@ export function AiAnalysisWizardPage({ accountType, initialPatientId, modelId }:
         <header className="workspace-intro">
           <div className="min-w-0">
             <p className="mb-2 text-xs font-medium text-[var(--medical)]">{t("aiAnalyses.wizard.context")}</p>
-            <h1 className="break-words">{modelName}</h1>
+            <h1 className="break-words">{pipelineName}</h1>
             <p className="mt-1 text-sm text-[var(--text-secondary)]">
               {t(`aiAnalyses.modules.${model.module}.title`)}
               {" · "}
-              {t(`aiAnalyses.tasks.${model.task}`)}
+              {t(`aiAnalyses.models.${model.id}.name`)}
               {model.version ? <> · <bdi dir="ltr" className="font-[var(--font-auth-mono)]">v{model.version}</bdi></> : null}
             </p>
           </div>
@@ -271,8 +308,12 @@ export function AiAnalysisWizardPage({ accountType, initialPatientId, modelId }:
                   impression={impression}
                   isDicom={isDicom}
                   isError={documentView.isError}
+                  isLaunching={createRunMutation.isPending}
+                  launchError={createRunMutation.isError && !getFailedRunId(createRunMutation.error)}
+                  launchState={launchState}
                   module={model.module}
                   onImpressionChange={setImpression}
+                  onLaunch={launchAnalysis}
                   t={t}
                 />
               ) : null}

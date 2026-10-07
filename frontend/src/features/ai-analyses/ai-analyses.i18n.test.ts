@@ -5,7 +5,7 @@ import { dictionaries, locales } from "@/i18n";
 import { translate } from "@/lib/i18n";
 
 import { aiModelStatuses, aiModelTasks, aiModules } from "./ai-analyses.types";
-import { aiModels } from "./ai-models.registry";
+import { aiModels, aiPipelines } from "./ai-models.registry";
 import { qualityCheckKeys, qualityCheckStatuses } from "./quality-check";
 
 // Mirrors the steps of components/ai-analyses/wizard/AiAnalysisWizardPage.
@@ -21,6 +21,9 @@ function registryKeys() {
     keys.add(`aiAnalyses.modules.${aiModule}.description`);
   }
   for (const status of aiModelStatuses) keys.add(`aiAnalyses.statuses.${status}`);
+  keys.add("aiAnalyses.statusNotes.requires_multisequence");
+  keys.add("aiAnalyses.statusNotes.documentation_pending");
+  keys.add("aiAnalyses.statusNotes.noPipeline");
   for (const task of aiModelTasks) keys.add(`aiAnalyses.tasks.${task}`);
   for (const model of aiModels) {
     keys.add(`aiAnalyses.models.${model.id}.name`);
@@ -28,7 +31,28 @@ function registryKeys() {
     if (model.inputModality) keys.add(`aiAnalyses.modalities.${model.inputModality}`);
     for (const outputClass of model.outputClasses) keys.add(`aiAnalyses.classes.${outputClass}`);
     for (const metric of model.metrics ?? []) keys.add(`aiAnalyses.metrics.${metric.key}`);
+    for (const metric of model.metrics ?? []) {
+      if (metric.dataset) keys.add(`aiAnalyses.datasets.${metric.dataset}`);
+    }
+    if (model.classMetricsDataset) keys.add(`aiAnalyses.datasets.${model.classMetricsDataset}`);
     for (const limitation of model.knownLimitations) keys.add(`aiAnalyses.limitations.${limitation}`);
+  }
+  for (const pipeline of aiPipelines) {
+    keys.add(`aiAnalyses.pipelines.${pipeline.id}.name`);
+    keys.add(`aiAnalyses.pipelines.${pipeline.id}.description`);
+    keys.add(`aiAnalyses.pipelines.${pipeline.id}.launch`);
+    keys.add(`aiAnalyses.pipelines.${pipeline.id}.steps.classify`);
+    keys.add(`aiAnalyses.pipelines.${pipeline.id}.steps.segmentMeningioma`);
+    keys.add(`aiAnalyses.pipelines.${pipeline.id}.steps.segmentPituitary`);
+  }
+  for (const state of ["loading", "status_error", "service_unavailable", "service_not_configured", "service_unauthorized", "service_error", "classifier_not_loaded"]) {
+    keys.add(`aiAnalyses.wizard.reading.launchStates.${state}`);
+  }
+  for (const code of ["SERVICE_UNAVAILABLE", "SERVICE_TIMEOUT", "MODEL_NOT_LOADED", "SERVICE_NOT_CONFIGURED", "SERVICE_ERROR", "MASK_STORAGE_FAILED", "INVALID_IMAGE", "IMAGE_TOO_LARGE", "unknown"]) {
+    keys.add(`aiAnalyses.run.errors.${code}`);
+  }
+  for (const reason of ["not_applicable_for_class", "model_not_loaded"]) {
+    keys.add(`aiAnalyses.run.skipped.${reason}`);
   }
   // Built by the wizard from its step and check lists.
   for (const step of wizardSteps) {

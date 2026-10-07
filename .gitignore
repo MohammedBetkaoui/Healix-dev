@@ -1,1 +1,4 @@
-/models
+# Model weights (about 1 GB) are never committed; the AI service reads them
+# from AI_MODELS_DIR (see ai-service/README.md).
+/models/
+*.pth
