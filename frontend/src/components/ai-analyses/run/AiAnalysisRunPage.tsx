@@ -35,6 +35,7 @@ import { useStoredLocale, useTranslation } from "@/lib/i18n";
 
 import { ImageViewer } from "../viewer/ImageViewer";
 import { getPatientDisplayName } from "../wizard/PatientStep";
+import { AiRunDecisionBadge, AiRunDecisionPanel } from "./AiRunDecisionPanel";
 
 type AiAnalysisRunPageProps = {
   accountType: "DOCTOR" | "ESTABLISHMENT";
@@ -241,16 +242,9 @@ export function AiAnalysisRunPage({ accountType, patientId, runId }: AiAnalysisR
           </div>
         </div>
 
-        <div className="grid gap-5 lg:grid-cols-2">
-          <section aria-labelledby="ai-run-impression" className="surface-section p-5">
-            <h2 id="ai-run-impression" className="text-base font-semibold text-[var(--text-primary)]">
-              {t("aiAnalyses.run.impression")}
-            </h2>
-            <p className="mt-3 whitespace-pre-wrap text-sm leading-6 text-[var(--text-secondary)]">
-              {run.clinicianImpression || t("aiAnalyses.run.noImpression")}
-            </p>
-          </section>
+        <AiRunDecisionPanel locale={locale} patientId={patientId} run={run} t={t} />
 
+        <div className="grid gap-5 lg:grid-cols-2">
           <section aria-labelledby="ai-run-traceability" className="surface-section p-5">
             <h2 id="ai-run-traceability" className="text-base font-semibold text-[var(--text-primary)]">
               {t("aiAnalyses.run.traceability")}
@@ -272,24 +266,28 @@ export function AiAnalysisRunPage({ accountType, patientId, runId }: AiAnalysisR
               <dd className="break-all font-[var(--font-auth-mono)] text-xs">{run.id}</dd>
             </dl>
           </section>
-        </div>
 
-        <section aria-labelledby="ai-run-limitations" className="surface-section p-5">
-          <h2 id="ai-run-limitations" className="text-base font-semibold text-[var(--text-primary)]">
-            {t("aiAnalyses.run.limitations")}
-          </h2>
-          <ul className="mt-3 list-disc space-y-1.5 ps-5 text-sm leading-6 text-[var(--text-secondary)]">
-            {limitations.map((limitation) => (
-              <li key={limitation}>{t(`aiAnalyses.limitations.${limitation}`)}</li>
-            ))}
-          </ul>
-        </section>
+          <section aria-labelledby="ai-run-limitations" className="surface-section p-5">
+            <h2 id="ai-run-limitations" className="text-base font-semibold text-[var(--text-primary)]">
+              {t("aiAnalyses.run.limitations")}
+            </h2>
+            <ul className="mt-3 list-disc space-y-1.5 ps-5 text-sm leading-6 text-[var(--text-secondary)]">
+              {limitations.map((limitation) => (
+                <li key={limitation}>{t(`aiAnalyses.limitations.${limitation}`)}</li>
+              ))}
+            </ul>
+          </section>
+        </div>
 
         <div role="note" className="flex items-start gap-3 rounded-[var(--radius-md)] border border-[var(--border)] bg-[var(--surface)] px-4 py-3">
           <ShieldAlert size={18} className="mt-0.5 shrink-0 text-[var(--warning-ink)]" aria-hidden="true" />
           <div>
             <p className="text-sm font-semibold text-[var(--text-primary)]">{t("aiAnalyses.page.disclaimer")}</p>
-            <p className="mt-1 text-xs text-[var(--text-secondary)]">{t("aiAnalyses.run.noValidation")}</p>
+            <p className="mt-1 text-xs text-[var(--text-secondary)]">
+              {run.decisionStatus === null
+                ? t("aiAnalyses.run.noValidation")
+                : t(`aiAnalyses.decision.recordNotes.${run.decisionStatus}`)}
+            </p>
           </div>
         </div>
       </>
@@ -312,6 +310,11 @@ export function AiAnalysisRunPage({ accountType, patientId, runId }: AiAnalysisR
               {t("aiAnalyses.run.patient", { name: patientName })}
               {run ? <> · {t("aiAnalyses.run.date", { date: formatPatientDateTime(run.createdAt, locale) })}</> : null}
             </p>
+            {run?.status === "SUCCEEDED" && !verificationRequired ? (
+              <div className="mt-2">
+                <AiRunDecisionBadge run={run} t={t} />
+              </div>
+            ) : null}
           </div>
           <div className="flex flex-wrap gap-2">
             {run ? (

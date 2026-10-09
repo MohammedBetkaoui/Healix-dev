@@ -16,7 +16,6 @@ import { algerianWilayas } from "./patients.constants";
 import {
   type CheckPatientDuplicateParams,
   type CheckPatientDuplicateResponse,
-  type CreatePatientAiAnalysisPayload,
   type CreatePatientConsultationPayload,
   type CreatePatientPayload,
   type PatientAiAnalysisRecord,
@@ -297,18 +296,6 @@ export async function getPatientAiAnalyses(
   );
 
   return response.data.map(toPatientAiAnalysisViewModel);
-}
-
-export async function createPatientAiAnalysis(
-  patientId: string,
-  payload: CreatePatientAiAnalysisPayload,
-): Promise<PatientAiAnalysis> {
-  const response = await apiClient.post<PatientAiAnalysisRecord>(
-    `/patients/${patientId}/ai-analyses`,
-    payload,
-  );
-
-  return toPatientAiAnalysisViewModel(response.data);
 }
 
 function toPatientAuditEntryViewModel(

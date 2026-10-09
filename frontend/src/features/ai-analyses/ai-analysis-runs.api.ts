@@ -3,6 +3,7 @@ import { apiClient } from "@/lib/api/http-client";
 import {
   type AiAnalysisRun,
   type AiPipelineId,
+  type AiRunDecision,
   type AiServiceStatus,
 } from "./ai-analyses.types";
 
@@ -33,8 +34,35 @@ export async function createAiAnalysisRun(
   return response.data;
 }
 
+export type DecideAiAnalysisRunPayload = {
+  status: AiRunDecision;
+  /** CORRECTED only. */
+  correctedLabel?: string;
+  /** Required for CORRECTED and REJECTED. */
+  reason?: string;
+};
+
+/** The patient's runs, most recent first. */
+export async function getAiAnalysisRuns(patientId: string): Promise<AiAnalysisRun[]> {
+  const response = await apiClient.get<AiAnalysisRun[]>(`/patients/${patientId}/ai-analysis-runs`);
+  return response.data;
+}
+
 export async function getAiAnalysisRun(patientId: string, runId: string): Promise<AiAnalysisRun> {
   const response = await apiClient.get<AiAnalysisRun>(`/patients/${patientId}/ai-analysis-runs/${runId}`);
+  return response.data;
+}
+
+/** Final: 409 AI_RUN_ALREADY_DECIDED on a second decision. */
+export async function decideAiAnalysisRun(
+  patientId: string,
+  runId: string,
+  payload: DecideAiAnalysisRunPayload,
+): Promise<AiAnalysisRun> {
+  const response = await apiClient.post<AiAnalysisRun>(
+    `/patients/${patientId}/ai-analysis-runs/${runId}/decision`,
+    payload,
+  );
   return response.data;
 }
 

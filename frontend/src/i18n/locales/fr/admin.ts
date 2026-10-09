@@ -100,6 +100,10 @@ export const adminFr = {
         description: "{actor} a lancé une analyse IA sur une image d’un dossier patient.",
         label: "Analyse IA lancée",
       },
+      AI_ANALYSIS_RUN_DECIDED: {
+        description: "{actor} a validé, corrigé ou rejeté le résultat d’une analyse IA (décision définitive).",
+        label: "Décision sur une analyse IA",
+      },
       DOCUMENT_VIEWED: {
         description: "{actor} a consulté un document d’un dossier patient.",
         label: "Document patient consulté",

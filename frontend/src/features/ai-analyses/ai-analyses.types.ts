@@ -108,6 +108,10 @@ export type AiPipeline = {
 
 export type AiAnalysisRunStatus = "RUNNING" | "SUCCEEDED" | "FAILED" | "REJECTED_INPUT";
 
+/** The physician's final decision on a SUCCEEDED run (one per run). */
+export const aiRunDecisions = ["VALIDATED", "CORRECTED", "REJECTED"] as const;
+export type AiRunDecision = (typeof aiRunDecisions)[number];
+
 export type AiRunPrediction = {
   /** A classifier output class (glioma, meningioma, notumor, pituitary). */
   label: string;
@@ -137,6 +141,14 @@ export type AiAnalysisRun = {
   errorCode: string | null;
   durationMs: number | null;
   requestedById: string;
+  /** null until the physician decides; final once set. */
+  decisionStatus: AiRunDecision | null;
+  /** The class the physician retained: the model's top class (VALIDATED), the corrected one (CORRECTED), null (REJECTED). */
+  decisionLabel: string | null;
+  decisionReason: string | null;
+  decidedById: string | null;
+  decidedByName: string | null;
+  decidedAt: string | null;
   createdAt: string;
   updatedAt: string;
 };

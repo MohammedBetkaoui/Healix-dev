@@ -1,6 +1,4 @@
 import {
-  type PatientAiAnalysisResult,
-  type PatientAiAnalysisType,
   type PatientBloodGroup,
   type PatientDocumentType,
   type PatientGender,
@@ -77,18 +75,6 @@ export const patientDocumentTypeValues: PatientDocumentType[] = [
   "MEDICAL_REPORT",
   "MEDICAL_IMAGE",
   "DICOM",
-];
-
-export const patientAiAnalysisTypeValues: PatientAiAnalysisType[] = [
-  "MRI",
-  "CT_SCAN",
-  "XRAY",
-  "ECG",
-];
-
-export const patientAiAnalysisResultValues: PatientAiAnalysisResult[] = [
-  "NORMAL",
-  "ANOMALY_DETECTED",
 ];
 
 export const patientAgeFilterValues = [

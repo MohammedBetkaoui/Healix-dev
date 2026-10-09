@@ -15,8 +15,10 @@ import {
   Stethoscope,
   UserRound,
 } from "lucide-react";
+import Link from "next/link";
 import { useMemo, useState } from "react";
 
+import { LatestRetainedAiRun, PatientAiRunsSection, getNewAiAnalysisHref } from "@/components/ai-analyses/record/PatientAiRuns";
 import { AppointmentDetailsModal } from "@/components/appointments/AppointmentDetailsModal";
 import { CreateAppointmentModal } from "@/components/appointments/CreateAppointmentModal";
 import { DashboardShell } from "@/components/dashboard/layout/DashboardShell";
@@ -30,7 +32,6 @@ import { useEstablishmentVerificationPrefill } from "@/features/verification/hoo
 import { type Appointment, type AppointmentStatus } from "@/features/appointments/appointments.types";
 import { useAppointments } from "@/features/appointments/hooks/use-appointments";
 import { usePatient } from "@/features/patients/hooks/use-patient";
-import { usePatientAiAnalyses } from "@/features/patients/hooks/use-patient-ai-analyses";
 import { usePatientAuditLog } from "@/features/patients/hooks/use-patient-audit-log";
 import { usePatientConsents } from "@/features/patients/hooks/use-patient-consents";
 import { usePatientConsultations } from "@/features/patients/hooks/use-patient-consultations";
@@ -43,7 +44,6 @@ import { cn } from "@/lib/utils";
 import { type DashboardStatusTone } from "@/types/dashboard";
 import { type PatientConsentStatus, type PatientConsentType } from "@/types/patient";
 
-import { CreateAiAnalysisModal } from "./CreateAiAnalysisModal";
 import { EditPatientModal } from "./EditPatientModal";
 import { UploadPatientDocumentModal } from "./UploadPatientDocumentModal";
 import { UpsertConsentModal } from "./UpsertConsentModal";
@@ -74,7 +74,6 @@ const copy = {
     appointmentUpdated: "Rendez-vous mis à jour avec succès.",
     consentUpdated: "Consentement enregistré.",
     consultationCreated: "Consultation enregistrée.",
-    aiAnalysisCreated: "Analyse enregistrée.",
     documentUploaded: "Document ajouté.",
     patientUpdated: "Dossier patient mis à jour.",
     doctorOnly: "Seul un médecin peut créer une consultation.",
@@ -107,7 +106,6 @@ const copy = {
     appointmentUpdated: "تم تحديث الموعد بنجاح.",
     consentUpdated: "تم تسجيل الموافقة.",
     consultationCreated: "تم تسجيل الاستشارة.",
-    aiAnalysisCreated: "تم تسجيل التحليل.",
     documentUploaded: "تمت إضافة الوثيقة.",
     patientUpdated: "تم تحديث ملف المريض.",
     doctorOnly: "لا يمكن لغير الطبيب إنشاء استشارة.",
@@ -177,7 +175,6 @@ export function PatientRecordPage({ accountType, initialTab, patientId }: Patien
   const { data: consents } = usePatientConsents(patientId);
   const { data: consultations } = usePatientConsultations(patientId);
   const { data: documents } = usePatientDocuments(patientId);
-  const { data: aiAnalyses } = usePatientAiAnalyses(patientId);
   const { data: auditLog } = usePatientAuditLog(patientId);
   // Bounded window, as the backend requires: the record shows the last 12
   // months and the next 6, never the full appointment history.
@@ -203,7 +200,6 @@ export function PatientRecordPage({ accountType, initialTab, patientId }: Patien
   const [isAppointmentModalOpen, setAppointmentModalOpen] = useState(false);
   const [selectedAppointment, setSelectedAppointment] = useState<Appointment | null>(null);
   const [isDocumentModalOpen, setDocumentModalOpen] = useState(false);
-  const [isAiAnalysisModalOpen, setAiAnalysisModalOpen] = useState(false);
   const [consentTarget, setConsentTarget] = useState<{
     documentName?: string;
     status?: PatientConsentStatus;
@@ -284,10 +280,8 @@ export function PatientRecordPage({ accountType, initialTab, patientId }: Patien
               </Button>
               <Button variant="outline" className="rounded-full border-[var(--line)] bg-[var(--panel)] text-[var(--ink-soft)]" onClick={() => setAppointmentModalOpen(true)}><CalendarPlus className="me-2 h-4 w-4" strokeWidth={1.7} />{localized.actions.appointment}</Button>
               <Button variant="outline" className="rounded-full border-[var(--line)] bg-[var(--panel)] text-[var(--ink-soft)]" onClick={() => setDocumentModalOpen(true)}><FilePlus2 className="me-2 h-4 w-4" strokeWidth={1.7} />{localized.actions.document}</Button>
-              {/* The backend rejects creation (403) without a signed DIAGNOSTIC_AI consent. */}
-              {hasSignedAiConsent ? (
-                <Button variant="outline" className="rounded-full border-[var(--line)] bg-[var(--panel)] text-[var(--ink-soft)]" onClick={() => setAiAnalysisModalOpen(true)}><BrainCircuit className="me-2 h-4 w-4" strokeWidth={1.7} />{t("patients.actions.addAiAnalysis")}</Button>
-              ) : null}
+              {/* The wizard checks the DIAGNOSTIC_AI consent and explains a missing one. */}
+              <Link href={getNewAiAnalysisHref(accountType, patientId)} className="inline-flex h-11 items-center justify-center rounded-full border border-[var(--line)] bg-[var(--panel)] px-4 text-sm font-medium text-[var(--ink-soft)] shadow-sm transition-colors hover:bg-[var(--panel-soft)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--accent)] focus-visible:ring-offset-2 focus-visible:ring-offset-[var(--bg)]"><BrainCircuit className="me-2 h-4 w-4" strokeWidth={1.7} aria-hidden="true" />{t("patients.actions.newAiAnalysis")}</Link>
             </div>
           </div>
         </section>
@@ -309,7 +303,7 @@ export function PatientRecordPage({ accountType, initialTab, patientId }: Patien
             </section>
 
             <section className="rounded-xl border border-[var(--accent-line)] bg-muted p-5">
-              <div className="flex items-center gap-3"><span className="flex h-10 w-10 items-center justify-center rounded-[0.72rem] border border-[var(--accent-line)] bg-[var(--accent-soft)] text-[var(--accent)]"><BrainCircuit className="h-4 w-4" strokeWidth={1.7} /></span><div><p className="font-[var(--font-auth-mono)] text-[0.6rem] uppercase tracking-[0.1em] text-[var(--accent)]">{localized.aiKicker}</p><p className="mt-1 text-sm font-medium text-[var(--ink)]">IRM · Healix Vision 2.1 · {aiAnalyses?.[0]?.score ?? 0}%</p></div></div>
+              <div className="flex items-center gap-3"><span className="flex h-10 w-10 items-center justify-center rounded-[0.72rem] border border-[var(--accent-line)] bg-[var(--accent-soft)] text-[var(--accent)]"><BrainCircuit className="h-4 w-4" strokeWidth={1.7} /></span><div className="min-w-0"><p className="font-[var(--font-auth-mono)] text-[0.6rem] uppercase tracking-[0.1em] text-[var(--accent)]">{localized.aiKicker}</p><LatestRetainedAiRun accountType={accountType} locale={locale} patientId={patientId} t={t} /></div></div>
               <p className="mt-4 border-s-2 border-[var(--specialty-brain)] ps-3 text-xs leading-5 text-[var(--ink-soft)]">{localized.aiDisclaimer}</p>
             </section>
           </div>
@@ -329,18 +323,14 @@ export function PatientRecordPage({ accountType, initialTab, patientId }: Patien
         ) : null}
 
         {activeTab === "imaging" ? (
-          <section className="rounded-xl border border-[var(--line)] bg-[var(--panel)] p-5">
-            <div className="flex items-center gap-3"><BrainCircuit className="h-5 w-5 text-[var(--accent-dark)]" strokeWidth={1.7} /><h2 className="font-[var(--font-auth-display)] text-xl font-medium text-[var(--ink)]">{localized.tabs.imaging}</h2></div>
-            {hasSignedAiConsent ? (
-              (aiAnalyses ?? []).length === 0 ? (
-                <p className="mt-5 text-sm text-[var(--ink-faint)]">{t("patients.common.none")}</p>
-              ) : (
-                <div className="mt-5 divide-y divide-[var(--line)]">{(aiAnalyses ?? []).map((analysis) => <div key={analysis.id} className="grid gap-2 py-4 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-center"><div><p className="text-sm font-medium text-[var(--ink)]">{t(`patients.ai.types.${analysis.type}`)} · {analysis.score}%</p><p className="mt-1 text-xs text-[var(--ink-faint)]">{t(`patients.ai.results.${analysis.result}`)}</p></div><time className="font-[var(--font-auth-mono)] text-[0.62rem] text-[var(--ink-faint)]">{formatPatientDate(analysis.date, locale)}</time></div>)}</div>
-              )
-            ) : (
-              <p className="mt-5 text-sm text-[var(--ink-faint)]">{t("patients.ai.consentRequired")}</p>
-            )}
-          </section>
+          <PatientAiRunsSection
+            accountType={accountType}
+            hasSignedAiConsent={hasSignedAiConsent}
+            locale={locale}
+            patientId={patientId}
+            t={t}
+            title={localized.tabs.imaging}
+          />
         ) : null}
 
         {activeTab === "consultations" ? (
@@ -496,19 +486,6 @@ export function PatientRecordPage({ accountType, initialTab, patientId }: Patien
         onUploaded={() => {
           setDocumentModalOpen(false);
           setNotice(localized.documentUploaded);
-          window.setTimeout(() => setNotice(""), 3200);
-        }}
-        patientId={patientId}
-        t={t}
-      />
-
-      <CreateAiAnalysisModal
-        direction={direction}
-        isOpen={isAiAnalysisModalOpen}
-        onClose={() => setAiAnalysisModalOpen(false)}
-        onCreated={() => {
-          setAiAnalysisModalOpen(false);
-          setNotice(localized.aiAnalysisCreated);
           window.setTimeout(() => setNotice(""), 3200);
         }}
         patientId={patientId}

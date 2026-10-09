@@ -91,6 +91,10 @@ export const adminAr = {
         description: "أطلق {actor} تحليلًا بالذكاء الاصطناعي على صورة من ملف مريض.",
         label: "إطلاق تحليل بالذكاء الاصطناعي",
       },
+      AI_ANALYSIS_RUN_DECIDED: {
+        description: "صادق {actor} على نتيجة تحليل بالذكاء الاصطناعي أو صحّحها أو رفضها (قرار نهائي).",
+        label: "قرار بشأن تحليل بالذكاء الاصطناعي",
+      },
       DOCUMENT_VIEWED: {
         description: "اطلع {actor} على وثيقة من ملف مريض.",
         label: "الاطلاع على وثيقة مريض",

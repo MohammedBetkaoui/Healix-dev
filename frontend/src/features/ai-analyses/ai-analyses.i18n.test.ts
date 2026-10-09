@@ -4,8 +4,9 @@ import { join } from "node:path";
 import { dictionaries, locales } from "@/i18n";
 import { translate } from "@/lib/i18n";
 
-import { aiModelStatuses, aiModelTasks, aiModules } from "./ai-analyses.types";
+import { aiModelStatuses, aiModelTasks, aiModules, aiRunDecisions } from "./ai-analyses.types";
 import { aiModels, aiPipelines } from "./ai-models.registry";
+import { aiDecisionLabels, knownDecisionErrorCodes } from "./run-decision";
 import { knownRunErrorCodes } from "./run-presentation";
 import { qualityCheckKeys, qualityCheckStatuses } from "./quality-check";
 
@@ -55,6 +56,19 @@ function registryKeys() {
   for (const reason of ["not_applicable_for_class", "model_not_loaded"]) {
     keys.add(`aiAnalyses.run.skipped.${reason}`);
   }
+  // Built by the decision panel and the patient record from the decision lists.
+  for (const decision of aiRunDecisions) {
+    keys.add(`aiAnalyses.decision.statuses.${decision}`);
+    keys.add(`aiAnalyses.decision.options.${decision}`);
+    keys.add(`aiAnalyses.decision.optionHints.${decision}`);
+    keys.add(`aiAnalyses.decision.recordNotes.${decision}`);
+  }
+  for (const decision of ["CORRECTED", "REJECTED"]) keys.add(`aiAnalyses.decision.reasonLabels.${decision}`);
+  for (const decision of ["VALIDATED", "CORRECTED"]) keys.add(`aiAnalyses.record.latest.${decision}`);
+  for (const agreement of ["agrees", "disagrees", "rejected"]) keys.add(`aiAnalyses.decision.agreement.${agreement}`);
+  for (const code of [...knownDecisionErrorCodes, "unknown"]) keys.add(`aiAnalyses.decision.errors.${code}`);
+  for (const label of aiDecisionLabels) keys.add(`aiAnalyses.classes.${label}`);
+  for (const status of ["RUNNING", "FAILED", "REJECTED_INPUT"]) keys.add(`aiAnalyses.record.runStatuses.${status}`);
   // Built by the wizard from its step and check lists.
   for (const step of wizardSteps) {
     keys.add(`aiAnalyses.wizard.steps.${step}`);

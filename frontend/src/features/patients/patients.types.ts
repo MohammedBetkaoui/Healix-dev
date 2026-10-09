@@ -209,10 +209,10 @@ export type PatientDocumentRecord = {
   uploadedById: string;
 };
 
-// Wire shape returned by GET /patients/:id/ai-analyses and
-// POST /patients/:id/ai-analyses. Mirrors
-// backend/src/patients/patients.service.ts#toAiAnalysisResponse. This is a
-// manual record of a result — no real inference model is called yet.
+// Wire shape returned by GET /patients/:id/ai-analyses. Mirrors
+// backend/src/patients/patients.service.ts#toAiAnalysisResponse. Legacy manual
+// records, no longer created from the app: real analyses are AI analysis runs
+// (features/ai-analyses). Kept readable until the table is dropped.
 export type PatientAiAnalysisRecord = {
   createdAt: string;
   id: string;
@@ -225,18 +225,6 @@ export type PatientAiAnalysisRecord = {
   sourceDocumentId: string | null;
   type: PatientAiAnalysisType;
   updatedAt: string;
-};
-
-// Mirrors backend/src/patients/dto/create-patient-ai-analysis.dto.ts exactly.
-// Creation requires a signed DIAGNOSTIC_AI consent server-side (403 if
-// missing) — see PatientsService.createAiAnalysis.
-export type CreatePatientAiAnalysisPayload = {
-  modelName: string;
-  modelVersion?: string;
-  result: PatientAiAnalysisResult;
-  score: number;
-  sourceDocumentId?: string;
-  type: PatientAiAnalysisType;
 };
 
 // Wire shape returned by GET /patients/:id/audit-log. Mirrors
