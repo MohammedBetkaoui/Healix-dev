@@ -28,7 +28,10 @@ type PatientStepProps = {
   t: TranslationFunction;
 };
 
-export function getPatientDisplayName(patient: Patient, locale: Locale) {
+export function getPatientDisplayName(
+  patient: Pick<Patient, "firstName" | "lastName" | "firstNameAr" | "lastNameAr">,
+  locale: Locale,
+) {
   const latin = `${patient.firstName} ${patient.lastName}`.trim();
   const arabic = `${patient.firstNameAr} ${patient.lastNameAr}`.trim();
 

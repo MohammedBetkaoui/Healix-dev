@@ -9,6 +9,7 @@ import { aiModels, aiPipelines } from "./ai-models.registry";
 import { aiDecisionLabels, knownDecisionErrorCodes } from "./run-decision";
 import { knownRunErrorCodes } from "./run-presentation";
 import { knownReportErrorKeys } from "./run-report";
+import { TRACKING_DECISIONS, TRACKING_PERIODS, TRACKING_STATUSES, TRACKING_TABS } from "./runs-tracking";
 import { qualityCheckKeys, qualityCheckStatuses } from "./quality-check";
 
 // Mirrors the steps of components/ai-analyses/wizard/AiAnalysisWizardPage.
@@ -56,6 +57,14 @@ function registryKeys() {
   }
   for (const reason of ["not_applicable_for_class", "model_not_loaded"]) {
     keys.add(`aiAnalyses.run.skipped.${reason}`);
+  }
+  // Built by the follow-up page from its tabs, filters and periods.
+  for (const tab of TRACKING_TABS) keys.add(`aiAnalyses.tracking.tabs.${tab}`);
+  for (const decision of TRACKING_DECISIONS) keys.add(`aiAnalyses.tracking.filters.decisions.${decision}`);
+  for (const status of TRACKING_STATUSES) keys.add(`aiAnalyses.tracking.filters.statuses.${status}`);
+  for (const period of TRACKING_PERIODS) keys.add(`aiAnalyses.tracking.agreement.periods.${period}`);
+  for (const column of ["date", "patient", "modelClass", "uncertain", "mask", "decision", "result"]) {
+    keys.add(`aiAnalyses.tracking.worklist.columns.${column}`);
   }
   // Picked from the report's availability and download error.
   for (const blocker of ["notSucceeded", "notDecided", "rejected"]) keys.add(`aiAnalyses.report.blockers.${blocker}`);

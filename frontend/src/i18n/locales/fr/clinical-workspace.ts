@@ -36,7 +36,7 @@ export const clinicalWorkspaceFr = {
   },
   nav: {
     clinical: "Espace clinique", care: "Soins", intelligence: "Intelligence", collaboration: "Collaboration", management: "Gestion",
-    overview: "Vue générale", records: "Dossiers médicaux", ai: "Healix AI", lab: "Laboratoire & examens", team: "Équipe médicale",
+    overview: "Vue générale", records: "Dossiers médicaux", ai: "Healix AI", aiTracking: "Suivi des analyses", lab: "Laboratoire & examens", team: "Équipe médicale",
   },
   actions: {
     patient: "Nouveau patient", appointment: "Nouveau rendez-vous", invite: "Inviter un médecin", analysis: "Nouvelle analyse",

@@ -21,6 +21,8 @@ export function useDecideAiAnalysisRun(patientId: string, runId: string) {
     },
     onSettled: () => {
       void queryClient.invalidateQueries({ exact: true, queryKey: ["patients", "ai-analysis-runs", patientId] });
+      // The workspace follow-up (worklist, figures, hub banner).
+      void queryClient.invalidateQueries({ queryKey: ["ai-analysis-runs"] });
     },
     onSuccess: (run) => {
       queryClient.setQueryData(runKey, run);

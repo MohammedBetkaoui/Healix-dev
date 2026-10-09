@@ -187,6 +187,62 @@ export type AiAnalysisRun = {
   updatedAt: string;
 };
 
+// ---------------------------------------------------------------------------
+// Follow-up across the workspace (GET /ai-analysis-runs[/summary])
+// ---------------------------------------------------------------------------
+// Mirrors backend/src/ai-analysis-runs/overview.
+
+/** "pending": SUCCEEDED and not decided yet. */
+export type AiRunDecisionFilter = "pending" | AiRunDecision;
+
+/** Of the patient, the list carries only its id and names. */
+export type AiRunPatientName = {
+  id: string;
+  firstName: string;
+  lastName: string;
+  firstNameAr: string;
+  lastNameAr: string;
+};
+
+export type AiRunListItem = AiAnalysisRun & { patient: AiRunPatientName };
+
+export type AiRunsPage = {
+  items: AiRunListItem[];
+  page: number;
+  limit: number;
+  total: number;
+  totalPages: number;
+};
+
+/** A rate always comes with its counts; null under the minimum of decisions. */
+export type AiRunsRate = {
+  count: number;
+  total: number;
+  rate: number | null;
+  insufficientData: boolean;
+};
+
+export type AiRunsSummary = {
+  period: { from: string | null; to: string | null };
+  analyses: number;
+  byStatus: Record<AiAnalysisRunStatus, number>;
+  pending: { count: number; oldestCreatedAt: string | null; oldestAgeHours: number | null };
+  decisions: Record<AiRunDecision, number> & { total: number };
+  minimumDecisions: number;
+  /** Fewer validated + corrected runs than minimumDecisions: no rate is shown. */
+  insufficientData: boolean;
+  /** VALIDATED / (VALIDATED + CORRECTED). */
+  agreement: AiRunsRate;
+  /** Model's top class (rows) x class kept by the physician (columns). */
+  matrix: { modelLabels: string[]; retainedLabels: string[]; counts: number[][] };
+  uncertainty: {
+    threshold: number;
+    belowThreshold: AiRunsRate;
+    agreementAbove: AiRunsRate;
+    agreementBelow: AiRunsRate;
+  };
+};
+
 /** GET /ai-models/status: the inference service as seen by the backend. */
 export type AiServiceStatus = {
   service: "available" | "unavailable" | "not_configured" | "unauthorized" | "error";

@@ -6,6 +6,9 @@ import {
   type AiAnalysisRun,
   type AiPipelineId,
   type AiRunDecision,
+  type AiRunDecisionFilter,
+  type AiRunsPage,
+  type AiRunsSummary,
   type AiServiceStatus,
 } from "./ai-analyses.types";
 
@@ -20,6 +23,30 @@ export type CreateAiAnalysisRunPayload = {
   sourceDocumentId: string;
   clinicianImpression?: string;
 };
+
+/** GET /ai-analysis-runs: the runs of every patient in scope. */
+export type AiRunsListParams = {
+  decision?: AiRunDecisionFilter;
+  status?: AiAnalysisRun["status"];
+  /** ISO instants, both included. */
+  from?: string;
+  to?: string;
+  requestedBy?: "me";
+  page?: number;
+  limit?: number;
+};
+
+export type AiRunsPeriodParams = { from?: string; to?: string };
+
+export async function getAiRunsOverview(params: AiRunsListParams): Promise<AiRunsPage> {
+  const response = await apiClient.get<AiRunsPage>("/ai-analysis-runs", { params });
+  return response.data;
+}
+
+export async function getAiRunsSummary(params: AiRunsPeriodParams): Promise<AiRunsSummary> {
+  const response = await apiClient.get<AiRunsSummary>("/ai-analysis-runs/summary", { params });
+  return response.data;
+}
 
 export async function getAiServiceStatus(): Promise<AiServiceStatus> {
   const response = await apiClient.get<AiServiceStatus>("/ai-models/status");

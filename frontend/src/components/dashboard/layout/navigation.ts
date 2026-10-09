@@ -9,6 +9,7 @@ import {
   FileText,
   FlaskConical,
   LayoutDashboard,
+  ListChecks,
   LogOut,
   MessageSquare,
   Pill,
@@ -41,6 +42,7 @@ export const establishmentNavSections: DashboardNavSection[] = [
     key: "ai", titleKey: "dashboard.clinical.nav.intelligence",
     items: [
       { href: "/establishment/ai-analyses", icon: BrainCircuit, key: "analyses", labelKey: "dashboard.clinical.nav.ai" },
+      { href: "/establishment/ai-analyses/tracking", icon: ListChecks, key: "aiTracking", labelKey: "dashboard.clinical.nav.aiTracking" },
       { href: "#reports", icon: FileBarChart, key: "reports", labelKey: "dashboard.sidebar.establishment.reports" },
     ],
   },
@@ -109,6 +111,12 @@ export const doctorNavSections: DashboardNavSection[] = [
         icon: Brain,
         key: "analyses",
         labelKey: "dashboard.sidebar.doctor.analyses",
+      },
+      {
+        href: "/doctor/ai-analyses/tracking",
+        icon: ListChecks,
+        key: "aiTracking",
+        labelKey: "dashboard.clinical.nav.aiTracking",
       },
       {
         href: "#lab",

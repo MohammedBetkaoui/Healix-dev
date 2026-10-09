@@ -3,6 +3,7 @@
 import {
   ArrowRight,
   Brain,
+  ClipboardList,
   HeartPulse,
   Microscope,
   ScanLine,
@@ -24,6 +25,8 @@ import {
   getPipelineRole,
   type AiModelId,
 } from "@/features/ai-analyses/ai-models.registry";
+import { isolate } from "@/features/ai-analyses/evaluation-presentation";
+import { useAiRunsOverview } from "@/features/ai-analyses/hooks/use-ai-runs-overview";
 import { useCurrentUser } from "@/features/auth/hooks/use-current-user";
 import { useEstablishmentVerificationPrefill } from "@/features/verification/hooks/use-establishment-verification-prefill";
 import { getAccountInitials } from "@/lib/format/get-account-initials";
@@ -42,9 +45,9 @@ type AiAnalysesHubPageProps = {
   accountType: "DOCTOR" | "ESTABLISHMENT";
 };
 
-// Catalog of the models of ai-models.registry. It calls no clinical API (only
-// the account identity for the shell), so VERIFICATION_REQUIRED cannot occur
-// here until analyses actually run.
+// Catalog of the models of ai-models.registry, and the count of analyses
+// waiting for a decision (shown only when there are some: an unverified
+// account, refused with VERIFICATION_REQUIRED, simply sees no banner).
 export function AiAnalysesHubPage({ accountType }: AiAnalysesHubPageProps) {
   const { locale } = useStoredLocale();
   const { t } = useTranslation(locale);
@@ -56,6 +59,9 @@ export function AiAnalysesHubPage({ accountType }: AiAnalysesHubPageProps) {
   const [sheetModelId, setSheetModelId] = useState<AiModelId | null>(null);
   const sheetModel = aiModels.find((model) => model.id === sheetModelId) ?? null;
   const roleBase = accountType === "ESTABLISHMENT" ? "/establishment" : "/doctor";
+  // Only the total is needed: one row is asked for.
+  const pending = useAiRunsOverview({ decision: "pending", limit: 1, page: 1 });
+  const pendingCount = pending.data?.total ?? 0;
 
   const shellProps = accountType === "ESTABLISHMENT"
     ? {
@@ -84,6 +90,24 @@ export function AiAnalysesHubPage({ accountType }: AiAnalysesHubPageProps) {
             <p className="mt-1 max-w-3xl text-sm text-[var(--text-secondary)]">{t("aiAnalyses.page.subtitle")}</p>
           </div>
         </header>
+
+        {pendingCount > 0 ? (
+          <div
+            role="status"
+            className="flex flex-wrap items-center justify-between gap-3 rounded-[var(--radius-md)] border border-s-[3px] border-[var(--border)] border-s-[color:var(--accent)] bg-[var(--surface)] px-4 py-3"
+          >
+            <p className="flex items-center gap-2.5 text-sm font-medium text-[var(--text-primary)]">
+              <ClipboardList size={18} strokeWidth={1.8} aria-hidden="true" className="shrink-0 text-[var(--accent-dark)]" />
+              {pendingCount === 1
+                ? t("aiAnalyses.tracking.hub.pendingOne")
+                : t("aiAnalyses.tracking.hub.pendingOther", { count: isolate(String(pendingCount)) })}
+            </p>
+            <Link href={`${roleBase}/ai-analyses/tracking`} className="clinical-button clinical-button-primary">
+              {t("aiAnalyses.tracking.hub.open")}
+              <ArrowRight size={16} strokeWidth={1.8} aria-hidden="true" className="clinical-directional" />
+            </Link>
+          </div>
+        ) : null}
 
         {/* Permanent: shown whatever the model or its status. */}
         <div

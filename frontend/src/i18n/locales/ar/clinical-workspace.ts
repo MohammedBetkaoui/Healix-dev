@@ -36,7 +36,7 @@ export const clinicalWorkspaceAr = {
   },
   nav: {
     clinical: "الفضاء السريري", care: "الرعاية", intelligence: "الذكاء", collaboration: "التعاون", management: "الإدارة",
-    overview: "نظرة عامة", records: "الملفات الطبية", ai: "Healix AI", lab: "المخبر والفحوصات", team: "الفريق الطبي",
+    overview: "نظرة عامة", records: "الملفات الطبية", ai: "Healix AI", aiTracking: "متابعة التحاليل", lab: "المخبر والفحوصات", team: "الفريق الطبي",
   },
   actions: {
     patient: "مريض جديد", appointment: "موعد جديد", invite: "دعوة طبيب", analysis: "تحليل جديد",
