@@ -135,6 +135,42 @@ export class PatientFileStorageService {
     }
   }
 
+  // PDF report of an AI analysis run:
+  // patients/<patientId>/ai-reports/<reportNumber>-<random>.pdf. The random
+  // part keeps two simultaneous generations from writing the same file.
+  async storeAiReport(input: {
+    patientId: string;
+    pdf: Buffer;
+    reportNumber: string;
+  }): Promise<{ checksum: string; localPath: string }> {
+    const targetDirectory = this.resolveSafePath(
+      'patients',
+      input.patientId,
+      'ai-reports',
+    );
+    const localPath = this.resolveSafePath(
+      'patients',
+      input.patientId,
+      'ai-reports',
+      `${input.reportNumber}-${randomBytes(4).toString('hex')}.pdf`,
+    );
+
+    try {
+      await mkdir(targetDirectory, { recursive: true });
+      await writeFile(localPath, input.pdf, { flag: 'wx' });
+
+      return { checksum: createSha256Checksum(input.pdf), localPath };
+    } catch (error) {
+      this.logger.error(
+        'Failed to store an AI analysis report.',
+        error instanceof Error ? error.message : 'Unknown error',
+      );
+      throw new InternalServerErrorException(
+        'Une erreur est survenue lors du stockage du compte rendu.',
+      );
+    }
+  }
+
   async deleteLocalFile(localPath: string): Promise<void> {
     const safePath = this.ensurePathInsideUploadRoot(localPath);
 

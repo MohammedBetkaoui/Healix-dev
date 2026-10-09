@@ -46,10 +46,13 @@ type RunErrorCode =
 // The decision's author, by name only (never other user fields).
 const decidedByInclude = {
   decidedBy: { select: { fullName: true } },
+  // The number of its PDF report, once generated.
+  report: { select: { reportNumber: true } },
 } as const;
 
 type RunWithDecider = AiAnalysisRun & {
   decidedBy?: { fullName: string } | null;
+  report?: { reportNumber: string } | null;
 };
 
 const alreadyDecided = () =>
@@ -507,6 +510,7 @@ export class AiAnalysisRunsService {
       decidedById: run.decidedById,
       decidedByName: run.decidedBy?.fullName ?? null,
       decidedAt: run.decidedAt,
+      reportNumber: run.report?.reportNumber ?? null,
       createdAt: run.createdAt,
       updatedAt: run.updatedAt,
     };

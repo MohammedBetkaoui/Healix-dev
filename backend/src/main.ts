@@ -10,6 +10,9 @@ async function bootstrap() {
   const frontendUrl = process.env.FRONTEND_URL ?? 'http://localhost:3000';
   const trustProxy = process.env.TRUST_PROXY ?? 'loopback';
 
+  // onModuleDestroy on SIGINT / SIGTERM too: the report renderer closes its
+  // Chromium there.
+  app.enableShutdownHooks();
   app.setGlobalPrefix('api');
   app.set('trust proxy', trustProxy);
   app.enableCors({

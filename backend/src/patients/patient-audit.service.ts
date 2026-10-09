@@ -20,6 +20,8 @@ const entityTypeByAction: Record<string, string> = {
   AI_ANALYSIS_RUN_CREATED: 'AiAnalysisRun',
   AI_ANALYSIS_RUN_COMPLETED: 'AiAnalysisRun',
   AI_ANALYSIS_RUN_DECIDED: 'AiAnalysisRun',
+  AI_ANALYSIS_REPORT_GENERATED: 'AiAnalysisReport',
+  AI_ANALYSIS_REPORT_DOWNLOADED: 'AiAnalysisReport',
   PATIENT_AI_ANALYSIS_CREATED: 'PatientAiAnalysis',
 };
 

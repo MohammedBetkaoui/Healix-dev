@@ -314,6 +314,7 @@ model User {
   requestedPatientAiAnalyses   PatientAiAnalysis[]
   requestedAiAnalysisRuns      AiAnalysisRun[]       @relation("AiAnalysisRunRequestedBy")
   decidedAiAnalysisRuns        AiAnalysisRun[]       @relation("AiAnalysisRunDecidedBy")
+  generatedAiAnalysisReports   AiAnalysisReport[]    @relation("AiAnalysisReportGeneratedBy")
   createdAppointments          Appointment[]
   workspaceMemberships         WorkspaceMembership[]
 
@@ -900,10 +901,36 @@ model AiAnalysisRun {
   sourceDocument PatientDocument @relation(fields: [sourceDocumentId], references: [id], onDelete: Restrict)
   requestedBy    User            @relation("AiAnalysisRunRequestedBy", fields: [requestedById], references: [id], onDelete: Restrict)
   decidedBy      User?           @relation("AiAnalysisRunDecidedBy", fields: [decidedById], references: [id], onDelete: Restrict)
+  report         AiAnalysisReport?
 
   @@index([patientId])
   @@index([sourceDocumentId])
   @@index([requestedById])
   @@index([decidedById])
   @@map("ai_analysis_runs")
+}
+
+// The official PDF report of a decided run: generated once, then served as
+// stored, never regenerated (a frozen medical document).
+model AiAnalysisReport {
+  id            String   @id @default(cuid())
+  // One report per run: of two simultaneous first requests, only one row lands.
+  runId         String   @unique @map("run_id")
+  // CR-IA-<year>-<NNNNNN>, sequential within the year.
+  reportNumber  String   @unique @map("report_number") @db.VarChar(20)
+  filePath      String   @map("file_path") @db.VarChar(512)
+  // SHA-256 of the stored PDF file.
+  sha256        String   @db.Char(64)
+  // SHA-256 of the report's content (the facts it prints), printed on the
+  // document as its fingerprint: a file cannot contain its own hash.
+  contentSha256 String   @map("content_sha256") @db.Char(64)
+  sizeBytes     Int      @map("size_bytes")
+  generatedById String   @map("generated_by_id")
+  createdAt     DateTime @default(now()) @map("created_at")
+
+  run         AiAnalysisRun @relation(fields: [runId], references: [id], onDelete: Cascade)
+  generatedBy User          @relation("AiAnalysisReportGeneratedBy", fields: [generatedById], references: [id], onDelete: Restrict)
+
+  @@index([generatedById])
+  @@map("ai_analysis_reports")
 }

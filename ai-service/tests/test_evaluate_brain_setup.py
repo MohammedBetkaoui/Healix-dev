@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import os
 from pathlib import Path
 
 import cv2
@@ -81,6 +82,14 @@ def test_paths_are_expanded_and_resolved(tmp_path: Path, monkeypatch):
     monkeypatch.chdir(tmp_path)
 
     assert normalize_path("~/datasets") == (Path.home() / "datasets").resolve()
+    # The separator of the system running the tests.
+    assert normalize_path(os.sep.join(["data", "..", "Testing"])) == (tmp_path / "Testing").resolve()
+
+
+@pytest.mark.skipif(os.name != "nt", reason="backslash is a path separator on Windows only")
+def test_windows_backslash_paths_are_resolved(tmp_path: Path, monkeypatch):
+    monkeypatch.chdir(tmp_path)
+
     assert normalize_path("data\\..\\Testing") == (tmp_path / "Testing").resolve()
 
 

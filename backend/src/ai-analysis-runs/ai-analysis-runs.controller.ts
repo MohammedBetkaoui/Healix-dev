@@ -18,12 +18,16 @@ import { AiAnalysisRunsService } from './ai-analysis-runs.service';
 import { AiServiceClient } from './ai-service.client';
 import { CreateAiAnalysisRunDto } from './dto/create-ai-analysis-run.dto';
 import { DecideAiAnalysisRunDto } from './dto/decide-ai-analysis-run.dto';
+import { AiAnalysisReportsService } from './report/ai-analysis-reports.service';
 
 // Same guards as the patient record the runs belong to.
 @Controller('patients/:id/ai-analysis-runs')
 @UseGuards(JwtAuthGuard, RolesGuard, VerifiedAccountGuard)
 export class AiAnalysisRunsController {
-  constructor(private readonly runsService: AiAnalysisRunsService) {}
+  constructor(
+    private readonly runsService: AiAnalysisRunsService,
+    private readonly reportsService: AiAnalysisReportsService,
+  ) {}
 
   // Synchronous: answers once the service is done (60 s at most).
   @Post()
@@ -58,6 +62,29 @@ export class AiAnalysisRunsController {
     @Body() dto: DecideAiAnalysisRunDto,
   ) {
     return this.runsService.decide(user, id, runId, dto);
+  }
+
+  // The PDF report of a validated or corrected run: generated on the first
+  // request, then served as stored (409 AI_REPORT_NOT_AVAILABLE otherwise).
+  // Named after its number only: no patient identity in the file name.
+  @Get(':runId/report')
+  async report(
+    @CurrentUser() user: AuthenticatedUserPayload,
+    @Param('id') id: string,
+    @Param('runId') runId: string,
+    @Res() response: Response,
+  ) {
+    const report = await this.reportsService.getReport(user, id, runId);
+
+    response.setHeader('Content-Type', 'application/pdf');
+    response.setHeader('Content-Length', String(report.pdf.length));
+    response.setHeader(
+      'Content-Disposition',
+      `attachment; filename="${report.fileName}"`,
+    );
+    response.setHeader('Cache-Control', 'private, no-store');
+    response.setHeader('X-Content-Type-Options', 'nosniff');
+    response.end(report.pdf);
   }
 
   // Same headers as GET /patients/:id/documents/:documentId/view.

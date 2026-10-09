@@ -31,6 +31,39 @@
 $ npm install
 ```
 
+### AI analysis reports (PDF)
+
+`GET /api/patients/:id/ai-analysis-runs/:runId/report` renders the report of
+a validated or corrected analysis to PDF with Chromium, through Playwright.
+Install Chromium once per machine (and in every deployment image):
+
+```bash
+$ npx playwright install chromium
+```
+
+Without it, a report request answers `500 AI_REPORT_RENDER_FAILED` and nothing
+is stored; the tests simulate the renderer, and the integration test
+(`ai-report-renderer.integration.spec.ts`) is skipped. Chromium is launched on
+the first report, reused, and closed when the application stops. The page
+loads nothing from the network: the Inter font (SIL OFL 1.1, in
+`assets/fonts/inter/`) and the images are embedded.
+
+The report quotes the measured performance from the evaluation report of
+`ai-service/scripts/evaluate_brain.py`:
+
+| Variable | Default |
+| --- | --- |
+| `AI_EVALUATION_REPORT_PATH` | `../ai-service/evaluation/brain-latest.json` (from the backend folder) |
+
+When it is missing, or describes other classifier weights than those of the
+analysis, the report prints "Performances non mesurées pour cette version des
+modèles" and no figure.
+
+A report is generated on the first request, numbered `CR-IA-<year>-<NNNNNN>`
+(sequential within the year), stored under
+`uploads/patients/<patientId>/ai-reports/` with its SHA-256, then always served
+as stored: it is never regenerated.
+
 ## Compile and run the project
 
 ```bash
