@@ -491,9 +491,11 @@ describe('AiAnalysisRunsService (POST /patients/:id/ai-analysis-runs)', () => {
     await expect(
       service.findOne(doctor, 'patient-a', 'run-of-b'),
     ).rejects.toBeInstanceOf(NotFoundException);
-    expect(runFindFirst).toHaveBeenCalledWith({
-      where: { id: 'run-of-b', patientId: 'patient-a' },
-    });
+    expect(runFindFirst).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: { id: 'run-of-b', patientId: 'patient-a' },
+      }),
+    );
   });
 });
 

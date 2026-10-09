@@ -17,6 +17,7 @@ import { VerifiedAccountGuard } from '../common/guards/verified-account.guard';
 import { AiAnalysisRunsService } from './ai-analysis-runs.service';
 import { AiServiceClient } from './ai-service.client';
 import { CreateAiAnalysisRunDto } from './dto/create-ai-analysis-run.dto';
+import { DecideAiAnalysisRunDto } from './dto/decide-ai-analysis-run.dto';
 
 // Same guards as the patient record the runs belong to.
 @Controller('patients/:id/ai-analysis-runs')
@@ -46,6 +47,17 @@ export class AiAnalysisRunsController {
     @Param('runId') runId: string,
   ) {
     return this.runsService.findOne(user, id, runId);
+  }
+
+  // The physician's final decision (409 if already decided or not SUCCEEDED).
+  @Post(':runId/decision')
+  decide(
+    @CurrentUser() user: AuthenticatedUserPayload,
+    @Param('id') id: string,
+    @Param('runId') runId: string,
+    @Body() dto: DecideAiAnalysisRunDto,
+  ) {
+    return this.runsService.decide(user, id, runId, dto);
   }
 
   // Same headers as GET /patients/:id/documents/:documentId/view.

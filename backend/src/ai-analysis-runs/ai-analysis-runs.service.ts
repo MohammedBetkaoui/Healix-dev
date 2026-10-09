@@ -1,5 +1,7 @@
 import {
   BadGatewayException,
+  BadRequestException,
+  ConflictException,
   GatewayTimeoutException,
   HttpException,
   Injectable,
@@ -8,7 +10,11 @@ import {
   ServiceUnavailableException,
   UnprocessableEntityException,
 } from '@nestjs/common';
-import { AiAnalysisRunStatus, type AiAnalysisRun } from '@prisma/client';
+import {
+  AiAnalysisRunStatus,
+  AiRunDecision,
+  type AiAnalysisRun,
+} from '@prisma/client';
 
 import { type AuthenticatedUserPayload } from '../auth/types/authenticated-request.type';
 import { sanitizeTextInput } from '../common/utils/sanitize';
@@ -23,6 +29,7 @@ import {
   type AiServiceFailure,
 } from './ai-service.client';
 import { CreateAiAnalysisRunDto } from './dto/create-ai-analysis-run.dto';
+import { DecideAiAnalysisRunDto } from './dto/decide-ai-analysis-run.dto';
 
 // The inference service decodes PNG and JPEG only (no DICOM).
 const SUPPORTED_IMAGE_TYPES = new Set(['image/png', 'image/jpeg']);
@@ -35,6 +42,42 @@ type RunErrorCode =
   | AiServiceFailure
   | 'MASK_STORAGE_FAILED'
   | 'RUN_INTERRUPTED';
+
+// The decision's author, by name only (never other user fields).
+const decidedByInclude = {
+  decidedBy: { select: { fullName: true } },
+} as const;
+
+type RunWithDecider = AiAnalysisRun & {
+  decidedBy?: { fullName: string } | null;
+};
+
+const alreadyDecided = () =>
+  new ConflictException({
+    code: 'AI_RUN_ALREADY_DECIDED',
+    message: 'Cette analyse a déjà reçu une décision, qui est définitive.',
+  });
+
+// Class with the highest probability in the stored predictions.
+function getTopLabel(predictions: unknown): string | null {
+  if (!Array.isArray(predictions)) {
+    return null;
+  }
+
+  let top: { label: string; probability: number } | null = null;
+  for (const prediction of predictions as unknown[]) {
+    const candidate = prediction as { label?: unknown; probability?: unknown };
+    if (
+      typeof candidate.label === 'string' &&
+      typeof candidate.probability === 'number' &&
+      (top === null || candidate.probability > top.probability)
+    ) {
+      top = { label: candidate.label, probability: candidate.probability };
+    }
+  }
+
+  return top?.label ?? null;
+}
 
 @Injectable()
 export class AiAnalysisRunsService {
@@ -157,6 +200,7 @@ export class AiAnalysisRunsService {
     await this.patientsService.getPatientInScope(user, patientId);
 
     const runs = await this.prisma.aiAnalysisRun.findMany({
+      include: decidedByInclude,
       orderBy: { createdAt: 'desc' },
       where: { patientId },
     });
@@ -176,13 +220,107 @@ export class AiAnalysisRunsService {
     return this.toRunResponse(await this.expireIfStale(user, run));
   }
 
+  // The physician's decision is final: one per run, only on a SUCCEEDED run.
+  async decide(
+    user: AuthenticatedUserPayload,
+    patientId: string,
+    runId: string,
+    dto: DecideAiAnalysisRunDto,
+  ) {
+    const run = await this.getRunInScope(user, patientId, runId);
+
+    if (run.status !== AiAnalysisRunStatus.SUCCEEDED) {
+      throw new ConflictException({
+        code: 'AI_RUN_NOT_DECIDABLE',
+        message: 'Seule une analyse réussie peut recevoir une décision.',
+      });
+    }
+
+    if (run.decisionStatus !== null) {
+      throw alreadyDecided();
+    }
+
+    const modelLabel = getTopLabel(run.predictions);
+
+    if (!modelLabel) {
+      throw new ConflictException({
+        code: 'AI_RUN_NOT_DECIDABLE',
+        message: "Cette analyse n'a pas de résultat de classification.",
+      });
+    }
+
+    if (dto.status !== AiRunDecision.CORRECTED && dto.correctedLabel) {
+      throw new BadRequestException({
+        code: 'AI_CORRECTED_LABEL_UNEXPECTED',
+        message: "Une classe corrigée n'accompagne qu'une correction.",
+      });
+    }
+
+    if (
+      dto.status === AiRunDecision.CORRECTED &&
+      dto.correctedLabel === modelLabel
+    ) {
+      throw new BadRequestException({
+        code: 'AI_CORRECTION_MATCHES_MODEL',
+        message:
+          'La classe corrigée doit différer de la classe proposée par le modèle.',
+      });
+    }
+
+    const decisionLabel =
+      dto.status === AiRunDecision.VALIDATED
+        ? modelLabel
+        : dto.status === AiRunDecision.CORRECTED
+          ? (dto.correctedLabel as string)
+          : null;
+    const reason = dto.reason ? sanitizeTextInput(dto.reason) : '';
+
+    // Conditional write: of two concurrent submissions, only one lands.
+    const { count } = await this.prisma.aiAnalysisRun.updateMany({
+      data: {
+        decidedAt: new Date(),
+        decidedById: user.sub,
+        decisionLabel,
+        decisionReason: reason || null,
+        decisionStatus: dto.status,
+      },
+      where: {
+        decisionStatus: null,
+        id: run.id,
+        status: AiAnalysisRunStatus.SUCCEEDED,
+      },
+    });
+
+    if (count === 0) {
+      throw alreadyDecided();
+    }
+
+    // Agreement with the model only, never the reason's text.
+    await this.patientAuditService.log(
+      user,
+      'AI_ANALYSIS_RUN_DECIDED',
+      run.id,
+      {
+        agreesWithModel:
+          dto.status === AiRunDecision.REJECTED
+            ? null
+            : decisionLabel === modelLabel,
+        decisionLabel,
+        modelLabel,
+        status: dto.status,
+      },
+    );
+
+    return this.findOne(user, patientId, runId);
+  }
+
   // Without this, a run whose request died (backend restart) would stay
   // RUNNING for good and the result page would poll it forever.
   private async expireIfStale(
     user: AuthenticatedUserPayload,
-    run: AiAnalysisRun,
+    run: RunWithDecider,
     now: Date = new Date(),
-  ): Promise<AiAnalysisRun> {
+  ): Promise<RunWithDecider> {
     if (
       run.status !== AiAnalysisRunStatus.RUNNING ||
       now.getTime() - run.createdAt.getTime() < STALE_RUN_AFTER_MS
@@ -213,6 +351,7 @@ export class AiAnalysisRunsService {
     }
 
     const current = await this.prisma.aiAnalysisRun.findFirst({
+      include: decidedByInclude,
       where: { id: run.id },
     });
     return current ?? run;
@@ -244,6 +383,7 @@ export class AiAnalysisRunsService {
 
     // (id, patientId): a run of another patient answers 404.
     const run = await this.prisma.aiAnalysisRun.findFirst({
+      include: decidedByInclude,
       where: { id: runId, patientId },
     });
 
@@ -341,7 +481,7 @@ export class AiAnalysisRunsService {
   }
 
   // maskPath stays server-side; the client gets hasMask and the mask route.
-  private toRunResponse(run: AiAnalysisRun) {
+  private toRunResponse(run: RunWithDecider) {
     return {
       id: run.id,
       patientId: run.patientId,
@@ -361,6 +501,12 @@ export class AiAnalysisRunsService {
       errorCode: run.errorCode,
       durationMs: run.durationMs,
       requestedById: run.requestedById,
+      decisionStatus: run.decisionStatus,
+      decisionLabel: run.decisionLabel,
+      decisionReason: run.decisionReason,
+      decidedById: run.decidedById,
+      decidedByName: run.decidedBy?.fullName ?? null,
+      decidedAt: run.decidedAt,
       createdAt: run.createdAt,
       updatedAt: run.updatedAt,
     };

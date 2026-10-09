@@ -256,6 +256,12 @@ enum AiAnalysisRunStatus {
   REJECTED_INPUT
 }
 
+enum AiRunDecision {
+  VALIDATED
+  CORRECTED
+  REJECTED
+}
+
 enum AppointmentStatus {
   SCHEDULED
   CONFIRMED
@@ -306,7 +312,8 @@ model User {
   recordedPatientConsents      PatientConsent[]
   uploadedPatientDocuments     PatientDocument[]
   requestedPatientAiAnalyses   PatientAiAnalysis[]
-  requestedAiAnalysisRuns      AiAnalysisRun[]
+  requestedAiAnalysisRuns      AiAnalysisRun[]       @relation("AiAnalysisRunRequestedBy")
+  decidedAiAnalysisRuns        AiAnalysisRun[]       @relation("AiAnalysisRunDecidedBy")
   createdAppointments          Appointment[]
   workspaceMemberships         WorkspaceMembership[]
 
@@ -878,15 +885,25 @@ model AiAnalysisRun {
   errorCode                   String?             @map("error_code") @db.VarChar(60)
   durationMs                  Int?                @map("duration_ms")
   requestedById               String              @map("requested_by_id")
+  // The physician's decision: set once, never changed (a decision is final).
+  decisionStatus              AiRunDecision?      @map("decision_status")
+  // Label kept by the physician: the model's top class (VALIDATED) or their
+  // correction (CORRECTED); null when the analysis is REJECTED.
+  decisionLabel               String?             @map("decision_label") @db.VarChar(40)
+  decisionReason              String?             @map("decision_reason") @db.Text
+  decidedById                 String?             @map("decided_by_id")
+  decidedAt                   DateTime?           @map("decided_at")
   createdAt                   DateTime            @default(now()) @map("created_at")
   updatedAt                   DateTime            @updatedAt @map("updated_at")
 
   patient        Patient         @relation(fields: [patientId], references: [id], onDelete: Cascade)
   sourceDocument PatientDocument @relation(fields: [sourceDocumentId], references: [id], onDelete: Restrict)
-  requestedBy    User            @relation(fields: [requestedById], references: [id], onDelete: Restrict)
+  requestedBy    User            @relation("AiAnalysisRunRequestedBy", fields: [requestedById], references: [id], onDelete: Restrict)
+  decidedBy      User?           @relation("AiAnalysisRunDecidedBy", fields: [decidedById], references: [id], onDelete: Restrict)
 
   @@index([patientId])
   @@index([sourceDocumentId])
   @@index([requestedById])
+  @@index([decidedById])
   @@map("ai_analysis_runs")
 }
