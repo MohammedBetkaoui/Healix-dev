@@ -115,3 +115,83 @@ classifier not loaded.
 Tests that need the weights read `AI_MODELS_DIR` (default `../models`) and
 are skipped when the files are absent. Routing is tested with stand-in
 modules, independently of the weights.
+
+## Evaluation
+
+`scripts/evaluate_brain.py` measures the service as it runs, offline: every
+image goes through the service's own code (`app.preprocess`, then
+`app.pipeline.analyze_brain` for the classification and `_segment` for the
+masks), on CPU, in one deterministic pass, without test-time augmentation.
+The service never imports it; scikit-learn and pandas are dev dependencies
+only.
+
+### Data (never committed)
+
+Keep the datasets outside the repository, or in an ignored `data/` folder.
+
+- **Classification**: the `Testing` folder of the Nickparvar *Brain Tumor MRI
+  Dataset* (<https://www.kaggle.com/datasets/masoudnickparvar/brain-tumor-mri-dataset>),
+  with the subfolders `glioma`, `meningioma`, `notumor`, `pituitary` (`no_tumor`
+  and `normal` are read as `notumor`, as in the training notebook). The
+  classifier was trained on Training (5-fold) + BraTS 2021, never on Testing,
+  from the 7,200-image version of the dataset (Testing: 400 images per class).
+  Another version, such as the earlier 7,023-image one (Testing 300 / 306 /
+  405 / 300), is still evaluated but flagged (`matchesTrainingVersion: false`):
+  its Testing images may sit in the Training split of the version used for
+  training, which would make the figures optimistic.
+- **Segmentation** (optional): BRISC 2025
+  (<https://www.kaggle.com/datasets/briscdataset/brisc2025>). Pass the folder
+  that holds `manifest.csv`.
+
+### Command
+
+```bash
+.venv/Scripts/python -m scripts.evaluate_brain \
+  --nickparvar-test <Nickparvar>/Testing \
+  --brisc-root <BRISC 2025 folder holding manifest.csv>
+```
+
+`--models-dir` defaults to `AI_MODELS_DIR`, as for the service; `--output-dir`
+to `evaluation/`. The script writes
+`evaluation/brain-<date>-<first 8 characters of the classifier SHA-256>.json`
+(SHA-256 of the three weight files, torch / timm / smp / OpenCV versions,
+counts per class, every metric) and prints a summary. Commit that JSON: it
+holds no image and no patient data. Exit code 2 when the segmentation part
+was stopped.
+
+### What it measures
+
+**Classification**: accuracy, confusion matrix, precision / recall / F1 per
+class, one-vs-rest AUC per class and macro; 95 % bootstrap intervals (1,000
+draws, seed 42, percentile) for the accuracy and each class's recall;
+calibration (ECE on 10 bins and the reliability table); accuracy above a
+confidence threshold, from 0.50 to 0.95 by 0.05 (share of the images kept and
+accuracy on them).
+
+**Segmentation**: the test split of `segmentation-reelle.ipynb`, reproduced
+exactly: `manifest.csv` rows with the class as `tumor_label` and `task ==
+"segmentation"`, images and masks told apart by `is_mask`, Windows paths
+converted, masks paired by file name without extension, empty masks left out,
+manifest order kept; then `train_test_split(test_size=0.15, random_state=42)`
+and `train_test_split(test_size=0.5, random_state=42)` on the remainder, whose
+second half is the test set. The script checks that it finds 1,635 pairs and
+123 test images for meningioma, 1,757 and 132 for pituitary: any other count
+stops the segmentation part before any inference, and no Dice is printed,
+since another split would mix training images into the test set. The official
+BRISC test folder is never used as is: the notebook mixed it into training.
+
+Per test image, on the mask the service returns (original image size): Dice,
+IoU, sensitivity, then their mean, median and 95 % bootstrap interval. For
+comparison: the notebook's own measure (256 × 256, averaged per batch of 16),
+and the routing (how many test images the classifier sends to that segmenter;
+end-to-end Dice, 0 when the service returns no mask).
+
+### What it does not measure
+
+- **No clinical validation**: public 2D datasets, not representative of a
+  given site's scanners, protocols or patients.
+- **No patient-level split**: neither dataset identifies patients, so slices
+  of one patient may sit on both sides of a split; the figures may be
+  optimistic.
+- The notebooks' own figures used test-time augmentation (classification) and
+  mixed precision on GPU: they are shown for comparison, not reproduced.

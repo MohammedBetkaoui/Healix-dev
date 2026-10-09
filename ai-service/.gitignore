@@ -3,3 +3,9 @@
 .venv/
 __pycache__/
 .pytest_cache/
+# Datasets (Nickparvar, BRISC...) are never committed, wherever they are unpacked.
+data/
+datasets/
+# Evaluation: only the JSON reports (no image, no patient data).
+evaluation/*
+!evaluation/*.json
