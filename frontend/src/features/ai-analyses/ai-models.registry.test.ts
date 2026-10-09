@@ -12,22 +12,19 @@ import {
   getPipelineRole,
   pipelineForLegacyModel,
 } from "./ai-models.registry";
+import {
+  brainClassificationEvaluation,
+  brainEvaluationSource,
+  brainSegmentationEvaluation,
+} from "./brain-evaluation";
 
 // Through the declared type: the tests check data, not the literal types
 // "as const" gives each entry.
 const aiModels: readonly AiModel[] = registry;
 
-// Metrics read from the two supplied training notebooks. The registry may
-// hold no other figure: adding one means citing its source here.
-const documentedMetrics = [
-  {
-    modelId: "brain-efficientnetb4-tumor-classification",
-    key: "testAccuracy",
-    value: 0.9544,
-    unit: "percent",
-    approximate: false,
-    dataset: "brainClassificationTest",
-  },
+// Figures read in the training notebooks: the registry may hold no other
+// notebook figure, and adding one means citing its source here.
+const notebookMetrics = [
   {
     modelId: "brain-efficientnetb4-tumor-classification",
     key: "cvAccuracy",
@@ -35,14 +32,8 @@ const documentedMetrics = [
     unit: "percent",
     approximate: false,
     dataset: "crossValidation",
-  },
-  {
-    modelId: "brain-efficientnetb4-tumor-classification",
-    key: "testAuc",
-    value: 0.9908,
-    unit: "score",
-    approximate: false,
-    dataset: "brainClassificationTest",
+    ci95: null,
+    source: "notebook",
   },
   {
     modelId: "brain-unet-glioma-segmentation",
@@ -51,55 +42,47 @@ const documentedMetrics = [
     unit: "score",
     approximate: false,
     dataset: "gliomaValidation",
+    ci95: null,
+    source: "notebook",
   },
+];
+
+// Figures measured on the service: exactly those of brain-evaluation.ts
+// (itself checked against the evaluation report by brain-evaluation.test.ts).
+const segmentationMetrics = (modelId: string, label: "meningioma" | "pituitary", dataset: string) => {
+  const measured = brainSegmentationEvaluation[label];
+  const common = { approximate: false, dataset, modelId, source: "evaluation" };
+  return [
+    { ...common, key: "testDice", value: measured.dice.mean, ci95: measured.dice.ci95, unit: "score" },
+    { ...common, key: "testDiceMedian", value: measured.dice.median, ci95: null, unit: "score" },
+    { ...common, key: "testSensitivity", value: measured.sensitivity.mean, ci95: measured.sensitivity.ci95, unit: "percent" },
+    { ...common, key: "testIou", value: measured.iou.mean, ci95: measured.iou.ci95, unit: "score" },
+  ];
+};
+
+const evaluationMetrics = [
   {
-    modelId: "brain-unet-meningioma-segmentation",
-    key: "testDice",
-    value: 0.9277,
-    unit: "score",
-    approximate: false,
-    dataset: "meningiomaTest",
-  },
-  {
-    modelId: "brain-unet-meningioma-segmentation",
-    key: "testIou",
-    value: 0.8753,
-    unit: "score",
-    approximate: false,
-    dataset: "meningiomaTest",
-  },
-  {
-    modelId: "brain-unet-meningioma-segmentation",
-    key: "testSensitivity",
-    value: 0.9576,
+    modelId: "brain-efficientnetb4-tumor-classification",
+    key: "testAccuracy",
+    value: brainClassificationEvaluation.accuracy.value,
+    ci95: brainClassificationEvaluation.accuracy.ci95,
     unit: "percent",
     approximate: false,
-    dataset: "meningiomaTest",
+    dataset: "brainClassificationTest",
+    source: "evaluation",
   },
   {
-    modelId: "brain-unet-pituitary-segmentation",
-    key: "testDice",
-    value: 0.8717,
+    modelId: "brain-efficientnetb4-tumor-classification",
+    key: "testAuc",
+    value: brainClassificationEvaluation.macroAuc,
+    ci95: null,
     unit: "score",
     approximate: false,
-    dataset: "pituitaryTest",
+    dataset: "brainClassificationTest",
+    source: "evaluation",
   },
-  {
-    modelId: "brain-unet-pituitary-segmentation",
-    key: "testIou",
-    value: 0.7859,
-    unit: "score",
-    approximate: false,
-    dataset: "pituitaryTest",
-  },
-  {
-    modelId: "brain-unet-pituitary-segmentation",
-    key: "testSensitivity",
-    value: 0.9156,
-    unit: "percent",
-    approximate: false,
-    dataset: "pituitaryTest",
-  },
+  ...segmentationMetrics("brain-unet-meningioma-segmentation", "meningioma", "meningiomaTest"),
+  ...segmentationMetrics("brain-unet-pituitary-segmentation", "pituitary", "pituitaryTest"),
 ];
 
 describe("aiModels registry", () => {
@@ -135,7 +118,22 @@ describe("aiModels registry", () => {
       (model.metrics ?? []).map((metric) => ({ modelId: model.id, ...metric })),
     );
 
-    expect(metrics).toEqual(documentedMetrics);
+    expect(metrics.filter((metric) => metric.source === "notebook")).toEqual(notebookMetrics);
+    expect(metrics.filter((metric) => metric.source === "evaluation")).toEqual(evaluationMetrics);
+    expect(metrics).toHaveLength(notebookMetrics.length + evaluationMetrics.length);
+  });
+
+  it("puts the measured figures first: the main metric of a deployed model is never a notebook one", () => {
+    expect(
+      aiModels.filter((model) => model.evaluation !== null).map((model) => [model.id, model.metrics?.[0]?.key, model.metrics?.[0]?.source]),
+    ).toEqual([
+      ["brain-efficientnetb4-tumor-classification", "testAccuracy", "evaluation"],
+      ["brain-unet-meningioma-segmentation", "testDice", "evaluation"],
+      ["brain-unet-pituitary-segmentation", "testDice", "evaluation"],
+    ]);
+    for (const model of aiModels.filter((entry) => entry.evaluation !== null)) {
+      expect(model.evaluation).toEqual({ date: brainEvaluationSource.date, report: brainEvaluationSource.report });
+    }
   });
 
   it("marks an unknown metric set as null, never as an empty list", () => {
@@ -183,13 +181,16 @@ describe("aiModels registry", () => {
     expect(pipelineForLegacyModel("brain-unet-glioma-segmentation")).toBeUndefined();
   });
 
-  it("keeps the classifier per-class metrics exactly as measured", () => {
-    expect(aiModels.find((model) => model.id === "brain-efficientnetb4-tumor-classification")?.classMetrics).toEqual([
-      { classKey: "glioma", precision: 1, recall: 0.835 },
-      { classKey: "meningioma", precision: 0.9, recall: 0.9825 },
-      { classKey: "notumor", precision: 0.94, recall: 1 },
-      { classKey: "pituitary", precision: 0.99, recall: 1 },
-    ]);
+  it("takes the classifier per-class metrics and confusion matrix from the evaluation", () => {
+    const classifier = aiModels.find((model) => model.id === "brain-efficientnetb4-tumor-classification");
+
+    expect(classifier?.classMetrics).toEqual(
+      (["glioma", "meningioma", "notumor", "pituitary"] as const).map((classKey) => {
+        const { precision, recall, recallCi95, f1, auc } = brainClassificationEvaluation.perClass[classKey];
+        return { auc, classKey, f1, precision, recall, recallCi95 };
+      }),
+    );
+    expect(classifier?.confusionMatrix).toEqual(brainClassificationEvaluation.confusionMatrix);
   });
 
   it("lists every model as not certified", () => {

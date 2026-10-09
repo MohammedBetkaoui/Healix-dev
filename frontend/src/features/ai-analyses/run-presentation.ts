@@ -3,7 +3,6 @@
 import { isAxiosError } from "axios";
 
 import { type AiRunPrediction, type AiServiceStatus } from "./ai-analyses.types";
-import { findModel } from "./ai-models.registry";
 
 /** Descending probability, on a copy. */
 export function sortPredictions(predictions: readonly AiRunPrediction[]): AiRunPrediction[] {
@@ -12,22 +11,6 @@ export function sortPredictions(predictions: readonly AiRunPrediction[]): AiRunP
 
 export function getTopLabel(predictions: readonly AiRunPrediction[] | null): string | null {
   return predictions && predictions.length > 0 ? sortPredictions(predictions)[0].label : null;
-}
-
-/**
- * Share of test-set gliomas the classifier missed (1 - glioma recall), read
- * from the registry rather than written twice. null if the recall is unknown.
- */
-export function getGliomaMissedShare(classifierId: string): number | null {
-  const recall = findModel(classifierId)?.classMetrics?.find((metric) => metric.classKey === "glioma")?.recall;
-  return recall === undefined ? null : Math.round((1 - recall) * 1000) / 1000;
-}
-
-// A "no tumour" or "meningioma" prediction can hide a missed glioma.
-const GLIOMA_WARNING_CLASSES = new Set(["notumor", "meningioma"]);
-
-export function shouldWarnGliomaRecall(topLabel: string | null): boolean {
-  return topLabel !== null && GLIOMA_WARNING_CLASSES.has(topLabel);
 }
 
 export type LaunchState =

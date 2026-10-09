@@ -1,6 +1,6 @@
 "use client";
 
-import { AlertTriangle, ArrowLeft, Clock3, RefreshCw, ShieldAlert } from "lucide-react";
+import { AlertTriangle, ArrowLeft, Clock3, Info, RefreshCw, ShieldAlert } from "lucide-react";
 import Link from "next/link";
 import { isAxiosError } from "axios";
 
@@ -15,12 +15,20 @@ import {
   useAiAnalysisRun,
   useAiAnalysisRunMask,
 } from "@/features/ai-analyses/hooks/use-ai-analysis-run";
+import { brainEvaluationSource, UNCERTAINTY_THRESHOLD } from "@/features/ai-analyses/brain-evaluation";
 import {
-  getGliomaMissedShare,
+  evaluationMatchesWeights,
+  getConfidenceSplit,
+  getConfusionWarning,
+  getProbabilityCeiling,
+  isolate,
+  isUncertain,
+} from "@/features/ai-analyses/evaluation-presentation";
+import { limitationParams } from "@/features/ai-analyses/format-ai-metric";
+import {
   getRunErrorKey,
   getTopLabel,
   shortSha256,
-  shouldWarnGliomaRecall,
   sortPredictions,
 } from "@/features/ai-analyses/run-presentation";
 import { useCurrentUser } from "@/features/auth/hooks/use-current-user";
@@ -88,9 +96,14 @@ export function AiAnalysisRunPage({ accountType, patientId, runId }: AiAnalysisR
   const topLabel = getTopLabel(predictions);
   const classifier = findModel(run?.classificationModelId);
   const segmenter = findModel(run?.segmentationModelId);
-  const missedGliomaShare = run?.classificationModelId
-    ? getGliomaMissedShare(run.classificationModelId)
-    : null;
+  // The measured figures describe one set of classifier weights: they are
+  // quoted only for a run made with those weights.
+  const evaluationApplies = evaluationMatchesWeights(run?.classificationWeightsSha256 ?? null);
+  const topProbability = predictions[0]?.probability ?? null;
+  const uncertain = evaluationApplies && isUncertain(topProbability);
+  const confidenceSplit = getConfidenceSplit();
+  const confusionWarning = evaluationApplies ? getConfusionWarning(topLabel) : null;
+  const probabilityCeiling = getProbabilityCeiling();
   const usedModels = [classifier, segmenter].filter((model) => model !== undefined);
   const limitations = [...new Set(usedModels.flatMap((model) => model.knownLimitations))];
   const intlLocale = locale === "ar" ? "ar-DZ" : "fr-DZ";
@@ -153,14 +166,53 @@ export function AiAnalysisRunPage({ accountType, patientId, runId }: AiAnalysisR
 
     return (
       <>
-        {shouldWarnGliomaRecall(topLabel) && missedGliomaShare !== null ? (
+        {!evaluationApplies ? (
+          <div role="note" className="flex items-start gap-3 rounded-[var(--radius-md)] border border-[var(--border)] bg-[var(--surface)] px-4 py-3">
+            <Info size={18} className="mt-0.5 shrink-0 text-[var(--text-secondary)]" aria-hidden="true" />
+            <p className="text-sm text-[var(--text-primary)]">
+              {t("aiAnalyses.run.evaluationMismatch", { report: isolate(brainEvaluationSource.report) })}
+            </p>
+          </div>
+        ) : null}
+
+        {uncertain && topProbability !== null ? (
+          <div role="note" className="flex items-start gap-3 rounded-[var(--radius-md)] border border-s-[3px] border-[var(--warning-line)] border-s-[color:var(--warning)] bg-[var(--warning-soft)] px-4 py-3">
+            <AlertTriangle size={18} className="mt-0.5 shrink-0 text-[var(--warning-ink)]" aria-hidden="true" />
+            <div>
+              <p className="text-sm font-semibold text-[var(--warning-ink)]">{t("aiAnalyses.run.uncertainTitle")}</p>
+              <p className="mt-1 text-sm text-[var(--text-primary)]">
+                {confidenceSplit
+                  ? t("aiAnalyses.run.uncertainText", {
+                      above: isolate(percent.format(confidenceSplit.aboveAccuracy)),
+                      below: isolate(percent.format(confidenceSplit.belowAccuracy)),
+                      probability: isolate(percent.format(topProbability)),
+                      threshold: isolate(percent.format(UNCERTAINTY_THRESHOLD)),
+                    })
+                  : t("aiAnalyses.run.uncertainTextNoSplit", {
+                      probability: isolate(percent.format(topProbability)),
+                      threshold: isolate(percent.format(UNCERTAINTY_THRESHOLD)),
+                    })}
+              </p>
+            </div>
+          </div>
+        ) : null}
+
+        {confusionWarning ? (
           <div role="note" className="flex items-start gap-3 rounded-[var(--radius-md)] border border-s-[3px] border-[var(--warning-line)] border-s-[color:var(--warning)] bg-[var(--warning-soft)] px-4 py-3">
             <AlertTriangle size={18} className="mt-0.5 shrink-0 text-[var(--warning-ink)]" aria-hidden="true" />
             <p className="text-sm font-medium text-[var(--text-primary)]">
-              {t("aiAnalyses.run.gliomaWarning", {
-                class: topLabel ? t(`aiAnalyses.classes.${topLabel}`) : "",
-                share: percent.format(missedGliomaShare),
-              })}
+              {t(
+                confusionWarning.kind === "otherClasses"
+                  ? "aiAnalyses.run.confusion.otherClasses"
+                  : confusionWarning.negative
+                    ? "aiAnalyses.run.confusion.missedGliomaNegative"
+                    : "aiAnalyses.run.confusion.missedGlioma",
+                {
+                  class: t(`aiAnalyses.classes.${confusionWarning.predicted}`),
+                  count: isolate(integer.format(confusionWarning.count)),
+                  total: isolate(integer.format(confusionWarning.total)),
+                },
+              )}
             </p>
           </div>
         ) : null}
@@ -207,6 +259,18 @@ export function AiAnalysisRunPage({ accountType, patientId, runId }: AiAnalysisR
                   </li>
                 ))}
               </ol>
+              {evaluationApplies ? (
+                <p className="mt-4 text-xs leading-5 text-[var(--text-secondary)]">
+                  {probabilityCeiling.unreachedThreshold !== null
+                    ? t("aiAnalyses.run.probabilityCeiling", {
+                        target: isolate(percent.format(probabilityCeiling.target)),
+                        threshold: isolate(percent.format(probabilityCeiling.unreachedThreshold)),
+                      })
+                    : t("aiAnalyses.run.probabilityCeilingNoBound", {
+                        target: isolate(percent.format(probabilityCeiling.target)),
+                      })}
+                </p>
+              ) : null}
             </section>
 
             <section aria-labelledby="ai-run-segmentation" className="surface-section p-5">
@@ -273,7 +337,7 @@ export function AiAnalysisRunPage({ accountType, patientId, runId }: AiAnalysisR
             </h2>
             <ul className="mt-3 list-disc space-y-1.5 ps-5 text-sm leading-6 text-[var(--text-secondary)]">
               {limitations.map((limitation) => (
-                <li key={limitation}>{t(`aiAnalyses.limitations.${limitation}`)}</li>
+                <li key={limitation}>{t(`aiAnalyses.limitations.${limitation}`, limitationParams(limitation, locale))}</li>
               ))}
             </ul>
           </section>

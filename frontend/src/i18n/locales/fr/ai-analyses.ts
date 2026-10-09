@@ -68,19 +68,20 @@ export const aiAnalysesFr = {
     other: "Autre (hors des classes du modèle)",
   },
   metrics: {
-    testAccuracy: "Exactitude (test)",
-    cvAccuracy: "Exactitude (validation croisée)",
-    testAuc: "AUC (test)",
-    testDice: "Dice (test)",
-    testIou: "IoU (test)",
-    testSensitivity: "Sensibilité (test)",
+    testAccuracy: "Exactitude (test, une passe sans TTA)",
+    cvAccuracy: "Exactitude en validation croisée (optimiste, sert à l’arrêt anticipé)",
+    testAuc: "AUC macro (test, une classe contre les autres)",
+    testDice: "Dice moyen (test)",
+    testDiceMedian: "Dice médian (test)",
+    testIou: "IoU moyen (test)",
+    testSensitivity: "Sensibilité moyenne (test)",
     validationDice: "Dice (validation)",
   },
   datasets: {
     crossValidation: "Validation croisée",
-    brainClassificationTest: "Jeu de test (1 600 images)",
-    meningiomaTest: "Jeu de test (123 images)",
-    pituitaryTest: "Jeu de test (132 images)",
+    brainClassificationTest: "Testing Nickparvar ({count} images)",
+    meningiomaTest: "Test BRISC 2025, méningiomes ({count} images)",
+    pituitaryTest: "Test BRISC 2025, tumeurs hypophysaires ({count} images)",
     gliomaValidation: "Jeu de validation",
   },
   limitations: {
@@ -92,7 +93,7 @@ export const aiAnalysesFr = {
       "Ne reconnaît que les classes listées : une anomalie d’un autre type ne peut pas être signalée comme telle.",
     singleSlice:
       "Analyse d’images 2D : le contexte volumique de l’examen (autres coupes) n’est pas pris en compte.",
-    lowerGliomaRecall: "Rappel plus faible sur les gliomes (0,835).",
+    lowerGliomaRecall: "Rappel plus faible sur les gliomes : {recall} sur le jeu de test.",
     targetTumourOnly: "Évalué uniquement sur des images contenant la tumeur visée.",
   },
   models: {
@@ -146,6 +147,7 @@ export const aiAnalysesFr = {
     modality: "Modalité",
     mainMetric: "Métrique principale",
     internalValidation: "validation interne",
+    serviceEvaluation: "évaluation du service",
     notProvided: "Non renseigné",
     openSheet: "Fiche modèle",
     openSheetFor: "Fiche modèle : {name}",
@@ -190,10 +192,22 @@ export const aiAnalysesFr = {
     metricsNote: "Validation interne : performances à confirmer sur vos propres données.",
     limitations: "Limites connues",
     populations: "Populations non représentées",
-    classMetrics: "Précision et rappel par classe",
+    classMetrics: "Métriques par classe",
     class: "Classe",
     precision: "Précision",
     recall: "Rappel",
+    f1: "F1",
+    auc: "AUC",
+    confusionMatrix: "Matrice de confusion",
+    confusionCaption:
+      "Jeu de test ({count} images) : chaque ligne est la classe réelle, chaque colonne la classe prédite ; la diagonale compte les résultats justes.",
+    trueClass: "Classe réelle",
+    predictedClass: "Classe prédite",
+    correct: "résultats justes",
+  },
+  evaluation: {
+    interval: "IC 95 % : {range}",
+    source: "Évaluation du {date}, rapport {report} : une passe, sans TTA.",
   },
   wizard: {
     breadcrumb: "Nouvelle analyse",
@@ -336,8 +350,22 @@ export const aiAnalysesFr = {
         "Non disponible pour cette classe : seuls le méningiome et la tumeur hypophysaire sont segmentés.",
       model_not_loaded: "Le modèle de segmentation n’était pas chargé dans le service d’analyse.",
     },
-    gliomaWarning:
-      "{share} des gliomes du jeu de test n’ont pas été reconnus par ce modèle : une prédiction « {class} » n’exclut pas un gliome.",
+    uncertainTitle: "Résultat incertain",
+    uncertainText:
+      "Probabilité de la classe principale : {probability}, sous le seuil de {threshold}. Sur le jeu de test, les résultats sous ce niveau de confiance étaient justes dans {below} des cas, contre {above} au-dessus.",
+    uncertainTextNoSplit: "Probabilité de la classe principale : {probability}, sous le seuil de {threshold}.",
+    confusion: {
+      missedGlioma: "Sur le jeu de test, {count} des {total} résultats « {class} » étaient des gliomes.",
+      missedGliomaNegative:
+        "Sur le jeu de test, {count} des {total} résultats « {class} » étaient des gliomes. Un résultat négatif n’exclut pas un gliome.",
+      otherClasses: "Sur le jeu de test, {count} des {total} résultats « {class} » relevaient d’une autre classe.",
+    },
+    probabilityCeiling:
+      "Sur le jeu de test, aucune probabilité n’a atteint {threshold}. Ce plafond vient probablement du lissage des étiquettes utilisé à l’entraînement, qui vise environ {target} pour la bonne classe au lieu de 100 % : une probabilité proche de {target} serait alors le niveau le plus haut de ce modèle, pas une certitude.",
+    probabilityCeilingNoBound:
+      "Ce modèle a été entraîné avec un lissage des étiquettes, qui vise environ {target} pour la bonne classe au lieu de 100 % : ses probabilités plafonnent probablement vers ce niveau, qui n’est pas une certitude.",
+    evaluationMismatch:
+      "Les chiffres d’évaluation (rapport {report}) portent sur d’autres poids que ceux de cette analyse : aucun avertissement chiffré n’est affiché.",
     noImpression: "Aucune impression saisie.",
     traceability: "Traçabilité",
     classificationModel: "Modèle de classification",

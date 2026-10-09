@@ -56,6 +56,10 @@ function registryKeys() {
   for (const reason of ["not_applicable_for_class", "model_not_loaded"]) {
     keys.add(`aiAnalyses.run.skipped.${reason}`);
   }
+  // Picked by the result page from the confusion warning's kind.
+  for (const kind of ["missedGlioma", "missedGliomaNegative", "otherClasses"]) {
+    keys.add(`aiAnalyses.run.confusion.${kind}`);
+  }
   // Built by the decision panel and the patient record from the decision lists.
   for (const decision of aiRunDecisions) {
     keys.add(`aiAnalyses.decision.statuses.${decision}`);

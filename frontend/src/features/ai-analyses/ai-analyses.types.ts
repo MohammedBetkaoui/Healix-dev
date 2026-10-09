@@ -31,22 +31,50 @@ export type AiMetricKey = keyof AiAnalysesCopy["metrics"];
 export type AiLimitationKey = keyof AiAnalysesCopy["limitations"];
 export type AiDatasetKey = keyof AiAnalysesCopy["datasets"];
 
+/** 95 % interval [lower, upper], in the unit of its value. */
+export type AiInterval = readonly [number, number];
+
 export type AiModelMetric = {
   key: AiMetricKey;
-  /** As read in the training notebooks; a fraction for a percentage (0.9544 = 95.44 %). */
+  /** A fraction for a percentage (0.955 = 95.5 %). */
   value: number;
   unit: "percent" | "score";
   /** Given as "≈" by the source. */
   approximate: boolean;
   /** Evaluation dataset (aiAnalyses.datasets); null when not provided. */
   dataset: AiDatasetKey | null;
+  /** Bootstrap 95 % interval; null when the source gives none. */
+  ci95: AiInterval | null;
+  /**
+   * "evaluation": measured on the service itself (brain-evaluation.ts, from
+   * ai-service/scripts/evaluate_brain.py); "notebook": read in a training notebook.
+   */
+  source: "evaluation" | "notebook";
 };
 
-/** Per-class precision and recall of a classifier, on its test set. */
+/** Per-class metrics of a classifier, on its test set. */
 export type AiClassMetric = {
   classKey: AiOutputClassKey;
   precision: number;
   recall: number;
+  recallCi95: AiInterval | null;
+  f1: number | null;
+  /** One-vs-rest. */
+  auc: number | null;
+};
+
+/** Counts on the test set: rows are the true classes, columns the predicted ones, in `labels` order. */
+export type AiConfusionMatrix = {
+  labels: readonly AiOutputClassKey[];
+  matrix: readonly (readonly number[])[];
+};
+
+/** The service evaluation report a model's metrics come from. */
+export type AiModelEvaluation = {
+  /** File name in ai-service/evaluation/. */
+  report: string;
+  /** YYYY-MM-DD */
+  date: string;
 };
 
 /**
@@ -75,6 +103,10 @@ export type AiModel = {
   classMetrics: readonly AiClassMetric[] | null;
   /** Evaluation dataset of classMetrics. */
   classMetricsDataset: AiDatasetKey | null;
+  /** Classifiers measured by the service evaluation; null otherwise. */
+  confusionMatrix: AiConfusionMatrix | null;
+  /** Where the "evaluation" metrics come from; null when no metric does. */
+  evaluation: AiModelEvaluation | null;
   trainingData: string | null;
   knownLimitations: readonly AiLimitationKey[];
   /** Not documented for any model yet: shown as "non renseigné". */

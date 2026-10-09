@@ -1,11 +1,44 @@
-import { type AiModel, type AiPipeline } from "./ai-analyses.types";
+import { type AiDatasetKey, type AiModel, type AiModelMetric, type AiPipeline } from "./ai-analyses.types";
+import {
+  brainClassificationEvaluation,
+  brainClassLabels,
+  brainEvaluationSource,
+  brainSegmentationEvaluation,
+  type BrainSegmentationEvaluation,
+} from "./brain-evaluation";
 
-// Single source of truth of the AI models shown in HealixDZ. Brain metrics
-// are read from the training notebooks (October 2026); the other facts come
-// from the model team. Only what was provided is filled in: every other fact
-// stays null and the UI shows "non renseigné". No metric may be added without
-// its source (see ai-models.registry.test.ts).
+// Single source of truth of the AI models shown in HealixDZ. The metrics of
+// the three deployed brain models are measured on the service itself
+// (brain-evaluation.ts, source "evaluation"); the few other figures are read
+// from the training notebooks (source "notebook"); the other facts come from
+// the model team. Only what was provided is filled in: every other fact stays
+// null and the UI shows "non renseigné". No metric may be added without its
+// source (see ai-models.registry.test.ts).
 // Names and intended uses are translated under aiAnalyses.models.<id>.
+
+const classification = brainClassificationEvaluation;
+const { meningioma, pituitary } = brainSegmentationEvaluation;
+const serviceEvaluation = { date: brainEvaluationSource.date, report: brainEvaluationSource.report };
+
+// Mean Dice with its interval first (the main metric); median, sensitivity
+// and IoU in the model sheet.
+function segmentationMetrics(evaluation: BrainSegmentationEvaluation, dataset: AiDatasetKey) {
+  const measured = { approximate: false, dataset, source: "evaluation" } as const;
+  return [
+    { key: "testDice", value: evaluation.dice.mean, ci95: evaluation.dice.ci95, unit: "score", ...measured },
+    { key: "testDiceMedian", value: evaluation.dice.median, ci95: null, unit: "score", ...measured },
+    { key: "testSensitivity", value: evaluation.sensitivity.mean, ci95: evaluation.sensitivity.ci95, unit: "percent", ...measured },
+    { key: "testIou", value: evaluation.iou.mean, ci95: evaluation.iou.ci95, unit: "score", ...measured },
+  ] as const satisfies readonly AiModelMetric[];
+}
+
+/** Test images behind a dataset label ("… ({count} images)"); absent when unknown. */
+export const datasetSizes: Partial<Record<AiDatasetKey, number>> = {
+  brainClassificationTest: classification.testImages,
+  meningiomaTest: meningioma.testImages,
+  pituitaryTest: pituitary.testImages,
+};
+
 export const aiModels = [
   // --- Brain -----------------------------------------------------------------
   {
@@ -18,19 +51,41 @@ export const aiModels = [
     acceptedFormats: ["png", "jpeg"],
     // The model's raw output labels, in index order.
     outputClasses: ["glioma", "meningioma", "notumor", "pituitary"],
-    // Test accuracy first: it is the main metric.
+    // Test accuracy of the service (one pass) first: it is the main metric.
     metrics: [
-      { key: "testAccuracy", value: 0.9544, unit: "percent", approximate: false, dataset: "brainClassificationTest" },
-      { key: "cvAccuracy", value: 0.9927, unit: "percent", approximate: false, dataset: "crossValidation" },
-      { key: "testAuc", value: 0.9908, unit: "score", approximate: false, dataset: "brainClassificationTest" },
+      {
+        key: "testAccuracy",
+        value: classification.accuracy.value,
+        ci95: classification.accuracy.ci95,
+        unit: "percent",
+        approximate: false,
+        dataset: "brainClassificationTest",
+        source: "evaluation",
+      },
+      {
+        key: "testAuc",
+        value: classification.macroAuc,
+        ci95: null,
+        unit: "score",
+        approximate: false,
+        dataset: "brainClassificationTest",
+        source: "evaluation",
+      },
+      // Notebook figure, sheet only: the folds it is measured on also chose
+      // when training stopped, so it is optimistic.
+      { key: "cvAccuracy", value: 0.9927, ci95: null, unit: "percent", approximate: false, dataset: "crossValidation", source: "notebook" },
     ],
-    classMetrics: [
-      { classKey: "glioma", precision: 1.0, recall: 0.835 },
-      { classKey: "meningioma", precision: 0.9, recall: 0.9825 },
-      { classKey: "notumor", precision: 0.94, recall: 1.0 },
-      { classKey: "pituitary", precision: 0.99, recall: 1.0 },
-    ],
+    classMetrics: brainClassLabels.map((classKey) => ({
+      classKey,
+      precision: classification.perClass[classKey].precision,
+      recall: classification.perClass[classKey].recall,
+      recallCi95: classification.perClass[classKey].recallCi95,
+      f1: classification.perClass[classKey].f1,
+      auc: classification.perClass[classKey].auc,
+    })),
     classMetricsDataset: "brainClassificationTest",
+    confusionMatrix: classification.confusionMatrix,
+    evaluation: serviceEvaluation,
     trainingData: "Nickparvar + BraTS 2021",
     knownLimitations: ["notCertified", "internalValidation", "lowerGliomaRecall", "closedSet", "singleSlice"],
     underrepresentedPopulations: null,
@@ -45,9 +100,13 @@ export const aiModels = [
     inputModality: "brainMriT1ceFlairT2Composite",
     acceptedFormats: null,
     outputClasses: ["glioma"],
-    metrics: [{ key: "validationDice", value: 0.8976, unit: "score", approximate: false, dataset: "gliomaValidation" }],
+    metrics: [
+      { key: "validationDice", value: 0.8976, ci95: null, unit: "score", approximate: false, dataset: "gliomaValidation", source: "notebook" },
+    ],
     classMetrics: null,
     classMetricsDataset: null,
+    confusionMatrix: null,
+    evaluation: null,
     trainingData: null,
     knownLimitations: ["notCertified", "internalValidation"],
     underrepresentedPopulations: null,
@@ -63,13 +122,11 @@ export const aiModels = [
     inputModality: "brainMri",
     acceptedFormats: ["png", "jpeg"],
     outputClasses: ["meningioma"],
-    metrics: [
-      { key: "testDice", value: 0.9277, unit: "score", approximate: false, dataset: "meningiomaTest" },
-      { key: "testIou", value: 0.8753, unit: "score", approximate: false, dataset: "meningiomaTest" },
-      { key: "testSensitivity", value: 0.9576, unit: "percent", approximate: false, dataset: "meningiomaTest" },
-    ],
+    metrics: segmentationMetrics(meningioma, "meningiomaTest"),
     classMetrics: null,
     classMetricsDataset: null,
+    confusionMatrix: null,
+    evaluation: serviceEvaluation,
     trainingData: "BRISC 2025",
     knownLimitations: ["notCertified", "internalValidation", "targetTumourOnly"],
     underrepresentedPopulations: null,
@@ -84,13 +141,11 @@ export const aiModels = [
     inputModality: "brainMri",
     acceptedFormats: ["png", "jpeg"],
     outputClasses: ["pituitary"],
-    metrics: [
-      { key: "testDice", value: 0.8717, unit: "score", approximate: false, dataset: "pituitaryTest" },
-      { key: "testIou", value: 0.7859, unit: "score", approximate: false, dataset: "pituitaryTest" },
-      { key: "testSensitivity", value: 0.9156, unit: "percent", approximate: false, dataset: "pituitaryTest" },
-    ],
+    metrics: segmentationMetrics(pituitary, "pituitaryTest"),
     classMetrics: null,
     classMetricsDataset: null,
+    confusionMatrix: null,
+    evaluation: serviceEvaluation,
     trainingData: "BRISC 2025",
     knownLimitations: ["notCertified", "internalValidation", "targetTumourOnly"],
     underrepresentedPopulations: null,
@@ -109,6 +164,8 @@ export const aiModels = [
     metrics: null,
     classMetrics: null,
     classMetricsDataset: null,
+    confusionMatrix: null,
+    evaluation: null,
     trainingData: null,
     knownLimitations: ["notCertified", "undocumentedPerformance"],
     underrepresentedPopulations: null,
@@ -127,6 +184,8 @@ export const aiModels = [
     metrics: null,
     classMetrics: null,
     classMetricsDataset: null,
+    confusionMatrix: null,
+    evaluation: null,
     trainingData: null,
     knownLimitations: ["notCertified", "closedSet", "undocumentedPerformance"],
     underrepresentedPopulations: null,
@@ -145,6 +204,8 @@ export const aiModels = [
     metrics: null,
     classMetrics: null,
     classMetricsDataset: null,
+    confusionMatrix: null,
+    evaluation: null,
     trainingData: "ACDC",
     knownLimitations: ["notCertified", "undocumentedPerformance"],
     underrepresentedPopulations: null,
@@ -162,6 +223,8 @@ export const aiModels = [
     metrics: null,
     classMetrics: null,
     classMetricsDataset: null,
+    confusionMatrix: null,
+    evaluation: null,
     trainingData: null,
     knownLimitations: ["notCertified", "undocumentedPerformance"],
     underrepresentedPopulations: null,
@@ -180,6 +243,8 @@ export const aiModels = [
     metrics: null,
     classMetrics: null,
     classMetricsDataset: null,
+    confusionMatrix: null,
+    evaluation: null,
     trainingData: null,
     knownLimitations: ["notCertified", "undocumentedPerformance"],
     underrepresentedPopulations: null,
@@ -198,6 +263,8 @@ export const aiModels = [
     metrics: null,
     classMetrics: null,
     classMetricsDataset: null,
+    confusionMatrix: null,
+    evaluation: null,
     trainingData: "BreakHis",
     knownLimitations: ["notCertified", "undocumentedPerformance"],
     underrepresentedPopulations: null,

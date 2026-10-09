@@ -3,12 +3,10 @@ import { AxiosError, AxiosHeaders, type AxiosResponse } from "axios";
 import { type AiServiceStatus } from "./ai-analyses.types";
 import {
   getFailedRunId,
-  getGliomaMissedShare,
   getLaunchState,
   getRunErrorKey,
   getTopLabel,
   shortSha256,
-  shouldWarnGliomaRecall,
   sortPredictions,
 } from "./run-presentation";
 
@@ -45,20 +43,6 @@ describe("predictions", () => {
   });
 });
 
-describe("glioma recall warning", () => {
-  it("derives the missed share from the registry recall (0.835 → 16.5 %)", () => {
-    expect(getGliomaMissedShare(CLASSIFIER)).toBe(0.165);
-    expect(getGliomaMissedShare("unknown-model")).toBeNull();
-  });
-
-  it("warns for notumor and meningioma only", () => {
-    expect(shouldWarnGliomaRecall("notumor")).toBe(true);
-    expect(shouldWarnGliomaRecall("meningioma")).toBe(true);
-    expect(shouldWarnGliomaRecall("glioma")).toBe(false);
-    expect(shouldWarnGliomaRecall("pituitary")).toBe(false);
-    expect(shouldWarnGliomaRecall(null)).toBe(false);
-  });
-});
 
 describe("launch state", () => {
   const query = (data: AiServiceStatus | undefined, flags: Partial<{ isError: boolean; isLoading: boolean }> = {}) => ({

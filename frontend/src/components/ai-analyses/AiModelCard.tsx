@@ -8,7 +8,8 @@ import {
   type AiModel,
   type AiModelStatus,
 } from "@/features/ai-analyses/ai-analyses.types";
-import { formatAiMetricValue } from "@/features/ai-analyses/format-ai-metric";
+import { isolate } from "@/features/ai-analyses/evaluation-presentation";
+import { formatAiMetricInterval, formatAiMetricValue } from "@/features/ai-analyses/format-ai-metric";
 import { type Locale } from "@/i18n";
 import { type TranslationFunction } from "@/lib/i18n";
 import { cn } from "@/lib/utils";
@@ -83,15 +84,27 @@ export function AiModelCard({
       <div className="mt-3 rounded-[var(--radius-sm)] border border-[var(--line-soft)] px-3 py-2.5">
         <p className="text-xs text-[var(--text-secondary)]">
           {t("aiAnalyses.card.mainMetric")}
-          {mainMetric ? <> · {t("aiAnalyses.card.internalValidation")}</> : null}
+          {mainMetric ? (
+            <>
+              {" · "}
+              {mainMetric.source === "evaluation" ? t("aiAnalyses.card.serviceEvaluation") : t("aiAnalyses.card.internalValidation")}
+            </>
+          ) : null}
         </p>
         {mainMetric ? (
-          <p className="mt-1 flex flex-wrap items-baseline gap-x-2">
-            <bdi dir="ltr" className="font-[var(--font-auth-mono)] text-lg font-semibold tabular-nums text-[var(--text-primary)]">
-              {formatAiMetricValue(mainMetric, locale)}
-            </bdi>
-            <span className="text-xs text-[var(--text-secondary)]">{t(`aiAnalyses.metrics.${mainMetric.key}`)}</span>
-          </p>
+          <>
+            <p className="mt-1 flex flex-wrap items-baseline gap-x-2">
+              <bdi dir="ltr" className="font-[var(--font-auth-mono)] text-lg font-semibold tabular-nums text-[var(--text-primary)]">
+                {formatAiMetricValue(mainMetric, locale)}
+              </bdi>
+              <span className="text-xs text-[var(--text-secondary)]">{t(`aiAnalyses.metrics.${mainMetric.key}`)}</span>
+            </p>
+            {mainMetric.ci95 ? (
+              <p className="mt-0.5 text-xs tabular-nums text-[var(--text-secondary)]">
+                {t("aiAnalyses.evaluation.interval", { range: isolate(formatAiMetricInterval(mainMetric, locale) ?? "") })}
+              </p>
+            ) : null}
+          </>
         ) : (
           <p className="mt-1 text-sm text-[var(--text-secondary)]">{notProvided}</p>
         )}

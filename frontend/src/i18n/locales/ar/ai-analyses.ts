@@ -68,19 +68,20 @@ export const aiAnalysesAr = {
     other: "أخرى (خارج فئات النموذج)",
   },
   metrics: {
-    testAccuracy: "الدقة (الاختبار)",
-    cvAccuracy: "الدقة (التحقق المتقاطع)",
-    testAuc: "AUC (الاختبار)",
-    testDice: "Dice (الاختبار)",
-    testIou: "IoU (الاختبار)",
-    testSensitivity: "الحساسية (الاختبار)",
+    testAccuracy: "الدقة (الاختبار، تمريرة واحدة دون TTA)",
+    cvAccuracy: "الدقة في التحقق المتقاطع (متفائلة، تُستعمل للإيقاف المبكر)",
+    testAuc: "AUC الكلي (الاختبار، فئة مقابل البقية)",
+    testDice: "متوسط Dice (الاختبار)",
+    testDiceMedian: "وسيط Dice (الاختبار)",
+    testIou: "متوسط IoU (الاختبار)",
+    testSensitivity: "متوسط الحساسية (الاختبار)",
     validationDice: "Dice (التحقق)",
   },
   datasets: {
     crossValidation: "التحقق المتقاطع",
-    brainClassificationTest: "مجموعة الاختبار (1600 صورة)",
-    meningiomaTest: "مجموعة الاختبار (123 صورة)",
-    pituitaryTest: "مجموعة الاختبار (132 صورة)",
+    brainClassificationTest: "مجموعة Testing من Nickparvar ({count} صورة)",
+    meningiomaTest: "اختبار BRISC 2025، أورام سحائية ({count} صورة)",
+    pituitaryTest: "اختبار BRISC 2025، أورام الغدة النخامية ({count} صورة)",
     gliomaValidation: "مجموعة التحقق",
   },
   limitations: {
@@ -92,7 +93,7 @@ export const aiAnalysesAr = {
       "لا يتعرف إلا على الفئات المدرجة: لا يمكنه الإشارة إلى حالة من نوع آخر بصفتها تلك.",
     singleSlice:
       "تحليل صور ثنائية الأبعاد: لا يؤخذ السياق الحجمي للفحص (المقاطع الأخرى) بعين الاعتبار.",
-    lowerGliomaRecall: "استدعاء أضعف للأورام الدبقية (0,835).",
+    lowerGliomaRecall: "استدعاء أضعف للأورام الدبقية: {recall} على مجموعة الاختبار.",
     targetTumourOnly: "تم تقييمه فقط على صور تحتوي على الورم المستهدف.",
   },
   models: {
@@ -146,6 +147,7 @@ export const aiAnalysesAr = {
     modality: "نوع التصوير",
     mainMetric: "المقياس الرئيسي",
     internalValidation: "تحقق داخلي",
+    serviceEvaluation: "تقييم الخدمة",
     notProvided: "غير محدد",
     openSheet: "بطاقة النموذج",
     openSheetFor: "بطاقة النموذج: {name}",
@@ -190,10 +192,22 @@ export const aiAnalysesAr = {
     metricsNote: "تحقق داخلي: يجب تأكيد الأداء على بياناتكم.",
     limitations: "الحدود المعروفة",
     populations: "الفئات السكانية غير الممثلة",
-    classMetrics: "الدقة والاستدعاء حسب الفئة",
+    classMetrics: "المقاييس حسب الفئة",
     class: "الفئة",
     precision: "الدقة",
     recall: "الاستدعاء",
+    f1: "F1",
+    auc: "AUC",
+    confusionMatrix: "مصفوفة الالتباس",
+    confusionCaption:
+      "مجموعة الاختبار ({count} صورة): كل سطر هو الفئة الحقيقية وكل عمود الفئة المتنبأ بها؛ القطر يعدّ النتائج الصحيحة.",
+    trueClass: "الفئة الحقيقية",
+    predictedClass: "الفئة المتنبأ بها",
+    correct: "نتائج صحيحة",
+  },
+  evaluation: {
+    interval: "فاصل الثقة 95٪: {range}",
+    source: "تقييم بتاريخ {date}، التقرير {report}: تمريرة واحدة، دون TTA.",
   },
   wizard: {
     breadcrumb: "تحليل جديد",
@@ -336,8 +350,22 @@ export const aiAnalysesAr = {
         "غير متاحة لهذه الفئة: تتم تجزئة الورم السحائي وورم الغدة النخامية فقط.",
       model_not_loaded: "لم يكن نموذج التجزئة محمَّلًا في خدمة التحليل.",
     },
-    gliomaWarning:
-      "لم يتعرف هذا النموذج على {share} من الأورام الدبقية في مجموعة الاختبار: التنبؤ «{class}» لا يستبعد وجود ورم دبقي.",
+    uncertainTitle: "نتيجة غير مؤكدة",
+    uncertainText:
+      "احتمال الفئة الرئيسية: {probability}، أقل من العتبة {threshold}. في مجموعة الاختبار، كانت النتائج دون مستوى الثقة هذا صحيحة في {below} من الحالات، مقابل {above} فوقه.",
+    uncertainTextNoSplit: "احتمال الفئة الرئيسية: {probability}، أقل من العتبة {threshold}.",
+    confusion: {
+      missedGlioma: "في مجموعة الاختبار، كانت {count} من أصل {total} نتيجة «{class}» أورامًا دبقية.",
+      missedGliomaNegative:
+        "في مجموعة الاختبار، كانت {count} من أصل {total} نتيجة «{class}» أورامًا دبقية. النتيجة السلبية لا تستبعد وجود ورم دبقي.",
+      otherClasses: "في مجموعة الاختبار، كانت {count} من أصل {total} نتيجة «{class}» من فئة أخرى.",
+    },
+    probabilityCeiling:
+      "في مجموعة الاختبار، لم يبلغ أي احتمال {threshold}. يعود هذا السقف على الأرجح إلى تنعيم التسميات المستعمل أثناء التدريب، الذي يستهدف نحو {target} للفئة الصحيحة بدل 100٪: فالاحتمال القريب من {target} هو على الأرجح أعلى مستوى لهذا النموذج، وليس يقينًا.",
+    probabilityCeilingNoBound:
+      "دُرِّب هذا النموذج بتنعيم للتسميات يستهدف نحو {target} للفئة الصحيحة بدل 100٪: تبلغ احتمالاته على الأرجح سقفًا قرب هذا المستوى، وهو ليس يقينًا.",
+    evaluationMismatch:
+      "أرقام التقييم (التقرير {report}) تخص أوزانًا غير تلك المستعملة في هذا التحليل: لا يُعرض أي تحذير رقمي.",
     noImpression: "لم يتم إدخال أي انطباع.",
     traceability: "قابلية التتبع",
     classificationModel: "نموذج التصنيف",
