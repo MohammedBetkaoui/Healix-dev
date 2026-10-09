@@ -375,10 +375,13 @@ function ConfirmDecisionDialog({ draft, modelLabel, mutation, onClosed, t }: Con
     ? getVerificationRequiredMessage(mutation.error, t) ?? t(`aiAnalyses.decision.errors.${getDecisionErrorKey(mutation.error)}`)
     : null;
 
+  // No close() on cleanup: in development React runs this effect twice, and a
+  // close() there fires "close", read as a cancellation (onClosed), which
+  // unmounted the dialog as soon as it opened. Unmounting removes the dialog
+  // from the page anyway.
   useEffect(() => {
     const dialog = ref.current;
     if (dialog && !dialog.open) dialog.showModal();
-    return () => dialog?.close();
   }, []);
 
   return (
