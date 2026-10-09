@@ -95,6 +95,14 @@ export const adminAr = {
         description: "صادق {actor} على نتيجة تحليل بالذكاء الاصطناعي أو صحّحها أو رفضها (قرار نهائي).",
         label: "قرار بشأن تحليل بالذكاء الاصطناعي",
       },
+      AI_ANALYSIS_REPORT_GENERATED: {
+        description: "أنشأ {actor} تقرير PDF لتحليل بالذكاء الاصطناعي (وثيقة مجمَّدة ومرقَّمة).",
+        label: "إنشاء تقرير تحليل بالذكاء الاصطناعي",
+      },
+      AI_ANALYSIS_REPORT_DOWNLOADED: {
+        description: "حمّل {actor} تقرير PDF المؤرشف لتحليل بالذكاء الاصطناعي.",
+        label: "تحميل تقرير تحليل بالذكاء الاصطناعي",
+      },
       DOCUMENT_VIEWED: {
         description: "اطلع {actor} على وثيقة من ملف مريض.",
         label: "الاطلاع على وثيقة مريض",

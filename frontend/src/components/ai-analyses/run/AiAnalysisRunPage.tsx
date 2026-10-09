@@ -44,6 +44,7 @@ import { useStoredLocale, useTranslation } from "@/lib/i18n";
 import { ImageViewer } from "../viewer/ImageViewer";
 import { getPatientDisplayName } from "../wizard/PatientStep";
 import { AiRunDecisionBadge, AiRunDecisionPanel } from "./AiRunDecisionPanel";
+import { AiRunReportSection } from "./AiRunReportSection";
 
 type AiAnalysisRunPageProps = {
   accountType: "DOCTOR" | "ESTABLISHMENT";
@@ -307,6 +308,8 @@ export function AiAnalysisRunPage({ accountType, patientId, runId }: AiAnalysisR
         </div>
 
         <AiRunDecisionPanel locale={locale} patientId={patientId} run={run} t={t} />
+
+        <AiRunReportSection patientId={patientId} run={run} t={t} />
 
         <div className="grid gap-5 lg:grid-cols-2">
           <section aria-labelledby="ai-run-traceability" className="surface-section p-5">

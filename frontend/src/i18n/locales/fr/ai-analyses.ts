@@ -497,6 +497,31 @@ export const aiAnalysesFr = {
       open: "Voir l’analyse",
     },
   },
+  report: {
+    title: "Compte rendu",
+    description:
+      "Compte rendu PDF officiel de l’analyse et de la décision du médecin. Il est figé dès sa première édition : chaque téléchargement renvoie le même document.",
+    frenchOnly: "Le compte rendu est rédigé en français.",
+    download: "Télécharger le compte rendu (PDF)",
+    downloading: "Préparation du compte rendu…",
+    number: "Compte rendu n° {number}",
+    recordLink: "Compte rendu",
+    recordLinkFor: "Télécharger le compte rendu de l’analyse du {date}",
+    blockers: {
+      notSucceeded: "Pas de compte rendu : l’analyse n’a pas abouti.",
+      notDecided: "Validez ou corrigez d’abord le résultat : le compte rendu n’existe qu’après la décision du médecin.",
+      rejected: "Analyse rejetée : elle n’a pas de compte rendu.",
+    },
+    errors: {
+      RUN_NOT_SUCCEEDED: "Pas de compte rendu : l’analyse n’a pas abouti.",
+      NOT_DECIDED: "Validez ou corrigez d’abord le résultat : le compte rendu n’existe qu’après la décision du médecin.",
+      REJECTED: "Analyse rejetée : elle n’a pas de compte rendu.",
+      AI_REPORT_RENDER_FAILED: "Le compte rendu n’a pas pu être généré. Réessayez plus tard.",
+      AI_REPORT_INTEGRITY_FAILED:
+        "Le compte rendu archivé ne correspond plus à son empreinte : il n’est pas remis. Contactez l’administrateur.",
+      unknown: "Le compte rendu n’a pas pu être téléchargé.",
+    },
+  },
   viewer: {
     label: "Visionneuse : {name}",
     roleDescription: "visionneuse d’image",

@@ -181,6 +181,8 @@ export type AiAnalysisRun = {
   decidedById: string | null;
   decidedByName: string | null;
   decidedAt: string | null;
+  /** Number of its PDF report (CR-IA-<year>-<NNNNNN>), once generated. */
+  reportNumber: string | null;
   createdAt: string;
   updatedAt: string;
 };

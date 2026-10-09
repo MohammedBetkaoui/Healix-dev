@@ -8,6 +8,7 @@ import { aiModelStatuses, aiModelTasks, aiModules, aiRunDecisions } from "./ai-a
 import { aiModels, aiPipelines } from "./ai-models.registry";
 import { aiDecisionLabels, knownDecisionErrorCodes } from "./run-decision";
 import { knownRunErrorCodes } from "./run-presentation";
+import { knownReportErrorKeys } from "./run-report";
 import { qualityCheckKeys, qualityCheckStatuses } from "./quality-check";
 
 // Mirrors the steps of components/ai-analyses/wizard/AiAnalysisWizardPage.
@@ -56,6 +57,9 @@ function registryKeys() {
   for (const reason of ["not_applicable_for_class", "model_not_loaded"]) {
     keys.add(`aiAnalyses.run.skipped.${reason}`);
   }
+  // Picked from the report's availability and download error.
+  for (const blocker of ["notSucceeded", "notDecided", "rejected"]) keys.add(`aiAnalyses.report.blockers.${blocker}`);
+  for (const key of [...knownReportErrorKeys, "unknown"]) keys.add(`aiAnalyses.report.errors.${key}`);
   // Picked by the result page from the confusion warning's kind.
   for (const kind of ["missedGlioma", "missedGliomaNegative", "otherClasses"]) {
     keys.add(`aiAnalyses.run.confusion.${kind}`);

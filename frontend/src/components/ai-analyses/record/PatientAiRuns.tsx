@@ -1,17 +1,20 @@
 "use client";
 
-import { BrainCircuit, Clock3, Plus } from "lucide-react";
+import { BrainCircuit, Clock3, FileDown, Plus } from "lucide-react";
 import Link from "next/link";
 
 import { StatusBadge } from "@/components/dashboard/shared/StatusBadge";
 import { VerificationRequiredNotice } from "@/components/shared/VerificationRequiredNotice";
 import { type AiAnalysisRun } from "@/features/ai-analyses/ai-analyses.types";
 import { useAiAnalysisRuns } from "@/features/ai-analyses/hooks/use-ai-analysis-runs";
+import { useDownloadAiReport } from "@/features/ai-analyses/hooks/use-download-ai-report";
 import { decisionTones, getDisplayedLabel, getLatestRetainedRun } from "@/features/ai-analyses/run-decision";
 import { sortPredictions } from "@/features/ai-analyses/run-presentation";
+import { getReportBlocker, getReportErrorKey } from "@/features/ai-analyses/run-report";
 import { formatPatientDateTime } from "@/features/patients/patient-registry";
 import { type Locale } from "@/i18n";
 import { isVerificationRequiredError } from "@/lib/api/api-error";
+import { getVerificationRequiredMessage } from "@/lib/api/get-mutation-error-message";
 import { type TranslationFunction } from "@/lib/i18n";
 import { cn } from "@/lib/utils";
 import { type DashboardStatusTone } from "@/types/dashboard";
@@ -42,6 +45,30 @@ function getDecisionState(run: AiAnalysisRun, t: TranslationFunction): { label: 
     pending: false,
     tone: decisionTones[run.decisionStatus],
   };
+}
+
+// "Compte rendu" on a validated or corrected row: downloads its PDF report.
+function ReportLink({ date, patientId, runId, t }: { date: string; patientId: string; runId: string; t: TranslationFunction }) {
+  const download = useDownloadAiReport(patientId, runId);
+  const errorMessage = download.isError
+    ? getVerificationRequiredMessage(download.error, t) ?? t(`aiAnalyses.report.errors.${getReportErrorKey(download.error)}`)
+    : null;
+
+  return (
+    <>
+      <button
+        type="button"
+        className="inline-flex items-center gap-1 text-sm font-medium text-[var(--accent-dark)] underline-offset-2 hover:underline disabled:cursor-wait disabled:opacity-60"
+        aria-label={t("aiAnalyses.report.recordLinkFor", { date })}
+        disabled={download.isPending}
+        onClick={() => download.mutate()}
+      >
+        <FileDown size={14} strokeWidth={1.8} aria-hidden="true" />
+        {download.isPending ? t("aiAnalyses.report.downloading") : t("aiAnalyses.report.recordLink")}
+      </button>
+      {errorMessage ? <p role="alert" className="max-w-56 text-xs text-[var(--danger-ink)]">{errorMessage}</p> : null}
+    </>
+  );
 }
 
 type PatientAiRunsSectionProps = {
@@ -137,13 +164,16 @@ export function PatientAiRunsSection({ accountType, hasSignedAiConsent, locale, 
                       ) : null}
                     </td>
                     <td className="py-3 text-end">
-                      <Link
-                        href={getRunHref(accountType, patientId, run.id)}
-                        aria-label={t("aiAnalyses.record.openFor", { date })}
-                        className="text-sm font-medium text-[var(--accent-dark)] underline-offset-2 hover:underline"
-                      >
-                        {t("aiAnalyses.record.open")}
-                      </Link>
+                      <div className="flex flex-col items-end gap-1">
+                        <Link
+                          href={getRunHref(accountType, patientId, run.id)}
+                          aria-label={t("aiAnalyses.record.openFor", { date })}
+                          className="text-sm font-medium text-[var(--accent-dark)] underline-offset-2 hover:underline"
+                        >
+                          {t("aiAnalyses.record.open")}
+                        </Link>
+                        {getReportBlocker(run) === null ? <ReportLink date={date} patientId={patientId} runId={run.id} t={t} /> : null}
+                      </div>
                     </td>
                   </tr>
                 );

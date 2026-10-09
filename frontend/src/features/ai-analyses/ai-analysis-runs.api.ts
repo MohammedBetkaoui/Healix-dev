@@ -1,3 +1,5 @@
+import { isAxiosError } from "axios";
+
 import { apiClient } from "@/lib/api/http-client";
 
 import {
@@ -10,6 +12,8 @@ import {
 // The backend waits up to 60 s for the inference service: the default 10 s
 // client timeout would abort a valid analysis.
 const ANALYSIS_REQUEST_TIMEOUT_MS = 75_000;
+// The first request renders the PDF (Chromium may have to start).
+const REPORT_REQUEST_TIMEOUT_MS = 60_000;
 
 export type CreateAiAnalysisRunPayload = {
   pipeline: AiPipelineId;
@@ -64,6 +68,31 @@ export async function decideAiAnalysisRun(
     payload,
   );
   return response.data;
+}
+
+/**
+ * The PDF report of a validated or corrected run (generated on the first
+ * request, then served as stored). Asked as a blob, an error body is a blob
+ * too: it is read back as JSON so its code (AI_REPORT_NOT_AVAILABLE,
+ * VERIFICATION_REQUIRED...) can be told apart.
+ */
+export async function getAiAnalysisReport(patientId: string, runId: string): Promise<Blob> {
+  try {
+    const response = await apiClient.get<Blob>(`/patients/${patientId}/ai-analysis-runs/${runId}/report`, {
+      responseType: "blob",
+      timeout: REPORT_REQUEST_TIMEOUT_MS,
+    });
+    return response.data;
+  } catch (error) {
+    if (isAxiosError(error) && error.response?.data instanceof Blob) {
+      try {
+        error.response.data = JSON.parse(await error.response.data.text());
+      } catch {
+        // Not JSON: left as it was.
+      }
+    }
+    throw error;
+  }
 }
 
 export async function getAiAnalysisRunMask(patientId: string, runId: string): Promise<Blob> {

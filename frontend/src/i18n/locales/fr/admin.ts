@@ -104,6 +104,14 @@ export const adminFr = {
         description: "{actor} a validé, corrigé ou rejeté le résultat d’une analyse IA (décision définitive).",
         label: "Décision sur une analyse IA",
       },
+      AI_ANALYSIS_REPORT_GENERATED: {
+        description: "{actor} a généré le compte rendu PDF d’une analyse IA (document figé, numéroté).",
+        label: "Compte rendu IA généré",
+      },
+      AI_ANALYSIS_REPORT_DOWNLOADED: {
+        description: "{actor} a téléchargé le compte rendu PDF archivé d’une analyse IA.",
+        label: "Compte rendu IA téléchargé",
+      },
       DOCUMENT_VIEWED: {
         description: "{actor} a consulté un document d’un dossier patient.",
         label: "Document patient consulté",
