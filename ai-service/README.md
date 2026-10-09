@@ -140,24 +140,70 @@ Keep the datasets outside the repository, or in an ignored `data/` folder.
   its Testing images may sit in the Training split of the version used for
   training, which would make the figures optimistic.
 - **Segmentation** (optional): BRISC 2025
-  (<https://www.kaggle.com/datasets/briscdataset/brisc2025>). Pass the folder
-  that holds `manifest.csv`.
+  (<https://www.kaggle.com/datasets/briscdataset/brisc2025>). Copy the whole
+  dataset: `manifest.csv` alone is not enough, its `segmentation_task` folder
+  must sit next to it.
 
-### Command
+### Expected layout
 
-```bash
-.venv/Scripts/python -m scripts.evaluate_brain \
-  --nickparvar-test <Nickparvar>/Testing \
-  --brisc-root <BRISC 2025 folder holding manifest.csv>
+```text
+C:\datasets\
+├── nickparvar\
+│   └── Testing\                ← --nickparvar-test (its parent folder works too)
+│       ├── glioma\             *.jpg
+│       ├── meningioma\
+│       ├── notumor\            (or no_tumor / normal)
+│       └── pituitary\
+└── brisc2025\                  ← --brisc-root (manifest.csv also found 1 or 2 levels below)
+    ├── manifest.csv
+    └── segmentation_task\      next to manifest.csv
+        ├── train\
+        │   ├── images\         *.jpg
+        │   └── masks\          *.png
+        └── test\
+            ├── images\
+            └── masks\
 ```
+
+Nickparvar's `Training` and BRISC's `classification_task` are not used. The
+BRISC archive unpacks as `brisc2025\brisc2025\manifest.csv`: either folder
+can be given.
+
+### Commands (PowerShell)
+
+Run `--check` first: it resolves the paths, loads the weights (loaded or not,
+with their SHA-256) and counts the images per class and the BRISC pairs and
+test images, then stops **without any inference**. Exit code 0 when everything
+is ready, 1 otherwise, with what to fix.
+
+```powershell
+cd <repository>\ai-service
+
+# 1. Check: paths, weights, counts; no inference
+.\.venv\Scripts\python.exe -m scripts.evaluate_brain --check `
+  --nickparvar-test C:\datasets\nickparvar\Testing `
+  --brisc-root C:\datasets\brisc2025
+
+# 2. Evaluate: the same command without --check
+.\.venv\Scripts\python.exe -m scripts.evaluate_brain `
+  --nickparvar-test C:\datasets\nickparvar\Testing `
+  --brisc-root C:\datasets\brisc2025
+```
+
+Paths can be pasted from the Explorer's address bar. Quotes and a trailing `\`
+are removed (PowerShell hands `"C:\datasets\"` to the program as
+`C:\datasets"`), `~` is expanded, and messages show the resolved path. Quote a
+path that contains spaces. In PowerShell, a command continues on the next line
+with a backtick, not with `\`.
 
 `--models-dir` defaults to `AI_MODELS_DIR`, as for the service; `--output-dir`
 to `evaluation/`. The script writes
 `evaluation/brain-<date>-<first 8 characters of the classifier SHA-256>.json`
 (SHA-256 of the three weight files, torch / timm / smp / OpenCV versions,
 counts per class, every metric) and prints a summary. Commit that JSON: it
-holds no image and no patient data. Exit code 2 when the segmentation part
-was stopped.
+holds no image and no patient data. Exit codes: 0 done; 1 a path, weight or
+dataset problem (nothing evaluated); 2 the segmentation part was stopped (the
+classification is still evaluated).
 
 ### What it measures
 
@@ -174,7 +220,10 @@ exactly: `manifest.csv` rows with the class as `tumor_label` and `task ==
 converted, masks paired by file name without extension, empty masks left out,
 manifest order kept; then `train_test_split(test_size=0.15, random_state=42)`
 and `train_test_split(test_size=0.5, random_state=42)` on the remainder, whose
-second half is the test set. The script checks that it finds 1,635 pairs and
+second half is the test set. Before building the pairs, the script checks that
+every meningioma and pituitary file the manifest names is on disk: if any is
+missing, the segmentation stops and names a few of them. It then checks that
+it finds 1,635 pairs and
 123 test images for meningioma, 1,757 and 132 for pituitary: any other count
 stops the segmentation part before any inference, and no Dice is printed,
 since another split would mix training images into the test set. The official

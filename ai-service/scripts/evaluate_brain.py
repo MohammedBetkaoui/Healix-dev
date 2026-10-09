@@ -299,6 +299,11 @@ def list_nickparvar_testing(folder: Path) -> tuple[list[tuple[Path, int]], list[
     return samples, ignored
 
 
+def nickparvar_counts(samples: list[tuple[Path, int]]) -> dict[str, int]:
+    """Images per class, in CLASS_LABELS order (0 for a class without folder)."""
+    return {label: sum(1 for _, index in samples if index == position) for position, label in enumerate(CLASS_LABELS)}
+
+
 def read_grayscale(path: Path) -> np.ndarray | None:
     """cv2.imread(path, 0), but through the bytes: works with any path on Windows."""
     data = np.fromfile(str(path), dtype=np.uint8)
@@ -376,6 +381,130 @@ def plan_brisc(root: Path) -> dict[str, dict]:
 
 
 # ---------------------------------------------------------------------------
+# Setup: paths and datasets as the user gives them (Windows, PowerShell)
+# ---------------------------------------------------------------------------
+
+MISSING_FOLDER_HINT = "Copiez le chemin depuis la barre d'adresse de l'Explorateur."
+MANIFEST_SEARCH_DEPTH = 2
+MISSING_FILE_EXAMPLES = 3
+
+
+class SetupError(Exception):
+    """A path or dataset the user must fix; the message says how. Nothing is evaluated."""
+
+
+def normalize_path(raw: str | Path) -> Path:
+    """A path as typed in PowerShell or pasted from the Explorer, made absolute.
+
+    Surrounding quotes and trailing separators are removed (PowerShell turns
+    "C:\\data\\" into C:\\data" for the program), ~ is expanded, then the path
+    is resolved.
+    """
+    text = str(raw).strip().strip("\"'").strip()
+    stripped = text.rstrip("\\/")
+    # Keep the separator of a root: "C:\\" (not "C:", the drive's current folder) or "/".
+    if stripped and not (len(stripped) == 2 and stripped[1] == ":"):
+        text = stripped
+    return Path(text).expanduser().resolve()
+
+
+def _missing_folder(path: Path) -> SetupError:
+    return SetupError(f"Dossier introuvable : {path}. {MISSING_FOLDER_HINT}")
+
+
+def resolve_nickparvar(folder: Path) -> tuple[Path, str | None]:
+    """The folder holding the class subfolders, and a note when Testing was picked inside it."""
+    if not folder.is_dir():
+        raise _missing_folder(folder)
+
+    note = None
+    testing = sorted(child for child in folder.iterdir() if child.is_dir() and child.name.lower() == "testing")
+    if testing:
+        folder = testing[0]
+        note = f"Utilisation de {folder}"
+
+    subfolders = sorted(child.name for child in folder.iterdir() if child.is_dir())
+    if not any(name.lower() in NICKPARVAR_FOLDERS for name in subfolders):
+        found = ", ".join(subfolders) if subfolders else "aucun sous-dossier"
+        raise SetupError(
+            f"Aucun dossier de classe dans {folder}. Trouvé : {found}. "
+            "Attendu : glioma, meningioma, notumor, pituitary (notumor peut s'appeler no_tumor ou normal). "
+            "Indiquez le dossier Testing du jeu Nickparvar."
+        )
+    return folder, note
+
+
+def prepare_nickparvar(raw: Path) -> tuple[Path, dict[str, int], str | None]:
+    """Testing folder, images per class and the Testing note; SetupError if a class has no image."""
+    folder, note = resolve_nickparvar(raw)
+    counts = nickparvar_counts(list_nickparvar_testing(folder)[0])
+    empty = [label for label, count in counts.items() if count == 0]
+    if empty:
+        raise SetupError(
+            f"Aucune image pour {', '.join(empty)} dans {folder} "
+            f"(images par classe : {format_counts(counts)}). Chaque classe doit avoir ses images (.jpg, .jpeg ou .png)."
+        )
+    return folder, counts, note
+
+
+def locate_brisc(root: Path) -> tuple[Path, str | None]:
+    """The folder holding manifest.csv: the given one, or a single one up to 2 levels below."""
+    if not root.is_dir():
+        raise _missing_folder(root)
+    if (root / "manifest.csv").is_file():
+        return root, None
+
+    found = sorted({
+        manifest.parent
+        for depth in range(1, MANIFEST_SEARCH_DEPTH + 1)
+        for manifest in root.glob("/".join(["*"] * depth) + "/manifest.csv")
+        if manifest.is_file()
+    })
+    if not found:
+        raise SetupError(
+            f"manifest.csv introuvable dans {root} ni dans ses sous-dossiers ({MANIFEST_SEARCH_DEPTH} niveaux). "
+            "Indiquez le dossier BRISC 2025 qui contient manifest.csv."
+        )
+    if len(found) > 1:
+        places = "".join(f"\n  {folder / 'manifest.csv'}" for folder in found)
+        raise SetupError(f"manifest.csv trouvé à plusieurs endroits :{places}\nIndiquez lequel utiliser avec --brisc-root.")
+    return found[0], f"Utilisation de {found[0] / 'manifest.csv'}"
+
+
+def missing_brisc_files(root: Path) -> list[Path]:
+    """Meningioma and pituitary segmentation rows of the manifest whose image or mask is not on disk."""
+    manifest = pd.read_csv(root / "manifest.csv")
+    absent = [column for column in BRISC_MANIFEST_COLUMNS if column not in manifest.columns]
+    if absent:
+        raise BriscSplitError(f"manifest.csv sans les colonnes {', '.join(absent)}.")
+
+    rows = manifest[manifest["tumor_label"].isin(list(BRISC_EXPECTED)) & (manifest["task"] == "segmentation")]
+    expected = (root / str(relative).replace("\\", "/") for relative in rows["relative_path"])
+    return [path for path in expected if not path.exists()]
+
+
+def check_brisc_files(root: Path) -> None:
+    """BriscSplitError, before any pair is built, if the manifest names files that are not on disk."""
+    missing = missing_brisc_files(root)
+    if missing:
+        examples = "".join(f"\n  {path}" for path in missing[:MISSING_FILE_EXAMPLES])
+        raise BriscSplitError(
+            f"{len(missing)} fichier(s) du manifeste (images ou masques de méningiome et d'hypophyse) "
+            f"absent(s) du disque. Exemples de chemins attendus :{examples}\n"
+            "Copiez le dossier segmentation_task à côté de manifest.csv."
+        )
+
+
+def format_counts(counts: dict[str, int]) -> str:
+    return ", ".join(f"{label} {count}" for label, count in counts.items())
+
+
+def _indented(message: str, indent: str = "    ") -> str:
+    """A multi-line message under a bullet or a heading."""
+    return message.replace("\n", "\n" + indent)
+
+
+# ---------------------------------------------------------------------------
 # Inference, through the service's code
 # ---------------------------------------------------------------------------
 
@@ -417,7 +546,7 @@ def evaluate_classification(folder: Path, registry: ModelRegistry, max_pixels: i
             unreadable.append({"file": f"{path.parent.name}/{path.name}", "reason": error.reason})
         _progress("Classification", done, len(samples))
 
-    per_class = {label: int(sum(1 for _, index in samples if index == position)) for position, label in enumerate(CLASS_LABELS)}
+    per_class = nickparvar_counts(samples)
     matches_training_version = all(count == TRAINING_VERSION_TESTING_PER_CLASS for count in per_class.values())
     result = {
         "dataset": {
@@ -669,49 +798,145 @@ def print_summary(report: dict, path: Path) -> None:
 
 
 def parse_args(argv=None) -> argparse.Namespace:
-    parser = argparse.ArgumentParser(description="Offline evaluation of the brain pipeline, through the service's code.")
-    parser.add_argument("--nickparvar-test", type=Path, help="Testing folder of the Nickparvar dataset")
-    parser.add_argument("--brisc-root", type=Path, help="BRISC 2025 folder holding manifest.csv")
-    parser.add_argument("--models-dir", type=Path, help="Weights folder (default: AI_MODELS_DIR, as the service)")
-    parser.add_argument("--output-dir", type=Path, default=DEFAULT_OUTPUT_DIR, help="Where the JSON report goes")
+    parser = argparse.ArgumentParser(description="Évaluation hors ligne de l'analyse cérébrale, par le code du service.")
+    parser.add_argument("--nickparvar-test", type=normalize_path, help="dossier Testing du jeu Nickparvar (ou son dossier parent)")
+    parser.add_argument("--brisc-root", type=normalize_path, help="dossier BRISC 2025 contenant manifest.csv (ou jusqu'à 2 niveaux au-dessus)")
+    parser.add_argument("--models-dir", type=normalize_path, help="dossier des poids (par défaut AI_MODELS_DIR, comme le service)")
+    parser.add_argument("--output-dir", type=normalize_path, default=DEFAULT_OUTPUT_DIR, help="dossier du rapport JSON")
+    parser.add_argument("--check", action="store_true", help="vérifie chemins, poids et effectifs, sans aucune inférence")
     args = parser.parse_args(argv)
 
     if args.nickparvar_test is None and args.brisc_root is None:
-        parser.error("give --nickparvar-test and/or --brisc-root")
-    if args.nickparvar_test is not None and not args.nickparvar_test.is_dir():
-        parser.error(f"--nickparvar-test: {args.nickparvar_test} is not a folder")
-    if args.brisc_root is not None and not (args.brisc_root / "manifest.csv").is_file():
-        parser.error(f"--brisc-root: no manifest.csv in {args.brisc_root}")
+        parser.error("indiquez --nickparvar-test et/ou --brisc-root")
     return args
+
+
+def prepare(args: argparse.Namespace) -> dict:
+    """Every check that needs no model: resolved paths, counts, BRISC split.
+
+    `problems` stop everything (exit 1); `stopReason` stops the segmentation
+    only, as a split that does not match the notebook does.
+    """
+    setup = {"problems": [], "nickparvar": None, "counts": None, "brisc": None, "plan": None, "stopReason": None}
+
+    if args.models_dir is not None and not args.models_dir.is_dir():
+        setup["problems"].append(str(_missing_folder(args.models_dir)))
+
+    if args.nickparvar_test is not None:
+        try:
+            setup["nickparvar"], setup["counts"], note = prepare_nickparvar(args.nickparvar_test)
+        except SetupError as error:
+            setup["problems"].append(str(error))
+        else:
+            if note:
+                print(note)
+            if not args.check:  # --check prints them in its summary
+                print(f"Nickparvar ({setup['nickparvar']}) : {format_counts(setup['counts'])}")
+
+    if args.brisc_root is not None:
+        try:
+            setup["brisc"], note = locate_brisc(args.brisc_root)
+        except SetupError as error:
+            setup["problems"].append(str(error))
+        else:
+            if note:
+                print(note)
+            # Files first, then the split: a wrong one stops the segmentation
+            # before any inference, and no Dice is ever computed on it.
+            try:
+                check_brisc_files(setup["brisc"])
+                setup["plan"] = plan_brisc(setup["brisc"])
+            except BriscSplitError as error:
+                setup["stopReason"] = str(error)
+            else:
+                if not args.check:
+                    print("BRISC 2025 : " + " ; ".join(
+                        f"{label} {len(entry['pairs'])} paires, {len(entry['test'])} images de test"
+                        for label, entry in setup["plan"].items()
+                    ))
+    return setup
+
+
+def print_check(args: argparse.Namespace, setup: dict, registry: ModelRegistry, models_dir: Path) -> int:
+    """Summary of --check; 0 when the evaluation can run as asked, 1 otherwise."""
+    problems = list(setup["problems"])
+    print("\n=== Vérification (aucune inférence) ===")
+    print(f"Poids ({models_dir}) :")
+    for entry in registry.models.values():
+        state = "chargé" if entry.loaded else f"NON CHARGÉ ({entry.error})"
+        print(f"  {entry.spec.model_id} — {entry.spec.file_name} — {(entry.weights_sha256 or 'absent')[:12]} — {state}")
+    needed = [CLASSIFIER_ID] + ([SEGMENTER_BY_CLASS[label] for label in BRISC_EXPECTED] if args.brisc_root else [])
+    for model_id in needed:
+        entry = registry.get(model_id)
+        if not entry.loaded:
+            problems.append(f"{entry.spec.file_name} non chargé ({entry.error}) dans {models_dir}.")
+
+    if args.nickparvar_test is not None:
+        print(f"Nickparvar : {setup['nickparvar'] or args.nickparvar_test}")
+        if setup["counts"]:
+            print(f"  {format_counts(setup['counts'])} — {sum(setup['counts'].values())} images")
+            if any(count != TRAINING_VERSION_TESTING_PER_CLASS for count in setup["counts"].values()):
+                print(
+                    f"  Attention : pas {TRAINING_VERSION_TESTING_PER_CLASS} images par classe : ce n'est pas la version du jeu "
+                    "utilisée pour l'entraînement (7 200 images) ; les résultats seront signalés comme possiblement optimistes."
+                )
+
+    if args.brisc_root is not None:
+        print(f"BRISC 2025 : {setup['brisc'] or args.brisc_root}")
+        if setup["plan"]:
+            for label, entry in setup["plan"].items():
+                expected = BRISC_EXPECTED[label]
+                print(f"  {label} : {len(entry['pairs'])} paires, {len(entry['test'])} images de test "
+                      f"(attendu {expected['pairs']} et {expected['test']})")
+        if setup["stopReason"]:
+            problems.append(f"Segmentation : {setup['stopReason']}")
+
+    if problems:
+        print("\nÀ corriger :")
+        for problem in problems:
+            print(f"  - {_indented(problem)}")
+        print("\nPrêt : non")
+        return 1
+    print("\nPrêt : oui — relancez la même commande sans --check.")
+    return 0
 
 
 def main(argv=None) -> int:
     # UTF-8 even when redirected to a file (Windows would use its ANSI code page).
     for stream in (sys.stdout, sys.stderr):
-        stream.reconfigure(encoding="utf-8", errors="replace")
+        if hasattr(stream, "reconfigure"):
+            stream.reconfigure(encoding="utf-8", errors="replace")
     logging.basicConfig(level=logging.INFO, format="%(levelname)s %(name)s: %(message)s")
     args = parse_args(argv)
     settings = load_settings()
+    models_dir = args.models_dir or settings.models_dir
 
-    # The split is checked before any inference: a wrong one stops the
-    # segmentation at once, and no Dice is ever computed on it.
-    plan, stop_reason = None, None
-    if args.brisc_root is not None:
-        try:
-            plan = plan_brisc(args.brisc_root)
-        except BriscSplitError as error:
-            stop_reason = str(error)
-            print(f"\nSEGMENTATION ARRÊTÉE : {stop_reason}\n", file=sys.stderr)
+    setup = prepare(args)
+    if args.check:
+        # Loading the weights reads their hash and checks them strictly; no inference.
+        return print_check(args, setup, load_registry(models_dir), models_dir)
 
-    registry = load_registry(args.models_dir or settings.models_dir)
+    if setup["problems"]:
+        for problem in setup["problems"]:
+            print(f"\nERREUR : {_indented(problem, '  ')}", file=sys.stderr)
+        return 1
+    plan, stop_reason = setup["plan"], setup["stopReason"]
+    if stop_reason:
+        print(f"\nSEGMENTATION ARRÊTÉE : {_indented(stop_reason, '  ')}\n", file=sys.stderr)
+
+    registry = load_registry(models_dir)
     classifier = registry.get(CLASSIFIER_ID)
     if not classifier.loaded:
-        print(f"Classifieur non chargé ({classifier.error}) : rien à évaluer.", file=sys.stderr)
+        print(
+            f"Classifieur non chargé ({classifier.error}) : {classifier.spec.file_name} dans {models_dir}. "
+            "Indiquez le dossier des poids avec --models-dir.",
+            file=sys.stderr,
+        )
         return 1
 
     report = build_report(registry)
     if args.nickparvar_test is not None:
-        report["classification"] = evaluate_classification(args.nickparvar_test, registry, settings.max_image_pixels)
+        report["classification"] = evaluate_classification(setup["nickparvar"], registry, settings.max_image_pixels)
     if args.brisc_root is not None:
         report["segmentation"] = (
             {"status": "stopped", "reason": stop_reason}
