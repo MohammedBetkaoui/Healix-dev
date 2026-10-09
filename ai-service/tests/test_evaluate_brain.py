@@ -236,7 +236,7 @@ def test_summary_leaves_undefined_values_out():
     assert percentile_ci(np.full(10, 0.9)) == [0.9, 0.9]
 
 
-def test_report_name_carries_the_date_and_the_classifier_hash(tmp_path: Path):
-    path = report_path(tmp_path, "311d2cbb171266721871f46f7f841b1d", datetime.date(2026, 10, 9))
+def test_report_name_carries_the_date_the_time_and_the_classifier_hash(tmp_path: Path):
+    path = report_path(tmp_path, "311d2cbb171266721871f46f7f841b1d", datetime.datetime(2026, 10, 9, 15, 4, 7))
 
-    assert path == tmp_path / "brain-2026-10-09-311d2cbb.json"
+    assert path == tmp_path / "brain-2026-10-09-150407-311d2cbb.json"

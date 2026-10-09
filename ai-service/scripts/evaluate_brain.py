@@ -24,6 +24,7 @@ import datetime
 import json
 import logging
 import platform
+import shutil
 import sys
 import time
 from pathlib import Path, PurePosixPath
@@ -720,9 +721,54 @@ def build_report(registry: ModelRegistry) -> dict:
     }
 
 
-def report_path(output_dir: Path, classifier_sha256: str, today: datetime.date | None = None) -> Path:
-    day = (today or datetime.date.today()).isoformat()
-    return output_dir / f"brain-{day}-{classifier_sha256[:8]}.json"
+LATEST_REPORT_NAME = "brain-latest.json"
+
+
+def report_path(output_dir: Path, classifier_sha256: str, now: datetime.datetime | None = None) -> Path:
+    """evaluation/brain-<date>-<HHMMSS>-<classifier sha256[:8]>.json"""
+    moment = now or datetime.datetime.now()
+    return output_dir / f"brain-{moment:%Y-%m-%d}-{moment:%H%M%S}-{classifier_sha256[:8]}.json"
+
+
+def is_complete(report: dict) -> bool:
+    """Both parts evaluated: the classification, and the segmentation of both classes."""
+    classification = report.get("classification") or {}
+    segmentation = report.get("segmentation") or {}
+    classes = segmentation.get("classes") or {}
+    return (
+        classification.get("status") == "ok"
+        and segmentation.get("status") == "ok"
+        and bool(classes)
+        and all(entry.get("status") == "ok" for entry in classes.values())
+    )
+
+
+def write_report(
+    report: dict, output_dir: Path, classifier_sha256: str, now: datetime.datetime | None = None
+) -> tuple[Path, bool]:
+    """Writes a new report, never over an existing one; True when it was also copied to brain-latest.json.
+
+    brain-latest.json is a copy of the last COMPLETE report: a partial run
+    (classification or segmentation only, or a stopped segmentation) leaves it
+    as it was. The report names itself in "file", so the copy keeps its source.
+    """
+    output_dir.mkdir(parents=True, exist_ok=True)
+    first = report_path(output_dir, classifier_sha256, now)
+    path, attempt = first, 1
+    while True:
+        report["file"] = path.name
+        try:
+            with path.open("x", encoding="utf-8", newline="\n") as handle:  # "x": fails if it exists
+                handle.write(json.dumps(report, indent=2, ensure_ascii=False, default=_json_default) + "\n")
+            break
+        except FileExistsError:
+            attempt += 1
+            path = first.with_name(f"{first.stem}-{attempt}{first.suffix}")
+
+    complete = is_complete(report)
+    if complete:
+        shutil.copyfile(path, output_dir / LATEST_REPORT_NAME)
+    return path, complete
 
 
 def _percent(value: float | None) -> str:
@@ -944,10 +990,12 @@ def main(argv=None) -> int:
             else evaluate_segmentation(plan, registry, settings.max_image_pixels)
         )
 
-    args.output_dir.mkdir(parents=True, exist_ok=True)
-    path = report_path(args.output_dir, classifier.weights_sha256)
-    path.write_text(json.dumps(report, indent=2, ensure_ascii=False, default=_json_default) + "\n", encoding="utf-8")
+    path, latest_updated = write_report(report, args.output_dir, classifier.weights_sha256)
     print_summary(report, path)
+    if latest_updated:
+        print(f"Rapport complet : copié dans {args.output_dir / LATEST_REPORT_NAME}")
+    else:
+        print(f"Rapport partiel (classification et segmentation non toutes deux évaluées) : {LATEST_REPORT_NAME} n'est pas modifié.")
     return 2 if stop_reason else 0
 
 

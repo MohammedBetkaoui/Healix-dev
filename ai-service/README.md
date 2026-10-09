@@ -197,11 +197,17 @@ path that contains spaces. In PowerShell, a command continues on the next line
 with a backtick, not with `\`.
 
 `--models-dir` defaults to `AI_MODELS_DIR`, as for the service; `--output-dir`
-to `evaluation/`. The script writes
-`evaluation/brain-<date>-<first 8 characters of the classifier SHA-256>.json`
+to `evaluation/`. Each run writes a new
+`evaluation/brain-<date>-<HHMMSS>-<first 8 characters of the classifier SHA-256>.json`
 (SHA-256 of the three weight files, torch / timm / smp / OpenCV versions,
-counts per class, every metric) and prints a summary. Commit that JSON: it
-holds no image and no patient data. Exit codes: 0 done; 1 a path, weight or
+counts per class, every metric; the report names itself in `file`) and prints
+a summary. A report is never overwritten. A **complete** run (classification
+and segmentation both evaluated) is also copied to `evaluation/brain-latest.json`;
+a partial run leaves that copy as it was. The figures shown in the frontend
+come from `brain-latest.json`
+(`frontend/src/features/ai-analyses/brain-evaluation.ts`, checked against it by
+its test). Commit the JSON files: they hold no image and no patient data.
+Exit codes: 0 done; 1 a path, weight or
 dataset problem (nothing evaluated); 2 the segmentation part was stopped (the
 classification is still evaluated).
 

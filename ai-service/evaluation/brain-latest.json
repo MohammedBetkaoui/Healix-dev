@@ -1,0 +1,451 @@
+{
+  "schemaVersion": 1,
+  "pipeline": "brain",
+  "generatedAt": "2026-10-09T14:38:43+00:00",
+  "method": {
+    "inference": "app.pipeline.analyze_brain (classification) and app.pipeline._segment (segmentation): the service's code, CPU, one deterministic pass, no test-time augmentation",
+    "preprocessing": "app.preprocess.decode_image and to_input_tensor",
+    "maskThreshold": 0.5,
+    "bootstrap": {
+      "draws": 1000,
+      "seed": 42,
+      "interval": "percentile 2.5-97.5"
+    },
+    "calibrationBins": 10
+  },
+  "weights": {
+    "brain-efficientnetb4-tumor-classification": {
+      "file": "fold_5_best.pth",
+      "sha256": "311d2cbb171266721871f46f7f841b1dffef0c0fec40853745f55be9939ae654",
+      "loaded": true
+    },
+    "brain-unet-meningioma-segmentation": {
+      "file": "healixdz_seg_meningioma_v5_best.pth",
+      "sha256": "95c94047da1daaf71744e6076c5f01401c0af09d5f87335477359681ba7c939d",
+      "loaded": true
+    },
+    "brain-unet-pituitary-segmentation": {
+      "file": "healixdz_seg_pituitary_v5_best.pth",
+      "sha256": "cfd8fc4e55e6a4d7ca97e9613a95451d9680426bdd714f818786ab0e9983dd89",
+      "loaded": true
+    }
+  },
+  "versions": {
+    "python": "3.12.13",
+    "torch": "2.10.0+cpu",
+    "timm": "1.0.25",
+    "segmentationModelsPytorch": "0.5.0",
+    "opencv": "4.14.0",
+    "numpy": "2.5.3",
+    "scikitLearn": "1.9.1",
+    "pandas": "3.0.6"
+  },
+  "classification": {
+    "dataset": {
+      "name": "Nickparvar Brain Tumor MRI Dataset, Testing",
+      "folder": "Testing",
+      "imagesPerClass": {
+        "glioma": 400,
+        "meningioma": 400,
+        "notumor": 400,
+        "pituitary": 400
+      },
+      "ignoredFolders": [],
+      "unreadable": [],
+      "expectedPerClass": 400,
+      "matchesTrainingVersion": true
+    },
+    "status": "ok",
+    "n": 1600,
+    "accuracy": {
+      "value": 0.955,
+      "ci95": [
+        0.944375,
+        0.964390625
+      ]
+    },
+    "confusionMatrix": {
+      "labels": [
+        "glioma",
+        "meningioma",
+        "notumor",
+        "pituitary"
+      ],
+      "rows": "true class",
+      "columns": "predicted class",
+      "matrix": [
+        [
+          335,
+          42,
+          21,
+          2
+        ],
+        [
+          1,
+          393,
+          2,
+          4
+        ],
+        [
+          0,
+          0,
+          400,
+          0
+        ],
+        [
+          0,
+          0,
+          0,
+          400
+        ]
+      ]
+    },
+    "perClass": {
+      "glioma": {
+        "support": 400,
+        "precision": 0.9970238095238095,
+        "recall": 0.8375,
+        "recallCi95": [
+          0.8,
+          0.8715580066645675
+        ],
+        "f1": 0.9103260869565217,
+        "auc": 0.9744562499999999
+      },
+      "meningioma": {
+        "support": 400,
+        "precision": 0.903448275862069,
+        "recall": 0.9825,
+        "recallCi95": [
+          0.968135297730886,
+          0.9948058659686566
+        ],
+        "f1": 0.9413173652694611,
+        "auc": 0.9869270833333333
+      },
+      "notumor": {
+        "support": 400,
+        "precision": 0.9456264775413712,
+        "recall": 1.0,
+        "recallCi95": [
+          1.0,
+          1.0
+        ],
+        "f1": 0.9720534629404617,
+        "auc": 0.9985208333333334
+      },
+      "pituitary": {
+        "support": 400,
+        "precision": 0.9852216748768473,
+        "recall": 1.0,
+        "recallCi95": [
+          1.0,
+          1.0
+        ],
+        "f1": 0.9925558312655087,
+        "auc": 0.999975
+      }
+    },
+    "macro": {
+      "precision": 0.9578300594510243,
+      "recall": 0.9550000000000001,
+      "f1": 0.9540631866079883,
+      "auc": 0.9899697916666667
+    },
+    "calibration": {
+      "ece": 0.06836395312100656,
+      "bins": [
+        {
+          "lower": 0.0,
+          "upper": 0.1,
+          "count": 0,
+          "meanConfidence": null,
+          "accuracy": null
+        },
+        {
+          "lower": 0.1,
+          "upper": 0.2,
+          "count": 0,
+          "meanConfidence": null,
+          "accuracy": null
+        },
+        {
+          "lower": 0.2,
+          "upper": 0.3,
+          "count": 0,
+          "meanConfidence": null,
+          "accuracy": null
+        },
+        {
+          "lower": 0.3,
+          "upper": 0.4,
+          "count": 0,
+          "meanConfidence": null,
+          "accuracy": null
+        },
+        {
+          "lower": 0.4,
+          "upper": 0.5,
+          "count": 4,
+          "meanConfidence": 0.4683138579130173,
+          "accuracy": 0.5
+        },
+        {
+          "lower": 0.5,
+          "upper": 0.6,
+          "count": 4,
+          "meanConfidence": 0.5578413754701614,
+          "accuracy": 0.5
+        },
+        {
+          "lower": 0.6,
+          "upper": 0.7,
+          "count": 10,
+          "meanConfidence": 0.6608881115913391,
+          "accuracy": 0.6
+        },
+        {
+          "lower": 0.7,
+          "upper": 0.8,
+          "count": 29,
+          "meanConfidence": 0.7647307350717741,
+          "accuracy": 0.4827586206896552
+        },
+        {
+          "lower": 0.8,
+          "upper": 0.9,
+          "count": 129,
+          "meanConfidence": 0.8813863336577896,
+          "accuracy": 0.7984496124031008
+        },
+        {
+          "lower": 0.9,
+          "upper": 1.0,
+          "count": 1424,
+          "meanConfidence": 0.9209695888704128,
+          "accuracy": 0.9838483146067416
+        }
+      ]
+    },
+    "accuracyByConfidence": [
+      {
+        "threshold": 0.5,
+        "count": 1596,
+        "coverage": 0.9975,
+        "accuracy": 0.956140350877193
+      },
+      {
+        "threshold": 0.55,
+        "count": 1594,
+        "coverage": 0.99625,
+        "accuracy": 0.9567126725219574
+      },
+      {
+        "threshold": 0.6,
+        "count": 1592,
+        "coverage": 0.995,
+        "accuracy": 0.957286432160804
+      },
+      {
+        "threshold": 0.65,
+        "count": 1589,
+        "coverage": 0.993125,
+        "accuracy": 0.9584644430459408
+      },
+      {
+        "threshold": 0.7,
+        "count": 1582,
+        "coverage": 0.98875,
+        "accuracy": 0.9595448798988622
+      },
+      {
+        "threshold": 0.75,
+        "count": 1574,
+        "coverage": 0.98375,
+        "accuracy": 0.9625158831003812
+      },
+      {
+        "threshold": 0.8,
+        "count": 1553,
+        "coverage": 0.970625,
+        "accuracy": 0.9684481648422408
+      },
+      {
+        "threshold": 0.85,
+        "count": 1538,
+        "coverage": 0.96125,
+        "accuracy": 0.9746423927178154
+      },
+      {
+        "threshold": 0.9,
+        "count": 1424,
+        "coverage": 0.89,
+        "accuracy": 0.9838483146067416
+      },
+      {
+        "threshold": 0.95,
+        "count": 0,
+        "coverage": 0.0,
+        "accuracy": null
+      }
+    ],
+    "notebookReported": {
+      "accuracy": 0.9544,
+      "note": "TTA x4 (identity, horizontal flip, vertical flip, rotation) and mixed precision on GPU"
+    },
+    "durationSeconds": 169.4
+  },
+  "segmentation": {
+    "status": "ok",
+    "dataset": {
+      "name": "BRISC 2025",
+      "split": "segmentation-reelle.ipynb: train_test_split(test_size=0.15, random_state=42), then train_test_split(test_size=0.5, random_state=42); test = second half"
+    },
+    "classes": {
+      "meningioma": {
+        "pairs": 1635,
+        "modelId": "brain-unet-meningioma-segmentation",
+        "status": "ok",
+        "testImages": 123,
+        "scoredImages": 123,
+        "service": {
+          "resolution": "original image size (the mask the service returns)",
+          "dice": {
+            "n": 123,
+            "mean": 0.9262077877182253,
+            "median": 0.9525687597301505,
+            "ci95": [
+              0.9059920023495519,
+              0.9409263098925146
+            ]
+          },
+          "iou": {
+            "n": 123,
+            "mean": 0.8727170012485506,
+            "median": 0.9094332144272691,
+            "ci95": [
+              0.8506053851575764,
+              0.8919303586289329
+            ]
+          },
+          "sensitivity": {
+            "n": 123,
+            "mean": 0.9475778220862555,
+            "median": 0.9726372071080358,
+            "ci95": [
+              0.932060103889757,
+              0.9605326778194047
+            ]
+          }
+        },
+        "notebookStyle": {
+          "resolution": "256x256",
+          "batchSize": 16,
+          "dice": 0.927729963268346,
+          "iou": 0.8753281061412387,
+          "sensitivity": 0.9575961810854954
+        },
+        "notebookReported": {
+          "dice": 0.9277,
+          "iou": 0.8753,
+          "sensitivity": 0.9576
+        },
+        "routing": {
+          "predictedClasses": {
+            "glioma": 0,
+            "meningioma": 123,
+            "notumor": 0,
+            "pituitary": 0
+          },
+          "routedToThisSegmenter": 123,
+          "share": 1.0,
+          "endToEndDice": {
+            "n": 123,
+            "mean": 0.9262077877182253,
+            "median": 0.9525687597301505,
+            "ci95": [
+              0.9059920023495519,
+              0.9409263098925146
+            ]
+          }
+        },
+        "unreadable": [],
+        "shapeMismatches": 0,
+        "emptyTruthAfterBinarization": 0
+      },
+      "pituitary": {
+        "pairs": 1757,
+        "modelId": "brain-unet-pituitary-segmentation",
+        "status": "ok",
+        "testImages": 132,
+        "scoredImages": 132,
+        "service": {
+          "resolution": "original image size (the mask the service returns)",
+          "dice": {
+            "n": 132,
+            "mean": 0.8743110288893325,
+            "median": 0.9057029070921067,
+            "ci95": [
+              0.8542454129025826,
+              0.8906339305099115
+            ]
+          },
+          "iou": {
+            "n": 132,
+            "mean": 0.7892204886846464,
+            "median": 0.8276579371013262,
+            "ci95": [
+              0.7635273944294909,
+              0.8101797162978877
+            ]
+          },
+          "sensitivity": {
+            "n": 132,
+            "mean": 0.914819255567572,
+            "median": 0.9544656681830572,
+            "ci95": [
+              0.892044332673283,
+              0.933931306670024
+            ]
+          }
+        },
+        "notebookStyle": {
+          "resolution": "256x256",
+          "batchSize": 16,
+          "dice": 0.8717489210670863,
+          "iou": 0.7859143204798222,
+          "sensitivity": 0.9155904719392919
+        },
+        "notebookReported": {
+          "dice": 0.8717,
+          "iou": 0.7859,
+          "sensitivity": 0.9156
+        },
+        "routing": {
+          "predictedClasses": {
+            "glioma": 0,
+            "meningioma": 0,
+            "notumor": 0,
+            "pituitary": 132
+          },
+          "routedToThisSegmenter": 132,
+          "share": 1.0,
+          "endToEndDice": {
+            "n": 132,
+            "mean": 0.8743110288893325,
+            "median": 0.9057029070921067,
+            "ci95": [
+              0.8542454129025826,
+              0.8906339305099115
+            ]
+          }
+        },
+        "unreadable": [],
+        "shapeMismatches": 0,
+        "emptyTruthAfterBinarization": 0
+      }
+    },
+    "durationSeconds": 124.2
+  },
+  "file": "brain-2026-10-09-154337-311d2cbb.json"
+}
