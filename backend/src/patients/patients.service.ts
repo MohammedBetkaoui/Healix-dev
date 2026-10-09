@@ -623,6 +623,15 @@ export class PatientsService {
     };
   }
 
+  // The rule of getPatientInScope as a filter, for queries over all the
+  // patients a user may see (AI analysis runs follow-up): applied in the
+  // query, never patient by patient.
+  async getPatientScopeWhere(
+    user: AuthenticatedUserPayload,
+  ): Promise<Prisma.PatientWhereInput> {
+    return this.scopeToWhere(await this.resolveOwnerScope(user));
+  }
+
   // Public for the AI analysis runs module: same scope rule everywhere.
   async getPatientInScope(
     user: AuthenticatedUserPayload,

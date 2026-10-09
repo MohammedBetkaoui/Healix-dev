@@ -36,7 +36,7 @@ const SUPPORTED_IMAGE_TYPES = new Set(['image/png', 'image/jpeg']);
 
 // A run still RUNNING this long after its creation lost its request (backend
 // restarted mid-analysis): the service call itself stops at the timeout.
-const STALE_RUN_AFTER_MS = AI_SERVICE_TIMEOUT_MS + 60_000;
+export const STALE_RUN_AFTER_MS = AI_SERVICE_TIMEOUT_MS + 60_000;
 
 type RunErrorCode =
   | AiServiceFailure
@@ -44,13 +44,13 @@ type RunErrorCode =
   | 'RUN_INTERRUPTED';
 
 // The decision's author, by name only (never other user fields).
-const decidedByInclude = {
+export const decidedByInclude = {
   decidedBy: { select: { fullName: true } },
   // The number of its PDF report, once generated.
   report: { select: { reportNumber: true } },
 } as const;
 
-type RunWithDecider = AiAnalysisRun & {
+export type RunWithDecider = AiAnalysisRun & {
   decidedBy?: { fullName: string } | null;
   report?: { reportNumber: string } | null;
 };
@@ -61,8 +61,10 @@ const alreadyDecided = () =>
     message: 'Cette analyse a déjà reçu une décision, qui est définitive.',
   });
 
-// Class with the highest probability in the stored predictions.
-function getTopLabel(predictions: unknown): string | null {
+// Prediction with the highest probability in the stored predictions.
+export function getTopPrediction(
+  predictions: unknown,
+): { label: string; probability: number } | null {
   if (!Array.isArray(predictions)) {
     return null;
   }
@@ -79,7 +81,11 @@ function getTopLabel(predictions: unknown): string | null {
     }
   }
 
-  return top?.label ?? null;
+  return top;
+}
+
+export function getTopLabel(predictions: unknown): string | null {
+  return getTopPrediction(predictions)?.label ?? null;
 }
 
 @Injectable()
@@ -319,7 +325,7 @@ export class AiAnalysisRunsService {
 
   // Without this, a run whose request died (backend restart) would stay
   // RUNNING for good and the result page would poll it forever.
-  private async expireIfStale(
+  async expireIfStale(
     user: AuthenticatedUserPayload,
     run: RunWithDecider,
     now: Date = new Date(),
@@ -484,7 +490,7 @@ export class AiAnalysisRunsService {
   }
 
   // maskPath stays server-side; the client gets hasMask and the mask route.
-  private toRunResponse(run: RunWithDecider) {
+  toRunResponse(run: RunWithDecider) {
     return {
       id: run.id,
       patientId: run.patientId,

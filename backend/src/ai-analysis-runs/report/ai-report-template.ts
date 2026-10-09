@@ -510,13 +510,14 @@ figure{margin:0;width:62mm;break-inside:avoid}
 figcaption{margin-top:1.4mm;font-size:8pt;color:#4a4a4a}
 .notice{margin-top:3mm;padding:2.4mm 3mm;border:.7pt solid #5a5a5a;break-inside:avoid}
 .notice strong{display:block;margin-bottom:.6mm}
-section.conclusion{margin-top:6mm;padding:3.5mm 4mm;border:1.3pt solid ${ACCENT_COLOR};break-inside:avoid}
+.closing{margin-top:6mm;break-inside:avoid}
+section.conclusion{margin-top:0;padding:3.5mm 4mm;border:1.3pt solid ${ACCENT_COLOR};break-inside:avoid}
 .conclusion .verdict{font-size:11pt;font-weight:700;color:${ACCENT_COLOR}}
 .conclusion table.facts th{width:28%}
 section.small{font-size:7.8pt;color:#3a3a3a}
 section.small h2{font-size:7.8pt}
 section.small ul{margin:1mm 0 0;padding-left:4mm}
-.signature{width:72mm;margin:9mm 0 0 auto;padding-top:2.2mm;border-top:.6pt solid ${ACCENT_COLOR};break-inside:avoid;font-size:8.6pt}
+.signature{width:72mm;margin:6mm 0 0 auto;padding-top:2.2mm;border-top:.6pt solid ${ACCENT_COLOR};break-inside:avoid;font-size:8.6pt}
 .signature p{margin:0 0 .6mm}
 .signature .signer{font-size:10pt;font-weight:700}
 .signature .electronic{margin-top:1.4mm;font-weight:600;color:${ACCENT_COLOR}}
@@ -580,10 +581,12 @@ ${identification(input)}
 ${indication(input)}
 ${technique(input)}
 ${results(input, evaluationApplies)}
+<div class="closing">
 ${conclusion(input)}
+${signature(input, contentSha256)}
+</div>
 ${performances(input, evaluationApplies)}
 ${legal(input, evaluationApplies)}
-${signature(input, contentSha256)}
 </body>
 </html>`;
 

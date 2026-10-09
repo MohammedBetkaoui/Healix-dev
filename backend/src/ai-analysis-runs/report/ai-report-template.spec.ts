@@ -112,15 +112,30 @@ describe('buildReportDocument', () => {
       '>Technique<',
       '>Résultats<',
       '>Conclusion du médecin<',
-      '>Performances de référence<',
-      '>Mentions légales<',
+      // The signature right after the conclusion, in the same block.
       'Validé électroniquement dans HealixDZ',
       'Empreinte du document : ',
+      '>Performances de référence<',
+      '>Mentions légales<',
     ].map((text) => html.indexOf(text));
 
     expect(order.every((index) => index >= 0)).toBe(true);
     expect([...order].sort((a, b) => a - b)).toEqual(order);
     expect(html).toContain('<html lang="fr">');
+  });
+
+  it('keeps the conclusion and the signature together, on the same page', () => {
+    const html = buildReportDocument(reportInput()).html;
+    // From the unbreakable block to the first section after it.
+    const closing = html.slice(
+      html.indexOf('<div class="closing">'),
+      html.indexOf('<section class="small">'),
+    );
+
+    expect(closing).toContain('Conclusion du médecin');
+    expect(closing).toContain('Validé électroniquement dans HealixDZ');
+    expect(closing).toContain('Empreinte du document : ');
+    expect(html).toMatch(/\.closing\{[^}]*break-inside:avoid/);
   });
 
   it('identifies the patient by name, sex, birth date, age and record number only', () => {
