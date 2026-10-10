@@ -68,7 +68,6 @@ export const loginAr = {
     passwordPlaceholder: "كلمة المرور الخاصة بك",
     rememberMe: "إبقاء الجلسة نشطة",
     forgotPassword: "هل نسيت كلمة المرور؟",
-    forgotPasswordComingSoon: "متاح قريبًا",
     submit: "تسجيل الدخول",
     loading: "جاري تسجيل الدخول...",
     ssoComingSoon: "الدخول الموحّد متاح قريبًا",

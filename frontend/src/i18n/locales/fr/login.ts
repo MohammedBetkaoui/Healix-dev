@@ -68,7 +68,6 @@ export const loginFr = {
     passwordPlaceholder: "Votre mot de passe",
     rememberMe: "Garder la session active",
     forgotPassword: "Mot de passe oublié ?",
-    forgotPasswordComingSoon: "Bientôt disponible",
     submit: "Se connecter",
     loading: "Connexion en cours...",
     ssoComingSoon: "SSO bientôt disponible",
