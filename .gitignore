@@ -2,3 +2,6 @@
 # from AI_MODELS_DIR (see ai-service/README.md).
 /models/
 *.pth
+
+# Docker deployment settings and secrets (template: .env.docker.example).
+/.env

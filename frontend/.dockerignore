@@ -1,0 +1,11 @@
+# Build context of frontend/Dockerfile: sources only. .env.local stays out:
+# the public values come from the build arguments.
+.env
+.env.*
+node_modules
+.next
+.swc
+coverage
+*.log
+Dockerfile
+.dockerignore

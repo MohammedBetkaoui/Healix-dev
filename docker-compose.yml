@@ -1,0 +1,184 @@
+# HealixDz: MySQL, backend (NestJS + Chromium), frontend (Next.js) and AI
+# service (FastAPI, PyTorch CPU). See DEPLOIEMENT.md.
+#
+# Every setting and secret comes from .env, next to this file (copy
+# .env.docker.example; .env is never versioned).
+#
+# Production by default: NODE_ENV=production, so the backend refuses to start
+# without SMTP. Local demonstration, e-mails written to the backend logs:
+#   docker compose -f docker-compose.yml -f docker-compose.dev.yml up -d --build
+
+name: healixdz
+
+services:
+  mysql:
+    image: mysql:8.4
+    restart: unless-stopped
+    environment:
+      MYSQL_DATABASE: ${MYSQL_DATABASE:-healixdz}
+      MYSQL_USER: ${MYSQL_USER:-healixdz}
+      MYSQL_PASSWORD: ${MYSQL_PASSWORD:?MYSQL_PASSWORD manque dans .env}
+      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD:?MYSQL_ROOT_PASSWORD manque dans .env}
+    command:
+      - --character-set-server=utf8mb4
+      - --collation-server=utf8mb4_unicode_ci
+    volumes:
+      - mysql-data:/var/lib/mysql
+    # Internal network only, no published port: reachable from the backend.
+    networks:
+      - internal
+    healthcheck:
+      # Over TCP: the temporary server of the first start-up (no network)
+      # does not count as ready.
+      test: ["CMD-SHELL", "mysqladmin ping -h 127.0.0.1 -uroot -p\"$${MYSQL_ROOT_PASSWORD}\" --silent"]
+      interval: 10s
+      timeout: 5s
+      retries: 30
+      start_period: 60s
+
+  ai-service:
+    build: ./ai-service
+    image: healixdz-ai-service:latest
+    restart: unless-stopped
+    environment:
+      AI_SERVICE_TOKEN: ${AI_SERVICE_TOKEN:?AI_SERVICE_TOKEN manque dans .env}
+      AI_MODELS_DIR: /models
+    volumes:
+      # The weights stay on the host, read-only; never in the image.
+      - type: bind
+        source: ${AI_MODELS_DIR:-./models}
+        target: /models
+        read_only: true
+    # Internal network only, no published port, no Internet access: it only
+    # ever receives image bytes from the backend.
+    networks:
+      - internal
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8001/health', timeout=4)"]
+      interval: 30s
+      timeout: 5s
+      retries: 5
+      start_period: 60s
+
+  backend:
+    build: ./backend
+    image: healixdz-backend:latest
+    restart: unless-stopped
+    depends_on:
+      mysql:
+        condition: service_healthy
+      ai-service:
+        condition: service_healthy
+    environment:
+      NODE_ENV: production
+      # The port inside the container equals the published one: the frontend
+      # server reaches the API at the browser's address (see frontend below).
+      PORT: ${BACKEND_PORT:-3001}
+      # allowPublicKeyRetrieval: MySQL 8 authentication (caching_sha2_password)
+      # without TLS, on the internal network only.
+      DATABASE_URL: mysql://${MYSQL_USER:-healixdz}:${MYSQL_PASSWORD:?MYSQL_PASSWORD manque dans .env}@mysql:3306/${MYSQL_DATABASE:-healixdz}?allowPublicKeyRetrieval=true
+      FRONTEND_URL: ${APP_PUBLIC_URL:-http://localhost:3000}
+      APP_PUBLIC_URL: ${APP_PUBLIC_URL:-http://localhost:3000}
+      COOKIE_SECURE: ${COOKIE_SECURE:-false}
+      ADMIN_COOKIE_SECURE: ${COOKIE_SECURE:-false}
+      TRUST_PROXY: ${TRUST_PROXY:-loopback}
+      BCRYPT_SALT_ROUNDS: ${BCRYPT_SALT_ROUNDS:-12}
+      JWT_ACCESS_SECRET: ${JWT_ACCESS_SECRET:?JWT_ACCESS_SECRET manque dans .env}
+      JWT_REFRESH_SECRET: ${JWT_REFRESH_SECRET:?JWT_REFRESH_SECRET manque dans .env}
+      ADMIN_JWT_ACCESS_SECRET: ${ADMIN_JWT_ACCESS_SECRET:?ADMIN_JWT_ACCESS_SECRET manque dans .env}
+      ADMIN_JWT_REFRESH_SECRET: ${ADMIN_JWT_REFRESH_SECRET:?ADMIN_JWT_REFRESH_SECRET manque dans .env}
+      ADMIN_GATE_PATH: ${ADMIN_GATE_PATH:-/hzdz-control-gate-2026}
+      AI_SERVICE_URL: http://ai-service:8001
+      AI_SERVICE_TOKEN: ${AI_SERVICE_TOKEN:?AI_SERVICE_TOKEN manque dans .env}
+      AI_EVALUATION_REPORT_PATH: /app/evaluation/brain-latest.json
+      UPLOAD_ROOT: /app/uploads
+      SMTP_HOST: ${SMTP_HOST:-}
+      SMTP_PORT: ${SMTP_PORT:-587}
+      SMTP_SECURE: ${SMTP_SECURE:-false}
+      SMTP_USER: ${SMTP_USER:-}
+      SMTP_PASSWORD: ${SMTP_PASSWORD:-}
+      MAIL_FROM: ${MAIL_FROM:-}
+    volumes:
+      # Patient documents, segmentation masks and PDF reports.
+      - patient-files:/app/uploads
+      # The evaluation report shown in the PDF reports, read-only.
+      - type: bind
+        source: ./ai-service/evaluation
+        target: /app/evaluation
+        read_only: true
+    networks:
+      - internal
+      - public
+    ports:
+      # The frontend shares this container's network (network_mode below):
+      # its port is published here. Both are called by the browser.
+      - "${BIND_ADDRESS:-127.0.0.1}:${FRONTEND_PORT:-3000}:${FRONTEND_PORT:-3000}"
+      - "${BIND_ADDRESS:-127.0.0.1}:${BACKEND_PORT:-3001}:${BACKEND_PORT:-3001}"
+    healthcheck:
+      test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:' + process.env.PORT + '/api').then((r) => process.exit(r.ok ? 0 : 1), () => process.exit(1))"]
+      interval: 30s
+      timeout: 5s
+      retries: 5
+      # Migrations run before the API starts.
+      start_period: 120s
+
+  frontend:
+    build:
+      context: ./frontend
+      args:
+        # Written into the JavaScript at build time: rebuild the image after
+        # changing them.
+        NEXT_PUBLIC_API_URL: ${PUBLIC_API_URL:-http://localhost:3001/api}
+        NEXT_PUBLIC_ADMIN_GATE_PATH: ${ADMIN_GATE_PATH:-/hzdz-control-gate-2026}
+    image: healixdz-frontend:latest
+    restart: unless-stopped
+    # The Next.js server calls the API at the same address as the browser
+    # (NEXT_PUBLIC_API_URL). Sharing the backend's network namespace makes
+    # "localhost:<BACKEND_PORT>" the API here too, without changing the code.
+    network_mode: service:backend
+    depends_on:
+      backend:
+        condition: service_healthy
+    environment:
+      PORT: ${FRONTEND_PORT:-3000}
+      HOSTNAME: 0.0.0.0
+    healthcheck:
+      test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:' + process.env.PORT + '/').then((r) => process.exit(r.status < 500 ? 0 : 1), () => process.exit(1))"]
+      interval: 30s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+
+  # One-off: creates (or updates) the first administrator and the
+  # subscription plans with the existing seed (prisma/seed.ts).
+  #   docker compose --profile seed run --rm admin-seed
+  admin-seed:
+    image: healixdz-backend:latest
+    profiles:
+      - seed
+    depends_on:
+      mysql:
+        condition: service_healthy
+    environment:
+      DATABASE_URL: mysql://${MYSQL_USER:-healixdz}:${MYSQL_PASSWORD:?MYSQL_PASSWORD manque dans .env}@mysql:3306/${MYSQL_DATABASE:-healixdz}?allowPublicKeyRetrieval=true
+      BCRYPT_SALT_ROUNDS: ${BCRYPT_SALT_ROUNDS:-12}
+      # Checked by the seed itself, which stops when one is missing.
+      ADMIN_SEED_EMAIL: ${ADMIN_SEED_EMAIL:-}
+      ADMIN_SEED_PASSWORD: ${ADMIN_SEED_PASSWORD:-}
+      ADMIN_SEED_FULL_NAME: ${ADMIN_SEED_FULL_NAME:-}
+      ADMIN_SEED_PHONE: ${ADMIN_SEED_PHONE:-admin-healixdz}
+      ADMIN_SEED_UPDATE_PASSWORD: ${ADMIN_SEED_UPDATE_PASSWORD:-false}
+    networks:
+      - internal
+    command: ["node", "dist/prisma/seed.js"]
+
+volumes:
+  mysql-data:
+  patient-files:
+
+networks:
+  # No route to the outside: MySQL and the AI service live here only.
+  internal:
+    internal: true
+  # The backend's way out (SMTP) and its published ports.
+  public: {}

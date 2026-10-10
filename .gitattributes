@@ -1,0 +1,4 @@
+# Run inside Linux containers: LF line endings whatever the checkout OS
+# (a CRLF shell script fails with "not found").
+*.sh text eol=lf
+Dockerfile text eol=lf

@@ -1,0 +1,13 @@
+# Build context of backend/Dockerfile: sources only, never secrets,
+# dependencies, build output or patient files.
+.env
+.env.*
+node_modules
+dist
+generated
+uploads
+coverage
+test
+*.log
+Dockerfile
+.dockerignore

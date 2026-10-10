@@ -1,0 +1,12 @@
+# Local demonstration, on top of docker-compose.yml:
+#   docker compose -f docker-compose.yml -f docker-compose.dev.yml up -d --build
+#
+# The backend runs in development mode: without SMTP it starts anyway and
+# writes each e-mail (password reset links included) to its logs:
+#   docker compose logs -f backend
+# Never for real users: nothing is sent.
+
+services:
+  backend:
+    environment:
+      NODE_ENV: development
