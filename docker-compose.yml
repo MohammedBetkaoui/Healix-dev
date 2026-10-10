@@ -199,6 +199,60 @@ services:
       retries: 5
       start_period: 60s
 
+  # Nightly backup at BACKUP_TIME: the database (mysqldump --single-transaction,
+  # gzip) and the patient files (tar.gz), timestamped, each with its SHA-256,
+  # in BACKUP_DIR on the host; kept BACKUP_RETENTION_DAYS days; encrypted with
+  # age when BACKUP_AGE_RECIPIENT is set. One backup now:
+  #   docker compose exec backup healixdz-backup
+  backup:
+    build: ./scripts/backup
+    image: healixdz-backup:latest
+    restart: unless-stopped
+    depends_on:
+      mysql:
+        condition: service_healthy
+    environment: &backup-environment
+      MYSQL_HOST: mysql
+      MYSQL_DATABASE: ${MYSQL_DATABASE:-healixdz}
+      MYSQL_USER: ${MYSQL_USER:-healixdz}
+      MYSQL_PASSWORD: ${MYSQL_PASSWORD:?MYSQL_PASSWORD manque dans .env}
+      BACKUP_TIME: ${BACKUP_TIME:-02:30}
+      TZ: ${BACKUP_TZ:-Africa/Algiers}
+      BACKUP_RETENTION_DAYS: ${BACKUP_RETENTION_DAYS:-14}
+      BACKUP_AGE_RECIPIENT: ${BACKUP_AGE_RECIPIENT:-}
+    volumes:
+      - patient-files:/data/patient-files:ro
+      - ${BACKUP_DIR:-./backups}:/backups
+    # The MySQL image declares a data volume this container never uses.
+    tmpfs:
+      - /var/lib/mysql
+    networks:
+      - internal
+
+  # One-off restore of a backup (database, then patient files), into an
+  # empty stack: see DEPLOIEMENT.md.
+  #   docker compose --profile restore run --rm restore <db archive> <files archive>
+  restore:
+    image: healixdz-backup:latest
+    profiles:
+      - restore
+    depends_on:
+      mysql:
+        condition: service_healthy
+    environment:
+      <<: *backup-environment
+      # Private age key, mounted at run time for encrypted backups only.
+      BACKUP_AGE_IDENTITY_FILE: /run/age/identity
+    volumes:
+      - patient-files:/data/patient-files
+      - ${BACKUP_DIR:-./backups}:/backups:ro
+    tmpfs:
+      - /var/lib/mysql
+    networks:
+      - internal
+    entrypoint: ["healixdz-restore"]
+    command: []
+
   # One-off: creates (or updates) the first administrator and the
   # subscription plans with the existing seed (prisma/seed.ts).
   #   docker compose --profile seed run --rm admin-seed

@@ -1,6 +1,7 @@
 # Déploiement Docker de HealixDz
 
-Cinq conteneurs, décrits par [`docker-compose.yml`](docker-compose.yml) :
+Cinq conteneurs applicatifs, plus celui des sauvegardes, décrits par
+[`docker-compose.yml`](docker-compose.yml) :
 
 | Service | Image | Rôle | Réseaux | Ports publiés |
 | --- | --- | --- | --- | --- |
@@ -9,6 +10,7 @@ Cinq conteneurs, décrits par [`docker-compose.yml`](docker-compose.yml) :
 | `backend` | [`backend/Dockerfile`](backend/Dockerfile) | API NestJS, migrations, PDF (Chromium) | edge, internal | aucun |
 | `mysql` | `mysql:8.4` | Base de données | internal | aucun |
 | `ai-service` | [`ai-service/Dockerfile`](ai-service/Dockerfile) | Inférence (PyTorch CPU) | internal | aucun |
+| `backup` | [`scripts/backup/Dockerfile`](scripts/backup/Dockerfile) | Sauvegarde nocturne de la base et des fichiers | internal | aucun |
 
 - **Un seul domaine.** Tout passe par Caddy, sur `https://APP_DOMAIN` :
   `/api/*` va au backend, le reste au frontend. Le navigateur appelle donc
@@ -34,6 +36,8 @@ Cinq conteneurs, décrits par [`docker-compose.yml`](docker-compose.yml) :
   - le rapport d'évaluation `ai-service/evaluation/brain-latest.json`, lu par
     le backend (`AI_EVALUATION_REPORT_PATH`) ;
   - la configuration de Caddy (`caddy/`).
+- **Sauvegardes** : le dossier de l'hôte `BACKUP_DIR`, où écrit le service
+  `backup` (section 8).
 - **Secrets.** Tous viennent du fichier `.env`, non versionné. Aucune image
   n'en contient.
 
@@ -189,7 +193,7 @@ docker compose ps
 
 Le premier build prend un moment (PyTorch et Chromium). Au démarrage, le
 backend applique les migrations en attente (`prisma migrate deploy`), puis
-lance l'API. `docker compose ps` doit afficher les cinq services `healthy`.
+lance l'API. `docker compose ps` doit afficher les six services `healthy` (dont `backup`).
 
 ### Vérification du certificat
 
@@ -305,47 +309,120 @@ concerne pas les comptes d'administration.
 
 ## 8. Sauvegarde et restauration
 
-Sauvegardez **ensemble** la base et le volume des fichiers : un document cité
-par la base doit exister dans le volume.
+Les sauvegardes contiennent des **données de santé**. Chiffrez-les
+(ci-dessous), gardez-en une copie hors du serveur, et testez une
+restauration au moins une fois par mois.
 
-### Sauvegarde
+### Sauvegardes automatiques
 
-```bash
-mkdir -p sauvegardes
-d=$(date +%Y-%m-%d-%H%M)
+Le service `backup` (image [`scripts/backup/`](scripts/backup/)) tourne en
+permanence. Chaque nuit à `BACKUP_TIME` (02:30, fuseau `BACKUP_TZ`), il
+dépose dans `BACKUP_DIR` (par défaut `./backups`) :
 
-# Base : le dump est écrit dans le conteneur, puis copié.
-docker compose exec mysql sh -c 'mysqldump --single-transaction --triggers --no-tablespaces -uroot -p"$MYSQL_ROOT_PASSWORD" "$MYSQL_DATABASE" > /tmp/healixdz.sql'
-docker compose cp mysql:/tmp/healixdz.sql "sauvegardes/healixdz-$d.sql"
-docker compose exec mysql rm /tmp/healixdz.sql
+| Fichier | Contenu |
+| --- | --- |
+| `healixdz-db-<date UTC>.sql.gz[.age]` | la base, `mysqldump --single-transaction` (copie cohérente, sans bloquer l'application) |
+| `healixdz-files-<date UTC>.tar.gz[.age]` | le volume des fichiers patients (documents, masques, comptes rendus) |
+| `….sha256` | l'empreinte SHA-256 de chaque archive, vérifiable avec `sha256sum -c` |
 
-# Fichiers patients
-docker run --rm -v healixdz_patient-files:/data:ro -v "$PWD/sauvegardes:/backup" alpine:3.20 tar czf "/backup/fichiers-patients-$d.tar.gz" -C /data .
-```
+Les archives de plus de `BACKUP_RETENTION_DAYS` jours (14) sont supprimées
+après chaque sauvegarde réussie. Une sauvegarde en échec rend le conteneur
+`unhealthy` (`docker compose ps`) jusqu'à la suivante qui réussit ; le
+détail est dans `docker compose logs backup`.
 
-Le dossier `sauvegardes/` contient des données de santé : gardez-le hors du
-dépôt Git et sur un support chiffré.
-
-### Restauration
-
-Remplacez `<date>` par celle de la sauvegarde.
+Sous Linux, le dossier doit appartenir à l'utilisateur 1000 :
 
 ```bash
-docker compose stop frontend backend
-
-# Base
-docker compose cp "sauvegardes/healixdz-<date>.sql" mysql:/tmp/restore.sql
-docker compose exec mysql sh -c 'mysql -uroot -p"$MYSQL_ROOT_PASSWORD" "$MYSQL_DATABASE" < /tmp/restore.sql && rm /tmp/restore.sql'
-
-# Fichiers patients (le contenu actuel du volume est remplacé)
-docker run --rm -v healixdz_patient-files:/data -v "$PWD/sauvegardes:/backup:ro" alpine:3.20 sh -c "find /data -mindepth 1 -delete && tar xzf /backup/fichiers-patients-<date>.tar.gz -C /data"
-
-docker compose start backend frontend
+mkdir -p backups && sudo chown 1000:1000 backups
 ```
+
+Lancer une sauvegarde tout de suite (avant une mise à jour, par exemple) :
+
+```bash
+docker compose exec backup healixdz-backup
+```
+
+### Chiffrement (recommandé)
+
+Avec une clé publique [age](https://age-encryption.org) dans
+`BACKUP_AGE_RECIPIENT`, chaque archive est chiffrée au fil de l'eau : aucune
+copie en clair n'est jamais écrite sur le disque.
+
+1. Sur un poste d'administration, **pas sur le serveur**, générez la paire de
+   clés (age pour Windows : `age-keygen.exe`, dans l'archive de la release
+   officielle) :
+
+   ```bash
+   age-keygen -o healixdz-backup.key
+   ```
+
+   La ligne `# public key: age1…` du fichier est la clé publique.
+2. Mettez-la dans `.env` (`BACKUP_AGE_RECIPIENT=age1…`), puis
+   `docker compose up -d backup`.
+3. Rangez `healixdz-backup.key` (la clé privée) hors du serveur, en deux
+   exemplaires (coffre-fort de mots de passe, support chiffré). Sans elle,
+   les sauvegardes chiffrées sont **irrécupérables** ; volée avec elles, elle
+   les rend lisibles.
+
+### Restauration sur une pile vide (procédure testée)
+
+Cas d'un nouveau serveur, ou d'une perte des volumes. Les sauvegardes sont
+dans `BACKUP_DIR`.
+
+1. Préparez la pile comme pour un premier démarrage (même `.env`, mêmes
+   poids), sans données : seul MySQL démarre.
+
+   ```bash
+   docker compose build
+   docker compose up -d mysql
+   ```
+
+2. Restaurez la base, puis les fichiers. Indiquez les noms des deux
+   archives d'une même sauvegarde :
+
+   ```bash
+   docker compose --profile restore run --rm restore \
+     healixdz-db-20261010T023000Z.sql.gz healixdz-files-20261010T023000Z.tar.gz
+   ```
+
+   Sauvegarde chiffrée : montez la clé privée pour cette seule commande.
+
+   ```bash
+   docker compose --profile restore run --rm \
+     -v /chemin/vers/healixdz-backup.key:/run/age/identity:ro \
+     restore healixdz-db-….sql.gz.age healixdz-files-….tar.gz.age
+   ```
+
+   Le script ([`scripts/backup/restore.sh`](scripts/backup/restore.sh))
+   procède ainsi :
+   - il vérifie les empreintes SHA-256 et relit entièrement les deux archives
+     (déchiffrées si besoin) **avant** d'écrire quoi que ce soit ;
+   - il s'arrête si la base a déjà des tables ou si le volume des fichiers
+     n'est pas vide ;
+   - il restaure ensuite la base, puis les fichiers.
+3. Démarrez le reste de la pile ; le backend applique les migrations plus
+   récentes que la sauvegarde, s'il y en a :
+
+   ```bash
+   docker compose up -d
+   ```
+
+4. Vérifiez :
+   - une connexion ;
+   - l'ouverture d'un document patient ;
+   - le téléchargement d'un compte rendu PDF.
+
+**Remplacer des données existantes** (retour en arrière sur le même
+serveur) :
+1. Arrêtez ce qui écrit : `docker compose stop caddy frontend backend backup`.
+2. Relancez la commande de restauration avec `--force` juste après `restore`.
+   Les tables de la base et le contenu du volume sont alors remplacés.
+3. Faites une sauvegarde de l'état actuel avant, si elle peut servir.
 
 ## 9. Mise à jour
 
 ```bash
+docker compose exec backup healixdz-backup   # sauvegarde juste avant
 git pull
 docker compose build
 docker compose up -d
@@ -354,7 +431,6 @@ docker compose up -d
 `up -d` recrée les conteneurs dont l'image a changé ; le backend applique les
 nouvelles migrations à son démarrage. Avec la configuration de
 démonstration, ajoutez les deux `-f` (ou `COMPOSE_FILE`, voir plus haut).
-Sauvegardez avant une mise à jour qui contient des migrations.
 
 `PUBLIC_API_URL` (déduite de `APP_DOMAIN`) et `ADMIN_GATE_PATH` sont écrits
 dans le frontend au moment du build : après les avoir changés, lancez
@@ -373,7 +449,53 @@ dans le frontend au moment du build : après les avoir changés, lancez
   en démonstration locale, tous les navigateurs partagent donc la même
   adresse. Sur un serveur Linux, l'adresse réelle du client est conservée.
 
-## 11. Ce qui a été vérifié, et ce qui ne l'a pas été
+## 11. Check-list de mise en production
+
+À cocher avant d'ouvrir le service à de vrais utilisateurs.
+
+**Serveur et réseau**
+
+- [ ] Le DNS de `APP_DOMAIN` pointe vers le serveur (`A`, et `AAAA` s'il a de
+      l'IPv6).
+- [ ] Seuls 80 et 443 (et SSH) sont ouverts.
+- [ ] Le certificat est obtenu : `curl -I https://APP_DOMAIN` répond, avec
+      un émetteur Let's Encrypt (section 5).
+- [ ] `docker compose ps` : les six services sont `healthy`.
+
+**Secrets et configuration**
+
+- [ ] `.env` créé depuis `.env.docker.example`, protégé (`chmod 600 .env`),
+      jamais versionné.
+- [ ] Tous les secrets sont générés au hasard (64 caractères) et différents
+      les uns des autres : `MYSQL_PASSWORD`, `MYSQL_ROOT_PASSWORD`, les quatre
+      secrets JWT, `AI_SERVICE_TOKEN`.
+- [ ] `ADMIN_GATE_PATH` est changé pour un chemin difficile à deviner ; si
+      possible, `ADMIN_ALLOWED_IPS` est renseigné (section 6).
+- [ ] Production réelle : `docker-compose.dev.yml` n'est **pas** utilisé (ni
+      `-f`, ni `COMPOSE_FILE`), donc `NODE_ENV=production` ;
+      `COOKIE_SECURE` n'est pas remis à `false` dans `.env`.
+- [ ] `curl -I https://APP_DOMAIN` montre `Strict-Transport-Security` et
+      `Content-Security-Policy`.
+
+**Fonctionnement**
+
+- [ ] **SMTP réel** : une demande « mot de passe oublié » sur une vraie
+      adresse arrive bien, et le lien fonctionne.
+- [ ] **Poids présents** : leurs empreintes SHA-256 correspondent
+      (section 2), et une analyse cérébrale de bout en bout donne un résultat.
+- [ ] **Administrateur créé** (section 7), puis `ADMIN_SEED_PASSWORD` vidé.
+
+**Sauvegardes**
+
+- [ ] `BACKUP_AGE_RECIPIENT` est renseigné, et la clé privée est conservée
+      hors du serveur, en deux exemplaires.
+- [ ] Une sauvegarde manuelle a réussi (`docker compose exec backup
+      healixdz-backup`).
+- [ ] Les archives sont copiées hors du serveur.
+- [ ] **Une restauration a été testée** sur une autre machine, ou une pile
+      vide (section 8), avec connexion et ouverture d'un document.
+
+## 12. Ce qui a été vérifié, et ce qui ne l'a pas été
 
 D'après vos vérifications, la pile précédente (quatre services, sans Caddy)
 démarre et ses quatre services sont `healthy` sur MySQL 8.4 ; la génération
@@ -433,10 +555,35 @@ Vérifications faites le 10 octobre 2026 sur le poste de développement
   (`next-themes`) et celui de la page d'accueil n'avaient pas de nonce, et
   zod testait `new Function` (désactivé par `z.config({ jitless: true })`).
 
+- **Sauvegarde et restauration**, scripts exécutés hors conteneur (Git Bash)
+  sur la MariaDB locale, avec une base synthétique (migrations et seed) et
+  des fichiers factices, jamais la vraie base :
+  - sauvegarde non chiffrée, puis restauration dans une base vide et un
+    dossier vide : base identique (25 tables, comparaison des dumps) et
+    fichiers identiques (comparaison des SHA-256) ;
+  - même chose chiffrée avec age 1.3.2 : l'archive commence par
+    `age-encryption.org/v1` et ne contient aucune donnée lisible ;
+  - sans la clé privée, la restauration s'arrête avant d'écrire ;
+  - cible non vide sans `--force` : refus, rien n'est écrit ; avec
+    `--force`, base et fichiers sont remplacés ;
+  - archive altérée : rejetée à la vérification de l'empreinte ;
+  - rétention : une archive de 15 jours est supprimée, une de 13 jours
+    gardée, les autres fichiers ne sont pas touchés ;
+  - planificateur : déclenchement à l'heure dite, état `ok` ou `failed`,
+    reprogrammation au lendemain, heure invalide refusée ; le contrôle de
+    santé devient « unhealthy » après un échec ;
+  - ShellCheck et `bash -n` ne signalent rien ; hadolint passe le Dockerfile
+    de sauvegarde.
+
 **Pas vérifié** (à faire sur une machine équipée de Docker) :
 
-- le build des images, le démarrage des cinq services et leur santé ;
+- le build des images et le démarrage des six services avec leur santé ;
 - l'obtention d'un certificat Let's Encrypt (qui demande un vrai domaine) et
   HSTS sur une vraie connexion HTTPS ;
 - l'affichage d'un PDF dans le cadre de l'administration (`object-src blob:`) ;
-- Firefox et Safari : seul Chromium a été testé.
+- Firefox et Safari : seul Chromium a été testé ;
+- la sauvegarde et la restauration **dans les conteneurs** : le `mysqldump`
+  de MySQL 8.4 (les tests ont utilisé le client MariaDB 10.4) ;
+  l'utilisateur 1000 face au dossier `BACKUP_DIR` sous Linux ; le fuseau
+  `BACKUP_TZ` dans l'image ; une restauration complète suivie d'un
+  `docker compose up -d`.

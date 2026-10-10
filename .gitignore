@@ -5,3 +5,6 @@
 
 # Docker deployment settings and secrets (template: .env.docker.example).
 /.env
+
+# Backups of the Docker deployment (patient data): never committed.
+/backups/
