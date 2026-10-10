@@ -11,5 +11,8 @@ export default defineConfig({
   },
   datasource: {
     url: process.env["DATABASE_URL"],
+    // Optional. An empty database that Prisma may wipe: CI replays the
+    // migrations there to check that they match schema.prisma.
+    shadowDatabaseUrl: process.env["SHADOW_DATABASE_URL"],
   },
 });
