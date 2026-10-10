@@ -303,6 +303,7 @@ model User {
   establishment                Establishment?
   doctorProfile                DoctorProfile?
   refreshTokens                RefreshToken[]
+  passwordResetTokens          PasswordResetToken[]
   auditLogs                    AuditLog[]
   verificationRequests         VerificationRequest[] @relation("VerificationRequestUser")
   reviewedVerificationRequests VerificationRequest[] @relation("VerificationReviewedBy")
@@ -613,6 +614,24 @@ model RefreshToken {
   @@map("refresh_tokens")
 }
 
+// Self-service password reset. Only the SHA-256 of the token is stored: the
+// token itself exists in the e-mail and nowhere else.
+model PasswordResetToken {
+  id        String    @id @default(cuid())
+  userId    String    @map("user_id")
+  tokenHash String    @unique @map("token_hash") @db.Char(64)
+  expiresAt DateTime  @map("expires_at")
+  usedAt    DateTime? @map("used_at")
+  createdAt DateTime  @default(now()) @map("created_at")
+  requestIp String?   @map("request_ip") @db.VarChar(64)
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([expiresAt])
+  @@map("password_reset_tokens")
+}
+
 model VerificationRequest {
   id                String                  @id @default(cuid())
   establishmentId   String?                 @unique @map("establishment_id")
@@ -897,10 +916,10 @@ model AiAnalysisRun {
   createdAt                   DateTime            @default(now()) @map("created_at")
   updatedAt                   DateTime            @updatedAt @map("updated_at")
 
-  patient        Patient         @relation(fields: [patientId], references: [id], onDelete: Cascade)
-  sourceDocument PatientDocument @relation(fields: [sourceDocumentId], references: [id], onDelete: Restrict)
-  requestedBy    User            @relation("AiAnalysisRunRequestedBy", fields: [requestedById], references: [id], onDelete: Restrict)
-  decidedBy      User?           @relation("AiAnalysisRunDecidedBy", fields: [decidedById], references: [id], onDelete: Restrict)
+  patient        Patient           @relation(fields: [patientId], references: [id], onDelete: Cascade)
+  sourceDocument PatientDocument   @relation(fields: [sourceDocumentId], references: [id], onDelete: Restrict)
+  requestedBy    User              @relation("AiAnalysisRunRequestedBy", fields: [requestedById], references: [id], onDelete: Restrict)
+  decidedBy      User?             @relation("AiAnalysisRunDecidedBy", fields: [decidedById], references: [id], onDelete: Restrict)
   report         AiAnalysisReport?
 
   @@index([patientId])

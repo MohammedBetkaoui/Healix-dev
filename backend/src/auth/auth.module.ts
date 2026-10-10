@@ -6,12 +6,15 @@ import { PassportModule } from '@nestjs/passport';
 import { AuditLogsModule } from '../audit-logs/audit-logs.module';
 import { DoctorsModule } from '../doctors/doctors.module';
 import { EstablishmentsModule } from '../establishments/establishments.module';
+import { MailModule } from '../mail/mail.module';
 import { PrismaModule } from '../prisma/prisma.module';
 import { UsersModule } from '../users/users.module';
 import { WorkspaceModule } from '../workspaces/workspace.module';
 import { AuthController } from './auth.controller';
 import { AuthService } from './auth.service';
 import { JwtAuthGuard } from './guards/jwt-auth.guard';
+import { PasswordResetCleanupScheduler } from './password-reset/password-reset-cleanup.scheduler';
+import { PasswordResetService } from './password-reset/password-reset.service';
 import { AccessTokenStrategy } from './strategies/access-token.strategy';
 import { RefreshTokenStrategy } from './strategies/refresh-token.strategy';
 
@@ -33,6 +36,7 @@ import { RefreshTokenStrategy } from './strategies/refresh-token.strategy';
     DoctorsModule,
     AuditLogsModule,
     WorkspaceModule,
+    MailModule,
   ],
   controllers: [AuthController],
   providers: [
@@ -40,6 +44,8 @@ import { RefreshTokenStrategy } from './strategies/refresh-token.strategy';
     JwtAuthGuard,
     AccessTokenStrategy,
     RefreshTokenStrategy,
+    PasswordResetService,
+    PasswordResetCleanupScheduler,
   ],
 })
 export class AuthModule {}
