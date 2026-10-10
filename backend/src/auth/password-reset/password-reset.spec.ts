@@ -286,6 +286,22 @@ describe('POST /auth/forgot-password', () => {
     ]);
   });
 
+  it('keeps only the SHA-256 of an unknown address in the audit log', async () => {
+    const { audits, service } = setup();
+
+    await service.requestReset('nobody@healix.test', context);
+
+    expect(audits).toHaveLength(1);
+    expect(audits[0].metadata).toEqual({
+      emailSha256: createHash('sha256')
+        .update('nobody@healix.test')
+        .digest('hex'),
+      outcome: 'UNKNOWN_ACCOUNT',
+    });
+    expect(JSON.stringify(audits)).not.toContain('nobody@healix.test');
+    expect(JSON.stringify(audits)).not.toContain('nobody');
+  });
+
   it('never sends a link to a back-office admin or a rejected account', async () => {
     const { addUser, sent, service } = setup();
     addUser({ email: 'admin@healix.test', id: 'admin', role: 'SUPER_ADMIN' });

@@ -1,10 +1,6 @@
-import {
-  IsEmail,
-  IsIn,
-  IsNotEmpty,
-  IsString,
-  MinLength,
-} from 'class-validator';
+import { IsEmail, IsIn, IsNotEmpty, IsString } from 'class-validator';
+
+import { IsAccountPassword } from '../password-policy';
 
 export const loginAccountTypes = [
   'ESTABLISHMENT',
@@ -25,10 +21,11 @@ export class LoginDto {
   @IsEmail({}, { message: 'Email invalide.' })
   email!: string;
 
-  @IsString()
-  @IsNotEmpty({ message: 'Le mot de passe est obligatoire.' })
-  @MinLength(8, {
-    message: 'Le mot de passe doit contenir au moins 8 caracteres.',
+  // Trimmed and checked like at registration and reset: a password saved
+  // there is matched here the same way.
+  @IsAccountPassword({
+    required: 'Le mot de passe est obligatoire.',
+    tooShort: 'Le mot de passe doit contenir au moins 8 caracteres.',
   })
   password!: string;
 }

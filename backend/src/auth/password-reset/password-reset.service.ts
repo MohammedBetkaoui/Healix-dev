@@ -70,6 +70,12 @@ export function hashResetToken(token: string): string {
   return createHash('sha256').update(token, 'utf8').digest('hex');
 }
 
+// What the audit keeps of an address that matches no account: requests for
+// the same address can be told apart, the address itself cannot be read.
+export function hashEmail(email: string): string {
+  return createHash('sha256').update(email, 'utf8').digest('hex');
+}
+
 function canResetPassword(user: ResetCandidate): boolean {
   return (
     SELF_SERVICE_ROLES.includes(user.role) &&
@@ -248,14 +254,14 @@ export class PasswordResetService {
       outcome = 'EMAIL_SENT';
     }
 
-    // Never the token, nor its hash.
+    // Never the token, nor its hash; an unknown address only by its SHA-256.
     await this.auditLogsService.createAuditLog({
       action: 'PASSWORD_RESET_REQUESTED',
       entityType: 'AUTH',
       entityId: user?.id ?? null,
       ipAddress: context.ipAddress,
       userAgent: context.userAgent,
-      metadata: user ? { outcome } : { email, outcome },
+      metadata: user ? { outcome } : { emailSha256: hashEmail(email), outcome },
       userId: user?.id ?? null,
     });
 
