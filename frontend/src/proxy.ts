@@ -1,5 +1,6 @@
 import { NextResponse, type NextRequest } from "next/server";
 
+import { getServerApiUrl } from "@/lib/api/server-api-url";
 import {
   authCookieNames,
   getDefaultProtectedPathForRole,
@@ -17,12 +18,6 @@ type SessionCheck = {
   setCookieHeaders: string[];
   user: ProxyUser | null;
 };
-
-const defaultApiUrl = "http://localhost:3001/api";
-
-function getApiUrl() {
-  return process.env.NEXT_PUBLIC_API_URL ?? defaultApiUrl;
-}
 
 function hasAuthCookie(request: NextRequest) {
   return authCookieNames.some((name) => request.cookies.has(name));
@@ -150,7 +145,7 @@ function createNextResponse(request: NextRequest, session: SessionCheck) {
 
 async function refreshSession(request: NextRequest): Promise<SessionCheck> {
   try {
-    const response = await fetch(`${getApiUrl()}/auth/refresh`, {
+    const response = await fetch(`${getServerApiUrl()}/auth/refresh`, {
       cache: "no-store",
       headers: {
         Accept: "application/json",
@@ -183,7 +178,7 @@ async function checkSession(request: NextRequest): Promise<SessionCheck> {
   }
 
   try {
-    const response = await fetch(`${getApiUrl()}/auth/me`, {
+    const response = await fetch(`${getServerApiUrl()}/auth/me`, {
       cache: "no-store",
       headers: {
         Accept: "application/json",

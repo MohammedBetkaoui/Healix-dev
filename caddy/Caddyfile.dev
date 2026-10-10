@@ -1,0 +1,10 @@
+# HealixDz reverse proxy, local demonstration (docker-compose.dev.yml): plain
+# HTTP on port 80 of the container, whatever the host name, no certificate.
+# Same routes and headers as production (healixdz-site.caddy).
+{
+	auto_https off
+}
+
+:80 {
+	import healixdz-site.caddy
+}

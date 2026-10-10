@@ -4,6 +4,7 @@ import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
 
 import { type LoginUser } from "@/features/auth/types/login.types";
+import { getServerApiUrl } from "@/lib/api/server-api-url";
 
 import {
   authCookieNames,
@@ -16,12 +17,6 @@ import {
 type CurrentUserResponse = {
   user: LoginUser;
 };
-
-const defaultApiUrl = "http://localhost:3001/api";
-
-function getApiUrl() {
-  return process.env.NEXT_PUBLIC_API_URL ?? defaultApiUrl;
-}
 
 async function getAuthCookieHeader() {
   const cookieStore = await cookies();
@@ -43,7 +38,7 @@ export async function getServerCurrentUser(): Promise<LoginUser | null> {
   }
 
   try {
-    const response = await fetch(`${getApiUrl()}/auth/me`, {
+    const response = await fetch(`${getServerApiUrl()}/auth/me`, {
       cache: "no-store",
       headers: {
         Accept: "application/json",

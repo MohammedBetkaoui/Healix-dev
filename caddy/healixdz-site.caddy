@@ -1,0 +1,29 @@
+# Site configuration shared by Caddyfile (production) and Caddyfile.dev,
+# imported inside their site block.
+
+# Compressed responses (already compressed ones, such as PDF or PNG, are
+# left alone).
+encode zstd gzip
+
+# Largest accepted upload: 20 MiB per file (patient documents, images sent to
+# the AI service), plus the multipart envelope. The backend checks each file
+# again.
+request_body {
+	max_size 21MiB
+}
+
+# The API, path unchanged (Nest's global prefix is /api). One exception: the
+# frontend's own route that clears the session cookies when the backend
+# cannot be reached (src/app/api/auth/local-logout).
+@api {
+	path /api /api/*
+	not path /api/auth/local-logout
+}
+handle @api {
+	reverse_proxy {$BACKEND_UPSTREAM:backend:3001}
+}
+
+# Everything else: the Next.js server.
+handle {
+	reverse_proxy {$FRONTEND_UPSTREAM:frontend:3000}
+}

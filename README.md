@@ -12,6 +12,7 @@ certifiés comme dispositifs médicaux.
 | API | [`backend/`](backend/) | NestJS, Prisma, Playwright/Chromium (comptes rendus PDF) |
 | Interface | [`frontend/`](frontend/) | Next.js |
 | Service d'inférence | [`ai-service/`](ai-service/README.md) | FastAPI, PyTorch (CPU) |
+| Proxy inverse | [`caddy/`](caddy/) | Caddy (HTTPS, Let's Encrypt) |
 
 - **Intégration continue** : [`.github/workflows/ci.yml`](.github/workflows/ci.yml),
   sur chaque pull request et sur `main` (build et tests des trois composants,

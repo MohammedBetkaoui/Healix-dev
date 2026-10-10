@@ -1,0 +1,13 @@
+# HealixDz reverse proxy, production: one public domain over HTTPS.
+#
+# Let's Encrypt certificates are obtained and renewed automatically (ports 80
+# and 443 must reach this container); plain HTTP is redirected to HTTPS.
+# {$...} values come from the environment of the caddy service, set from
+# .env by docker-compose.yml.
+{
+	email {$ACME_EMAIL}
+}
+
+https://{$APP_DOMAIN} {
+	import healixdz-site.caddy
+}
