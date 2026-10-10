@@ -209,7 +209,70 @@ port 80 fermé : Caddy réessaie seul ; corrigez, puis suivez
 il est conservé dans le volume `healixdz_caddy-data` : ne le supprimez pas
 (Let's Encrypt limite le nombre de certificats émis par semaine).
 
-## 6. Premier compte administrateur
+## 6. Sécurité
+
+Réglages appliqués par défaut en production ; rien à faire, sauf la
+restriction facultative de l'administration.
+
+- **En-têtes**, posés par Caddy sur toutes les réponses
+  ([`caddy/healixdz-site.caddy`](caddy/healixdz-site.caddy)) :
+  - `Strict-Transport-Security: max-age=31536000; includeSubDomains` ;
+  - `X-Content-Type-Options: nosniff` ;
+  - `Referrer-Policy: strict-origin-when-cross-origin` ;
+  - `Permissions-Policy: camera=(), microphone=(), geolocation=()` ;
+  - `Server` et `X-Powered-By` sont retirés.
+- **Content-Security-Policy.** Une seule par réponse :
+  - **Pages** : posée par Next.js ([`frontend/src/proxy.ts`](frontend/src/proxy.ts)),
+    avec un nonce neuf à chaque requête. Les scripts ne s'exécutent que
+    s'ils portent ce nonce, ou s'ils sont chargés par un script qui le porte
+    (`'strict-dynamic'`). Pas de `'unsafe-eval'` en production, et
+    `frame-ancestors 'none'`. Toutes les pages sont donc rendues à la
+    requête : c'est le prix des nonces.
+  - Les styles en ligne restent permis (`style-src 'unsafe-inline'`) : React
+    rend côté serveur des attributs `style="…"`, qu'un nonce ne peut pas
+    couvrir. Les scripts en ligne, eux, ne le sont pas.
+  - `object-src blob:` et `frame-src blob:` : l'administration affiche les
+    PDF dans un cadre à partir d'une URL `blob:`, et la visionneuse PDF de
+    Chrome compte comme un plugin.
+  - **API** : `default-src 'none'; frame-ancestors 'none'`, posée par Caddy
+    sur `/api/*` (des données et des fichiers, jamais des pages).
+- **Cookies.** `Secure` en production (`COOKIE_SECURE=true`) : jamais envoyés
+  en HTTP. Ceux de l'application sont en `SameSite=Lax`, et non `Strict` :
+  - avec `Strict`, un lien vers HealixDz ouvert depuis une messagerie ou un
+    autre site arriverait sans session, et l'utilisateur, pourtant connecté,
+    serait renvoyé vers la page de connexion ;
+  - `Lax` suffit contre la falsification de requêtes : les modifications
+    passent par `POST`, `PATCH` ou `DELETE`, pour lesquels le navigateur
+    n'envoie pas ces cookies depuis un autre site.
+
+  Les cookies de l'administration, que l'on ne rejoint jamais par un lien
+  externe, sont en `SameSite=Strict`.
+- **Adresse du client.** Le backend ne croit l'en-tête `X-Forwarded-For`
+  que s'il vient de Caddy (`TRUST_PROXY` = l'adresse fixe de Caddy,
+  `CADDY_IP`). La limite de débit et le journal d'audit voient ainsi l'IP du
+  client, et non celle de Caddy. Caddy ignore le `X-Forwarded-For` envoyé par
+  le client, retire `True-Client-IP` et `CF-Connecting-IP`, et pose
+  `X-Real-IP` : un client ne peut pas choisir l'adresse enregistrée.
+- **CORS désactivé** (`CORS_ENABLED=false`) : pages et API partagent une
+  seule origine, le navigateur n'a donc jamais d'appel inter-origines à
+  faire, et aucun autre site ne reçoit d'en-tête `Access-Control-Allow-*`.
+  Il ne reste utile qu'en développement sans Docker (`next dev` sur 3000,
+  l'API sur 3001).
+- **Restreindre l'administration à certaines adresses** (facultatif,
+  recommandé). Dans `.env`, listez les IP ou plages autorisées (bureaux,
+  VPN), séparées par des espaces :
+
+  ```dotenv
+  ADMIN_ALLOWED_IPS=203.0.113.10 198.51.100.0/24
+  ```
+
+  puis `docker compose up -d caddy`. Les pages de l'administration
+  (`ADMIN_GATE_PATH`) et son API (`/api/admin`) répondent alors 403 aux
+  autres adresses. Par défaut, la restriction est désactivée. Gardez aussi
+  un `ADMIN_GATE_PATH` difficile à deviner (il est écrit dans le frontend :
+  reconstruisez-le après un changement).
+
+## 7. Premier compte administrateur
 
 Le mécanisme existant est le *seed* du backend (`prisma/seed.ts`, compilé en
 `dist/prisma/seed.js`). Il crée ou met à jour un compte `SUPER_ADMIN` à partir
@@ -240,7 +303,7 @@ Si l'administrateur a oublié son mot de passe : mettez
 remettez `false` et videz le mot de passe. La réinitialisation par e-mail ne
 concerne pas les comptes d'administration.
 
-## 7. Sauvegarde et restauration
+## 8. Sauvegarde et restauration
 
 Sauvegardez **ensemble** la base et le volume des fichiers : un document cité
 par la base doit exister dans le volume.
@@ -280,7 +343,7 @@ docker run --rm -v healixdz_patient-files:/data -v "$PWD/sauvegardes:/backup:ro"
 docker compose start backend frontend
 ```
 
-## 8. Mise à jour
+## 9. Mise à jour
 
 ```bash
 git pull
@@ -297,7 +360,7 @@ Sauvegardez avant une mise à jour qui contient des migrations.
 dans le frontend au moment du build : après les avoir changés, lancez
 `docker compose build frontend`.
 
-## 9. Points d'attention
+## 10. Points d'attention
 
 - **Limite de débit (comportement existant de l'application).** Le backend
   limite à 20 requêtes par minute et par IP. Les vérifications de session
@@ -310,7 +373,7 @@ dans le frontend au moment du build : après les avoir changés, lancez
   en démonstration locale, tous les navigateurs partagent donc la même
   adresse. Sur un serveur Linux, l'adresse réelle du client est conservée.
 
-## 10. Ce qui a été vérifié, et ce qui ne l'a pas été
+## 11. Ce qui a été vérifié, et ce qui ne l'a pas été
 
 D'après vos vérifications, la pile précédente (quatre services, sans Caddy)
 démarre et ses quatre services sont `healthy` sur MySQL 8.4 ; la génération
@@ -338,7 +401,42 @@ Vérifications faites le 10 octobre 2026 sur le poste de développement
   - un corps de 21 Mio passe et un corps de 22 Mio est refusé par Caddy (413).
 - Le choix de l'URL de l'API côté serveur (`API_INTERNAL_URL`, sinon
   `NEXT_PUBLIC_API_URL`) est couvert par des tests jest.
+- **En-têtes** (`curl -I` à travers ce Caddy) :
+  - HSTS, `nosniff`, `Referrer-Policy` et `Permissions-Policy` sont présents
+    sur les pages et sur l'API ; `Server` et `X-Powered-By` sont absents ;
+  - une seule `Content-Security-Policy` par réponse : celle de Next.js
+    (nonce différent à chaque requête) sur les pages, et
+    `default-src 'none'` sur l'API.
+- **Adresse du client :**
+  - des en-têtes falsifiés (`X-Forwarded-For`, `X-Real-IP`, `True-Client-IP`,
+    `CF-Connecting-IP`) n'atteignent pas le backend : il reçoit l'adresse vue
+    par Caddy ;
+  - tests jest (application Nest de test) : derrière le proxy de confiance,
+    chaque client a son propre compteur de limitation ; un
+    `X-Forwarded-For` venant d'une autre source est ignoré, et ne donne pas
+    de nouveau compteur.
+- **CORS** (tests jest) : désactivé, aucune origine ne reçoit
+  `Access-Control-Allow-Origin` ; activé, seule `FRONTEND_URL` est admise.
+- **Restriction de l'administration** : avec une liste qui exclut le
+  client, les pages de l'administration et `/api/admin` répondent 403 ; le
+  reste du site n'est pas touché. Sans liste, tout passe.
+- **Aucune erreur CSP** dans Chromium (Playwright) :
+  - montage testé : build de production du frontend derrière ce Caddy, même
+    origine pour les pages et l'API ;
+  - pages publiques (accueil fr et ar, connexion, inscription, mot de passe
+    oublié, nouveau mot de passe, connexion de l'administration) ;
+  - pages connectées (tableau de bord, patients, dossier patient, analyses
+    IA, suivi des analyses, résultat d'une analyse) ;
+  - zéro violation, et l'image de la visionneuse, en URL `blob:`, s'affiche.
 
-**Pas vérifié** (à faire sur une machine équipée de Docker) : le build des
-images, le démarrage des cinq services et leur santé, l'obtention d'un
-certificat Let's Encrypt (qui demande un vrai domaine).
+  Ce test a révélé trois blocages, corrigés : le script du thème
+  (`next-themes`) et celui de la page d'accueil n'avaient pas de nonce, et
+  zod testait `new Function` (désactivé par `z.config({ jitless: true })`).
+
+**Pas vérifié** (à faire sur une machine équipée de Docker) :
+
+- le build des images, le démarrage des cinq services et leur santé ;
+- l'obtention d'un certificat Let's Encrypt (qui demande un vrai domaine) et
+  HSTS sur une vraie connexion HTTPS ;
+- l'affichage d'un PDF dans le cadre de l'administration (`object-src blob:`) ;
+- Firefox et Safari : seul Chromium a été testé.

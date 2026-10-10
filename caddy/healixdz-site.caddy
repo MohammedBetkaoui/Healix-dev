@@ -12,6 +12,32 @@ request_body {
 	max_size 21MiB
 }
 
+# Security headers, on every response, set here only. The pages' own
+# Content-Security-Policy comes from Next.js (a nonce per request, in
+# frontend/src/proxy.ts); the API's is below.
+header {
+	Strict-Transport-Security "max-age=31536000; includeSubDomains"
+	X-Content-Type-Options "nosniff"
+	Referrer-Policy "strict-origin-when-cross-origin"
+	Permissions-Policy "camera=(), microphone=(), geolocation=()"
+	-Server
+	-X-Powered-By
+}
+
+# Optional: back office reachable from a list of addresses only (offices,
+# VPN). ADMIN_ALLOWED_IPS, space-separated addresses or CIDR ranges; the
+# default lets everyone through, i.e. the restriction is off. Covers the
+# back-office pages (ADMIN_GATE_PATH) and its API (/api/admin). First of the
+# handle blocks below: they are tried in this order, the last one catches
+# the rest.
+@admin_outside_allowlist {
+	path {$ADMIN_GATE_PATH:/hzdz-control-gate-2026} {$ADMIN_GATE_PATH:/hzdz-control-gate-2026}/* /api/admin /api/admin/*
+	not remote_ip {$ADMIN_ALLOWED_IPS:0.0.0.0/0 ::/0}
+}
+handle @admin_outside_allowlist {
+	respond 403
+}
+
 # The API, path unchanged (Nest's global prefix is /api). One exception: the
 # frontend's own route that clears the session cookies when the backend
 # cannot be reached (src/app/api/auth/local-logout).
@@ -20,10 +46,24 @@ request_body {
 	not path /api/auth/local-logout
 }
 handle @api {
-	reverse_proxy {$BACKEND_UPSTREAM:backend:3001}
+	# JSON and files, never pages: nothing may run or be framed.
+	header Content-Security-Policy "default-src 'none'; frame-ancestors 'none'"
+
+	reverse_proxy {$BACKEND_UPSTREAM:backend:3001} {
+		# The backend's audit log reads these before X-Forwarded-For: only
+		# Caddy may tell it the client's address. X-Forwarded-For itself is
+		# set by Caddy (a client's own value is ignored).
+		header_up -Cf-Connecting-Ip
+		header_up -True-Client-Ip
+		header_up X-Real-Ip {remote_host}
+	}
 }
 
 # Everything else: the Next.js server.
 handle {
-	reverse_proxy {$FRONTEND_UPSTREAM:frontend:3000}
+	reverse_proxy {$FRONTEND_UPSTREAM:frontend:3000} {
+		header_up -Cf-Connecting-Ip
+		header_up -True-Client-Ip
+		header_up X-Real-Ip {remote_host}
+	}
 }

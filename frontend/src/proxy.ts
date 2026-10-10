@@ -1,6 +1,11 @@
 import { NextResponse, type NextRequest } from "next/server";
 
-import { getServerApiUrl } from "@/lib/api/server-api-url";
+import { DEFAULT_API_URL, getServerApiUrl } from "@/lib/api/server-api-url";
+import {
+  buildContentSecurityPolicy,
+  createNonce,
+  originOf,
+} from "@/lib/csp/content-security-policy";
 import {
   authCookieNames,
   getDefaultProtectedPathForRole,
@@ -120,8 +125,44 @@ function mergeCookieHeader(
     .join("; ");
 }
 
-function createNextResponse(request: NextRequest, session: SessionCheck) {
+const noSession: SessionCheck = {
+  shouldClearCookies: false,
+  setCookieHeaders: [],
+  user: null,
+};
+
+type ContentSecurity = {
+  nonce: string;
+  policy: string;
+};
+
+// A fresh nonce per request. The policy goes on the request too: Next.js
+// reads the nonce from it while rendering and puts it on its scripts;
+// x-nonce gives it to our own inline script (the theme, in layout.tsx).
+function contentSecurityFor(request: NextRequest): ContentSecurity {
+  const nonce = createNonce();
+
+  return {
+    nonce,
+    policy: buildContentSecurityPolicy({
+      // Literal process.env.NEXT_PUBLIC_API_URL: written into the build.
+      apiOrigin: originOf(process.env.NEXT_PUBLIC_API_URL ?? DEFAULT_API_URL),
+      development: process.env.NODE_ENV === "development",
+      nonce,
+      secure: request.headers.get("x-forwarded-proto") === "https",
+    }),
+  };
+}
+
+function createNextResponse(
+  request: NextRequest,
+  session: SessionCheck,
+  contentSecurity: ContentSecurity,
+) {
   const requestHeaders = new Headers(request.headers);
+  // Set, never appended: a client cannot choose its own nonce.
+  requestHeaders.set("content-security-policy", contentSecurity.policy);
+  requestHeaders.set("x-nonce", contentSecurity.nonce);
 
   if (session.setCookieHeaders.length > 0) {
     requestHeaders.set(
@@ -139,6 +180,7 @@ function createNextResponse(request: NextRequest, session: SessionCheck) {
     },
   });
 
+  response.headers.set("content-security-policy", contentSecurity.policy);
   appendSetCookieHeaders(response, session.setCookieHeaders);
   return response;
 }
@@ -235,9 +277,10 @@ export async function proxy(request: NextRequest) {
   const pathname = request.nextUrl.pathname;
   const requiredRoles = getRequiredRolesForPath(pathname);
   const isAuthPage = isAuthPagePath(pathname);
+  const contentSecurity = contentSecurityFor(request);
 
   if (!requiredRoles && !isAuthPage) {
-    return NextResponse.next();
+    return createNextResponse(request, noSession, contentSecurity);
   }
 
   const session = await checkSession(request);
@@ -253,7 +296,7 @@ export async function proxy(request: NextRequest) {
       return response;
     }
 
-    return createNextResponse(request, session);
+    return createNextResponse(request, session, contentSecurity);
   }
 
   if (isAuthPage && session.user) {
@@ -262,7 +305,7 @@ export async function proxy(request: NextRequest) {
     return response;
   }
 
-  const response = createNextResponse(request, session);
+  const response = createNextResponse(request, session, contentSecurity);
 
   if (session.shouldClearCookies) {
     clearAuthCookies(response);

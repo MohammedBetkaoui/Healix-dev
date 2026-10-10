@@ -28,6 +28,10 @@ services:
     environment:
       APP_DOMAIN: ${APP_DOMAIN:?APP_DOMAIN manque dans .env}
       ACME_EMAIL: ${ACME_EMAIL:?ACME_EMAIL manque dans .env}
+      ADMIN_GATE_PATH: ${ADMIN_GATE_PATH:-/hzdz-control-gate-2026}
+      # Back office from these addresses only; the default (everyone) leaves
+      # the restriction off.
+      ADMIN_ALLOWED_IPS: ${ADMIN_ALLOWED_IPS:-0.0.0.0/0 ::/0}
     ports:
       - "80:80"
       - "443:443"
@@ -99,9 +103,16 @@ services:
       DATABASE_URL: mysql://${MYSQL_USER:-healixdz}:${MYSQL_PASSWORD:?MYSQL_PASSWORD manque dans .env}@mysql:3306/${MYSQL_DATABASE:-healixdz}?allowPublicKeyRetrieval=true
       FRONTEND_URL: ${APP_PUBLIC_URL:-https://${APP_DOMAIN}}
       APP_PUBLIC_URL: ${APP_PUBLIC_URL:-https://${APP_DOMAIN}}
-      COOKIE_SECURE: ${COOKIE_SECURE:-false}
-      ADMIN_COOKIE_SECURE: ${COOKIE_SECURE:-false}
-      TRUST_PROXY: ${TRUST_PROXY:-loopback}
+      # One origin for pages and API: the browser never calls the API
+      # cross-origin, so CORS stays off.
+      CORS_ENABLED: "false"
+      # Session cookies over HTTPS only (application: SameSite=Lax; back
+      # office: Strict).
+      COOKIE_SECURE: ${COOKIE_SECURE:-true}
+      ADMIN_COOKIE_SECURE: ${COOKIE_SECURE:-true}
+      # Only Caddy's X-Forwarded-For is believed: rate limits and the audit
+      # log see the client's address, not Caddy's.
+      TRUST_PROXY: ${TRUST_PROXY:-${CADDY_IP:-172.30.0.10}}
       BCRYPT_SALT_ROUNDS: ${BCRYPT_SALT_ROUNDS:-12}
       JWT_ACCESS_SECRET: ${JWT_ACCESS_SECRET:?JWT_ACCESS_SECRET manque dans .env}
       JWT_REFRESH_SECRET: ${JWT_REFRESH_SECRET:?JWT_REFRESH_SECRET manque dans .env}

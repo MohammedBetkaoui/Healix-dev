@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import { headers } from "next/headers";
 import "./globals.css";
 import "./dashboard-theme.css";
 import { commonFr } from "@/i18n/locales/fr/common";
@@ -29,15 +30,21 @@ export const metadata: Metadata = {
   },
 };
 
-export default function RootLayout({
+export default async function RootLayout({
   children,
 }: Readonly<{
   children: React.ReactNode;
 }>) {
+  // Every page is rendered per request: the Content-Security-Policy nonce
+  // (proxy.ts) can only reach the scripts of a page rendered for that
+  // request, never of one prerendered at build time. Reading the request
+  // headers makes the whole tree dynamic.
+  const nonce = (await headers()).get("x-nonce") ?? undefined;
+
   return (
     <html lang="fr" suppressHydrationWarning className={`${authFontVariables} ${dashboardFont.variable} h-full antialiased`}>
       <body className="flex min-h-full flex-col">
-        <Providers>{children}</Providers>
+        <Providers nonce={nonce}>{children}</Providers>
       </body>
     </html>
   );

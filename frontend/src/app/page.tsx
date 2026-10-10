@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import { headers } from "next/headers";
 
 import { AiSection } from "@/components/landing/AiSection";
 import { AlgeriaSection } from "@/components/landing/AlgeriaSection";
@@ -56,11 +57,15 @@ export default async function Home({ searchParams }: HomeProps) {
   const locale: Locale = isLocale(localeCandidate) ? localeCandidate : "fr";
   const content = locale === "ar" ? landingAr : landingFr;
   const direction = locale === "ar" ? "rtl" : "ltr";
+  // Content-Security-Policy nonce of the request (proxy.ts): without it the
+  // inline script below would be blocked.
+  const nonce = (await headers()).get("x-nonce") ?? undefined;
 
   return (
     <div className={styles.landingRoot} lang={locale} dir={direction}>
       <LocaleDocumentSync locale={locale} />
       <script
+        nonce={nonce}
         dangerouslySetInnerHTML={{
           __html: `document.documentElement.lang=${JSON.stringify(locale)};document.documentElement.dir=${JSON.stringify(direction)};`,
         }}
