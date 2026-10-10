@@ -698,7 +698,9 @@ export class AuthService {
     } satisfies SessionTokens;
   }
 
-  private async hashPassword(password: string): Promise<string> {
+  // Also used by the password reset: a reset password is hashed exactly
+  // like a registration one.
+  async hashPassword(password: string): Promise<string> {
     return bcrypt.hash(password, this.saltRounds);
   }
 

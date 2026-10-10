@@ -750,38 +750,22 @@
   accent-color: var(--login-accent);
 }
 
-.forgotButton {
-  padding: 0;
-  border: 0;
-  background: transparent;
+.forgotLink {
   color: var(--login-accent-dark);
   font-family: var(--login-font-body);
   font-size: inherit;
   font-weight: 600;
-  cursor: pointer;
+  text-decoration: none;
 }
 
-.forgotPassword {
-  display: inline-flex;
-  flex-wrap: wrap;
-  align-items: baseline;
-  justify-content: flex-end;
-  gap: 0.2rem 0.45rem;
-}
-
-.forgotButton:disabled {
-  color: var(--login-ink-faint);
-  cursor: not-allowed;
-}
-
-.forgotButton:not(:disabled):hover,
+.forgotLink:hover,
 .signupLink:hover {
   color: var(--login-accent);
   text-decoration: underline;
   text-underline-offset: 0.2rem;
 }
 
-.forgotButton:focus-visible,
+.forgotLink:focus-visible,
 .signupLink:focus-visible {
   border-radius: 0.2rem;
   outline: 2px solid var(--login-gold);

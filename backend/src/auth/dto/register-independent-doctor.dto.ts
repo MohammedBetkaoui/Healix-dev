@@ -8,30 +8,14 @@ import {
   Matches,
   MaxLength,
   MinLength,
-  Validate,
-  ValidationArguments,
-  ValidatorConstraint,
-  ValidatorConstraintInterface,
 } from 'class-validator';
 
 import {
   normalizeEmail,
   sanitizePhone,
   sanitizeTextInput,
-  trimInput,
 } from '../../common/utils/sanitize';
-
-@ValidatorConstraint({ name: 'IndependentDoctorPasswordsMatch', async: false })
-class IndependentDoctorPasswordsMatchConstraint implements ValidatorConstraintInterface {
-  validate(confirmPassword: string, args: ValidationArguments): boolean {
-    const dto = args.object as RegisterIndependentDoctorDto;
-    return confirmPassword === dto.password;
-  }
-
-  defaultMessage(): string {
-    return 'Les mots de passe ne correspondent pas.';
-  }
-}
+import { IsAccountPassword, IsPasswordConfirmation } from '../password-policy';
 
 export class RegisterIndependentDoctorDto {
   @Transform(({ value }) => sanitizeTextInput(value))
@@ -77,20 +61,16 @@ export class RegisterIndependentDoctorDto {
   @MaxLength(32, { message: 'Maximum 32 caractères.' })
   phone: string;
 
-  @Transform(({ value }) => trimInput(value))
-  @IsString({ message: 'Le mot de passe doit contenir au moins 8 caractères.' })
-  @IsNotEmpty({
-    message: 'Le mot de passe doit contenir au moins 8 caractères.',
-  })
-  @MinLength(8, {
-    message: 'Le mot de passe doit contenir au moins 8 caractères.',
+  @IsAccountPassword({
+    required: 'Le mot de passe doit contenir au moins 8 caractères.',
+    tooShort: 'Le mot de passe doit contenir au moins 8 caractères.',
   })
   password: string;
 
-  @Transform(({ value }) => trimInput(value))
-  @IsString({ message: 'Les mots de passe ne correspondent pas.' })
-  @IsNotEmpty({ message: 'Les mots de passe ne correspondent pas.' })
-  @Validate(IndependentDoctorPasswordsMatchConstraint)
+  @IsPasswordConfirmation({
+    mismatch: 'Les mots de passe ne correspondent pas.',
+    required: 'Les mots de passe ne correspondent pas.',
+  })
   confirmPassword: string;
 
   @Transform(({ value }) => value === true || value === 'true')

@@ -80,7 +80,8 @@ const establishmentTypeSchema = (messages: RegisterValidationMessages) =>
     { message: messages.required },
   );
 
-const passwordSchema = (messages: RegisterValidationMessages) =>
+// Shared with the password reset form: one rule for every new password.
+export const passwordSchema = (messages: RegisterValidationMessages) =>
   z
     .string()
     .min(1, messages.required)

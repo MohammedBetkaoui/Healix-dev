@@ -9,10 +9,6 @@ import {
   Matches,
   MaxLength,
   MinLength,
-  Validate,
-  ValidationArguments,
-  ValidatorConstraint,
-  ValidatorConstraintInterface,
 } from 'class-validator';
 
 import { EstablishmentType } from '../../common/enums/establishment-type.enum';
@@ -20,20 +16,8 @@ import {
   normalizeEmail,
   sanitizePhone,
   sanitizeTextInput,
-  trimInput,
 } from '../../common/utils/sanitize';
-
-@ValidatorConstraint({ name: 'PasswordsMatch', async: false })
-class PasswordsMatchConstraint implements ValidatorConstraintInterface {
-  validate(confirmPassword: string, args: ValidationArguments): boolean {
-    const dto = args.object as RegisterEstablishmentDto;
-    return confirmPassword === dto.password;
-  }
-
-  defaultMessage(): string {
-    return 'Les mots de passe ne correspondent pas';
-  }
-}
+import { IsAccountPassword, IsPasswordConfirmation } from '../password-policy';
 
 export class RegisterEstablishmentDto {
   @Transform(({ value }) => sanitizeTextInput(value))
@@ -81,16 +65,16 @@ export class RegisterEstablishmentDto {
   @MaxLength(120, { message: 'Maximum 120 caractères' })
   managerFullName: string;
 
-  @Transform(({ value }) => trimInput(value))
-  @IsString({ message: 'Ce champ est obligatoire' })
-  @IsNotEmpty({ message: 'Ce champ est obligatoire' })
-  @MinLength(8, { message: 'Mot de passe trop court' })
+  @IsAccountPassword({
+    required: 'Ce champ est obligatoire',
+    tooShort: 'Mot de passe trop court',
+  })
   password: string;
 
-  @Transform(({ value }) => trimInput(value))
-  @IsString({ message: 'Ce champ est obligatoire' })
-  @IsNotEmpty({ message: 'Ce champ est obligatoire' })
-  @Validate(PasswordsMatchConstraint)
+  @IsPasswordConfirmation({
+    mismatch: 'Les mots de passe ne correspondent pas',
+    required: 'Ce champ est obligatoire',
+  })
   confirmPassword: string;
 
   @Transform(({ value }) => value === true || value === 'true')

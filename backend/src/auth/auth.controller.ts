@@ -2,6 +2,8 @@ import {
   Body,
   Controller,
   Get,
+  HttpCode,
+  HttpStatus,
   Post,
   Req,
   Res,
@@ -17,11 +19,19 @@ import { LoginDto } from './dto/login.dto';
 import { RegisterEstablishmentDto } from './dto/register-establishment.dto';
 import { RegisterIndependentDoctorDto } from './dto/register-independent-doctor.dto';
 import { JwtAuthGuard } from './guards/jwt-auth.guard';
+import {
+  ForgotPasswordDto,
+  ResetPasswordDto,
+} from './password-reset/password-reset.dto';
+import { PasswordResetService } from './password-reset/password-reset.service';
 import { type AuthenticatedRequest } from './types/authenticated-request.type';
 
 @Controller('auth')
 export class AuthController {
-  constructor(private readonly authService: AuthService) {}
+  constructor(
+    private readonly authService: AuthService,
+    private readonly passwordResetService: PasswordResetService,
+  ) {}
 
   @Post('login')
   @Throttle({ default: { limit: 5, ttl: 60_000 } })
@@ -51,6 +61,27 @@ export class AuthController {
   ) {
     return this.authService.registerIndependentDoctor(
       dto,
+      getRequestContext(request),
+    );
+  }
+
+  // Same answer whether the address belongs to an account or not.
+  @Post('forgot-password')
+  @HttpCode(HttpStatus.OK)
+  @Throttle({ default: { limit: 3, ttl: 15 * 60_000 } })
+  forgotPassword(@Body() dto: ForgotPasswordDto, @Req() request: Request) {
+    return this.passwordResetService.requestReset(
+      dto.email,
+      getRequestContext(request),
+    );
+  }
+
+  @Post('reset-password')
+  @HttpCode(HttpStatus.OK)
+  @Throttle({ default: { limit: 5, ttl: 15 * 60_000 } })
+  resetPassword(@Body() dto: ResetPasswordDto, @Req() request: Request) {
+    return this.passwordResetService.resetPassword(
+      { password: dto.password, token: dto.token },
       getRequestContext(request),
     );
   }
