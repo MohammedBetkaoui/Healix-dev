@@ -1,4 +1,4 @@
-# HealixDZ AI service (brain pipeline)
+# HealixDZ AI service (brain and pathology pipelines)
 
 Inference service called by the NestJS backend only. CPU, FastAPI, listens on
 `127.0.0.1` by default. It receives the bytes of one image and nothing else:
@@ -42,10 +42,83 @@ for the segmenters) with `cv2.INTER_LINEAR` → `/255` → mean
 no test-time augmentation. Segmentation: sigmoid, threshold 0.5, mask resized
 to the original image size with nearest-neighbour interpolation.
 
+## Pathology pipelines
+
+Two Keras models (TensorFlow 2.20.0 / Keras 3.13.2, `.keras` files), each
+behind its own endpoint, independent of the brain pipeline.
+
+| Model id | File | Input | SHA-256 |
+| --- | --- | --- | --- |
+| pathology-breakhis-classification | `EfficientNetB0_BreakHis_phase2.keras` | 224×224 | `c8cbd905cc039ed4775c98043e04d357bcfcaf971c4b9cc592a3600f97348e6b` |
+| pathology-unet-pannuke-segmentation | `pannuke_unet_efficientnetb0_phase2_best.keras` | 256×256 | `8d05b1f068d4fa9f25ed3ed9f05027d7fd68ef74af0bab15e798e6f324a5a248` |
+
+The classifier's inference settings sit next to its weights:
+`breakhis_inference_config.json` (the BreakHis notebook's
+`inference_config.json`, renamed), SHA-256
+`ea0646849ab49e9ce148f902895693f6a304f2e329d9cb2e591fe07c8025f552`.
+
+The models are loaded with `keras.saving.load_model(path, compile=False,
+safe_mode=True)` only (`safe_mode` refuses Python code stored in the archive,
+such as a `Lambda` layer). A model stays **not loaded**, with its error, when:
+
+- its file is missing (`weights_missing`), does not load, or has another input
+  or output shape than (None, 224, 224, 3) → (None, 1) for the classifier and
+  (None, 256, 256, 3) → (None, 256, 256, 6) for the segmenter (`load_failed`);
+- for the classifier, `breakhis_inference_config.json` is missing
+  (`config_missing`), or its `decision_threshold` is not 0.13 or its
+  `positive_class` not `malignant` (`config_invalid`).
+
+There is no degraded load. TensorFlow's thread pools are capped
+(`AI_TF_INTRA_OP_THREADS`, `AI_TF_INTER_OP_THREADS`) so that a pathology
+analysis leaves CPU to the PyTorch models, and each pathology model runs one
+inference at a time (one lock per model). Importing TensorFlow adds about
+10 s to the start-up.
+
+### Breast histopathology classification (BreakHis)
+
+Benign or malignant, on one microscopy image (PNG or JPEG).
+
+Preprocessing, as `load_image` in the notebook: RGB, 3 channels →
+`tf.cast` to float32 **without dividing by 255** (EfficientNetB0 normalizes
+internally) → `tf.image.resize(…, (224, 224), method="bilinear",
+antialias=True)` → `tf.clip_by_value(…, 0, 255)`.
+
+Test-time augmentation, always: 4 views (the image, `tf.image.flip_left_right`,
+`tf.image.flip_up_down`, both flips), score = mean of the 4 sigmoid outputs.
+Decision: `malignant` when the score is at least the threshold read from the
+config (0.13, chosen on the validation patients for the best F1), `benign`
+otherwise.
+
+The score is **not calibrated**: it is a malignancy score, never a
+probability.
+
+The magnification (40, 100, 200 or 400, required) is not a model input: it
+is checked, returned and logged.
+
+### Nuclei segmentation (PanNuke)
+
+Six classes, in output index order: 0 background, 1 neoplastic,
+2 inflammatory, 3 connective, 4 dead, 5 epithelial. RGB → float32 / 255
+(range [0, 1]) → model, 256×256 exactly → argmax of the softmax.
+
+- A 256×256 image: one pass.
+- A larger image (each side at least 256 px): 256×256 tiles overlapping by
+  32 px (stride 224). The image is mirrored by 16 px at its top and left
+  edges, and up to a whole number of tiles at its bottom and right edges;
+  each tile keeps only its central 224×224, and these centres cover the image
+  exactly once.
+- A side under 256 px: 422 `image_too_small`. A side over
+  `AI_NUCLEI_MAX_SIDE` (default 4096): 422 `image_dimensions_too_large`.
+
+No nucleus is counted: the output is a class per pixel, and pixel shares.
+On a 12-thread laptop CPU, a tile takes about 0.14 s (a 4096×4096 image is
+361 tiles) and a classification about 0.5 s.
+
 ## Install
 
 Python 3.12. Versions are pinned to training: torch 2.10.0, timm 1.0.25
-(segmentation-models-pytorch 0.5.0 loads the v5 weights strictly).
+(segmentation-models-pytorch 0.5.0 loads the v5 weights strictly) for the
+brain; tensorflow-cpu 2.20.0 and keras 3.13.2 for the pathology models.
 
 ```bash
 uv venv .venv --python 3.12
@@ -63,11 +136,14 @@ uv pip install --python .venv -r requirements-dev.txt \
 | Variable | Default | |
 | --- | --- | --- |
 | `AI_SERVICE_TOKEN` | *(empty: every protected call refused)* | Shared secret, sent by the backend as `X-Service-Token` |
-| `AI_MODELS_DIR` | `<repo>/models` | Folder holding the `.pth` files |
+| `AI_MODELS_DIR` | `<repo>/models` | Folder holding the `.pth` and `.keras` files and `breakhis_inference_config.json` |
 | `AI_SERVICE_HOST` | `127.0.0.1` | |
 | `AI_SERVICE_PORT` | `8001` | |
 | `AI_MAX_IMAGE_BYTES` | `20971520` (20 MB) | Larger uploads: 413 |
 | `AI_MAX_IMAGE_PIXELS` | `50000000` | Larger images: 422 |
+| `AI_NUCLEI_MAX_SIDE` | `4096` | Nuclei segmentation: longer sides get 422 |
+| `AI_TF_INTRA_OP_THREADS` | half the CPUs | TensorFlow threads per operation |
+| `AI_TF_INTER_OP_THREADS` | `2` | TensorFlow operations run in parallel |
 
 ## Run
 
@@ -80,7 +156,9 @@ AI_SERVICE_TOKEN=<secret> AI_MODELS_DIR=../models .venv/Scripts/python -m app.ma
 All routes but `/health` require `X-Service-Token` (constant-time comparison).
 
 - `GET /health` → `{ "status": "ok" }`
-- `GET /models` → `{ "models": [{ modelId, file, loaded, weightsSha256, error }] }`
+- `GET /models` → `{ "models": [{ modelId, file, loaded, weightsSha256, error }] }`:
+  the three brain models, then the two pathology ones; the BreakHis
+  classifier also has `config: { file, sha256 }`.
 - `POST /analyze/brain` (multipart, field `image`, PNG or JPEG) →
 
 ```json
@@ -103,8 +181,53 @@ one-channel PNG 0/255 at the original size), areaPx, areaRatio }`.
 `segmentationSkippedReason`: `null`, `"not_applicable_for_class"` or
 `"model_not_loaded"`.
 
-Errors: 401 token, 413 too large, 422 not a decodable PNG/JPEG, 503
-classifier not loaded.
+- `POST /analyze/pathology/breast-classification` (multipart: `image`, PNG
+  or JPEG; `magnification`: `40`, `100`, `200` or `400`) →
+
+```json
+{
+  "modelId": "pathology-breakhis-classification",
+  "weightsSha256": "…",
+  "malignancyScore": 0.81,
+  "threshold": 0.13,
+  "decision": "malignant",
+  "views": [0.79, 0.83, 0.8, 0.82],
+  "magnification": 200,
+  "durationMs": 480
+}
+```
+
+`views`: the scores of the image, of its left-right flip, its up-down flip
+and both flips; `malignancyScore` is their mean.
+
+- `POST /analyze/pathology/nuclei-segmentation` (multipart: `image`, PNG or
+  JPEG) →
+
+```json
+{
+  "modelId": "pathology-unet-pannuke-segmentation",
+  "weightsSha256": "…",
+  "labelMapPng": "…base64…",
+  "classFractions": {
+    "background": 0.87,
+    "nucleusTypes": { "neoplastic": 0.52, "inflammatory": 0.11, "connective": 0.3, "dead": 0.01, "epithelial": 0.06 }
+  },
+  "tiled": true,
+  "tileCount": 9,
+  "durationMs": 1600
+}
+```
+
+`labelMapPng`: base64 of a one-channel PNG at the image's size, each pixel
+its class index (0–5). `classFractions.background`: share of all the pixels;
+`nucleusTypes`: share of each type among the non-background pixels (`null`
+when there is none).
+
+Errors, on every endpoint: 401 token, 413 too large, 422 `invalid_image`
+(not a decodable PNG/JPEG), 503 `model_not_loaded` (the classifier, for
+`/analyze/brain`). Pathology only, 422: `invalid_magnification` (missing, or
+not 40, 100, 200 or 400), `image_too_small` (`minSide`: 256),
+`image_dimensions_too_large` (`maxSide`).
 
 ## Tests
 
@@ -114,7 +237,9 @@ classifier not loaded.
 
 Tests that need the weights read `AI_MODELS_DIR` (default `../models`) and
 are skipped when the files are absent. Routing is tested with stand-in
-modules, independently of the weights.
+modules, independently of the weights; so are the pathology pipelines (test-time
+augmentation, threshold, tiling and rebuilt label map), and the Keras loading
+with tiny models saved by the tests.
 
 ## Evaluation
 

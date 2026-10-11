@@ -9,8 +9,10 @@ from __future__ import annotations
 
 import hashlib
 import logging
+import threading
 from dataclasses import dataclass, field
 from pathlib import Path
+from typing import Any
 
 import segmentation_models_pytorch as smp
 import timm
@@ -83,14 +85,36 @@ MODEL_SPECS = (
 
 @dataclass
 class LoadedModel:
-    spec: ModelSpec
-    module: nn.Module | None = None
+    # A ModelSpec (brain, PyTorch) or a PathologySpec (pathology, Keras).
+    spec: Any
+    # A torch module (brain) or a Keras model (pathology).
+    module: Any = None
     weights_sha256: str | None = None
     error: str | None = None
+    # Inference settings read next to the weights (pathology only), with the
+    # file they come from and its SHA-256.
+    config: dict = field(default_factory=dict)
+    config_file: str | None = None
+    config_sha256: str | None = None
+    # One inference at a time on this model (the pathology models; the brain
+    # pipeline keeps its own lock).
+    lock: threading.Lock = field(default_factory=threading.Lock, repr=False, compare=False)
 
     @property
     def loaded(self) -> bool:
         return self.module is not None
+
+    def status(self) -> dict:
+        status = {
+            "modelId": self.spec.model_id,
+            "file": self.spec.file_name,
+            "loaded": self.loaded,
+            "weightsSha256": self.weights_sha256,
+            "error": self.error,
+        }
+        if self.config_file is not None:
+            status["config"] = {"file": self.config_file, "sha256": self.config_sha256}
+        return status
 
 
 @dataclass
@@ -101,16 +125,7 @@ class ModelRegistry:
         return self.models[model_id]
 
     def status(self) -> list[dict]:
-        return [
-            {
-                "modelId": entry.spec.model_id,
-                "file": entry.spec.file_name,
-                "loaded": entry.loaded,
-                "weightsSha256": entry.weights_sha256,
-                "error": entry.error,
-            }
-            for entry in self.models.values()
-        ]
+        return [entry.status() for entry in self.models.values()]
 
 
 def sha256_of(path: Path) -> str:
@@ -151,4 +166,15 @@ def load_model(spec: ModelSpec, models_dir: Path) -> LoadedModel:
 
 
 def load_registry(models_dir: Path) -> ModelRegistry:
+    """The brain models only."""
     return ModelRegistry(models={spec.model_id: load_model(spec, models_dir) for spec in MODEL_SPECS})
+
+
+def load_service_registry(models_dir: Path, tf_intra_op_threads: int, tf_inter_op_threads: int) -> ModelRegistry:
+    """Every model the service serves: the brain models (PyTorch), then the pathology ones (Keras)."""
+    from .pathology_models import configure_tensorflow_threads, load_pathology_models
+
+    registry = load_registry(models_dir)
+    configure_tensorflow_threads(tf_intra_op_threads, tf_inter_op_threads)
+    registry.models.update(load_pathology_models(models_dir))
+    return registry

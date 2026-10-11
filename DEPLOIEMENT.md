@@ -9,7 +9,7 @@ Cinq conteneurs applicatifs, plus celui des sauvegardes, décrits par
 | `frontend` | [`frontend/Dockerfile`](frontend/Dockerfile) | Interface Next.js (serveur autonome) | edge | aucun |
 | `backend` | [`backend/Dockerfile`](backend/Dockerfile) | API NestJS, migrations, PDF (Chromium) | edge, internal | aucun |
 | `mysql` | `mysql:8.4` | Base de données | internal | aucun |
-| `ai-service` | [`ai-service/Dockerfile`](ai-service/Dockerfile) | Inférence (PyTorch CPU) | internal | aucun |
+| `ai-service` | [`ai-service/Dockerfile`](ai-service/Dockerfile) | Inférence (PyTorch et TensorFlow, CPU) | internal | aucun |
 | `backup` | [`scripts/backup/Dockerfile`](scripts/backup/Dockerfile) | Sauvegarde nocturne de la base et des fichiers | internal | aucun |
 
 - **Un seul domaine.** Tout passe par Caddy, sur `https://APP_DOMAIN` :
@@ -47,8 +47,12 @@ Cinq conteneurs applicatifs, plus celui des sauvegardes, décrits par
 
 - **Docker Desktop** pour Windows, avec le moteur WSL 2. Dans *Settings >
   Resources*, comptez au moins **8 Go de mémoire** pour Docker : PyTorch,
-  Chromium et MySQL tournent ensemble.
-- Environ **10 Go d'espace disque** pour les images.
+  TensorFlow, Chromium et MySQL tournent ensemble.
+- Environ **13 Go d'espace disque** pour les images. Celle du service IA pèse
+  à elle seule environ **2,4 Go** (TensorFlow 1,1 Go, PyTorch 0,7 Go), contre
+  1,2 Go avant l'ajout des modèles de pathologie. Ces tailles sont mesurées
+  sur les paquets Python installés pour Linux, plus l'image de base
+  `python:3.12-slim` ; l'image elle-même n'a pas encore été construite.
 - **Git**.
 
 **Serveur de production**
@@ -70,26 +74,34 @@ du dépôt (Git l'ignore). Pour un autre dossier, indiquez son chemin dans
 `/srv/healixdz/models`). Il est monté **en lecture seule** dans le conteneur,
 à `/models`.
 
-Les trois fichiers chargés par le service :
+Les fichiers lus par le service :
 
 | Fichier | SHA-256 |
 | --- | --- |
 | `fold_5_best.pth` | `311d2cbb171266721871f46f7f841b1dffef0c0fec40853745f55be9939ae654` |
 | `healixdz_seg_meningioma_v5_best.pth` | `95c94047da1daaf71744e6076c5f01401c0af09d5f87335477359681ba7c939d` |
 | `healixdz_seg_pituitary_v5_best.pth` | `cfd8fc4e55e6a4d7ca97e9613a95451d9680426bdd714f818786ab0e9983dd89` |
+| `EfficientNetB0_BreakHis_phase2.keras` | `c8cbd905cc039ed4775c98043e04d357bcfcaf971c4b9cc592a3600f97348e6b` |
+| `breakhis_inference_config.json` | `ea0646849ab49e9ce148f902895693f6a304f2e329d9cb2e591fe07c8025f552` |
+| `pannuke_unet_efficientnetb0_phase2_best.keras` | `8d05b1f068d4fa9f25ed3ed9f05027d7fd68ef74af0bab15e798e6f324a5a248` |
+
+`breakhis_inference_config.json` est le fichier `inference_config.json` du
+notebook BreakHis, renommé.
 
 Vérification des empreintes :
 
 ```powershell
-Get-FileHash models\*.pth -Algorithm SHA256 | Format-Table Hash, Path   # Windows
+Get-FileHash models\*.pth, models\*.keras, models\*.json -Algorithm SHA256 | Format-Table Hash, Path   # Windows
 ```
 
 ```bash
-sha256sum models/*.pth   # Linux
+sha256sum models/*.pth models/*.keras models/*.json   # Linux
 ```
 
 Sans le classifieur, le service démarre, mais il refuse les analyses
-(erreur 503, classifieur non chargé). Si le dossier n'existe pas, Docker
+(erreur 503, classifieur non chargé). De même, un modèle de pathologie
+absent ou refusé (seuil autre que 0,13 dans `breakhis_inference_config.json`,
+par exemple) laisse le service démarrer, et seul son point d'entrée répond 503. Si le dossier n'existe pas, Docker
 refuse de démarrer le conteneur (`bind source path does not exist`).
 
 ## 3. Fichier `.env`
@@ -191,7 +203,7 @@ docker compose up -d
 docker compose ps
 ```
 
-Le premier build prend un moment (PyTorch et Chromium). Au démarrage, le
+Le premier build prend un moment (PyTorch, TensorFlow et Chromium). Au démarrage, le
 backend applique les migrations en attente (`prisma migrate deploy`), puis
 lance l'API. `docker compose ps` doit afficher les six services `healthy` (dont `backup`).
 

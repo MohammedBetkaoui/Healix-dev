@@ -1,6 +1,7 @@
 # Build context of ai-service/Dockerfile: the image only needs
 # requirements.txt and app/. Never the weights, datasets or the local venv.
 *.pth
+*.keras
 .venv
 __pycache__
 .pytest_cache

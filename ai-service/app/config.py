@@ -11,6 +11,11 @@ from pathlib import Path
 DEFAULT_MODELS_DIR = Path(__file__).resolve().parents[2] / "models"
 
 
+def default_tf_intra_op_threads() -> int:
+    """Half the CPUs for TensorFlow's operations: the other half stays for PyTorch."""
+    return max(1, (os.cpu_count() or 2) // 2)
+
+
 @dataclass(frozen=True)
 class Settings:
     # Shared secret expected in the X-Service-Token header. Empty means every
@@ -23,6 +28,12 @@ class Settings:
     max_image_bytes: int
     # Upper bound of decoded pixels, against decompression bombs.
     max_image_pixels: int
+    # Nuclei segmentation: longest accepted side, in pixels (larger: 422).
+    nuclei_max_side: int = 4096
+    # TensorFlow thread pools (pathology models), capped so that a pathology
+    # analysis does not starve the PyTorch brain models of CPU.
+    tf_intra_op_threads: int = 1
+    tf_inter_op_threads: int = 2
 
 
 def load_settings() -> Settings:
@@ -33,4 +44,7 @@ def load_settings() -> Settings:
         port=int(os.environ.get("AI_SERVICE_PORT", "8001")),
         max_image_bytes=int(os.environ.get("AI_MAX_IMAGE_BYTES", str(20 * 1024 * 1024))),
         max_image_pixels=int(os.environ.get("AI_MAX_IMAGE_PIXELS", str(50_000_000))),
+        nuclei_max_side=int(os.environ.get("AI_NUCLEI_MAX_SIDE", "4096")),
+        tf_intra_op_threads=int(os.environ.get("AI_TF_INTRA_OP_THREADS") or default_tf_intra_op_threads()),
+        tf_inter_op_threads=int(os.environ.get("AI_TF_INTER_OP_THREADS", "2")),
     )

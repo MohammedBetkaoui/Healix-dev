@@ -1,5 +1,6 @@
 # Model weights are never committed (about 1 GB); see README for AI_MODELS_DIR.
 *.pth
+*.keras
 .venv/
 __pycache__/
 .pytest_cache/

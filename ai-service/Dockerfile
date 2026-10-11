@@ -1,6 +1,7 @@
 # syntax=docker/dockerfile:1
 
-# HealixDz AI service: FastAPI + PyTorch CPU. Build context: ai-service/.
+# HealixDz AI service: FastAPI, PyTorch CPU (brain) and TensorFlow CPU
+# (pathology). Build context: ai-service/. About 2.4 GB (TensorFlow: 1.1 GB).
 # The weights are NOT in the image: mount their folder read-only at /models
 # (AI_MODELS_DIR on the host, see docker-compose.yml).
 
@@ -11,7 +12,8 @@ RUN python -m venv /opt/venv
 ENV PATH=/opt/venv/bin:${PATH}
 WORKDIR /build
 COPY requirements.txt ./
-# PyTorch CPU wheels come from the PyTorch index, as in requirements.in.
+# PyTorch CPU wheels come from the PyTorch index, tensorflow-cpu and keras
+# from PyPI, as in requirements.in.
 RUN pip install \
       -r requirements.txt \
       --index-url https://pypi.org/simple \
@@ -24,6 +26,8 @@ ENV PATH=/opt/venv/bin:${PATH} \
     AI_MODELS_DIR=/models \
     AI_SERVICE_HOST=0.0.0.0 \
     AI_SERVICE_PORT=8001
+# Keras writes its keras.json there: /app is not writable by the service user.
+ENV KERAS_HOME=/tmp/keras
 RUN groupadd --system --gid 10001 aiservice \
  && useradd --system --uid 10001 --gid 10001 --no-create-home --home-dir /app aiservice
 COPY --from=build /opt/venv /opt/venv
