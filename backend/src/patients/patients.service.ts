@@ -629,7 +629,16 @@ export class PatientsService {
   async getPatientScopeWhere(
     user: AuthenticatedUserPayload,
   ): Promise<Prisma.PatientWhereInput> {
-    return this.scopeToWhere(await this.resolveOwnerScope(user));
+    return (await this.getPatientScope(user)).where;
+  }
+
+  // The same rule, with the workspace it resolves to: the dashboard's SQL
+  // aggregates (per-day counts) filter on patients.workspace_id with it.
+  async getPatientScope(
+    user: AuthenticatedUserPayload,
+  ): Promise<{ where: Prisma.PatientWhereInput; workspaceId: string }> {
+    const scope = await this.resolveOwnerScope(user);
+    return { where: this.scopeToWhere(scope), workspaceId: scope.workspaceId };
   }
 
   // Public for the AI analysis runs module: same scope rule everywhere.

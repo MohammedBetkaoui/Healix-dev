@@ -103,6 +103,18 @@ export class AppointmentsService {
     );
   }
 
+  // The agenda a user may see, as a filter (the rule of list()) and as the
+  // owner it resolves to: the dashboard counts with the first and groups
+  // per day in SQL with the second.
+  async getAppointmentScope(user: AuthenticatedUserPayload): Promise<{
+    where: Prisma.AppointmentWhereInput;
+    establishmentId: string | null;
+    doctorProfileId: string | null;
+  }> {
+    const scope = await this.resolveOwnerScope(user);
+    return { ...scope, where: this.scopeToWhere(scope) };
+  }
+
   // Doctors the caller may book with: the whole establishment for
   // ESTABLISHMENT_ADMIN / AFFILIATED_DOCTOR, only themselves for
   // INDEPENDENT_DOCTOR — same scope rule create() enforces.

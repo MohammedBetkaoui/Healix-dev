@@ -11,6 +11,7 @@ import { AdminModule } from './admin/admin.module';
 import { AiAnalysisRunsModule } from './ai-analysis-runs/ai-analysis-runs.module';
 import { AppointmentsModule } from './appointments/appointments.module';
 import { AuthModule } from './auth/auth.module';
+import { DashboardModule } from './dashboard/dashboard.module';
 import { PatientsModule } from './patients/patients.module';
 import { PaymentsModule } from './payments/payments.module';
 import { SubscriptionsModule } from './subscriptions/subscriptions.module';
@@ -36,6 +37,7 @@ import { WorkspaceModule } from './workspaces/workspace.module';
     PatientsModule,
     AiAnalysisRunsModule,
     AppointmentsModule,
+    DashboardModule,
     WorkspaceModule,
   ],
   controllers: [AppController],

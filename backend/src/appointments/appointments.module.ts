@@ -17,5 +17,6 @@ import { AppointmentsService } from './appointments.service';
     RolesGuard,
     AppointmentAuditService,
   ],
+  exports: [AppointmentsService],
 })
 export class AppointmentsModule {}

@@ -42,6 +42,9 @@ jobs:
       # Throwaway credentials of the CI service, not a secret.
       DATABASE_URL: mysql://root:ci-root-password@127.0.0.1:3306/healixdz_ci
       SHADOW_DATABASE_URL: mysql://root:ci-root-password@127.0.0.1:3306/healixdz_shadow
+      # A migrated database for the integration tests (dashboard aggregates
+      # in SQL); its name must end in _test.
+      TEST_DATABASE_URL: mysql://root:ci-root-password@127.0.0.1:3306/healixdz_dashboard_test?allowPublicKeyRetrieval=true
     steps:
       - uses: actions/checkout@v4
 
@@ -66,6 +69,12 @@ jobs:
           --exit-code
 
       - run: npm run build
+
+      - name: Test database
+        run: |
+          mysql -h 127.0.0.1 -uroot -pci-root-password \
+            -e "CREATE DATABASE healixdz_dashboard_test CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci"
+          DATABASE_URL="$TEST_DATABASE_URL" npx prisma migrate deploy
 
       # Chromium for the PDF report integration test (skipped without it).
       # The browser is cached; its system libraries are installed each time.
