@@ -343,18 +343,25 @@
 .clinical-theme .metric-value { font-size: 2rem; font-weight: 600; line-height: 1.25; letter-spacing: -.035em; color: var(--text-primary); }
 .clinical-theme .attention-list { padding: 0 20px 8px; }
 .clinical-theme .attention-row { display: flex; align-items: center; gap: 12px; min-height: 54px; border-top: 1px solid var(--line-soft); }
+/* Figures of the dashboards: mono, same width for every digit. */
+.clinical-theme .clinical-figure { font-family: var(--font-auth-mono), ui-monospace, monospace; font-variant-numeric: tabular-nums; }
+.clinical-theme .operational-metrics[data-count="3"] { grid-template-columns: repeat(3, minmax(0, 1fr)); }
 .clinical-theme .attention-count { font-size: 1.1rem; font-weight: 600; min-width: 24px; text-align: center; }
 .clinical-theme .patient-flow { display: grid; gap: 14px; padding: 0 20px 20px; }
 .clinical-theme .flow-step { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 6px 12px; font-size: .8rem; }
 .clinical-theme .flow-track { grid-column: 1 / -1; height: 4px; border-radius: 2px; overflow: hidden; background: var(--surface-muted); }
 .clinical-theme .flow-track span { display: block; height: 100%; background: var(--medical); }
-.clinical-theme .flow-step[data-tone="waiting"] .flow-track span { background: var(--warning); }
+/* Today's appointments by status; every colour comes with its written status. */
+.clinical-theme .flow-step[data-tone="SCHEDULED"] .flow-track span { background: var(--accent); }
+.clinical-theme .flow-step[data-tone="COMPLETED"] .flow-track span { background: var(--success-ink); }
+.clinical-theme .flow-step[data-tone="NO_SHOW"] .flow-track span { background: var(--warning); }
+.clinical-theme .flow-step[data-tone="CANCELED"] .flow-track span { background: var(--text-muted); }
 .clinical-theme .clinical-chart { padding: 0 20px 16px; }
 .clinical-theme .chart-legend { display: flex; flex-wrap: wrap; gap: 16px; color: var(--text-secondary); font-size: .75rem; }
 .clinical-theme .chart-legend span { display: flex; align-items: center; gap: 6px; }
 .clinical-theme .chart-legend i { display: block; width: 16px; height: 3px; background: var(--chart-primary); }
-.clinical-theme .chart-legend i[data-series="records"] { background: var(--chart-secondary); }
-.clinical-theme .chart-legend i[data-series="exams"] { background: var(--chart-tertiary); }
+.clinical-theme .chart-legend i[data-series="completedAppointments"] { background: var(--chart-secondary); }
+.clinical-theme .chart-legend i[data-series="aiAnalyses"] { background: var(--chart-tertiary); }
 .clinical-theme .ai-widget { border-color: var(--ai-line); border-block-start: 2px solid var(--ai); }
 .clinical-theme .ai-widget .clinical-section-heading { color: var(--ai); background: var(--ai-soft); }
 .clinical-theme .ai-widget .clinical-link { color: var(--ai); }
@@ -440,7 +447,7 @@
   .clinical-theme .clinical-content { padding: 20px 16px 28px; }
   .clinical-theme .workspace-stack { gap: 20px; }
   .clinical-theme .workspace-split { grid-template-columns: minmax(0, 1fr); gap: 20px; }
-  .clinical-theme .operational-metrics { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .clinical-theme .operational-metrics, .clinical-theme .operational-metrics[data-count="3"] { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .clinical-theme .operational-metric:nth-child(2) { border-inline-end: 0; }
   .clinical-theme .operational-metric:nth-child(-n+2) { border-bottom: 1px solid var(--border); }
   .clinical-theme .metric-value { font-size: 1.75rem; }

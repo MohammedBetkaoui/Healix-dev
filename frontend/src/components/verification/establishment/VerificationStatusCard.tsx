@@ -5,7 +5,7 @@ import { type VerificationStatus } from "@/features/verification/types/verificat
 import { cn } from "@/lib/utils";
 
 type VerificationStatusCardProps = {
-  demoBadgeLabel: string;
+  modeLabel: string;
   description: string;
   isPending: boolean;
   onStart?: () => void;
@@ -29,7 +29,7 @@ function getStatusTone(status: VerificationStatus, isPending: boolean) {
 }
 
 export function VerificationStatusCard({
-  demoBadgeLabel,
+  modeLabel,
   description,
   isPending,
   onStart,
@@ -55,7 +55,7 @@ export function VerificationStatusCard({
             <div className="flex flex-wrap items-center gap-2">
               <p className="text-sm font-semibold text-muted-foreground">{statusTitle}</p>
               <span className="rounded-full bg-secondary px-2.5 py-1 text-xs font-medium text-[var(--accent-dark)]">
-                {demoBadgeLabel}
+                {modeLabel}
               </span>
             </div>
             <h2 className="mt-2 text-xl font-semibold tracking-tight text-foreground">

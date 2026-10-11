@@ -1029,7 +1029,7 @@ export function DoctorVerificationPage() {
         </p>
 
         <DoctorVerificationStatusCard
-          demoBadgeLabel={t("doctorVerification.status.demoBadge")}
+          modeLabel={t("doctorVerification.status.modeBadge")}
           description={
             displayStatus === "PENDING_VERIFICATION"
               ? t("doctorVerification.status.pendingDescription")

@@ -23,6 +23,8 @@ export function useDecideAiAnalysisRun(patientId: string, runId: string) {
       void queryClient.invalidateQueries({ exact: true, queryKey: ["patients", "ai-analysis-runs", patientId] });
       // The workspace follow-up (worklist, figures, hub banner).
       void queryClient.invalidateQueries({ queryKey: ["ai-analysis-runs"] });
+      // The dashboard counts pending, validated, corrected and rejected runs.
+      void queryClient.invalidateQueries({ queryKey: ["dashboard"] });
     },
     onSuccess: (run) => {
       queryClient.setQueryData(runKey, run);

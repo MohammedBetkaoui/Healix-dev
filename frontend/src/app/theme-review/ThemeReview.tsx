@@ -12,8 +12,10 @@ import { DoctorDashboard } from "@/components/dashboard/doctor/DoctorDashboard";
 import { EstablishmentPatientsPage } from "@/components/dashboard/establishment/EstablishmentPatientsPage";
 import { EstablishmentVerificationPage } from "@/components/verification/establishment/EstablishmentVerificationPage";
 import { SubscriptionPage } from "@/components/subscription/SubscriptionPage";
-import { getMockPatients } from "@/data/patients.mock";
 import { type Appointment, type AppointmentStatus } from "@/features/appointments/appointments.types";
+import { DASHBOARD_PERIODS } from "@/features/dashboard/dashboard-overview";
+import { previewDashboardOverview } from "./_preview/dashboard-overview";
+import { previewPatients } from "./_preview/patients";
 
 // Seeds today's agenda under the exact query key AppointmentsAgendaPage builds
 // (local midnight → next local midnight − 1 ms).
@@ -56,7 +58,7 @@ function seedAppointmentsPreview(query: QueryClient) {
     status,
     updatedAt: start.toISOString(),
   }));
-  const patients = getMockPatients("fr");
+  const patients = previewPatients("fr");
   query.setQueryData(["appointments", "list", range], appointments);
   query.setQueryData(["appointments", "doctors"], doctors);
   query.setQueryData(["patients", "list", { limit: 100 }], { data: patients, meta: { limit: 100, page: 1, total: patients.length, totalPages: 1 } });
@@ -76,7 +78,7 @@ function seedAiAnalysisWizardPreview(query: QueryClient) {
   // The patient hooks set a 15 s staleTime: dated a day ahead, the seeded
   // data stays fresh during a review instead of being refetched (401 here).
   const fresh = { updatedAt: Date.now() + 86_400_000 };
-  const patients = getMockPatients("fr");
+  const patients = previewPatients("fr");
   query.setQueryData(["patients", "list", { limit: 20 }], { data: patients, meta: { limit: 20, page: 1, total: patients.length, totalPages: 1 } }, fresh);
   query.setQueryData(["patients", "consents", wizardPatientId], [
     { documentName: undefined, recordedAt: "2026-09-01T10:00:00.000Z", recordedBy: "preview", status: "SIGNED", type: "DIAGNOSTIC_AI" },
@@ -128,6 +130,10 @@ export function ThemeReview({ view }: { view: string }) {
       weeklyVerificationActivity: Array.from({ length: 7 }, (_, i) => ({ date: `2026-09-${17 + i}`, pending: 4 + i, verified: 12 - i, rejected: i % 3 })),
       recentVerificationRequests: ["PENDING_VERIFICATION", "VERIFIED", "REJECTED"].map((status, i) => ({ id: `preview-${i}`, requesterName: ["Clinique Démonstration", "Dr Exemple", "Établissement Test"][i], type: i === 1 ? "INDEPENDENT_DOCTOR" : "ESTABLISHMENT", status, wilaya: "Alger" })),
     });
+    // Under the key useDashboardOverview builds, for each period of the chart.
+    for (const days of DASHBOARD_PERIODS) {
+      query.setQueryData(["dashboard", "overview", { days }], previewDashboardOverview(days, view !== "doctor"));
+    }
     seedAppointmentsPreview(query);
     seedAiAnalysisWizardPreview(query);
     // GET /subscription/me shape (features/subscriptions/subscriptions.api.ts):

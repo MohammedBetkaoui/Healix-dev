@@ -12,7 +12,7 @@ export const doctorVerificationAr = {
   },
   status: {
     current: "الحالة الحالية",
-    demoBadge: "الوضع التجريبي",
+    modeBadge: "الوضع التجريبي",
     start: "بدء التحقق",
     notStarted:
       "حساب الطبيب حاليًا في الوضع التجريبي. يتطلب الوصول إلى الوظائف الطبية الحقيقية تحققًا مهنيًا.",

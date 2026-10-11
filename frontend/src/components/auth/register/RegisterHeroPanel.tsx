@@ -55,7 +55,7 @@ export function RegisterHeroPanel(props: RegisterI18nProps) {
       </div>
 
       <div className={styles.heroCopy}>
-        <span className={styles.heroBadge}>{t("register.hero.demoBadge")}</span>
+        <span className={styles.heroBadge}>{t("register.hero.modeBadge")}</span>
         <h1 className={styles.heroTitle}>
           {t("register.hero.titleLead")} {" "}
           <em>{t("register.hero.titleAccent")}</em>{" "}

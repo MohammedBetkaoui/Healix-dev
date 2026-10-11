@@ -18,7 +18,7 @@ export const registerFr = {
     title: "Système hospitalier intelligent",
     subtitle:
       "Gestion médicale, IA d’imagerie et interopérabilité HL7/FHIR dans une seule plateforme.",
-    demoBadge: "Mode démo disponible après inscription",
+    modeBadge: "Mode démo disponible après inscription",
     valuePoints: {
       patientRecords:
         "Gestion sécurisée des patients et dossiers médicaux",

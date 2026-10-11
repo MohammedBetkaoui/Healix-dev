@@ -1,3 +1,5 @@
+// Invented patients for the theme-review page only (development builds,
+// see [view]/page.tsx). The application never reads them.
 import {
   BrainCircuit,
   CalendarCheck,
@@ -74,7 +76,7 @@ function calculateBirthDate(index: number) {
   return `${year}-${month}-${day}`;
 }
 
-function createMockPatient(index: number, locale: Locale): Patient {
+function createPreviewPatient(index: number, locale: Locale): Patient {
   const [firstName, lastName, firstNameAr, lastNameAr] = patientNames[index];
   const [wilayaCode, wilaya, commune] = locations[index % locations.length];
   const [assignedDoctor, doctorRegistrationNumber] = doctors[index % doctors.length];
@@ -207,12 +209,6 @@ function createMockPatient(index: number, locale: Locale): Patient {
   };
 }
 
-export function getMockPatients(locale: Locale): Patient[] {
-  return patientNames.map((_, index) => createMockPatient(index, locale));
-}
-
-export function getMockPatientById(patientId: string, locale: Locale): Patient | undefined {
-  return getMockPatients(locale).find(
-    (patient) => patient.id === patientId || patient.internalId === patientId,
-  );
+export function previewPatients(locale: Locale): Patient[] {
+  return patientNames.map((_, index) => createPreviewPatient(index, locale));
 }

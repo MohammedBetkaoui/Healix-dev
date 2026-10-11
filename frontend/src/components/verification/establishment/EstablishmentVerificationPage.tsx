@@ -510,7 +510,7 @@ export function EstablishmentVerificationPage() {
         </div>
 
         <VerificationStatusCard
-          demoBadgeLabel={t("verification.status.demoBadge")}
+          modeLabel={t("verification.status.modeBadge")}
           description={
             displayStatus === "PENDING_VERIFICATION"
               ? t("verification.status.pendingDescription")

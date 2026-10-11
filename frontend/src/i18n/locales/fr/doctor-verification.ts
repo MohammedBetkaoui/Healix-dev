@@ -14,7 +14,7 @@ export const doctorVerificationFr = {
   },
   status: {
     current: "Statut actuel",
-    demoBadge: "Mode demonstration",
+    modeBadge: "Mode demonstration",
     start: "Commencer la verification",
     notStarted:
       "Votre compte medecin est actuellement en mode demonstration. L'acces aux fonctionnalites medicales reelles necessite une verification professionnelle.",
