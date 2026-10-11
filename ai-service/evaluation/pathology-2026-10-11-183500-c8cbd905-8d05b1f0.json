@@ -1,0 +1,379 @@
+{
+  "schemaVersion": 1,
+  "pipeline": "pathology",
+  "generatedAt": "2026-10-11T17:22:58+00:00",
+  "method": {
+    "inference": "app.pathology_pipeline.analyze_breast and analyze_nuclei, from the image bytes (PNG for the PanNuke patches and mosaics): the service's code, CPU",
+    "breakhis": "test-time augmentation original, flip_left_right, flip_up_down, flip_left_right_and_up_down; mean of the sigmoid outputs; decision score >= threshold of breakhis_inference_config.json",
+    "pannuke": "one pass at 256 x 256; larger images in tiles overlapping by 32 px, mirrored borders, centre kept (16 px margins dropped)",
+    "bootstrap": {
+      "draws": 1000,
+      "seed": 42,
+      "unit": "patient",
+      "interval": "percentile 2.5-97.5"
+    }
+  },
+  "weights": {
+    "pathology-breakhis-classification": {
+      "file": "EfficientNetB0_BreakHis_phase2.keras",
+      "sha256": "c8cbd905cc039ed4775c98043e04d357bcfcaf971c4b9cc592a3600f97348e6b",
+      "loaded": true,
+      "config": {
+        "file": "breakhis_inference_config.json",
+        "sha256": "ea0646849ab49e9ce148f902895693f6a304f2e329d9cb2e591fe07c8025f552"
+      }
+    },
+    "pathology-unet-pannuke-segmentation": {
+      "file": "pannuke_unet_efficientnetb0_phase2_best.keras",
+      "sha256": "8d05b1f068d4fa9f25ed3ed9f05027d7fd68ef74af0bab15e798e6f324a5a248",
+      "loaded": true
+    }
+  },
+  "versions": {
+    "python": "3.12.13",
+    "tensorflow": "2.20.0",
+    "keras": "3.13.2",
+    "opencv": "4.14.0",
+    "numpy": "2.5.3",
+    "scikitLearn": "1.9.1",
+    "pandas": "3.0.6"
+  },
+  "breakhis": {
+    "dataset": {
+      "name": "BreakHis v1 (BreaKHis_v1), patient-level test split of the notebook",
+      "folder": "BreaKHis_v1",
+      "testPatients": [
+        "14-11031",
+        "14-12773",
+        "14-14946",
+        "14-15704",
+        "14-16456",
+        "14-19854C",
+        "14-21978AB",
+        "14-22704",
+        "14-2773",
+        "14-29315EF",
+        "14-3909",
+        "14-4372",
+        "14-9146"
+      ],
+      "testImages": {
+        "total": 1346,
+        "benign": 347,
+        "malignant": 999
+      },
+      "unreadable": []
+    },
+    "threshold": 0.13,
+    "status": "ok",
+    "n": 1346,
+    "accuracy": 0.8818722139673105,
+    "sensitivity": 0.9259259259259259,
+    "specificity": 0.7550432276657061,
+    "precision": 0.9158415841584159,
+    "f1": 0.9208561473369836,
+    "aucRoc": 0.939152408893043,
+    "aucPr": 0.9777725869875132,
+    "confusionMatrix": [
+      [
+        262,
+        85
+      ],
+      [
+        74,
+        925
+      ]
+    ],
+    "bootstrap": {
+      "unit": "patient",
+      "draws": 1000,
+      "seed": 42,
+      "interval": "percentile 2.5-97.5",
+      "accuracy": {
+        "ci95": [
+          0.8060840671657712,
+          0.9332104599873976
+        ],
+        "draws": 1000
+      },
+      "sensitivity": {
+        "ci95": [
+          0.8708844241922121,
+          0.9686133688340808
+        ],
+        "draws": 1000
+      },
+      "specificity": {
+        "ci95": [
+          0.5647058823529412,
+          0.9177215189873418
+        ],
+        "draws": 995
+      },
+      "precision": {
+        "ci95": [
+          0.7740589720736779,
+          0.9868311095505619
+        ],
+        "draws": 1000
+      },
+      "f1": {
+        "ci95": [
+          0.8363828132326414,
+          0.9616201260626036
+        ],
+        "draws": 1000
+      },
+      "aucRoc": {
+        "ci95": [
+          0.8693445810480547,
+          0.9754124353271978
+        ],
+        "draws": 995
+      },
+      "aucPr": {
+        "ci95": [
+          0.9255450518587203,
+          0.9959193824015925
+        ],
+        "draws": 995
+      }
+    },
+    "byMagnification": {
+      "40": {
+        "n": 330,
+        "accuracy": 0.9212121212121213,
+        "sensitivity": 0.9676113360323887,
+        "specificity": 0.7831325301204819,
+        "precision": 0.9299610894941635,
+        "f1": 0.9484126984126984,
+        "aucRoc": 0.972879371737964,
+        "aucPr": 0.9910006298223741,
+        "confusionMatrix": [
+          [
+            65,
+            18
+          ],
+          [
+            8,
+            239
+          ]
+        ]
+      },
+      "100": {
+        "n": 353,
+        "accuracy": 0.8725212464589235,
+        "sensitivity": 0.9015151515151515,
+        "specificity": 0.7865168539325843,
+        "precision": 0.9260700389105059,
+        "f1": 0.9136276391554703,
+        "aucRoc": 0.9334780388151176,
+        "aucPr": 0.9778844102231918,
+        "confusionMatrix": [
+          [
+            70,
+            19
+          ],
+          [
+            26,
+            238
+          ]
+        ]
+      },
+      "200": {
+        "n": 340,
+        "accuracy": 0.8823529411764706,
+        "sensitivity": 0.9203187250996016,
+        "specificity": 0.7752808988764045,
+        "precision": 0.9203187250996016,
+        "f1": 0.9203187250996016,
+        "aucRoc": 0.9433725771073012,
+        "aucPr": 0.9794639084623504,
+        "confusionMatrix": [
+          [
+            69,
+            20
+          ],
+          [
+            20,
+            231
+          ]
+        ]
+      },
+      "400": {
+        "n": 323,
+        "accuracy": 0.8513931888544891,
+        "sensitivity": 0.9156118143459916,
+        "specificity": 0.6744186046511628,
+        "precision": 0.8857142857142857,
+        "f1": 0.9004149377593361,
+        "aucRoc": 0.9018251398292612,
+        "aucPr": 0.9581950559044017,
+        "confusionMatrix": [
+          [
+            58,
+            28
+          ],
+          [
+            20,
+            217
+          ]
+        ]
+      }
+    },
+    "byPatient": [
+      {
+        "patient": "14-11031",
+        "label": "malignant",
+        "images": 60,
+        "meanScore": 0.5915742382407189,
+        "majorityDecision": "malignant",
+        "majorityCorrect": true,
+        "imageAccuracy": 0.95
+      },
+      {
+        "patient": "14-12773",
+        "label": "malignant",
+        "images": 90,
+        "meanScore": 0.4762055954171552,
+        "majorityDecision": "malignant",
+        "majorityCorrect": true,
+        "imageAccuracy": 0.8888888888888888
+      },
+      {
+        "patient": "14-14946",
+        "label": "malignant",
+        "images": 131,
+        "meanScore": 0.7648522774226792,
+        "majorityDecision": "malignant",
+        "majorityCorrect": true,
+        "imageAccuracy": 0.9770992366412213
+      },
+      {
+        "patient": "14-15704",
+        "label": "malignant",
+        "images": 127,
+        "meanScore": 0.6894044551675714,
+        "majorityDecision": "malignant",
+        "majorityCorrect": true,
+        "imageAccuracy": 0.9763779527559056
+      },
+      {
+        "patient": "14-16456",
+        "label": "malignant",
+        "images": 178,
+        "meanScore": 0.5798563448440158,
+        "majorityDecision": "malignant",
+        "majorityCorrect": true,
+        "imageAccuracy": 0.8932584269662921
+      },
+      {
+        "patient": "14-19854C",
+        "label": "benign",
+        "images": 64,
+        "meanScore": 0.12478719721548259,
+        "majorityDecision": "benign",
+        "majorityCorrect": true,
+        "imageAccuracy": 0.703125
+      },
+      {
+        "patient": "14-21978AB",
+        "label": "benign",
+        "images": 65,
+        "meanScore": 0.179474390613345,
+        "majorityDecision": "benign",
+        "majorityCorrect": true,
+        "imageAccuracy": 0.5538461538461539
+      },
+      {
+        "patient": "14-22704",
+        "label": "benign",
+        "images": 158,
+        "meanScore": 0.06200274255250498,
+        "majorityDecision": "benign",
+        "majorityCorrect": true,
+        "imageAccuracy": 0.9177215189873418
+      },
+      {
+        "patient": "14-2773",
+        "label": "malignant",
+        "images": 144,
+        "meanScore": 0.8601654428574774,
+        "majorityDecision": "malignant",
+        "majorityCorrect": true,
+        "imageAccuracy": 0.9930555555555556
+      },
+      {
+        "patient": "14-29315EF",
+        "label": "benign",
+        "images": 60,
+        "meanScore": 0.13333709008681277,
+        "majorityDecision": "benign",
+        "majorityCorrect": true,
+        "imageAccuracy": 0.6
+      },
+      {
+        "patient": "14-3909",
+        "label": "malignant",
+        "images": 95,
+        "meanScore": 0.5780292692937349,
+        "majorityDecision": "malignant",
+        "majorityCorrect": true,
+        "imageAccuracy": 0.8842105263157894
+      },
+      {
+        "patient": "14-4372",
+        "label": "malignant",
+        "images": 84,
+        "meanScore": 0.9506549040476481,
+        "majorityDecision": "malignant",
+        "majorityCorrect": true,
+        "imageAccuracy": 1.0
+      },
+      {
+        "patient": "14-9146",
+        "label": "malignant",
+        "images": 90,
+        "meanScore": 0.3452204892825749,
+        "majorityDecision": "malignant",
+        "majorityCorrect": true,
+        "imageAccuracy": 0.7333333333333333
+      }
+    ],
+    "patientLevel": {
+      "patients": 13,
+      "majorityCorrect": 13
+    },
+    "notebookReported": {
+      "accuracy": 0.8819,
+      "aucRoc": 0.9392,
+      "confusionMatrix": [
+        [
+          262,
+          85
+        ],
+        [
+          74,
+          925
+        ]
+      ],
+      "note": "Phase 2 + TTA at threshold 0.13 on the 13 test patients (cell 20 of the notebook, on GPU)"
+    },
+    "comparison": {
+      "accuracy": {
+        "service": 0.8818722139673105,
+        "notebook": 0.8819,
+        "difference": -2.778603268949187e-05
+      },
+      "aucRoc": {
+        "service": 0.939152408893043,
+        "notebook": 0.9392,
+        "difference": -4.759110695706781e-05
+      },
+      "confusionMatrixIdentical": true
+    },
+    "durationSeconds": 722.1
+  },
+  "pannuke": null,
+  "file": "pathology-2026-10-11-183500-c8cbd905-8d05b1f0.json"
+}
