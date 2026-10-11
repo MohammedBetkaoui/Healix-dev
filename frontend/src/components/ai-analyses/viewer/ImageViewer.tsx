@@ -1,11 +1,16 @@
 "use client";
 
 import {
+  CircleCheck,
   Contrast,
+  FileImage,
   Layers,
   Maximize2,
   Minimize2,
+  Move,
   RotateCcw,
+  ScanLine,
+  SlidersHorizontal,
   SunMedium,
   ZoomIn,
   ZoomOut,
@@ -187,56 +192,84 @@ export function ImageViewer({ blob, fileName, module, overlay, placeholder, t }:
       ref={figureRef}
       className="ai-viewer"
       data-module={module}
+      data-image-ready={hasImage || undefined}
       dir="ltr"
       aria-label={t("aiAnalyses.viewer.label", { name: fileName })}
     >
+      <header className="ai-viewer-header">
+        <div className="ai-viewer-heading">
+          <span className="ai-viewer-mark" aria-hidden="true">
+            <ScanLine size={18} strokeWidth={1.8} />
+          </span>
+          <div className="min-w-0">
+            <p className="ai-viewer-eyebrow">{t("aiAnalyses.viewer.workspace")}</p>
+            <bdi className="ai-viewer-title">{fileName}</bdi>
+          </div>
+        </div>
+        <span className="ai-viewer-state" data-ready={hasImage || undefined}>
+          {hasImage ? <CircleCheck size={14} strokeWidth={2} aria-hidden="true" /> : <span className="ai-viewer-state-dot" aria-hidden="true" />}
+          {hasImage ? t("aiAnalyses.viewer.ready") : t("aiAnalyses.viewer.waiting")}
+        </span>
+      </header>
+
       <div
         role="group"
         aria-label={t("aiAnalyses.viewer.controls")}
         className="ai-viewer-controls"
       >
-        <div className="flex flex-wrap items-center gap-1.5">
-          <button type="button" className="ai-viewer-button" aria-label={t("aiAnalyses.viewer.zoomOut")} title={t("aiAnalyses.viewer.zoomOut")} aria-controls={viewportId} disabled={!hasImage} onClick={() => dispatch({ type: "zoomOut" })}>
-            <ZoomOut size={17} strokeWidth={1.8} aria-hidden="true" />
-          </button>
-          <output className="ai-viewer-readout ai-viewer-mono" aria-live="polite">
-            <span className="sr-only">{t("aiAnalyses.viewer.zoom")} </span>
-            {zoomLabel}
-          </output>
-          <button type="button" className="ai-viewer-button" aria-label={t("aiAnalyses.viewer.zoomIn")} title={t("aiAnalyses.viewer.zoomIn")} aria-controls={viewportId} disabled={!hasImage} onClick={() => dispatch({ type: "zoomIn" })}>
-            <ZoomIn size={17} strokeWidth={1.8} aria-hidden="true" />
-          </button>
-          <button type="button" className="ai-viewer-button" aria-label={t("aiAnalyses.viewer.reset")} title={t("aiAnalyses.viewer.reset")} aria-controls={viewportId} disabled={!hasImage} onClick={() => dispatch({ type: "reset" })}>
-            <RotateCcw size={17} strokeWidth={1.8} aria-hidden="true" />
-          </button>
-          <button type="button" className="ai-viewer-button" aria-label={t("aiAnalyses.viewer.invert")} title={t("aiAnalyses.viewer.invert")} aria-pressed={state.inverted} aria-controls={viewportId} disabled={!hasImage} onClick={() => dispatch({ type: "toggleInvert" })}>
-            <Contrast size={17} strokeWidth={1.8} aria-hidden="true" />
-          </button>
-          <button type="button" className="ai-viewer-button" aria-label={isFullscreen ? t("aiAnalyses.viewer.exitFullscreen") : t("aiAnalyses.viewer.fullscreen")} title={isFullscreen ? t("aiAnalyses.viewer.exitFullscreen") : t("aiAnalyses.viewer.fullscreen")} onClick={toggleFullscreen}>
-            {isFullscreen ? <Minimize2 size={17} strokeWidth={1.8} aria-hidden="true" /> : <Maximize2 size={17} strokeWidth={1.8} aria-hidden="true" />}
-          </button>
+        <div className="ai-viewer-control-cluster ai-viewer-navigation">
+          <span className="ai-viewer-control-label"><Move size={13} strokeWidth={1.8} aria-hidden="true" />{t("aiAnalyses.viewer.navigation")}</span>
+          <div className="ai-viewer-control-row">
+            <button type="button" className="ai-viewer-button" aria-label={t("aiAnalyses.viewer.zoomOut")} title={t("aiAnalyses.viewer.zoomOut")} aria-controls={viewportId} disabled={!hasImage} onClick={() => dispatch({ type: "zoomOut" })}>
+              <ZoomOut size={17} strokeWidth={1.8} aria-hidden="true" />
+            </button>
+            <output className="ai-viewer-readout ai-viewer-mono" aria-live="polite">
+              <span className="sr-only">{t("aiAnalyses.viewer.zoom")} </span>
+              {zoomLabel}
+            </output>
+            <button type="button" className="ai-viewer-button" aria-label={t("aiAnalyses.viewer.zoomIn")} title={t("aiAnalyses.viewer.zoomIn")} aria-controls={viewportId} disabled={!hasImage} onClick={() => dispatch({ type: "zoomIn" })}>
+              <ZoomIn size={17} strokeWidth={1.8} aria-hidden="true" />
+            </button>
+            <span className="ai-viewer-divider" aria-hidden="true" />
+            <button type="button" className="ai-viewer-button" aria-label={t("aiAnalyses.viewer.reset")} title={t("aiAnalyses.viewer.reset")} aria-controls={viewportId} disabled={!hasImage} onClick={() => dispatch({ type: "reset" })}>
+              <RotateCcw size={17} strokeWidth={1.8} aria-hidden="true" />
+            </button>
+            <button type="button" className="ai-viewer-button" aria-label={t("aiAnalyses.viewer.invert")} title={t("aiAnalyses.viewer.invert")} aria-pressed={state.inverted} aria-controls={viewportId} disabled={!hasImage} onClick={() => dispatch({ type: "toggleInvert" })}>
+              <Contrast size={17} strokeWidth={1.8} aria-hidden="true" />
+            </button>
+            <button type="button" className="ai-viewer-button" aria-label={isFullscreen ? t("aiAnalyses.viewer.exitFullscreen") : t("aiAnalyses.viewer.fullscreen")} title={isFullscreen ? t("aiAnalyses.viewer.exitFullscreen") : t("aiAnalyses.viewer.fullscreen")} onClick={toggleFullscreen}>
+              {isFullscreen ? <Minimize2 size={17} strokeWidth={1.8} aria-hidden="true" /> : <Maximize2 size={17} strokeWidth={1.8} aria-hidden="true" />}
+            </button>
+          </div>
         </div>
 
-        <div className="flex flex-wrap items-center gap-x-4 gap-y-2">
-          <label className="ai-viewer-slider">
-            <SunMedium size={16} strokeWidth={1.8} aria-hidden="true" />
-            <span>{t("aiAnalyses.viewer.brightness")}</span>
-            <input type="range" min={VIEWER_FILTER_MIN} max={VIEWER_FILTER_MAX} step={5} value={state.brightness} disabled={!hasImage} aria-valuetext={`${state.brightness} %`} onChange={(event) => dispatch({ type: "setBrightness", value: Number(event.target.value) })} />
-            <span className="ai-viewer-mono w-12 text-end">{state.brightness} %</span>
-          </label>
-          <label className="ai-viewer-slider">
-            <Contrast size={16} strokeWidth={1.8} aria-hidden="true" />
-            <span>{t("aiAnalyses.viewer.contrast")}</span>
-            <input type="range" min={VIEWER_FILTER_MIN} max={VIEWER_FILTER_MAX} step={5} value={state.contrast} disabled={!hasImage} aria-valuetext={`${state.contrast} %`} onChange={(event) => dispatch({ type: "setContrast", value: Number(event.target.value) })} />
-            <span className="ai-viewer-mono w-12 text-end">{state.contrast} %</span>
-          </label>
-          {overlay ? (
-            <>
+        <div className="ai-viewer-control-cluster ai-viewer-adjustments">
+          <span className="ai-viewer-control-label"><SlidersHorizontal size={13} strokeWidth={1.8} aria-hidden="true" />{t("aiAnalyses.viewer.adjustments")}</span>
+          <div className="ai-viewer-adjustment-row">
+            <label className="ai-viewer-slider">
+              <SunMedium size={16} strokeWidth={1.8} aria-hidden="true" />
+              <span>{t("aiAnalyses.viewer.brightness")}</span>
+              <input type="range" min={VIEWER_FILTER_MIN} max={VIEWER_FILTER_MAX} step={5} value={state.brightness} disabled={!hasImage} aria-valuetext={`${state.brightness} %`} onChange={(event) => dispatch({ type: "setBrightness", value: Number(event.target.value) })} />
+              <output className="ai-viewer-mono">{state.brightness} %</output>
+            </label>
+            <label className="ai-viewer-slider">
+              <Contrast size={16} strokeWidth={1.8} aria-hidden="true" />
+              <span>{t("aiAnalyses.viewer.contrast")}</span>
+              <input type="range" min={VIEWER_FILTER_MIN} max={VIEWER_FILTER_MAX} step={5} value={state.contrast} disabled={!hasImage} aria-valuetext={`${state.contrast} %`} onChange={(event) => dispatch({ type: "setContrast", value: Number(event.target.value) })} />
+              <output className="ai-viewer-mono">{state.contrast} %</output>
+            </label>
+          </div>
+        </div>
+
+        {overlay ? (
+          <div className="ai-viewer-control-cluster ai-viewer-overlay-controls">
+            <span className="ai-viewer-control-label"><Layers size={13} strokeWidth={1.8} aria-hidden="true" />{t("aiAnalyses.viewer.showOverlay")}</span>
+            <div className="ai-viewer-control-row">
               <button
                 type="button"
                 role="switch"
                 aria-checked={isOverlayVisible}
-                className="ai-viewer-button gap-2 text-xs"
+                className="ai-viewer-button ai-viewer-overlay-toggle"
                 onClick={() => setOverlayVisible((visible) => !visible)}
               >
                 <Layers size={16} strokeWidth={1.8} aria-hidden="true" />
@@ -245,11 +278,11 @@ export function ImageViewer({ blob, fileName, module, overlay, placeholder, t }:
               <label className="ai-viewer-slider">
                 <span>{t("aiAnalyses.viewer.overlayOpacity")}</span>
                 <input type="range" min={0} max={100} step={5} value={Math.round(overlayOpacity * 100)} disabled={!isOverlayVisible} aria-valuetext={`${Math.round(overlayOpacity * 100)} %`} onChange={(event) => setOverlayOpacity(Number(event.target.value) / 100)} />
-                <span className="ai-viewer-mono w-12 text-end">{Math.round(overlayOpacity * 100)} %</span>
+                <output className="ai-viewer-mono">{Math.round(overlayOpacity * 100)} %</output>
               </label>
-            </>
-          ) : null}
-        </div>
+            </div>
+          </div>
+        ) : null}
       </div>
 
       <div
@@ -280,6 +313,7 @@ export function ImageViewer({ blob, fileName, module, overlay, placeholder, t }:
         onPointerUp={endDrag}
         onPointerCancel={endDrag}
       >
+        <div className="ai-viewer-focus-frame" aria-hidden="true" />
         <div className="ai-viewer-stage" style={{ transform: toViewerTransform(state) }} hidden={!hasImage}>
           {/* eslint-disable-next-line @next/next/no-img-element -- local blob: URL, next/image cannot optimize it */}
           <img
@@ -307,14 +341,16 @@ export function ImageViewer({ blob, fileName, module, overlay, placeholder, t }:
           ) : null}
         </div>
         {hasImage ? null : <div className="ai-viewer-placeholder">{placeholder}</div>}
+        {hasImage ? <div className="ai-viewer-interaction-hint"><Move size={13} strokeWidth={1.8} aria-hidden="true" />{t("aiAnalyses.viewer.interactionHint")}</div> : null}
       </div>
 
       <figcaption className="ai-viewer-status ai-viewer-mono">
-        <span>{size ? t("aiAnalyses.viewer.dimensions", { height: size.height, width: size.width }) : t("aiAnalyses.viewer.dimensionsUnknown")}</span>
-        <span aria-hidden="true">·</span>
-        <span>{zoomLabel}</span>
-        <span aria-hidden="true">·</span>
-        <bdi className="min-w-0 truncate">{fileName}</bdi>
+        <span className="ai-viewer-status-file"><FileImage size={14} strokeWidth={1.8} aria-hidden="true" /><bdi className="min-w-0 truncate">{fileName}</bdi></span>
+        <span className="ai-viewer-status-metrics">
+          <span>{size ? t("aiAnalyses.viewer.dimensions", { height: size.height, width: size.width }) : t("aiAnalyses.viewer.dimensionsUnknown")}</span>
+          <span aria-hidden="true">·</span>
+          <span>{zoomLabel}</span>
+        </span>
       </figcaption>
       <p id={helpId} className="sr-only">{t("aiAnalyses.viewer.shortcuts")}</p>
     </figure>

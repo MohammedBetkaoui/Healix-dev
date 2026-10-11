@@ -373,31 +373,93 @@
 /* AI image viewer: always dark, whatever the theme (image reading). Its
    specialty accent uses the dark-theme value: the light cardiology red is
    2.98:1 on this background, under the 3:1 non-text minimum. */
-.clinical-theme .ai-viewer { --viewer-bg: #0b1220; --viewer-panel: #131c2e; --viewer-line: #2a3650; --viewer-ink: #e2e8f0; --viewer-ink-soft: #94a3b8; --specialty-cardiology: #f43f5e; display: flex; flex-direction: column; margin: 0; overflow: hidden; border: 1px solid var(--viewer-line); border-inline-start: 3px solid var(--ai-module-color); border-radius: var(--radius-md); background: var(--viewer-bg); color: var(--viewer-ink); }
+.clinical-theme .ai-viewer {
+  --viewer-bg: #060b12;
+  --viewer-panel: #0f1826;
+  --viewer-panel-elevated: #152135;
+  --viewer-line: #263750;
+  --viewer-line-strong: #3b506d;
+  --viewer-ink: #edf4ff;
+  --viewer-ink-soft: #a6b6ca;
+  --viewer-ink-faint: #71859f;
+  --specialty-cardiology: #f43f5e;
+  display: flex;
+  flex-direction: column;
+  margin: 0;
+  overflow: hidden;
+  border: 1px solid var(--viewer-line);
+  border-block-start: 2px solid var(--ai-module-color);
+  border-radius: var(--radius-lg);
+  background: var(--viewer-bg);
+  box-shadow: 0 18px 50px -28px rgb(2 8 18 / 75%);
+  color: var(--viewer-ink);
+}
 .clinical-theme .ai-viewer :where(a, button, input, [tabindex]):focus-visible { outline: 2px solid var(--ai-module-color); outline-offset: 2px; }
-.clinical-theme .ai-viewer-controls { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 10px 16px; padding: 10px 12px; border-bottom: 1px solid var(--viewer-line); background: var(--viewer-panel); }
-.clinical-theme .ai-viewer-button { display: inline-flex; align-items: center; justify-content: center; min-width: 36px; height: 36px; padding: 0 8px; border: 1px solid var(--viewer-line); border-radius: var(--radius-sm); background: var(--viewer-bg); color: var(--viewer-ink); }
-.clinical-theme .ai-viewer-button:hover:not(:disabled) { border-color: var(--viewer-ink-soft); }
-.clinical-theme .ai-viewer-button:disabled { cursor: not-allowed; opacity: .45; }
+.clinical-theme .ai-viewer-header { display: flex; min-height: 64px; align-items: center; justify-content: space-between; gap: 16px; padding: 12px 16px; border-bottom: 1px solid var(--viewer-line); background: linear-gradient(180deg, var(--viewer-panel-elevated), var(--viewer-panel)); }
+.clinical-theme .ai-viewer-heading { display: flex; min-width: 0; align-items: center; gap: 11px; }
+.clinical-theme .ai-viewer-mark { display: inline-flex; width: 36px; height: 36px; flex-shrink: 0; align-items: center; justify-content: center; border: 1px solid color-mix(in srgb, var(--ai-module-color) 55%, var(--viewer-line)); border-radius: var(--radius-sm); background: color-mix(in srgb, var(--ai-module-color) 14%, var(--viewer-bg)); color: color-mix(in srgb, var(--ai-module-color) 76%, white); }
+.clinical-theme .ai-viewer-eyebrow { margin: 0 0 2px; color: var(--viewer-ink-faint); font-size: .64rem; font-weight: 650; letter-spacing: .1em; text-transform: uppercase; }
+.clinical-theme .ai-viewer-title { display: block; overflow: hidden; color: var(--viewer-ink); font-size: .8rem; font-weight: 600; text-overflow: ellipsis; white-space: nowrap; }
+.clinical-theme .ai-viewer-state { display: inline-flex; min-height: 28px; flex-shrink: 0; align-items: center; gap: 7px; padding: 4px 9px; border: 1px solid var(--viewer-line); border-radius: 999px; background: rgb(6 11 18 / 55%); color: var(--viewer-ink-soft); font-size: .68rem; font-weight: 600; }
+.clinical-theme .ai-viewer-state[data-ready] { border-color: color-mix(in srgb, var(--success-ink) 55%, var(--viewer-line)); color: #8bd6b7; }
+.clinical-theme .ai-viewer-state-dot { width: 6px; height: 6px; border-radius: 999px; background: var(--viewer-ink-faint); }
+.clinical-theme .ai-viewer-controls { display: flex; flex-wrap: wrap; align-items: stretch; gap: 12px; padding: 12px; border-bottom: 1px solid var(--viewer-line); background: var(--viewer-panel); }
+.clinical-theme .ai-viewer-control-cluster { display: flex; min-width: 0; flex-direction: column; justify-content: center; gap: 7px; padding: 9px 10px; border: 1px solid var(--viewer-line); border-radius: var(--radius-md); background: rgb(6 11 18 / 42%); }
+.clinical-theme .ai-viewer-navigation { flex: 0 0 auto; }
+.clinical-theme .ai-viewer-adjustments { min-width: min(100%, 390px); flex: 1 1 430px; }
+.clinical-theme .ai-viewer-overlay-controls { flex: 1 1 320px; }
+.clinical-theme .ai-viewer-control-label { display: inline-flex; align-items: center; gap: 6px; color: var(--viewer-ink-faint); font-size: .62rem; font-weight: 650; letter-spacing: .07em; text-transform: uppercase; }
+.clinical-theme .ai-viewer-control-row, .clinical-theme .ai-viewer-adjustment-row { display: flex; min-width: 0; flex-wrap: wrap; align-items: center; gap: 6px; }
+.clinical-theme .ai-viewer-adjustment-row { gap: 8px 18px; }
+.clinical-theme .ai-viewer-divider { width: 1px; height: 24px; margin-inline: 2px; background: var(--viewer-line); }
+.clinical-theme .ai-viewer-button { display: inline-flex; min-width: 36px; height: 36px; align-items: center; justify-content: center; gap: 7px; padding: 0 9px; border: 1px solid var(--viewer-line); border-radius: var(--radius-sm); background: var(--viewer-panel-elevated); color: var(--viewer-ink-soft); transition: border-color 140ms ease, background-color 140ms ease, color 140ms ease, transform 140ms ease; }
+.clinical-theme .ai-viewer-button:hover:not(:disabled) { border-color: var(--viewer-line-strong); background: #1a2940; color: var(--viewer-ink); }
+.clinical-theme .ai-viewer-button:active:not(:disabled) { transform: translateY(1px); }
+.clinical-theme .ai-viewer-button:disabled { cursor: not-allowed; opacity: .38; }
+.clinical-theme .ai-viewer-overlay-toggle { min-width: max-content; font-size: .7rem; font-weight: 600; }
 /* On state: module-colour border, thickened to 2 px, over a tint of that colour;
    light text stays at about 10:1 (a full fill under dark text is 4.2:1 for brain). */
 .clinical-theme .ai-viewer-button:is([aria-pressed="true"], [aria-checked="true"]) { border-color: var(--ai-module-color); box-shadow: inset 0 0 0 1px var(--ai-module-color); background: color-mix(in srgb, var(--ai-module-color) 35%, var(--viewer-bg)); color: var(--viewer-ink); }
-.clinical-theme .ai-viewer-readout { min-width: 4.5rem; text-align: center; font-size: .78rem; color: var(--viewer-ink); }
-.clinical-theme .ai-viewer-slider { display: inline-flex; align-items: center; gap: 8px; font-size: .75rem; color: var(--viewer-ink-soft); }
-.clinical-theme .ai-viewer-slider input { width: 110px; accent-color: var(--ai-module-color); }
-.clinical-theme .ai-viewer-viewport { position: relative; height: clamp(320px, 60vh, 720px); overflow: hidden; touch-action: none; cursor: grab; }
+.clinical-theme .ai-viewer-readout { display: inline-flex; min-width: 58px; height: 36px; align-items: center; justify-content: center; border-block: 1px solid var(--viewer-line); background: var(--viewer-bg); color: var(--viewer-ink); font-size: .75rem; }
+.clinical-theme .ai-viewer-slider { display: grid; min-width: 0; flex: 1 1 250px; grid-template-columns: auto max-content minmax(90px, 1fr) 46px; align-items: center; gap: 8px; color: var(--viewer-ink-soft); font-size: .72rem; }
+.clinical-theme .ai-viewer-slider output { color: var(--viewer-ink); font-size: .7rem; text-align: end; }
+.clinical-theme .ai-viewer-slider input { width: 100%; min-width: 80px; height: 18px; accent-color: var(--ai-module-color); cursor: pointer; }
+.clinical-theme .ai-viewer-slider input:disabled { cursor: not-allowed; opacity: .4; }
+.clinical-theme .ai-viewer-slider input::-webkit-slider-runnable-track { height: 4px; border-radius: 999px; background: var(--viewer-line-strong); }
+.clinical-theme .ai-viewer-slider input::-webkit-slider-thumb { width: 14px; height: 14px; margin-top: -5px; border: 2px solid var(--viewer-panel); border-radius: 999px; appearance: none; background: var(--ai-module-color); box-shadow: 0 0 0 1px color-mix(in srgb, var(--ai-module-color) 65%, white); }
+.clinical-theme .ai-viewer-slider input::-moz-range-track { height: 4px; border-radius: 999px; background: var(--viewer-line-strong); }
+.clinical-theme .ai-viewer-slider input::-moz-range-thumb { width: 12px; height: 12px; border: 2px solid var(--viewer-panel); border-radius: 999px; background: var(--ai-module-color); }
+.clinical-theme .ai-viewer-viewport { position: relative; height: clamp(360px, 60vh, 720px); overflow: hidden; background-color: var(--viewer-bg); background-image: linear-gradient(rgb(69 91 120 / 6%) 1px, transparent 1px), linear-gradient(90deg, rgb(69 91 120 / 6%) 1px, transparent 1px), radial-gradient(circle at center, #111a28 0, #080e18 58%, #05090f 100%); background-position: center; background-size: 32px 32px, 32px 32px, 100% 100%; touch-action: none; cursor: grab; }
 .clinical-theme .ai-viewer-viewport[data-dragging] { cursor: grabbing; }
 .clinical-theme .ai-viewer-viewport[tabindex="-1"] { cursor: default; }
 .clinical-theme .ai-viewer-viewport:focus-visible { outline-offset: -3px; }
-.clinical-theme .ai-viewer-stage { position: absolute; inset: 0; transform-origin: center; }
-.clinical-theme .ai-viewer-image { width: 100%; height: 100%; object-fit: contain; user-select: none; }
+.clinical-theme .ai-viewer-stage { position: absolute; z-index: 1; inset: 18px; transform-origin: center; }
+.clinical-theme .ai-viewer-image { width: 100%; height: 100%; object-fit: contain; user-select: none; filter: drop-shadow(0 18px 38px rgb(0 0 0 / 40%)); }
 /* Same "contain" geometry as the image, so a mask of that image aligns. */
 .clinical-theme .ai-viewer-overlay { position: absolute; inset: 0; pointer-events: none; mask-mode: luminance; mask-size: contain; mask-repeat: no-repeat; mask-position: center; -webkit-mask-size: contain; -webkit-mask-repeat: no-repeat; -webkit-mask-position: center; }
-.clinical-theme .ai-viewer-placeholder { position: absolute; inset: 0; display: grid; place-items: center; padding: 24px; text-align: center; font-size: .85rem; color: var(--viewer-ink-soft); }
-.clinical-theme .ai-viewer-status { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 8px; padding: 8px 12px; border-top: 1px solid var(--viewer-line); background: var(--viewer-panel); font-size: .72rem; color: var(--viewer-ink-soft); }
+.clinical-theme .ai-viewer-focus-frame { position: absolute; z-index: 2; inset: 16px; pointer-events: none; background: linear-gradient(var(--viewer-line-strong), var(--viewer-line-strong)) left top / 22px 1px no-repeat, linear-gradient(var(--viewer-line-strong), var(--viewer-line-strong)) left top / 1px 22px no-repeat, linear-gradient(var(--viewer-line-strong), var(--viewer-line-strong)) right top / 22px 1px no-repeat, linear-gradient(var(--viewer-line-strong), var(--viewer-line-strong)) right top / 1px 22px no-repeat, linear-gradient(var(--viewer-line-strong), var(--viewer-line-strong)) left bottom / 22px 1px no-repeat, linear-gradient(var(--viewer-line-strong), var(--viewer-line-strong)) left bottom / 1px 22px no-repeat, linear-gradient(var(--viewer-line-strong), var(--viewer-line-strong)) right bottom / 22px 1px no-repeat, linear-gradient(var(--viewer-line-strong), var(--viewer-line-strong)) right bottom / 1px 22px no-repeat; opacity: .72; }
+.clinical-theme .ai-viewer-interaction-hint { position: absolute; z-index: 3; inset-inline-start: 50%; bottom: 14px; display: inline-flex; max-width: calc(100% - 32px); align-items: center; gap: 7px; padding: 6px 10px; border: 1px solid var(--viewer-line); border-radius: 999px; background: rgb(7 13 22 / 82%); color: var(--viewer-ink-soft); font-size: .65rem; pointer-events: none; transform: translateX(-50%); backdrop-filter: blur(8px); white-space: nowrap; }
+.clinical-theme .ai-viewer-placeholder { position: absolute; z-index: 3; inset: 0; display: grid; place-items: center; padding: 24px; text-align: center; font-size: .85rem; color: var(--viewer-ink-soft); }
+.clinical-theme .ai-viewer-status { display: flex; min-height: 42px; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 8px 16px; padding: 8px 14px; border-top: 1px solid var(--viewer-line); background: var(--viewer-panel); color: var(--viewer-ink-soft); font-size: .68rem; }
+.clinical-theme .ai-viewer-status-file, .clinical-theme .ai-viewer-status-metrics { display: inline-flex; min-width: 0; align-items: center; gap: 7px; }
+.clinical-theme .ai-viewer-status-file { color: var(--viewer-ink); }
+.clinical-theme .ai-viewer-status-metrics { flex-shrink: 0; color: var(--viewer-ink-soft); }
 .clinical-theme .ai-viewer-mono { font-family: var(--font-auth-mono), ui-monospace, monospace; font-variant-numeric: tabular-nums; }
-.clinical-theme .ai-viewer:fullscreen { border-radius: 0; }
+.clinical-theme .ai-viewer:fullscreen { width: 100vw; height: 100vh; border: 0; border-radius: 0; }
 .clinical-theme .ai-viewer:fullscreen .ai-viewer-viewport { flex: 1; height: auto; }
+.clinical-theme .ai-viewer:fullscreen .ai-viewer-stage { inset: 24px; }
+@media (max-width: 767px) {
+  .clinical-theme .ai-viewer-header { min-height: 58px; padding-inline: 12px; }
+  .clinical-theme .ai-viewer-controls { gap: 8px; padding: 8px; }
+  .clinical-theme .ai-viewer-control-cluster { width: 100%; padding: 8px; }
+  .clinical-theme .ai-viewer-navigation { overflow-x: auto; }
+  .clinical-theme .ai-viewer-control-row { flex-wrap: nowrap; }
+  .clinical-theme .ai-viewer-adjustment-row { align-items: stretch; }
+  .clinical-theme .ai-viewer-slider { flex-basis: 100%; grid-template-columns: auto minmax(72px, max-content) minmax(80px, 1fr) 42px; }
+  .clinical-theme .ai-viewer-viewport { height: clamp(320px, 52vh, 560px); }
+  .clinical-theme .ai-viewer-interaction-hint { display: none; }
+  .clinical-theme .ai-viewer-status { align-items: flex-start; flex-direction: column; }
+}
 /* Wizard stepper: state shown by the marker (number, check) and by text. */
 .clinical-theme .ai-stepper { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 8px; }
 .clinical-theme .ai-step { display: flex; min-width: 0; align-items: center; gap: 10px; padding: 10px 12px; border: 1px solid var(--border); border-radius: var(--radius-sm); background: var(--surface); color: var(--text-secondary); font-size: .8rem; }

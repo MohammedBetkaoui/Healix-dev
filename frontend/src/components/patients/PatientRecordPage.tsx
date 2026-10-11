@@ -2,15 +2,20 @@
 
 import {
   AlertTriangle,
+  ArrowLeft,
   BrainCircuit,
   CalendarCheck,
   CalendarPlus,
   CircleCheck,
   ClipboardPlus,
+  Droplets,
   Edit3,
   FilePlus2,
   FileText,
   History,
+  LockKeyhole,
+  MapPin,
+  Phone,
   ShieldCheck,
   Stethoscope,
   UserRound,
@@ -68,7 +73,11 @@ const copy = {
     allergyNone: "Aucune allergie documentée",
     allergyTitle: "Allergies",
     auditTitle: "Audit / Historique non désactivable",
+    back: "Retour au registre",
+    bloodGroup: "Groupe sanguin",
     consentTitle: "Consentements Loi 18-07",
+    coverage: "Couverture",
+    location: "Localisation",
     notFound: "Ce dossier patient est introuvable.",
     appointmentCreated: "Rendez-vous créé.",
     appointmentUpdated: "Rendez-vous mis à jour avec succès.",
@@ -77,6 +86,8 @@ const copy = {
     documentUploaded: "Document ajouté.",
     patientUpdated: "Dossier patient mis à jour.",
     doctorOnly: "Seul un médecin peut créer une consultation.",
+    secureAccess: "Accès sécurisé · activité journalisée",
+    tabNavigation: "Navigation du dossier",
     viaAppointment: "Via rendez-vous",
     record: "Dossier patient longitudinal",
     appointmentStatuses: {
@@ -100,7 +111,11 @@ const copy = {
     allergyNone: "لا توجد حساسية موثقة",
     allergyTitle: "الحساسية",
     auditTitle: "التدقيق / السجل غير القابل للتعطيل",
+    back: "العودة إلى السجل",
+    bloodGroup: "فصيلة الدم",
     consentTitle: "الموافقات وفق القانون 18-07",
+    coverage: "التغطية",
+    location: "الموقع",
     notFound: "تعذر العثور على ملف المريض.",
     appointmentCreated: "تم إنشاء الموعد.",
     appointmentUpdated: "تم تحديث الموعد بنجاح.",
@@ -109,6 +124,8 @@ const copy = {
     documentUploaded: "تمت إضافة الوثيقة.",
     patientUpdated: "تم تحديث ملف المريض.",
     doctorOnly: "لا يمكن لغير الطبيب إنشاء استشارة.",
+    secureAccess: "وصول آمن · النشاط مسجل",
+    tabNavigation: "التنقل في الملف",
     viaAppointment: "عبر موعد",
     record: "ملف المريض الطولي",
     appointmentStatuses: {
@@ -155,7 +172,7 @@ const appointmentStatusTone: Record<AppointmentStatus, DashboardStatusTone> = {
 
 function EmptyTab({ label }: { label: string }) {
   return (
-    <div className="relative overflow-hidden rounded-xl border border-[var(--line)] bg-[var(--panel)] px-6 py-14 text-center">
+    <div className="surface-section relative overflow-hidden px-6 py-16 text-center">
       <svg className="mx-auto h-10 w-32 text-[var(--line)]" viewBox="0 0 128 40" fill="none" aria-hidden="true"><path d="M0 21h35l5-13 8 27 8-20 7 12 6-6h59" stroke="currentColor" strokeWidth="1.5" /></svg>
       <p className="mt-4 text-sm text-[var(--ink-faint)]">{label}</p>
     </div>
@@ -207,6 +224,7 @@ export function PatientRecordPage({ accountType, initialTab, patientId }: Patien
   } | null>(null);
   const [notice, setNotice] = useState("");
   const canCreateConsultation = accountType === "DOCTOR";
+  const basePath = accountType === "ESTABLISHMENT" ? "/establishment/patients" : "/doctor/patients";
 
   const shellProps = accountType === "ESTABLISHMENT"
     ? {
@@ -242,67 +260,82 @@ export function PatientRecordPage({ accountType, initialTab, patientId }: Patien
 
   const name = locale === "ar" ? `${patient.firstNameAr} ${patient.lastNameAr}` : `${patient.firstName} ${patient.lastName}`;
   const secondaryName = locale === "ar" ? `${patient.firstName} ${patient.lastName}` : `${patient.firstNameAr} ${patient.lastNameAr}`;
+  const patientInitials = `${(locale === "ar" ? patient.firstNameAr : patient.firstName).at(0) ?? ""}${(locale === "ar" ? patient.lastNameAr : patient.lastName).at(0) ?? ""}`;
 
   return (
     <DashboardShell {...shellProps} activeKey="patients" breadcrumbLabel={name} titleKey={accountType === "ESTABLISHMENT" ? "patients.page.title" : "patients.page.doctorTitle"}>
-      <div className="space-y-5">
-        <section className="sticky top-3 z-20 rounded-xl border border-[var(--line)] bg-card p-4 shadow-sm backdrop-blur-sm">
-          <div className="flex flex-col gap-4 xl:flex-row xl:items-center xl:justify-between">
-            <div className="flex min-w-0 items-start gap-3">
-              <span className="flex h-12 w-12 shrink-0 items-center justify-center rounded-[0.8rem] border border-[var(--accent-line)] bg-[var(--accent-soft)] text-[var(--accent-dark)]"><UserRound className="h-5 w-5" strokeWidth={1.7} /></span>
+      <div className="space-y-6">
+        <Link href={basePath} className="inline-flex min-h-9 items-center gap-2 rounded-[var(--radius-sm)] px-2 text-xs font-medium text-[var(--ink-soft)] transition hover:bg-[var(--panel-soft)] hover:text-[var(--accent-dark)]">
+          <ArrowLeft className="clinical-directional h-4 w-4" strokeWidth={1.8} aria-hidden="true" />{localized.back}
+        </Link>
+
+        <section className="surface-section surface-raised overflow-hidden border-t-2 border-t-[var(--medical)]">
+          <div className="flex items-center justify-between gap-3 border-b border-[var(--line)] bg-[var(--panel-soft)] px-5 py-2.5 sm:px-6">
+            <span className="inline-flex items-center gap-2 text-[0.68rem] font-semibold uppercase tracking-[0.1em] text-[var(--medical)]"><LockKeyhole className="h-3.5 w-3.5" strokeWidth={1.8} />{localized.secureAccess}</span>
+            <span className="hidden text-[0.68rem] text-[var(--ink-faint)] sm:inline">{localized.record}</span>
+          </div>
+
+          <div className="grid gap-6 p-5 sm:p-6 xl:grid-cols-[minmax(320px,1.2fr)_minmax(360px,1fr)_minmax(260px,.85fr)] xl:items-start">
+            <div className="flex min-w-0 items-start gap-4">
+              <span className="flex h-16 w-16 shrink-0 items-center justify-center rounded-full border-2 border-[var(--panel)] bg-[var(--medical-soft)] text-xl font-semibold text-[var(--medical)] shadow-[0_0_0_1px_var(--accent-line)]">{patientInitials || <UserRound className="h-6 w-6" strokeWidth={1.7} />}</span>
               <div className="min-w-0">
-                <div className="flex flex-wrap items-center gap-2"><h1 className="font-[var(--font-auth-display)] text-2xl font-medium text-[var(--ink)]">{name}</h1><span className="rounded-full border border-[var(--accent-line)] bg-[var(--accent-soft)] px-2.5 py-1 font-[var(--font-auth-mono)] text-[0.58rem] text-[var(--accent-dark)]">{localized.record}</span></div>
-                <p className="mt-0.5 text-sm text-[var(--ink-faint)]" lang={locale === "ar" ? "fr" : "ar"}>{secondaryName}</p>
-                <p className="mt-1 font-[var(--font-auth-mono)] text-[0.62rem] text-[var(--ink-soft)]" dir="ltr">{patient.id} · {getPatientAge(patient.birthDate)} {t("patients.common.years")} · {formatPatientDate(patient.birthDate, locale)}</p>
+                <div className="flex flex-wrap items-center gap-2">
+                  <h1 className="text-2xl font-semibold tracking-[-0.02em] text-[var(--ink)]">{name}</h1>
+                  <span className={cn("inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-[0.65rem] font-medium", patient.administrativeStatus === "ACTIVE" ? "border-[var(--success-line)] bg-[var(--success-soft)] text-[var(--success-ink)]" : "border-[var(--line)] bg-[var(--panel-soft)] text-[var(--ink-soft)]")}><span className="h-1.5 w-1.5 rounded-full bg-current" />{t(`patients.administrativeStatuses.${patient.administrativeStatus}`)}</span>
+                </div>
+                <p className="mt-1 text-sm text-[var(--ink-faint)]" lang={locale === "ar" ? "fr" : "ar"}>{secondaryName}</p>
+                <div className="mt-3 flex flex-wrap items-center gap-x-3 gap-y-1.5 text-xs text-[var(--ink-soft)]">
+                  <span className="clinical-figure rounded-[var(--radius-xs)] bg-[var(--panel-soft)] px-2 py-1" dir="ltr">{patient.id}</span>
+                  <span>{getPatientAge(patient.birthDate)} {t("patients.common.years")}</span>
+                  <span aria-hidden="true" className="h-1 w-1 rounded-full bg-[var(--border-strong)]" />
+                  <span>{formatPatientDate(patient.birthDate, locale)}</span>
+                </div>
               </div>
             </div>
 
-            <div className={cn("rounded-[0.75rem] border px-3 py-2", patient.medicalSummary.allergies.length ? "border-[var(--warning-line)] bg-[var(--warning-soft)]" : "border-[var(--line)] bg-muted")}>
-              <div className="flex items-center gap-2"><AlertTriangle className={cn("h-4 w-4", patient.medicalSummary.allergies.length ? "text-[var(--warning-ink)]" : "text-[var(--ink-faint)]")} strokeWidth={1.7} /><span className="font-[var(--font-auth-mono)] text-[0.6rem] uppercase tracking-[0.1em] text-[var(--ink-soft)]">{localized.allergyTitle}</span></div>
-              <p className="mt-1 text-xs font-medium text-[var(--ink)]">{patient.medicalSummary.allergies.join(" · ") || localized.allergyNone}</p>
-            </div>
+            <dl className="grid gap-x-5 gap-y-4 sm:grid-cols-2">
+              <div className="flex items-start gap-2.5"><Droplets className="mt-0.5 h-4 w-4 shrink-0 text-[var(--danger-ink)]" strokeWidth={1.7} /><div><dt className="text-[0.68rem] font-medium text-[var(--ink-faint)]">{localized.bloodGroup}</dt><dd className="mt-0.5 text-sm font-semibold text-[var(--ink)]">{patient.bloodGroup}</dd></div></div>
+              <div className="flex items-start gap-2.5"><ShieldCheck className="mt-0.5 h-4 w-4 shrink-0 text-[var(--medical)]" strokeWidth={1.7} /><div><dt className="text-[0.68rem] font-medium text-[var(--ink-faint)]">{localized.coverage}</dt><dd className="mt-0.5 text-sm font-semibold text-[var(--ink)]">{t(`patients.insurances.${patient.insurance}`)}</dd></div></div>
+              <div className="flex items-start gap-2.5"><MapPin className="mt-0.5 h-4 w-4 shrink-0 text-[var(--accent-dark)]" strokeWidth={1.7} /><div><dt className="text-[0.68rem] font-medium text-[var(--ink-faint)]">{localized.location}</dt><dd className="mt-0.5 text-sm font-semibold text-[var(--ink)]">{patient.wilaya} · {patient.commune}</dd></div></div>
+              <div className="flex items-start gap-2.5"><Phone className="mt-0.5 h-4 w-4 shrink-0 text-[var(--accent-dark)]" strokeWidth={1.7} /><div><dt className="text-[0.68rem] font-medium text-[var(--ink-faint)]">{t("patients.table.columns.phone")}</dt><dd className="mt-0.5 text-sm font-semibold text-[var(--ink)]" dir="ltr">{patient.phone}</dd></div></div>
+            </dl>
 
-            <div className="flex flex-wrap gap-2">
-              <Button
-                className="rounded-full px-4"
-                disabled={!canCreateConsultation}
-                title={canCreateConsultation ? undefined : localized.doctorOnly}
-                onClick={() => setConsultationModalOpen(true)}
-              >
-                <ClipboardPlus className="me-2 h-4 w-4" strokeWidth={1.7} />{localized.actions.consultation}
-              </Button>
-              <Button
-                variant="outline"
-                className="rounded-full border-[var(--line)] bg-[var(--panel)] text-[var(--ink-soft)]"
-                onClick={() => setEditModalOpen(true)}
-              >
-                <Edit3 className="me-2 h-4 w-4" strokeWidth={1.7} />{t("patients.actions.edit")}
-              </Button>
-              <Button variant="outline" className="rounded-full border-[var(--line)] bg-[var(--panel)] text-[var(--ink-soft)]" onClick={() => setAppointmentModalOpen(true)}><CalendarPlus className="me-2 h-4 w-4" strokeWidth={1.7} />{localized.actions.appointment}</Button>
-              <Button variant="outline" className="rounded-full border-[var(--line)] bg-[var(--panel)] text-[var(--ink-soft)]" onClick={() => setDocumentModalOpen(true)}><FilePlus2 className="me-2 h-4 w-4" strokeWidth={1.7} />{localized.actions.document}</Button>
-              {/* The wizard checks the DIAGNOSTIC_AI consent and explains a missing one. */}
-              <Link href={getNewAiAnalysisHref(accountType, patientId)} className="inline-flex h-11 items-center justify-center rounded-full border border-[var(--line)] bg-[var(--panel)] px-4 text-sm font-medium text-[var(--ink-soft)] shadow-sm transition-colors hover:bg-[var(--panel-soft)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--accent)] focus-visible:ring-offset-2 focus-visible:ring-offset-[var(--bg)]"><BrainCircuit className="me-2 h-4 w-4" strokeWidth={1.7} aria-hidden="true" />{t("patients.actions.newAiAnalysis")}</Link>
+            <div className={cn("rounded-[var(--radius-md)] border p-4", patient.medicalSummary.allergies.length ? "border-[var(--warning-line)] bg-[var(--warning-soft)]" : "border-[var(--line)] bg-[var(--panel-soft)]")}>
+              <div className="flex items-center gap-2"><AlertTriangle className={cn("h-4 w-4", patient.medicalSummary.allergies.length ? "text-[var(--warning-ink)]" : "text-[var(--ink-faint)]")} strokeWidth={1.8} /><span className="text-xs font-semibold text-[var(--ink)]">{localized.allergyTitle}</span></div>
+              <p className="mt-2 text-xs leading-5 text-[var(--ink-soft)]">{patient.medicalSummary.allergies.join(" · ") || localized.allergyNone}</p>
             </div>
+          </div>
+
+          <div className="flex flex-wrap gap-2 border-t border-[var(--line)] bg-[var(--panel-soft)] px-5 py-4 sm:px-6">
+            <Button className="rounded-[var(--radius-sm)] px-4" disabled={!canCreateConsultation} title={canCreateConsultation ? undefined : localized.doctorOnly} onClick={() => setConsultationModalOpen(true)}><ClipboardPlus className="h-4 w-4" strokeWidth={1.8} />{localized.actions.consultation}</Button>
+            <Button variant="outline" className="rounded-[var(--radius-sm)] border-[var(--line)] bg-[var(--panel)] text-[var(--ink-soft)]" onClick={() => setEditModalOpen(true)}><Edit3 className="h-4 w-4" strokeWidth={1.7} />{t("patients.actions.edit")}</Button>
+            <Button variant="outline" className="rounded-[var(--radius-sm)] border-[var(--line)] bg-[var(--panel)] text-[var(--ink-soft)]" onClick={() => setAppointmentModalOpen(true)}><CalendarPlus className="h-4 w-4" strokeWidth={1.7} />{localized.actions.appointment}</Button>
+            <Button variant="outline" className="rounded-[var(--radius-sm)] border-[var(--line)] bg-[var(--panel)] text-[var(--ink-soft)]" onClick={() => setDocumentModalOpen(true)}><FilePlus2 className="h-4 w-4" strokeWidth={1.7} />{localized.actions.document}</Button>
+            {/* The wizard checks the DIAGNOSTIC_AI consent and explains a missing one. */}
+            <Link href={getNewAiAnalysisHref(accountType, patientId)} className="inline-flex h-11 items-center justify-center gap-2 rounded-[var(--radius-sm)] border border-[var(--ai-line)] bg-[var(--ai-soft)] px-4 text-sm font-medium text-[var(--ai)] transition-colors hover:brightness-95 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--accent)] focus-visible:ring-offset-2 focus-visible:ring-offset-[var(--bg)]"><BrainCircuit className="h-4 w-4" strokeWidth={1.7} aria-hidden="true" />{t("patients.actions.newAiAnalysis")}</Link>
           </div>
         </section>
 
-        <nav className="overflow-x-auto rounded-[0.9rem] border border-[var(--line)] bg-[var(--panel)] p-1.5" aria-label={localized.record}>
-          <div className="flex min-w-max gap-1">
-            {tabs.map((tab) => <button key={tab} className={cn("rounded-[0.6rem] px-3 py-2 text-xs font-medium text-[var(--ink-soft)] transition", activeTab === tab && "bg-[var(--accent-soft)] text-[var(--accent-dark)]")} type="button" onClick={() => setActiveTab(tab)}>{localized.tabs[tab]}</button>)}
+        <nav className="surface-section sticky top-3 z-10 overflow-hidden" aria-label={localized.record}>
+          <div className="border-b border-[var(--line)] bg-[var(--panel-soft)] px-4 py-2 text-[0.68rem] font-semibold uppercase tracking-[0.1em] text-[var(--ink-faint)]">{localized.tabNavigation}</div>
+          <div className="overflow-x-auto p-1.5">
+            <div className="flex min-w-max gap-1">
+              {tabs.map((tab) => <button key={tab} aria-current={activeTab === tab ? "page" : undefined} className={cn("relative rounded-[var(--radius-sm)] px-3 py-2.5 text-xs font-medium text-[var(--ink-soft)] transition hover:bg-[var(--panel-soft)] hover:text-[var(--ink)]", activeTab === tab && "bg-[var(--accent-soft)] text-[var(--accent-dark)] shadow-[inset_0_-2px_0_var(--accent)]")} type="button" onClick={() => setActiveTab(tab)}>{localized.tabs[tab]}</button>)}
+            </div>
           </div>
         </nav>
 
         {activeTab === "summary" ? (
           <div className="grid gap-5 xl:grid-cols-[minmax(0,1.35fr)_minmax(320px,.65fr)]">
-            <section className="rounded-xl border border-[var(--line)] bg-[var(--panel)] p-5">
-              <div className="flex items-center gap-3"><span className="flex h-10 w-10 items-center justify-center rounded-[0.72rem] border border-[var(--accent-line)] bg-[var(--accent-soft)] text-[var(--accent-dark)]"><Stethoscope className="h-4 w-4" strokeWidth={1.7} /></span><div><p className="font-[var(--font-auth-mono)] text-[0.62rem] uppercase tracking-[0.11em] text-[var(--ink-faint)]">{localized.tabs.consultations}</p><h2 className="mt-1 font-[var(--font-auth-display)] text-xl font-medium text-[var(--ink)]">{patient.assignedDoctor}</h2></div></div>
+            <section className="surface-section border-t-2 border-t-[var(--medical)] p-5 sm:p-6">
+              <div className="flex items-center gap-3"><span className="flex h-10 w-10 items-center justify-center rounded-[var(--radius-sm)] border border-[var(--accent-line)] bg-[var(--medical-soft)] text-[var(--medical)]"><Stethoscope className="h-4 w-4" strokeWidth={1.7} /></span><div><p className="text-[0.68rem] font-semibold uppercase tracking-[0.1em] text-[var(--ink-faint)]">{localized.tabs.consultations}</p><h2 className="mt-1 text-lg font-semibold text-[var(--ink)]">{patient.assignedDoctor || t("patients.common.none")}</h2></div></div>
               <dl className="mt-5 grid gap-4 border-t border-[var(--line)] pt-5 sm:grid-cols-2">
                 <div><dt className="font-[var(--font-auth-mono)] text-[0.6rem] uppercase tracking-[0.1em] text-[var(--ink-faint)]">{t("patients.table.columns.lastVisit")}</dt><dd className="mt-1 text-sm text-[var(--ink)]">{formatPatientDate(patient.lastVisit, locale)}</dd></div>
                 <div><dt className="font-[var(--font-auth-mono)] text-[0.6rem] uppercase tracking-[0.1em] text-[var(--ink-faint)]">{t("patients.table.nextShort")}</dt><dd className="mt-1 text-sm text-[var(--ink)]">{formatPatientDate(patient.nextVisit, locale, t("patients.common.none"))}</dd></div>
               </dl>
             </section>
 
-            <section className="rounded-xl border border-[var(--accent-line)] bg-muted p-5">
+            <section className="surface-section ai-widget p-5 sm:p-6">
               <div className="flex items-center gap-3"><span className="flex h-10 w-10 items-center justify-center rounded-[0.72rem] border border-[var(--accent-line)] bg-[var(--accent-soft)] text-[var(--accent)]"><BrainCircuit className="h-4 w-4" strokeWidth={1.7} /></span><div className="min-w-0"><p className="font-[var(--font-auth-mono)] text-[0.6rem] uppercase tracking-[0.1em] text-[var(--accent)]">{localized.aiKicker}</p><LatestRetainedAiRun accountType={accountType} locale={locale} patientId={patientId} t={t} /></div></div>
               <p className="mt-4 border-s-2 border-[var(--specialty-brain)] ps-3 text-xs leading-5 text-[var(--ink-soft)]">{localized.aiDisclaimer}</p>
             </section>
@@ -310,8 +343,8 @@ export function PatientRecordPage({ accountType, initialTab, patientId }: Patien
         ) : null}
 
         {activeTab === "allergies" ? (
-          <section className="rounded-xl border border-[var(--line)] bg-[var(--panel)] p-5">
-            <div className="flex items-center gap-3"><AlertTriangle className="h-5 w-5 text-[var(--accent-dark)]" strokeWidth={1.7} /><h2 className="font-[var(--font-auth-display)] text-xl font-medium text-[var(--ink)]">{t("patients.drawer.titles.medical")}</h2></div>
+          <section className="surface-section border-t-2 border-t-[var(--warning)] p-5 sm:p-6">
+            <div className="flex items-center gap-3"><AlertTriangle className="h-5 w-5 text-[var(--warning-ink)]" strokeWidth={1.7} /><h2 className="text-lg font-semibold text-[var(--ink)]">{t("patients.drawer.titles.medical")}</h2></div>
             <dl className="mt-5 grid gap-4 border-t border-[var(--line)] pt-5 sm:grid-cols-2">
               <div><dt className="font-[var(--font-auth-mono)] text-[0.6rem] uppercase tracking-[0.1em] text-[var(--ink-faint)]">{t("patients.drawer.fields.allergies")}</dt><dd className="mt-1 text-sm text-[var(--ink)]">{patient.medicalSummary.allergies.join(" · ") || t("patients.drawer.empty")}</dd></div>
               <div><dt className="font-[var(--font-auth-mono)] text-[0.6rem] uppercase tracking-[0.1em] text-[var(--ink-faint)]">{t("patients.drawer.fields.chronicDiseases")}</dt><dd className="mt-1 text-sm text-[var(--ink)]">{patient.medicalSummary.chronicDiseases.join(" · ") || t("patients.drawer.empty")}</dd></div>
@@ -334,17 +367,17 @@ export function PatientRecordPage({ accountType, initialTab, patientId }: Patien
         ) : null}
 
         {activeTab === "consultations" ? (
-          <section className="rounded-xl border border-[var(--line)] bg-[var(--panel)] p-5">
-            <div className="flex items-center gap-3"><Stethoscope className="h-5 w-5 text-[var(--accent-dark)]" strokeWidth={1.7} /><h2 className="font-[var(--font-auth-display)] text-xl font-medium text-[var(--ink)]">{localized.tabs.consultations}</h2></div>
+          <section className="surface-section border-t-2 border-t-[var(--medical)] p-5 sm:p-6">
+            <div className="flex items-center gap-3"><Stethoscope className="h-5 w-5 text-[var(--medical)]" strokeWidth={1.7} /><h2 className="text-lg font-semibold text-[var(--ink)]">{localized.tabs.consultations}</h2></div>
             <div className="mt-5 divide-y divide-[var(--line)]">{(consultations ?? []).map((consultation) => <article key={consultation.id} className="grid gap-2 py-4 sm:grid-cols-[minmax(0,1fr)_auto]"><div><p className="text-sm font-medium text-[var(--ink)]">{consultation.reason}</p><p className="mt-1 text-xs text-[var(--ink-soft)]">{consultation.diagnosis}</p><p className="mt-1 text-xs text-[var(--ink-faint)]">{consultation.treatment}</p><p className="mt-1 flex flex-wrap items-center gap-2 text-xs text-[var(--ink-faint)]"><span>{consultation.doctor}</span>{consultation.appointmentId ? <span className="flex items-center gap-1"><CalendarCheck className="h-3 w-3" strokeWidth={1.7} aria-hidden="true" />{localized.viaAppointment}</span> : null}</p></div><time className="font-[var(--font-auth-mono)] text-[0.62rem] text-[var(--ink-faint)]">{formatPatientDate(consultation.date, locale)}</time></article>)}</div>
           </section>
         ) : null}
 
         {activeTab === "appointments" ? (
-          <section className="rounded-xl border border-[var(--line)] bg-[var(--panel)] p-5">
+          <section className="surface-section border-t-2 border-t-[var(--accent)] p-5 sm:p-6">
             <div className="flex items-center gap-3">
               <CalendarCheck className="h-5 w-5 text-[var(--accent-dark)]" strokeWidth={1.7} />
-              <h2 className="font-[var(--font-auth-display)] text-xl font-medium text-[var(--ink)]">{localized.tabs.appointments}</h2>
+              <h2 className="text-lg font-semibold text-[var(--ink)]">{localized.tabs.appointments}</h2>
             </div>
             <div className="mt-5 divide-y divide-[var(--line)]">
               {(appointments ?? []).map((appointment) => (
@@ -378,15 +411,15 @@ export function PatientRecordPage({ accountType, initialTab, patientId }: Patien
         ) : null}
 
         {activeTab === "documents" ? (
-          <section className="rounded-xl border border-[var(--line)] bg-[var(--panel)] p-5">
-            <div className="flex items-center gap-3"><FileText className="h-5 w-5 text-[var(--accent-dark)]" strokeWidth={1.7} /><h2 className="font-[var(--font-auth-display)] text-xl font-medium text-[var(--ink)]">{localized.tabs.documents}</h2></div>
+          <section className="surface-section border-t-2 border-t-[var(--institutional)] p-5 sm:p-6">
+            <div className="flex items-center gap-3"><FileText className="h-5 w-5 text-[var(--institutional)]" strokeWidth={1.7} /><h2 className="text-lg font-semibold text-[var(--ink)]">{localized.tabs.documents}</h2></div>
             <div className="mt-5 divide-y divide-[var(--line)]">{(documents ?? []).map((document) => <div key={document.id} className="grid gap-2 py-4 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-center"><div><p className="text-sm font-medium text-[var(--ink)]">{document.fileName}</p><p className="mt-1 text-xs text-[var(--ink-faint)]">{t(`patients.documents.${document.type}`)} · {document.size}</p></div><time className="font-[var(--font-auth-mono)] text-[0.62rem] text-[var(--ink-faint)]">{formatPatientDate(document.date, locale)}</time></div>)}</div>
           </section>
         ) : null}
 
         {activeTab === "consents" ? (
-          <section className="rounded-xl border border-[var(--line)] bg-[var(--panel)] p-5">
-            <div className="flex items-center gap-3"><ShieldCheck className="h-5 w-5 text-[var(--accent-dark)]" strokeWidth={1.7} /><h2 className="font-[var(--font-auth-display)] text-xl font-medium text-[var(--ink)]">{localized.consentTitle}</h2></div>
+          <section className="surface-section border-t-2 border-t-[var(--medical)] p-5 sm:p-6">
+            <div className="flex items-center gap-3"><ShieldCheck className="h-5 w-5 text-[var(--medical)]" strokeWidth={1.7} /><h2 className="text-lg font-semibold text-[var(--ink)]">{localized.consentTitle}</h2></div>
             <div className="mt-5 divide-y divide-[var(--line)]">
               {consentTypes.map((type) => {
                 const consent = consents?.find((entry) => entry.type === type);
@@ -422,8 +455,8 @@ export function PatientRecordPage({ accountType, initialTab, patientId }: Patien
         ) : null}
 
         {activeTab === "audit" ? (
-          <section className="rounded-xl border border-[var(--line)] bg-[var(--panel)] p-5">
-            <div className="flex items-center gap-3"><History className="h-5 w-5 text-[var(--accent-dark)]" strokeWidth={1.7} /><h2 className="font-[var(--font-auth-display)] text-xl font-medium text-[var(--ink)]">{localized.auditTitle}</h2></div>
+          <section className="surface-section border-t-2 border-t-[var(--official)] p-5 sm:p-6">
+            <div className="flex items-center gap-3"><History className="h-5 w-5 text-[var(--official)]" strokeWidth={1.7} /><h2 className="text-lg font-semibold text-[var(--ink)]">{localized.auditTitle}</h2></div>
             <div className="mt-5 divide-y divide-[var(--line)]">{(auditLog ?? []).map((entry) => <article key={entry.id} className="grid gap-2 py-4 sm:grid-cols-[minmax(0,1fr)_auto]"><div><p className="text-sm font-medium text-[var(--ink)]">{entry.action}</p><p className="mt-1 text-xs text-[var(--ink-soft)]">{entry.actor} · {entry.organization}</p></div><time className="font-[var(--font-auth-mono)] text-[0.62rem] text-[var(--ink-faint)]">{formatPatientDateTime(entry.at, locale)}</time></article>)}</div>
           </section>
         ) : null}

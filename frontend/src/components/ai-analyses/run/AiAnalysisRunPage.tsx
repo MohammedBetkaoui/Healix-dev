@@ -1,6 +1,6 @@
 "use client";
 
-import { AlertTriangle, ArrowLeft, Clock3, Info, RefreshCw, ShieldAlert } from "lucide-react";
+import { AlertTriangle, ArrowLeft, Clock3, Info, RefreshCw, ScanLine, ShieldAlert } from "lucide-react";
 import Link from "next/link";
 import { isAxiosError } from "axios";
 
@@ -219,18 +219,31 @@ export function AiAnalysisRunPage({ accountType, patientId, runId }: AiAnalysisR
         ) : null}
 
         <div className="grid gap-5 xl:grid-cols-[minmax(0,1.4fr)_minmax(20rem,.8fr)]">
-          <section aria-labelledby="ai-run-image" className="min-w-0">
-            <h2 id="ai-run-image" className="mb-3 text-base font-semibold text-[var(--text-primary)]">
-              {t("aiAnalyses.run.image")}
-            </h2>
-            <ImageViewer
-              blob={imageQuery.data ?? null}
-              fileName={imageName}
-              module="brain"
-              overlay={maskQuery.data ? { color: "var(--ai-module-color)", opacity: 0.4, src: maskQuery.data } : undefined}
-              placeholder={imageQuery.isError ? t("aiAnalyses.run.imageError") : t("aiAnalyses.run.imageLoading")}
-              t={t}
-            />
+          <section aria-labelledby="ai-run-image" className="surface-section min-w-0 overflow-hidden border-t-2 border-t-[var(--specialty-brain)]">
+            <header className="flex flex-wrap items-start justify-between gap-3 border-b border-[var(--border)] bg-[var(--surface-muted)] px-5 py-4">
+              <div className="flex items-start gap-3">
+                <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-[var(--radius-sm)] border border-[var(--ai-line)] bg-[var(--ai-soft)] text-[var(--ai)]">
+                  <ScanLine size={17} strokeWidth={1.8} aria-hidden="true" />
+                </span>
+                <div>
+                  <h2 id="ai-run-image" className="text-base font-semibold text-[var(--text-primary)]">
+                    {t("aiAnalyses.run.image")}
+                  </h2>
+                  <p className="mt-1 max-w-2xl text-xs leading-5 text-[var(--text-secondary)]">{t("aiAnalyses.run.imageHint")}</p>
+                </div>
+              </div>
+              <span className="rounded-full border border-[var(--ai-line)] bg-[var(--ai-soft)] px-2.5 py-1 text-[.68rem] font-semibold text-[var(--ai)]">{t("aiAnalyses.run.imageBadge")}</span>
+            </header>
+            <div className="p-3 sm:p-4">
+              <ImageViewer
+                blob={imageQuery.data ?? null}
+                fileName={imageName}
+                module="brain"
+                overlay={maskQuery.data ? { color: "var(--ai-module-color)", opacity: 0.4, src: maskQuery.data } : undefined}
+                placeholder={imageQuery.isError ? t("aiAnalyses.run.imageError") : t("aiAnalyses.run.imageLoading")}
+                t={t}
+              />
+            </div>
           </section>
 
           <div className="space-y-5">
