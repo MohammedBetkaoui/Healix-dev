@@ -375,3 +375,129 @@ end-to-end Dice, 0 when the service returns no mask).
   optimistic.
 - The notebooks' own figures used test-time augmentation (classification) and
   mixed precision on GPU: they are shown for comparison, not reproduced.
+
+## Pathology evaluation
+
+`scripts/evaluate_pathology.py` measures the pathology pipelines as the service
+runs them, with the same structure and rules as `evaluate_brain.py`: every
+image goes through the service's own code (`app.pathology_pipeline.analyze_breast`
+and `analyze_nuclei`, from the image bytes: the PanNuke patches and mosaics are
+first encoded as PNG, losslessly), on CPU, with the service's thread settings.
+The service never imports it.
+
+### Data (never committed)
+
+- **BreakHis**: BreaKHis v1, breast tumour histopathology images
+  (<https://web.inf.ufpr.br/vri/databases/breast-cancer-histopathological-database-breakhis/>;
+  the notebook used the Kaggle copy <https://www.kaggle.com/datasets/ambarish/breakhis>).
+  Give the folder that holds `BreaKHis_v1` (or `BreaKHis_v1` itself). The
+  images are searched at any depth below it; the Kaggle archive nests
+  `BreaKHis_v1\BreaKHis_v1\histology_slides\breast\…`, which works as is.
+  `Folds.csv` is not used.
+- **PanNuke**: <https://warwick.ac.uk/fac/cross_fac/tia/data/pannuke> (licence
+  CC BY-NC-SA 4.0: non-commercial use). Give the folder that holds `fold_1`,
+  `fold_2` and `fold_3`, as in the `PanNuke_Segmentation` archive the notebook
+  used. Only `fold_3` is read; its `images.npy`, `masks.npy` and `types.npy`
+  are found once each at any depth inside it, and memory-mapped (Fold 3 is
+  12.8 GB unpacked, never loaded whole; about 13 GB of free disk space).
+
+```text
+C:\datasets\
+├── breakhis\                    ← --breakhis-root (BreaKHis_v1 itself works too)
+│   └── BreaKHis_v1\
+│       └── …\histology_slides\breast\
+│           ├── benign\SOB\…\*.png
+│           └── malignant\SOB\…\*.png
+└── pannuke\                     ← --pannuke-root
+    ├── fold_1\  fold_2\         (not read: training and validation folds)
+    └── fold_3\
+        └── Fold 3\
+            ├── images\fold3\images.npy, types.npy
+            └── masks\fold3\masks.npy
+```
+
+### Commands (PowerShell)
+
+```powershell
+cd <repository>\ai-service
+
+# 1. Check: paths, weights, BreakHis split, Fold 3 size; no inference
+.\.venv\Scripts\python.exe -m scripts.evaluate_pathology --check `
+  --breakhis-root C:\datasets\breakhis `
+  --pannuke-root C:\datasets\pannuke
+
+# 2. Evaluate: the same command without --check
+.\.venv\Scripts\python.exe -m scripts.evaluate_pathology `
+  --breakhis-root C:\datasets\breakhis `
+  --pannuke-root C:\datasets\pannuke
+```
+
+Paths are read as for `evaluate_brain.py` (quotes and a trailing `\` removed,
+`~` expanded). `--models-dir` defaults to `AI_MODELS_DIR`, `--output-dir` to
+`evaluation/`. Each run writes a new
+`evaluation/pathology-<date>-<HHMMSS>-<classifier SHA-256[:8]>-<segmenter SHA-256[:8]>.json`
+(SHA-256 of both models and of the BreakHis config, TensorFlow / Keras /
+OpenCV versions, every metric; the report names itself in `file`), never
+over an existing one, and prints a summary. A **complete** run (BreakHis and
+PanNuke both evaluated, tiling check included) is also copied to
+`evaluation/pathology-latest.json`; a partial run leaves that copy as it was.
+Exit codes: 0 done; 1 a path or weight problem (nothing evaluated); 2 a part
+was stopped (the other one is still evaluated). On a laptop CPU, count about
+10 minutes for BreakHis and 25 for PanNuke.
+
+### What it measures
+
+**BreakHis**: the test split of the notebook, rebuilt exactly: every image
+below `BreaKHis_v1`, sorted; the class from its path (`…/benign/…` or
+`…/malignant/…`, checked against the `SOB_B` / `SOB_M` of its name), the
+patient and magnification from its name
+`SOB_<B|M>_<subtype>-<patient>-<magnification>-<n>.png`; one row per patient
+(sorted, label of its first image); then
+`train_test_split(test_size=0.30, random_state=42, stratify=label)` and
+`train_test_split(test_size=0.50, random_state=42, stratify=label)` on the
+remainder, whose second part is the test set. The script checks, before any
+inference, that the test set is exactly the 13 patients 14-11031, 14-12773,
+14-14946, 14-15704, 14-16456, 14-19854C, 14-21978AB, 14-22704, 14-2773,
+14-29315EF, 14-3909, 14-4372 and 14-9146, with 1,346 images (347 benign,
+999 malignant). Anything else stops the BreakHis part: another split would
+mix training patients into the test set.
+
+At the service's threshold (0.13): accuracy, sensitivity, specificity,
+precision, F1, ROC AUC and PR AUC (average precision), confusion matrix; 95 %
+intervals from 1,000 bootstrap draws of **patients** (all the images of each
+drawn patient; seed 42), a draw where a metric is undefined being left out of
+it; the same metrics per magnification; per patient, the mean score and the
+majority decision of its images. Compared with the notebook (cell 20):
+accuracy 0.8819, ROC AUC 0.9392, matrix [[262, 85], [74, 925]].
+
+**PanNuke**: Fold 3, the notebook's test fold (2,722 patches; any other count
+stops the part). Reference mask: channel c (0–4) > 0 → class c + 1; a pixel
+under several channels → 255, left out; any other → background. Dice and IoU
+per class from pixel counts pooled over the whole fold (not a mean per
+image), mean Dice of the five nucleus types, and the same per tissue
+(`types.npy`). The notebook's figures (background 0.9625, neoplastic 0.7119,
+inflammatory 0.6239, connective 0.5600, dead 0.3056, epithelial 0.6230,
+nuclei mean 0.5649) come from its cell 10, which evaluates
+`val_dataset.take(316)`: **Fold 2**, the validation fold the checkpoint was
+selected on, not Fold 3. They are shown for comparison; a gap is expected.
+
+**Tiled path**: consecutive Fold 3 patches assembled into 2 × 2 mosaics
+(512 × 512; 680 mosaics), segmented through the service's large-image path
+(9 tiles each), and compared with the same patches segmented one by one: share
+of identical pixels and Dice per class between the two, then the Dice of each
+path against the reference on those patches. It is the only measure of that
+path.
+
+### What it does not measure
+
+- **No clinical validation**: public datasets, not representative of a given
+  laboratory's staining, scanners or patients.
+- **BreakHis**: 13 test patients only, so wide intervals; one decision per
+  image (no slide or patient decision in the service); the score is not
+  calibrated, and the magnification is not a model input.
+- **PanNuke**: a class per pixel, not nuclei: no count, no instance
+  separation, no detection quality (PQ). One fold, the notebook's test fold:
+  no cross-validation of this model. The mosaics join unrelated patches: the
+  tiled path is not measured on real large images.
+- The notebooks ran on GPU: small numerical differences with this CPU run are
+  possible.
