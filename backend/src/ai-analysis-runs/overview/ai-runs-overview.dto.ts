@@ -2,6 +2,11 @@ import { Type } from 'class-transformer';
 import { IsIn, IsInt, IsISO8601, IsOptional, Max, Min } from 'class-validator';
 import { AiAnalysisRunStatus } from '@prisma/client';
 
+import {
+  AI_PIPELINES,
+  type AiPipeline,
+} from '../dto/create-ai-analysis-run.dto';
+
 // "pending": a SUCCEEDED run the physician has not decided yet.
 export const AI_RUN_DECISION_FILTERS = [
   'pending',
@@ -24,8 +29,16 @@ export class AiRunsPeriodQueryDto {
   to?: string;
 }
 
+// The period, and optionally one chain (brain, pathology-breast,
+// pathology-nuclei).
+export class AiRunsFilterQueryDto extends AiRunsPeriodQueryDto {
+  @IsOptional()
+  @IsIn(AI_PIPELINES)
+  pipeline?: AiPipeline;
+}
+
 // GET /ai-analysis-runs
-export class ListAiAnalysisRunsQueryDto extends AiRunsPeriodQueryDto {
+export class ListAiAnalysisRunsQueryDto extends AiRunsFilterQueryDto {
   @IsOptional()
   @IsIn(AI_RUN_DECISION_FILTERS)
   decision?: AiRunDecisionFilter;
@@ -54,4 +67,4 @@ export class ListAiAnalysisRunsQueryDto extends AiRunsPeriodQueryDto {
 }
 
 // GET /ai-analysis-runs/summary
-export class AiRunsSummaryQueryDto extends AiRunsPeriodQueryDto {}
+export class AiRunsSummaryQueryDto extends AiRunsFilterQueryDto {}

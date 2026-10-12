@@ -20,7 +20,16 @@ export const MIN_DECISIONS_FOR_RATE = 10;
 /** A correction may name a class the model does not know. */
 export const RETAINED_LABELS = [...BRAIN_CLASS_LABELS, 'other'] as const;
 
+/**
+ * The agreement figures (rate, model x physician matrix, split at the
+ * uncertainty threshold) read the brain classifier's classes and
+ * probabilities: brain runs only. The pathology chains still count in the
+ * statuses, decisions and pending runs.
+ */
+export const AGREEMENT_PIPELINE = 'brain';
+
 export type RunsFilters = {
+  pipeline?: string;
   decision?: AiRunDecisionFilter;
   status?: AiAnalysisRunStatus;
   from?: Date;
@@ -38,6 +47,7 @@ export function buildRunsWhere(
 ): Prisma.AiAnalysisRunWhereInput {
   const and: Prisma.AiAnalysisRunWhereInput[] = [{ patient: patientScope }];
 
+  if (filters.pipeline) and.push({ pipeline: filters.pipeline });
   if (filters.status) and.push({ status: filters.status });
   if (filters.decision === 'pending') {
     and.push({ decisionStatus: null, status: AiAnalysisRunStatus.SUCCEEDED });
@@ -84,6 +94,7 @@ export function rateOf(count: number, total: number): Rate {
 }
 
 export type SummaryRun = {
+  pipeline: string;
   status: AiAnalysisRunStatus;
   decisionStatus: AiRunDecision | null;
   decisionLabel: string | null;
@@ -104,7 +115,7 @@ export type AiRunsSummary = {
   minimumDecisions: number;
   /** Fewer than MIN_DECISIONS_FOR_RATE validated or corrected runs. */
   insufficientData: boolean;
-  /** Physician / model agreement: VALIDATED / (VALIDATED + CORRECTED). */
+  /** Physician / model agreement on brain runs: VALIDATED / (VALIDATED + CORRECTED). */
   agreement: Rate;
   /** Validated and corrected runs: model's top class (rows) x class kept by the physician (columns). */
   matrix: {
@@ -141,7 +152,11 @@ export function summarizeRuns(
     byStatus[run.status] += 1;
     if (run.status !== AiAnalysisRunStatus.SUCCEEDED) continue;
 
-    const top = getTopPrediction(run.predictions);
+    // Agreement figures: brain runs only (AGREEMENT_PIPELINE).
+    const top =
+      run.pipeline === AGREEMENT_PIPELINE
+        ? getTopPrediction(run.predictions)
+        : null;
     const below = top !== null && top.probability < UNCERTAINTY_THRESHOLD;
     if (top) {
       scored += 1;

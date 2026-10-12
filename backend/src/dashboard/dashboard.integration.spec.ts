@@ -40,7 +40,7 @@ describeWithDatabase('GET /dashboard/overview against a database', () => {
     workspaces: [] as string[],
   };
   const actors = {} as Record<
-    'adminA' | 'affiliatedA' | 'adminB' | 'doctorC',
+    'adminA' | 'affiliatedA' | 'adminB' | 'doctorC' | 'doctorD',
     AuthenticatedUserPayload
   >;
   let patientA1 = '';
@@ -143,7 +143,14 @@ describeWithDatabase('GET /dashboard/overview against a database', () => {
     patientId: string,
     requestedById: string,
     createdAt: Date,
-    extra: { status?: string; decision?: string | null; top?: number | null },
+    extra: {
+      status?: string;
+      decision?: string | null;
+      top?: number | null;
+      pipeline?: string;
+      modelDecision?: string;
+      predictions?: { label: string; probability: number }[];
+    },
   ) {
     const document = await prisma.patientDocument.create({
       data: {
@@ -161,12 +168,14 @@ describeWithDatabase('GET /dashboard/overview against a database', () => {
       data: {
         createdAt,
         decisionStatus: (extra.decision ?? null) as never,
+        modelDecision: extra.modelDecision,
         patientId,
-        pipeline: 'brain',
+        pipeline: extra.pipeline ?? 'brain',
         predictions:
-          extra.top === null || extra.top === undefined
+          extra.predictions ??
+          (extra.top === null || extra.top === undefined
             ? undefined
-            : predictions(extra.top),
+            : predictions(extra.top)),
         requestedById,
         sourceDocumentId: document.id,
         status: (extra.status ?? 'SUCCEEDED') as never,
@@ -381,6 +390,43 @@ describeWithDatabase('GET /dashboard/overview against a database', () => {
       'CONFIRMED',
     );
 
+    // Workspace D: an independent doctor, the three chains. Only the brain
+    // run counts in the uncertain share.
+    const doctorDUser = await user('INDEPENDENT_DOCTOR');
+    const doctorD = await doctorProfile(doctorDUser.id, null);
+    const workspaceD = await prisma.workspace.create({
+      data: {
+        name: 'Cabinet D',
+        ownerDoctorProfileId: doctorD.id,
+        type: 'PRIVATE_PRACTICE',
+      },
+    });
+    created.workspaces.push(workspaceD.id);
+    await prisma.workspaceMembership.create({
+      data: {
+        role: 'OWNER',
+        userId: doctorDUser.id,
+        workspaceId: workspaceD.id,
+      },
+    });
+    const pD1 = await patient(
+      workspaceD.id,
+      { doctorProfileId: doctorD.id },
+      ago(3 * DAY),
+    );
+    await run(pD1.id, doctorDUser.id, ago(3 * HOUR), { top: 0.8 });
+    // Never written so by the service (a BreakHis score is no probability):
+    // these predictions would count as uncertain if the chain were not read.
+    await run(pD1.id, doctorDUser.id, ago(2 * HOUR), {
+      modelDecision: 'benign',
+      pipeline: 'pathology-breast',
+      predictions: [{ label: 'benign', probability: 0.5 }],
+    });
+    await run(pD1.id, doctorDUser.id, ago(1 * HOUR), {
+      decision: 'VALIDATED',
+      pipeline: 'pathology-nuclei',
+    });
+
     const actor = (row: {
       id: string;
       email: string;
@@ -395,6 +441,7 @@ describeWithDatabase('GET /dashboard/overview against a database', () => {
     actors.affiliatedA = actor(affiliatedA);
     actors.adminB = actor(adminB);
     actors.doctorC = actor(doctorCUser);
+    actors.doctorD = actor(doctorDUser);
   }, 60_000);
 
   afterAll(async () => {
@@ -533,6 +580,22 @@ describeWithDatabase('GET /dashboard/overview against a database', () => {
     expect(
       overviewC.activity.reduce((total, day) => total + day.consultations, 0),
     ).toBe(0);
+  });
+
+  it('counts the uncertain share on brain runs only, and names each chain', async () => {
+    const overviewD = await service.getOverview(actors.doctorD, 30, NOW);
+    expect(overviewD.aiAnalyses).toMatchObject({
+      total: 3,
+      uncertain: { count: 1, threshold: 0.9, total: 1 },
+      validated: 1,
+    });
+    expect(
+      overviewD.aiAnalyses.recent.map((run) => [run.pipeline, run.modelLabel]),
+    ).toEqual([
+      ['pathology-nuclei', null],
+      ['pathology-breast', 'benign'],
+      ['brain', 'meningioma'],
+    ]);
   });
 
   it('follows the requested period length', async () => {

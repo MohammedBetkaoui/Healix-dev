@@ -86,6 +86,14 @@ A label of another chain answers `400 AI_CORRECTED_LABEL_INVALID`. A brain or
 breast run without a result answers `409 AI_RUN_NOT_DECIDABLE`. The audit
 log's `agreesWithModel` is null for a rejection and for a nuclei map.
 
+Follow-up and dashboard: `GET /api/ai-analysis-runs` and
+`GET /api/ai-analysis-runs/summary` take an optional `pipeline` filter, and
+every listed run carries `pipeline` and `modelLabel`. The summary's agreement
+figures (rate, model x physician matrix, split at the 0.90 uncertainty
+threshold) and the dashboard's uncertain share read the brain classifier's
+probabilities: brain runs only. The pathology runs count in the statuses,
+decisions and pending runs; the dashboard's recent analyses name their chain.
+
 ### AI analysis reports (PDF)
 
 `GET /api/patients/:id/ai-analysis-runs/:runId/report` renders the report of

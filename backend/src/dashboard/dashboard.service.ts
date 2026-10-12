@@ -9,7 +9,7 @@ import {
   Prisma,
 } from '@prisma/client';
 
-import { getTopLabel } from '../ai-analysis-runs/ai-analysis-runs.service';
+import { getModelLabel } from '../ai-analysis-runs/ai-analysis-runs.service';
 import { UNCERTAINTY_THRESHOLD } from '../ai-analysis-runs/report/ai-report-rules';
 import { AppointmentsService } from '../appointments/appointments.service';
 import { type AuthenticatedUserPayload } from '../auth/types/authenticated-request.type';
@@ -28,6 +28,9 @@ import {
 
 const HOUR_MS = 3_600_000;
 const RECENT_ANALYSES = 5;
+// The uncertainty share reads the brain classifier's probabilities: the
+// pathology chains have none (the BreakHis score is not a probability).
+const UNCERTAINTY_PIPELINE = 'brain';
 // Classes the brain classifier scores; the top probability is taken over
 // them without relying on the order the predictions were stored in.
 const PREDICTION_SLOTS = 4;
@@ -249,7 +252,15 @@ export class DashboardService {
         where: { AND: [inPeriod, { decisionStatus: { not: null } }] },
       }),
       this.prisma.aiAnalysisRun.count({
-        where: { AND: [inPeriod, { status: AiAnalysisRunStatus.SUCCEEDED }] },
+        where: {
+          AND: [
+            inPeriod,
+            {
+              pipeline: UNCERTAINTY_PIPELINE,
+              status: AiAnalysisRunStatus.SUCCEEDED,
+            },
+          ],
+        },
       }),
       this.prisma.aiAnalysisRun.count({ where: pendingWhere }),
       this.prisma.aiAnalysisRun.aggregate({
@@ -262,6 +273,7 @@ export class DashboardService {
           INNER JOIN patients p ON p.id = r.patient_id
           WHERE p.workspace_id = ${scopes.workspaceId}
             AND r.status = 'SUCCEEDED'
+            AND r.pipeline = ${UNCERTAINTY_PIPELINE}
             AND r.created_at >= ${period.from} AND r.created_at < ${period.to}
             AND r.predictions IS NOT NULL
             AND ${topProbabilitySql()} < ${UNCERTAINTY_THRESHOLD}`,
@@ -272,7 +284,9 @@ export class DashboardService {
           decisionLabel: true,
           decisionStatus: true,
           id: true,
+          modelDecision: true,
           patient: { select: { id: true, ...patientNameSelect } },
+          pipeline: true,
           predictions: true,
           status: true,
         },
@@ -296,8 +310,9 @@ export class DashboardService {
         decision: run.decisionStatus,
         decisionLabel: run.decisionLabel,
         id: run.id,
-        modelLabel: getTopLabel(run.predictions),
+        modelLabel: getModelLabel(run),
         patient: run.patient,
+        pipeline: run.pipeline,
         status: run.status,
       })),
       rejected: decisionCount('REJECTED'),

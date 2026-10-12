@@ -55,13 +55,17 @@ export type DashboardOverview = {
     validated: number;
     corrected: number;
     rejected: number;
-    // SUCCEEDED runs of the period whose top-class probability is under the
-    // threshold, out of all SUCCEEDED runs of the period.
+    // SUCCEEDED brain runs of the period whose top-class probability is under
+    // the threshold, out of the SUCCEEDED brain runs of the period (the
+    // pathology chains have no probability).
     uncertain: { count: number; total: number; threshold: number };
     recent: {
       id: string;
       createdAt: string;
       status: string;
+      // brain, pathology-breast or pathology-nuclei.
+      pipeline: string;
+      // The brain top class, the BreakHis result; null for a nuclei map.
       modelLabel: string | null;
       decision: string | null;
       decisionLabel: string | null;

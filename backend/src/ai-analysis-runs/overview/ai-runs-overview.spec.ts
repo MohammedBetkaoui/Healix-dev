@@ -10,13 +10,17 @@ import { type PrismaService } from '../../prisma/prisma.service';
 import { AiAnalysisRunsService } from '../ai-analysis-runs.service';
 import { type AiServiceClient } from '../ai-service.client';
 import {
+  AGREEMENT_PIPELINE,
   buildRunsWhere,
   MIN_DECISIONS_FOR_RATE,
   rateOf,
   type SummaryRun,
   summarizeRuns,
 } from './ai-runs-overview';
-import { ListAiAnalysisRunsQueryDto } from './ai-runs-overview.dto';
+import {
+  AiRunsSummaryQueryDto,
+  ListAiAnalysisRunsQueryDto,
+} from './ai-runs-overview.dto';
 import { AiRunsOverviewService } from './ai-runs-overview.service';
 
 const doctor = {
@@ -52,6 +56,7 @@ function fakeRun(overrides: Record<string, unknown> = {}): FakeRun {
     decisionStatus: null,
     id: `run-${sequence}`,
     maskPath: null,
+    modelDecision: null,
     patient: {
       firstName: 'Karim',
       firstNameAr: 'كريم',
@@ -63,6 +68,7 @@ function fakeRun(overrides: Record<string, unknown> = {}): FakeRun {
       workspaceId,
     },
     patientId: `patient-${workspaceId}`,
+    pipeline: 'brain',
     predictions: predictions('meningioma', 0.93),
     report: null,
     requestedById: 'doctor-a',
@@ -283,6 +289,42 @@ describe('GET /ai-analysis-runs', () => {
     expect(await errors({ decision: 'APPROVED' })).toEqual(['decision']);
     expect(await errors({ requestedBy: 'doctor-b' })).toEqual(['requestedBy']);
     expect(await errors({ from: 'hier' })).toEqual(['from']);
+    expect(await errors({ pipeline: 'pathology-breast' })).toEqual([]);
+    expect(await errors({ pipeline: 'radiology' })).toEqual(['pipeline']);
+    expect(
+      (
+        await validate(
+          plainToInstance(AiRunsSummaryQueryDto, { pipeline: 'dermatology' }),
+        )
+      ).map((error) => error.property),
+    ).toEqual(['pipeline']);
+  });
+
+  it('gives each row its chain and the model answer the physician decides on', async () => {
+    const service = overview([
+      fakeRun(),
+      fakeRun({
+        modelDecision: 'benign',
+        pipeline: 'pathology-breast',
+        predictions: null,
+      }),
+      fakeRun({ pipeline: 'pathology-nuclei', predictions: null }),
+    ]);
+
+    const rows = (await service.list(doctor, { limit: 50, page: 1 })).items;
+
+    expect(rows.map((row) => [row.pipeline, row.modelLabel])).toEqual([
+      ['pathology-nuclei', null],
+      ['pathology-breast', 'benign'],
+      ['brain', 'meningioma'],
+    ]);
+    const breast = await service.list(doctor, {
+      limit: 50,
+      page: 1,
+      pipeline: 'pathology-breast',
+    });
+    expect(breast.items.map((row) => row.id)).toEqual(['run-2']);
+    expect(breast.total).toBe(1);
   });
 
   it('always puts the patient scope first in the query', () => {
@@ -294,6 +336,9 @@ describe('GET /ai-analysis-runs', () => {
       { decisionStatus: null, status: 'SUCCEEDED' },
       { requestedById: 'me' },
     ]);
+    expect(buildRunsWhere(SCOPE, { pipeline: 'pathology-nuclei' }).AND).toEqual(
+      [{ patient: SCOPE }, { pipeline: 'pathology-nuclei' }],
+    );
   });
 });
 
@@ -332,6 +377,30 @@ describe('GET /ai-analysis-runs/summary', () => {
     });
     expect(summary.pending.count).toBe(0);
   });
+
+  it('filters the summary by chain', async () => {
+    const runs = [
+      fakeRun({ decisionLabel: 'meningioma', decisionStatus: 'VALIDATED' }),
+      fakeRun({
+        modelDecision: 'malignant',
+        pipeline: 'pathology-breast',
+        predictions: null,
+      }),
+      fakeRun({
+        pipeline: 'pathology-nuclei',
+        predictions: null,
+        status: 'FAILED',
+      }),
+    ];
+
+    const breast = await overview(runs).summary(doctor, {
+      pipeline: 'pathology-breast',
+    });
+
+    expect(breast.analyses).toBe(1);
+    expect(breast.pending.count).toBe(1);
+    expect(breast.decisions.total).toBe(0);
+  });
 });
 
 describe('summarizeRuns, on a hand-made set', () => {
@@ -340,6 +409,7 @@ describe('summarizeRuns, on a hand-made set', () => {
     createdAt: at(0),
     decisionLabel: null,
     decisionStatus: null,
+    pipeline: 'brain',
     predictions: predictions('meningioma', 0.95),
     status: 'SUCCEEDED',
     ...overrides,
@@ -451,6 +521,51 @@ describe('summarizeRuns, on a hand-made set', () => {
       rate: null,
       total: 5,
     });
+  });
+
+  it('keeps the agreement figures to brain runs; the pathology chains only count in statuses and decisions', () => {
+    expect(AGREEMENT_PIPELINE).toBe('brain');
+    const pathology = [
+      // A breast run whose predictions would read as an agreeing, uncertain
+      // meningioma: still left out (never written so, but the rule is the chain).
+      run({
+        decisionLabel: 'meningioma',
+        decisionStatus: 'VALIDATED',
+        pipeline: 'pathology-breast',
+        predictions: predictions('meningioma', 0.5),
+      }),
+      run({
+        decisionLabel: 'benign',
+        decisionStatus: 'CORRECTED',
+        pipeline: 'pathology-breast',
+        predictions: null,
+      }),
+      run({
+        decisionStatus: 'VALIDATED',
+        pipeline: 'pathology-nuclei',
+        predictions: null,
+      }),
+      run({ pipeline: 'pathology-nuclei', predictions: null }),
+    ];
+    const mixed = summarizeRuns(
+      [...runs, ...pathology],
+      new Date(Date.UTC(2026, 9, 2, 10, 10)),
+    );
+
+    expect(mixed.analyses).toBe(summary.analyses + 4);
+    expect(mixed.byStatus.SUCCEEDED).toBe(summary.byStatus.SUCCEEDED + 4);
+    expect(mixed.decisions).toEqual({
+      CORRECTED: summary.decisions.CORRECTED + 1,
+      REJECTED: summary.decisions.REJECTED,
+      total: summary.decisions.total + 3,
+      VALIDATED: summary.decisions.VALIDATED + 2,
+    });
+    expect(mixed.pending.count).toBe(summary.pending.count + 1);
+
+    expect(mixed.agreement).toEqual(summary.agreement);
+    expect(mixed.matrix).toEqual(summary.matrix);
+    expect(mixed.uncertainty).toEqual(summary.uncertainty);
+    expect(mixed.insufficientData).toBe(summary.insufficientData);
   });
 
   it(`gives no rate under ${MIN_DECISIONS_FOR_RATE} decisions`, () => {

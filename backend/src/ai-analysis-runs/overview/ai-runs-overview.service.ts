@@ -61,6 +61,7 @@ export class AiRunsOverviewService {
     const where = buildRunsWhere(scope, {
       ...readPeriod(query),
       decision: query.decision,
+      pipeline: query.pipeline,
       requestedById: query.requestedBy === 'me' ? user.sub : undefined,
       status: query.status,
     });
@@ -105,7 +106,10 @@ export class AiRunsOverviewService {
   ): Promise<AiRunsSummary> {
     const scope = await this.patientsService.getPatientScopeWhere(user);
     const period = readPeriod(query);
-    const where = buildRunsWhere(scope, period);
+    const where = buildRunsWhere(scope, {
+      ...period,
+      pipeline: query.pipeline,
+    });
     const now = new Date();
 
     // A run whose request died stays RUNNING: settled first, as a result page
@@ -131,6 +135,7 @@ export class AiRunsOverviewService {
         createdAt: true,
         decisionLabel: true,
         decisionStatus: true,
+        pipeline: true,
         predictions: true,
         status: true,
       },
