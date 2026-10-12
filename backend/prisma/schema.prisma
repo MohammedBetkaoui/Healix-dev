@@ -901,6 +901,22 @@ model AiAnalysisRun {
   maskAreaPx                  Int?                @map("mask_area_px")
   maskAreaRatio               Float?              @map("mask_area_ratio")
   segmentationSkippedReason   String?             @map("segmentation_skipped_reason") @db.VarChar(60)
+  // Pathology runs. Never in `predictions`, which holds the brain classifier's
+  // probabilities only: the BreakHis score is not a probability.
+  // Slide magnification (40, 100, 200 or 400); 40 for the nuclei segmentation.
+  magnification               Int?
+  // BreakHis: mean of the 4 test-time augmentation scores (not calibrated),
+  // the threshold it was compared with, the 4 scores, and the result
+  // (benign | malignant).
+  malignancyScore             Float?              @map("malignancy_score")
+  decisionThreshold           Float?              @map("decision_threshold")
+  ttaScores                   Json?               @map("tta_scores")
+  modelDecision               String?             @map("model_decision") @db.VarChar(20)
+  // PanNuke: pixel shares (background; nucleus types among nucleus pixels),
+  // tiles run, and the colour overlay (next to the label map in maskPath).
+  nucleiFractions             Json?               @map("nuclei_fractions")
+  tileCount                   Int?                @map("tile_count")
+  overlayPath                 String?             @map("overlay_path") @db.VarChar(512)
   clinicianImpression         String?             @map("clinician_impression") @db.Text
   errorCode                   String?             @map("error_code") @db.VarChar(60)
   durationMs                  Int?                @map("duration_ms")

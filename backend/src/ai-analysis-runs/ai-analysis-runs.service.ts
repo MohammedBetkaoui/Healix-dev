@@ -27,8 +27,14 @@ import {
   AiServiceClient,
   AiServiceError,
   type AiServiceFailure,
+  INPUT_REJECTIONS,
+  type NucleiFractions,
 } from './ai-service.client';
-import { CreateAiAnalysisRunDto } from './dto/create-ai-analysis-run.dto';
+import {
+  type AiPipeline,
+  CreateAiAnalysisRunDto,
+  NUCLEI_MAGNIFICATION,
+} from './dto/create-ai-analysis-run.dto';
 import { DecideAiAnalysisRunDto } from './dto/decide-ai-analysis-run.dto';
 
 // The inference service decodes PNG and JPEG only (no DICOM).
@@ -88,6 +94,74 @@ export function getTopLabel(predictions: unknown): string | null {
   return getTopPrediction(predictions)?.label ?? null;
 }
 
+/**
+ * The model's answer the physician validates or corrects: the brain
+ * classifier's top class, the BreakHis result (benign | malignant). None for
+ * the nuclei segmentation, a map to review, not a class.
+ */
+export function getModelLabel(run: {
+  pipeline: string;
+  predictions: unknown;
+  modelDecision: string | null;
+}): string | null {
+  switch (run.pipeline) {
+    case 'brain':
+      return getTopLabel(run.predictions);
+    case 'pathology-breast':
+      return run.modelDecision;
+    default:
+      return null;
+  }
+}
+
+/**
+ * The magnification a chain takes: none for brain, one of 40, 100, 200 or
+ * 400 for the breast classification, 40 for the nuclei segmentation (the
+ * physician confirms a 40x H&E image).
+ */
+export function checkMagnification(
+  pipeline: AiPipeline,
+  magnification: number | null | undefined,
+): number | null {
+  if (pipeline === 'brain') {
+    if (magnification != null) {
+      throw new BadRequestException({
+        code: 'AI_MAGNIFICATION_UNEXPECTED',
+        message:
+          "Le grossissement ne concerne que l'analyse d'une lame d'histopathologie.",
+      });
+    }
+    return null;
+  }
+  if (magnification == null) {
+    throw new BadRequestException({
+      code: 'AI_MAGNIFICATION_REQUIRED',
+      message: 'Indiquez le grossissement de la lame.',
+    });
+  }
+  if (
+    pipeline === 'pathology-nuclei' &&
+    magnification !== NUCLEI_MAGNIFICATION
+  ) {
+    throw new BadRequestException({
+      code: 'AI_MAGNIFICATION_NOT_SUPPORTED',
+      message:
+        'La segmentation des noyaux ne prend que des images H&E au grossissement 40×.',
+    });
+  }
+  return magnification;
+}
+
+type FinishData = Partial<
+  Omit<AiAnalysisRun, 'predictions' | 'ttaScores' | 'nucleiFractions'>
+> & {
+  errorCode?: RunErrorCode;
+  predictions?: { label: string; probability: number }[];
+  ttaScores?: number[];
+  nucleiFractions?: NucleiFractions;
+  status: AiAnalysisRunStatus;
+};
+
 @Injectable()
 export class AiAnalysisRunsService {
   constructor(
@@ -103,6 +177,9 @@ export class AiAnalysisRunsService {
     patientId: string,
     dto: CreateAiAnalysisRunDto,
   ) {
+    // The request itself first: nothing is read for a malformed one.
+    const magnification = checkMagnification(dto.pipeline, dto.magnification);
+
     await this.patientsService.getPatientInScope(user, patientId);
     await this.patientsService.assertDiagnosticAiConsentSigned(patientId);
 
@@ -132,6 +209,7 @@ export class AiAnalysisRunsService {
     const run = await this.prisma.aiAnalysisRun.create({
       data: {
         clinicianImpression: impression || null,
+        magnification,
         patientId,
         pipeline: dto.pipeline,
         requestedById: user.sub,
@@ -140,36 +218,44 @@ export class AiAnalysisRunsService {
       },
     });
 
+    // The chain and the magnification, never a result.
     await this.patientAuditService.log(
       user,
       'AI_ANALYSIS_RUN_CREATED',
       run.id,
       {
+        magnification,
         patientId,
         pipeline: dto.pipeline,
         sourceDocumentId: document.id,
       },
     );
 
-    let result: Awaited<ReturnType<AiServiceClient['analyzeBrain']>>;
-    try {
-      result = await this.aiServiceClient.analyzeBrain(
-        image,
-        document.originalName,
-        document.mimeType,
-      );
-    } catch (error) {
-      const code =
-        error instanceof AiServiceError ? error.code : 'SERVICE_ERROR';
-      const rejected = code === 'INVALID_IMAGE' || code === 'IMAGE_TOO_LARGE';
-      await this.finish(user, run.id, {
-        errorCode: code,
-        status: rejected
-          ? AiAnalysisRunStatus.REJECTED_INPUT
-          : AiAnalysisRunStatus.FAILED,
-      });
-      throw this.toHttpError(code, run.id);
+    const file = {
+      image,
+      mimeType: document.mimeType,
+      name: document.originalName,
+    };
+    switch (dto.pipeline) {
+      case 'pathology-breast':
+        return this.runBreast(user, run, file, magnification as number);
+      case 'pathology-nuclei':
+        return this.runNuclei(user, run, file);
+      default:
+        return this.runBrain(user, run, file);
     }
+  }
+
+  // One chain, never followed by another: the service's answer, stored.
+  private async runBrain(
+    user: AuthenticatedUserPayload,
+    run: AiAnalysisRun,
+    file: { image: Buffer; mimeType: string; name: string },
+  ) {
+    const result = await this.analyze(user, run.id, () =>
+      this.aiServiceClient.analyzeBrain(file.image, file.name, file.mimeType),
+    );
+    const { patientId } = run;
 
     let maskPath: string | null = null;
     if (result.segmentation) {
@@ -203,6 +289,112 @@ export class AiAnalysisRunsService {
     });
 
     return this.toRunResponse(completed);
+  }
+
+  // BreakHis: the score and its 4 views next to the threshold; never in
+  // `predictions` (not a probability, and the brain rules read that field).
+  private async runBreast(
+    user: AuthenticatedUserPayload,
+    run: AiAnalysisRun,
+    file: { image: Buffer; mimeType: string; name: string },
+    magnification: number,
+  ) {
+    const result = await this.analyze(user, run.id, () =>
+      this.aiServiceClient.analyzeBreast(
+        file.image,
+        file.name,
+        file.mimeType,
+        magnification,
+      ),
+    );
+    const completed = await this.finish(user, run.id, {
+      classificationModelId: result.modelId,
+      classificationWeightsSha256: result.weightsSha256,
+      decisionThreshold: result.threshold,
+      durationMs: result.durationMs,
+      magnification: result.magnification,
+      malignancyScore: result.malignancyScore,
+      modelDecision: result.decision,
+      status: AiAnalysisRunStatus.SUCCEEDED,
+      ttaScores: result.views,
+    });
+    return this.toRunResponse(completed);
+  }
+
+  // PanNuke: the label map (maskPath) and its colour overlay (overlayPath),
+  // the pixel shares and the tiles. The "segmented area" is every nucleus
+  // pixel: 1 - background.
+  private async runNuclei(
+    user: AuthenticatedUserPayload,
+    run: AiAnalysisRun,
+    file: { image: Buffer; mimeType: string; name: string },
+  ) {
+    const result = await this.analyze(user, run.id, () =>
+      this.aiServiceClient.analyzeNuclei(file.image, file.name, file.mimeType),
+    );
+    const { patientId } = run;
+
+    let maskPath: string | null = null;
+    let overlayPath: string;
+    try {
+      ({ localPath: maskPath } = await this.fileStorageService.storeAiMask({
+        patientId,
+        png: result.labelMapPng,
+        runId: run.id,
+      }));
+      ({ localPath: overlayPath } =
+        await this.fileStorageService.storeAiOverlay({
+          patientId,
+          png: result.overlayPng,
+          runId: run.id,
+        }));
+    } catch {
+      // No half-stored result: the label map goes with its overlay.
+      if (maskPath) await this.fileStorageService.deleteLocalFile(maskPath);
+      await this.finish(user, run.id, {
+        errorCode: 'MASK_STORAGE_FAILED',
+        status: AiAnalysisRunStatus.FAILED,
+      });
+      throw this.toHttpError('MASK_STORAGE_FAILED', run.id);
+    }
+
+    const ratio = 1 - result.classFractions.background;
+    const completed = await this.finish(user, run.id, {
+      durationMs: result.durationMs,
+      magnification: NUCLEI_MAGNIFICATION,
+      maskAreaPx: Math.round(ratio * result.imageWidth * result.imageHeight),
+      maskAreaRatio: ratio,
+      maskPath,
+      nucleiFractions: result.classFractions,
+      overlayPath,
+      segmentationModelId: result.modelId,
+      segmentationWeightsSha256: result.weightsSha256,
+      status: AiAnalysisRunStatus.SUCCEEDED,
+      tileCount: result.tileCount,
+    });
+    return this.toRunResponse(completed);
+  }
+
+  // The service call; a failure is stored (REJECTED_INPUT when the image is
+  // refused, FAILED otherwise) and answered with the run's id.
+  private async analyze<T>(
+    user: AuthenticatedUserPayload,
+    runId: string,
+    call: () => Promise<T>,
+  ): Promise<T> {
+    try {
+      return await call();
+    } catch (error) {
+      const code =
+        error instanceof AiServiceError ? error.code : 'SERVICE_ERROR';
+      await this.finish(user, runId, {
+        errorCode: code,
+        status: INPUT_REJECTIONS.includes(code)
+          ? AiAnalysisRunStatus.REJECTED_INPUT
+          : AiAnalysisRunStatus.FAILED,
+      });
+      throw this.toHttpError(code, runId);
+    }
   }
 
   async list(user: AuthenticatedUserPayload, patientId: string) {
@@ -353,6 +545,8 @@ export class AiAnalysisRunsService {
         run.id,
         {
           errorCode: 'RUN_INTERRUPTED',
+          magnification: run.magnification,
+          pipeline: run.pipeline,
           segmentationModelId: null,
           status: AiAnalysisRunStatus.FAILED,
         },
@@ -383,6 +577,24 @@ export class AiAnalysisRunsService {
     };
   }
 
+  // The colour overlay of a nuclei segmentation.
+  async getOverlay(
+    user: AuthenticatedUserPayload,
+    patientId: string,
+    runId: string,
+  ) {
+    const run = await this.getRunInScope(user, patientId, runId);
+
+    if (!run.overlayPath) {
+      throw new NotFoundException('Superposition introuvable.');
+    }
+
+    return {
+      fileName: `superposition-${run.id}.png`,
+      png: await this.fileStorageService.readStoredFile(run.overlayPath),
+    };
+  }
+
   private async getRunInScope(
     user: AuthenticatedUserPayload,
     patientId: string,
@@ -406,23 +618,22 @@ export class AiAnalysisRunsService {
   private async finish(
     user: AuthenticatedUserPayload,
     runId: string,
-    data: Partial<Omit<AiAnalysisRun, 'predictions'>> & {
-      errorCode?: RunErrorCode;
-      predictions?: { label: string; probability: number }[];
-      status: AiAnalysisRunStatus;
-    },
+    data: FinishData,
   ) {
     const run = await this.prisma.aiAnalysisRun.update({
       data,
       where: { id: runId },
     });
 
+    // The chain and the magnification, never the score nor the fractions.
     await this.patientAuditService.log(
       user,
       'AI_ANALYSIS_RUN_COMPLETED',
       run.id,
       {
         errorCode: run.errorCode,
+        magnification: run.magnification,
+        pipeline: run.pipeline,
         segmentationModelId: run.segmentationModelId,
         status: run.status,
       },
@@ -443,6 +654,8 @@ export class AiAnalysisRunsService {
     switch (code) {
       case 'INVALID_IMAGE':
       case 'IMAGE_TOO_LARGE':
+      case 'IMAGE_TOO_SMALL':
+      case 'IMAGE_DIMENSIONS_TOO_LARGE':
         return new UnprocessableEntityException(
           body(
             'AI_INPUT_REJECTED',
@@ -489,7 +702,8 @@ export class AiAnalysisRunsService {
     }
   }
 
-  // maskPath stays server-side; the client gets hasMask and the mask route.
+  // maskPath and overlayPath stay server-side; the client gets hasMask,
+  // hasOverlay and their routes.
   toRunResponse(run: RunWithDecider) {
     return {
       id: run.id,
@@ -500,11 +714,20 @@ export class AiAnalysisRunsService {
       classificationModelId: run.classificationModelId,
       classificationWeightsSha256: run.classificationWeightsSha256,
       predictions: run.predictions,
+      modelLabel: getModelLabel(run),
+      magnification: run.magnification,
+      malignancyScore: run.malignancyScore,
+      decisionThreshold: run.decisionThreshold,
+      ttaScores: run.ttaScores,
+      modelDecision: run.modelDecision,
       segmentationModelId: run.segmentationModelId,
       segmentationWeightsSha256: run.segmentationWeightsSha256,
       hasMask: run.maskPath !== null,
+      hasOverlay: Boolean(run.overlayPath),
       maskAreaPx: run.maskAreaPx,
       maskAreaRatio: run.maskAreaRatio,
+      nucleiFractions: run.nucleiFractions,
+      tileCount: run.tileCount,
       segmentationSkippedReason: run.segmentationSkippedReason,
       clinicianImpression: run.clinicianImpression,
       errorCode: run.errorCode,

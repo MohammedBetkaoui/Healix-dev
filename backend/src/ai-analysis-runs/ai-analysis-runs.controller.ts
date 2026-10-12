@@ -107,6 +107,27 @@ export class AiAnalysisRunsController {
     response.setHeader('X-Content-Type-Options', 'nosniff');
     response.end(mask.png);
   }
+
+  // The colour overlay of a nuclei segmentation; same headers as /mask.
+  @Get(':runId/overlay')
+  async overlay(
+    @CurrentUser() user: AuthenticatedUserPayload,
+    @Param('id') id: string,
+    @Param('runId') runId: string,
+    @Res() response: Response,
+  ) {
+    const overlay = await this.runsService.getOverlay(user, id, runId);
+
+    response.setHeader('Content-Type', 'image/png');
+    response.setHeader('Content-Length', String(overlay.png.length));
+    response.setHeader(
+      'Content-Disposition',
+      `inline; filename="${encodeURIComponent(overlay.fileName)}"`,
+    );
+    response.setHeader('Cache-Control', 'private, no-store');
+    response.setHeader('X-Content-Type-Options', 'nosniff');
+    response.end(overlay.png);
+  }
 }
 
 @Controller('ai-models')

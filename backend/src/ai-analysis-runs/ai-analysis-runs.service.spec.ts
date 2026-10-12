@@ -1,5 +1,6 @@
 import {
   BadGatewayException,
+  BadRequestException,
   ForbiddenException,
   GatewayTimeoutException,
   HttpException,
@@ -14,6 +15,7 @@ import {
   WorkspaceType,
 } from '@prisma/client';
 import {
+  existsSync,
   mkdirSync,
   mkdtempSync,
   readFileSync,
@@ -76,6 +78,40 @@ const serviceBody = (
   imageWidth: 256,
   imageHeight: 256,
   durationMs: 412,
+});
+
+// BreakHis answer: the score is the mean of the 4 views.
+const breastBody = (score = 0.59, overrides: Record<string, unknown> = {}) => ({
+  decision: score >= 0.13 ? 'malignant' : 'benign',
+  durationMs: 480,
+  magnification: 200,
+  malignancyScore: score,
+  modelId: 'pathology-breakhis-classification',
+  threshold: 0.13,
+  views: [score - 0.01, score + 0.01, score - 0.02, score + 0.02],
+  weightsSha256: SHA_CLASSIFIER,
+  ...overrides,
+});
+
+const NUCLEUS_SHARES = {
+  connective: 0.2,
+  dead: 0,
+  epithelial: 0.1,
+  inflammatory: 0.2,
+  neoplastic: 0.5,
+};
+const nucleiBody = (overrides: Record<string, unknown> = {}) => ({
+  classFractions: { background: 0.9, nucleusTypes: NUCLEUS_SHARES },
+  durationMs: 1600,
+  imageHeight: 500,
+  imageWidth: 600,
+  labelMapPng: MASK_PNG_BASE64,
+  modelId: 'pathology-unet-pannuke-segmentation',
+  overlayPng: MASK_PNG_BASE64,
+  tileCount: 9,
+  tiled: true,
+  weightsSha256: SHA_SEGMENTER,
+  ...overrides,
 });
 
 const jsonResponse = (status: number, body: unknown) =>
@@ -496,6 +532,263 @@ describe('AiAnalysisRunsService (POST /patients/:id/ai-analysis-runs)', () => {
         where: { id: 'run-of-b', patientId: 'patient-a' },
       }),
     );
+  });
+
+  describe('pathology chains', () => {
+    const breastDto = {
+      magnification: 200 as const,
+      pipeline: 'pathology-breast' as const,
+      sourceDocumentId: 'document-1',
+    };
+    const nucleiDto = {
+      magnification: 40 as const,
+      pipeline: 'pathology-nuclei' as const,
+      sourceDocumentId: 'document-1',
+    };
+    const masks = join(uploadRoot, 'patients', 'patient-a', 'ai-masks');
+
+    it('runs the breast classification with its magnification, never into predictions', async () => {
+      fetchMock.mockResolvedValue(jsonResponse(200, breastBody(0.59)));
+
+      const run = await service.create(doctor, 'patient-a', breastDto);
+
+      const [url, init] = fetchMock.mock.calls[0];
+      expect(url).toBe(
+        'http://ai.test:8001/analyze/pathology/breast-classification',
+      );
+      const form = init?.body as FormData;
+      expect(form.get('magnification')).toBe('200');
+      expect(await (form.get('image') as File).text()).toBe('png-bytes');
+
+      expect(runCreate.mock.calls[0][0].data).toEqual(
+        expect.objectContaining({
+          magnification: 200,
+          pipeline: 'pathology-breast',
+        }),
+      );
+      const stored = lastUpdate();
+      expect(stored).toEqual({
+        classificationModelId: 'pathology-breakhis-classification',
+        classificationWeightsSha256: SHA_CLASSIFIER,
+        decisionThreshold: 0.13,
+        durationMs: 480,
+        magnification: 200,
+        malignancyScore: 0.59,
+        modelDecision: 'malignant',
+        status: AiAnalysisRunStatus.SUCCEEDED,
+        // The 4 views as the service sent them.
+        ttaScores: [0.59 - 0.01, 0.59 + 0.01, 0.59 - 0.02, 0.59 + 0.02],
+      });
+      expect(stored).not.toHaveProperty('predictions');
+      expect(run).toEqual(
+        expect.objectContaining({
+          magnification: 200,
+          malignancyScore: 0.59,
+          modelDecision: 'malignant',
+          modelLabel: 'malignant',
+          pipeline: 'pathology-breast',
+        }),
+      );
+    });
+
+    it('logs the chain and the magnification, never the score', async () => {
+      fetchMock.mockResolvedValue(jsonResponse(200, breastBody(0.59)));
+
+      await service.create(doctor, 'patient-a', breastDto);
+
+      const metadata = log.mock.calls.map(([, , , data]) => data);
+      expect(metadata).toEqual([
+        expect.objectContaining({
+          magnification: 200,
+          pipeline: 'pathology-breast',
+        }),
+        expect.objectContaining({
+          magnification: 200,
+          pipeline: 'pathology-breast',
+          status: AiAnalysisRunStatus.SUCCEEDED,
+        }),
+      ]);
+      expect(JSON.stringify(metadata)).not.toMatch(/0\.59|malignant/);
+    });
+
+    it('runs the nuclei segmentation and stores the label map and its overlay', async () => {
+      fetchMock.mockResolvedValue(jsonResponse(200, nucleiBody()));
+
+      const run = await service.create(doctor, 'patient-a', nucleiDto);
+
+      expect(fetchMock.mock.calls[0][0]).toBe(
+        'http://ai.test:8001/analyze/pathology/nuclei-segmentation',
+      );
+      const png = Buffer.from(MASK_PNG_BASE64, 'base64');
+      const maskFile = join(masks, 'run-1.png');
+      const overlayFile = join(masks, 'run-1-overlay.png');
+      expect(readFileSync(maskFile).equals(png)).toBe(true);
+      expect(readFileSync(overlayFile).equals(png)).toBe(true);
+
+      const stored = lastUpdate();
+      expect(stored).toEqual(
+        expect.objectContaining({
+          magnification: 40,
+          maskPath: maskFile,
+          nucleiFractions: { background: 0.9, nucleusTypes: NUCLEUS_SHARES },
+          overlayPath: overlayFile,
+          segmentationModelId: 'pathology-unet-pannuke-segmentation',
+          segmentationWeightsSha256: SHA_SEGMENTER,
+          status: AiAnalysisRunStatus.SUCCEEDED,
+          tileCount: 9,
+        }),
+      );
+      // Every nucleus pixel is "segmented": 1 - background of 600 x 500.
+      expect(stored?.maskAreaRatio).toBeCloseTo(0.1, 9);
+      expect(stored?.maskAreaPx).toBe(30_000);
+      expect(stored).not.toHaveProperty('predictions');
+
+      expect(run).not.toHaveProperty('overlayPath');
+      expect(run).toEqual(
+        expect.objectContaining({
+          hasMask: true,
+          hasOverlay: true,
+          magnification: 40,
+          modelLabel: null,
+          tileCount: 9,
+        }),
+      );
+    });
+
+    it.each([
+      ['brain', { magnification: 40 }, 'AI_MAGNIFICATION_UNEXPECTED'],
+      ['pathology-breast', {}, 'AI_MAGNIFICATION_REQUIRED'],
+      ['pathology-nuclei', {}, 'AI_MAGNIFICATION_REQUIRED'],
+      [
+        'pathology-nuclei',
+        { magnification: 200 },
+        'AI_MAGNIFICATION_NOT_SUPPORTED',
+      ],
+    ] as const)(
+      'refuses %s with %j (%s) before reading anything',
+      async (pipeline, extra, code) => {
+        const error = await errorOf(
+          service.create(doctor, 'patient-a', {
+            pipeline,
+            sourceDocumentId: 'document-1',
+            ...extra,
+          }),
+        );
+
+        expect(error).toBeInstanceOf(BadRequestException);
+        expect(error.getResponse()).toEqual(expect.objectContaining({ code }));
+        expect(patientFindFirst).not.toHaveBeenCalled();
+        expect(runCreate).not.toHaveBeenCalled();
+        expect(fetchMock).not.toHaveBeenCalled();
+      },
+    );
+
+    it.each([
+      ['image_too_small', 'IMAGE_TOO_SMALL'],
+      ['image_dimensions_too_large', 'IMAGE_DIMENSIONS_TOO_LARGE'],
+      ['invalid_image', 'INVALID_IMAGE'],
+    ])(
+      'records REJECTED_INPUT for a 422 %s of the service',
+      async (detail, errorCode) => {
+        fetchMock.mockResolvedValue(
+          jsonResponse(422, { detail: { code: detail, minSide: 256 } }),
+        );
+
+        const error = await errorOf(
+          service.create(doctor, 'patient-a', nucleiDto),
+        );
+
+        expect(error).toBeInstanceOf(UnprocessableEntityException);
+        expect(error.getResponse()).toEqual(
+          expect.objectContaining({
+            code: 'AI_INPUT_REJECTED',
+            reason: errorCode,
+          }),
+        );
+        expect(lastUpdate()).toEqual({
+          errorCode,
+          status: AiAnalysisRunStatus.REJECTED_INPUT,
+        });
+      },
+    );
+
+    it('treats a refused magnification as a service error (the backend checked it)', async () => {
+      fetchMock.mockResolvedValue(
+        jsonResponse(422, { detail: { code: 'invalid_magnification' } }),
+      );
+
+      const error = await errorOf(
+        service.create(doctor, 'patient-a', breastDto),
+      );
+
+      expect(error).toBeInstanceOf(BadGatewayException);
+      expect(lastUpdate()).toEqual({
+        errorCode: 'SERVICE_ERROR',
+        status: AiAnalysisRunStatus.FAILED,
+      });
+    });
+
+    it('stores nothing from a breast answer with another threshold', async () => {
+      fetchMock.mockResolvedValue(
+        jsonResponse(200, breastBody(0.59, { threshold: 0.5 })),
+      );
+
+      await expect(
+        service.create(doctor, 'patient-a', breastDto),
+      ).rejects.toBeInstanceOf(BadGatewayException);
+      expect(lastUpdate()).toEqual({
+        errorCode: 'SERVICE_ERROR',
+        status: AiAnalysisRunStatus.FAILED,
+      });
+    });
+
+    it('fails with MASK_STORAGE_FAILED and keeps no label map when the overlay cannot be stored', async () => {
+      fetchMock.mockResolvedValue(jsonResponse(200, nucleiBody()));
+      runCreate.mockImplementation(({ data }) =>
+        Promise.resolve({ ...data, id: 'run-2', maskPath: null }),
+      );
+      const failing = jest
+        .spyOn(storage, 'storeAiOverlay')
+        .mockRejectedValueOnce(new Error('disk full'));
+
+      const error = await errorOf(
+        service.create(doctor, 'patient-a', nucleiDto),
+      );
+
+      expect(error.getResponse()).toEqual(
+        expect.objectContaining({ code: 'AI_MASK_STORAGE_FAILED' }),
+      );
+      expect(lastUpdate()).toEqual({
+        errorCode: 'MASK_STORAGE_FAILED',
+        status: AiAnalysisRunStatus.FAILED,
+      });
+      expect(existsSync(join(masks, 'run-2.png'))).toBe(false);
+      failing.mockRestore();
+    });
+
+    it('serves the overlay, and answers 404 for a run without one', async () => {
+      const overlayFile = join(masks, 'served-overlay.png');
+      mkdirSync(masks, { recursive: true });
+      writeFileSync(overlayFile, 'overlay-bytes');
+      runFindFirst.mockResolvedValueOnce({
+        id: 'run-3',
+        overlayPath: overlayFile,
+        patientId: 'patient-a',
+      });
+
+      const overlay = await service.getOverlay(doctor, 'patient-a', 'run-3');
+      expect(overlay.fileName).toBe('superposition-run-3.png');
+      expect(overlay.png.toString()).toBe('overlay-bytes');
+
+      runFindFirst.mockResolvedValueOnce({
+        id: 'run-4',
+        overlayPath: null,
+        patientId: 'patient-a',
+      });
+      await expect(
+        service.getOverlay(doctor, 'patient-a', 'run-4'),
+      ).rejects.toBeInstanceOf(NotFoundException);
+    });
   });
 });
 

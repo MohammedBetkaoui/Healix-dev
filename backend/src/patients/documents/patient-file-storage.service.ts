@@ -102,11 +102,35 @@ export class PatientFileStorageService {
 
   // Segmentation mask of an AI analysis run, next to the patient's documents:
   // patients/<patientId>/ai-masks/<runId>.png.
-  async storeAiMask(input: {
+  storeAiMask(input: {
     patientId: string;
     png: Buffer;
     runId: string;
   }): Promise<{ checksum: string; localPath: string }> {
+    return this.storeAiImage(input, `${input.runId}.png`, {
+      log: 'Failed to store an AI segmentation mask.',
+      message: 'Une erreur est survenue lors du stockage du masque.',
+    });
+  }
+
+  // Colour overlay of a nuclei segmentation, next to its label map:
+  // patients/<patientId>/ai-masks/<runId>-overlay.png.
+  storeAiOverlay(input: {
+    patientId: string;
+    png: Buffer;
+    runId: string;
+  }): Promise<{ checksum: string; localPath: string }> {
+    return this.storeAiImage(input, `${input.runId}-overlay.png`, {
+      log: 'Failed to store an AI segmentation overlay.',
+      message: 'Une erreur est survenue lors du stockage de la superposition.',
+    });
+  }
+
+  private async storeAiImage(
+    input: { patientId: string; png: Buffer },
+    fileName: string,
+    failure: { log: string; message: string },
+  ): Promise<{ checksum: string; localPath: string }> {
     const targetDirectory = this.resolveSafePath(
       'patients',
       input.patientId,
@@ -116,7 +140,7 @@ export class PatientFileStorageService {
       'patients',
       input.patientId,
       'ai-masks',
-      `${input.runId}.png`,
+      fileName,
     );
 
     try {
@@ -126,12 +150,10 @@ export class PatientFileStorageService {
       return { checksum: createSha256Checksum(input.png), localPath };
     } catch (error) {
       this.logger.error(
-        'Failed to store an AI segmentation mask.',
+        failure.log,
         error instanceof Error ? error.message : 'Unknown error',
       );
-      throw new InternalServerErrorException(
-        'Une erreur est survenue lors du stockage du masque.',
-      );
+      throw new InternalServerErrorException(failure.message);
     }
   }
 

@@ -31,6 +31,46 @@
 $ npm install
 ```
 
+### AI analysis chains
+
+`POST /api/patients/:id/ai-analysis-runs` starts one of three independent
+chains (`pipeline`), never run one after the other:
+
+| `pipeline` | Service endpoint | `magnification` |
+| --- | --- | --- |
+| `brain` | `/analyze/brain` | refused (400 `AI_MAGNIFICATION_UNEXPECTED`) |
+| `pathology-breast` | `/analyze/pathology/breast-classification` (BreakHis) | required: 40, 100, 200 or 400 (400 `AI_MAGNIFICATION_REQUIRED`) |
+| `pathology-nuclei` | `/analyze/pathology/nuclei-segmentation` (PanNuke) | required, 40 only: a 40x H&E image (400 `AI_MAGNIFICATION_NOT_SUPPORTED`) |
+
+Every answer of the service is checked before anything is stored; any
+inconsistency is `502 AI_SERVICE_ERROR` (run `FAILED`, nothing stored):
+
+- **breast**: model id and SHA-256, a score in [0, 1], the threshold exactly
+  0.13, 4 view scores whose mean is the score (to 1e-6), the decision the
+  threshold gives, the magnification sent. Stored in `malignancyScore`,
+  `decisionThreshold`, `ttaScores`, `modelDecision` (`benign` | `malignant`)
+  and `magnification`, **never in `predictions`**: the score is not a
+  probability, and the brain rules (uncertainty under 0.90, agreement matrix)
+  read that field.
+- **nuclei**: model id and SHA-256, both images PNG, a size, the background
+  share in [0, 1], the five nucleus types (all null without any nucleus, or
+  shares adding up to 1 to 1e-3), a tile count consistent with `tiled`. The
+  label map is stored as the mask (`maskPath`), the colour overlay next to it
+  (`ai-masks/<runId>-overlay.png`, `overlayPath`); `maskAreaRatio` is
+  1 - background, `maskAreaPx` that share of the image. No nucleus count.
+
+The response adds `modelLabel` (the brain's top class, the BreakHis result,
+`null` for the nuclei map), `magnification`, `malignancyScore`,
+`decisionThreshold`, `ttaScores`, `modelDecision`, `nucleiFractions`,
+`tileCount` and `hasOverlay`; the stored paths stay on the server.
+`GET /api/patients/:id/ai-analysis-runs/:runId/overlay` serves the overlay
+(same headers as `/mask`, 404 without one).
+
+An image the service refuses (`invalid_image`, a side under 256 px or over its
+maximum for the nuclei segmentation, too large) makes the run
+`REJECTED_INPUT` and answers `422 AI_INPUT_REJECTED` with the `reason`. The
+audit log records the chain and the magnification, never a score.
+
 ### AI analysis reports (PDF)
 
 `GET /api/patients/:id/ai-analysis-runs/:runId/report` renders the report of
