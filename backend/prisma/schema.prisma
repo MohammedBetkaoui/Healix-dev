@@ -923,8 +923,9 @@ model AiAnalysisRun {
   requestedById               String              @map("requested_by_id")
   // The physician's decision: set once, never changed (a decision is final).
   decisionStatus              AiRunDecision?      @map("decision_status")
-  // Label kept by the physician: the model's top class (VALIDATED) or their
-  // correction (CORRECTED); null when the analysis is REJECTED.
+  // Label kept by the physician: the model's answer (VALIDATED: the brain top
+  // class, the BreakHis result) or their correction (CORRECTED); null when
+  // the analysis is REJECTED, and for a validated nuclei map (no label).
   decisionLabel               String?             @map("decision_label") @db.VarChar(40)
   decisionReason              String?             @map("decision_reason") @db.Text
   decidedById                 String?             @map("decided_by_id")

@@ -42,11 +42,36 @@ const succeededRun = (overrides: Record<string, unknown> = {}) => ({
   decisionStatus: null,
   id: 'run-1',
   maskPath: null,
+  modelDecision: null,
   patientId: 'patient-a',
+  pipeline: 'brain',
   predictions,
   status: 'SUCCEEDED',
   ...overrides,
 });
+
+// A BreakHis run: its answer is modelDecision, never in predictions.
+const breastRun = (overrides: Record<string, unknown> = {}) =>
+  succeededRun({
+    classificationModelId: 'pathology-breakhis-classification',
+    magnification: 200,
+    malignancyScore: 0.59,
+    modelDecision: 'malignant',
+    pipeline: 'pathology-breast',
+    predictions: null,
+    ...overrides,
+  });
+
+// A PanNuke run: a map to review, no label.
+const nucleiRun = (overrides: Record<string, unknown> = {}) =>
+  succeededRun({
+    classificationModelId: null,
+    magnification: 40,
+    maskPath: '/uploads/patients/patient-a/ai-masks/run-1.png',
+    pipeline: 'pathology-nuclei',
+    predictions: null,
+    ...overrides,
+  });
 
 describe('AiAnalysisRunsService.decide (POST .../ai-analysis-runs/:runId/decision)', () => {
   const findFirst = jest.fn();
@@ -288,6 +313,167 @@ describe('AiAnalysisRunsService.decide (POST .../ai-analysis-runs/:runId/decisio
     },
   );
 
+  it('refuses a correction to a label of another chain (400)', async () => {
+    findFirst.mockResolvedValueOnce(succeededRun());
+
+    const error = await errorOf(
+      service.decide(doctor, 'patient-a', 'run-1', {
+        correctedLabel: 'benign',
+        reason: 'Classe de la chaîne mammaire.',
+        status: 'CORRECTED',
+      }),
+    );
+
+    expect(error).toBeInstanceOf(BadRequestException);
+    expect(error.getResponse()).toEqual(
+      expect.objectContaining({ code: 'AI_CORRECTED_LABEL_INVALID' }),
+    );
+    expect(updateMany).not.toHaveBeenCalled();
+  });
+
+  describe('pathology-breast', () => {
+    it('VALIDATED keeps the BreakHis result', async () => {
+      findFirst.mockResolvedValueOnce(breastRun()).mockResolvedValueOnce(
+        decidedRun({
+          decisionLabel: 'malignant',
+          decisionStatus: 'VALIDATED',
+        }),
+      );
+
+      await service.decide(doctor, 'patient-a', 'run-1', {
+        status: 'VALIDATED',
+      });
+
+      expect(lastWrite().data.decisionLabel).toBe('malignant');
+      expect(auditMetadata()).toEqual({
+        agreesWithModel: true,
+        decisionLabel: 'malignant',
+        modelLabel: 'malignant',
+        status: 'VALIDATED',
+      });
+    });
+
+    it.each(['benign', 'other'] as const)(
+      'CORRECTED to %s disagrees with the model',
+      async (label) => {
+        findFirst
+          .mockResolvedValueOnce(breastRun())
+          .mockResolvedValueOnce(decidedRun({ decisionStatus: 'CORRECTED' }));
+
+        await service.decide(doctor, 'patient-a', 'run-1', {
+          correctedLabel: label,
+          reason: 'Relecture histologique.',
+          status: 'CORRECTED',
+        });
+
+        expect(lastWrite().data.decisionLabel).toBe(label);
+        expect(auditMetadata()).toEqual(
+          expect.objectContaining({
+            agreesWithModel: false,
+            modelLabel: 'malignant',
+          }),
+        );
+      },
+    );
+
+    it('refuses a brain class as correction, and the model result itself', async () => {
+      findFirst.mockResolvedValueOnce(breastRun());
+      const brainClass = await errorOf(
+        service.decide(doctor, 'patient-a', 'run-1', {
+          correctedLabel: 'glioma',
+          reason: 'Classe cérébrale.',
+          status: 'CORRECTED',
+        }),
+      );
+      expect(brainClass.getResponse()).toEqual(
+        expect.objectContaining({ code: 'AI_CORRECTED_LABEL_INVALID' }),
+      );
+
+      findFirst.mockResolvedValueOnce(breastRun());
+      const same = await errorOf(
+        service.decide(doctor, 'patient-a', 'run-1', {
+          correctedLabel: 'malignant',
+          reason: 'Même résultat que le modèle.',
+          status: 'CORRECTED',
+        }),
+      );
+      expect(same.getResponse()).toEqual(
+        expect.objectContaining({ code: 'AI_CORRECTION_MATCHES_MODEL' }),
+      );
+      expect(updateMany).not.toHaveBeenCalled();
+    });
+
+    it('refuses a run without a result (409 AI_RUN_NOT_DECIDABLE)', async () => {
+      findFirst.mockResolvedValueOnce(breastRun({ modelDecision: null }));
+
+      const error = await errorOf(
+        service.decide(doctor, 'patient-a', 'run-1', { status: 'VALIDATED' }),
+      );
+
+      expect(error).toBeInstanceOf(ConflictException);
+      expect(error.getResponse()).toEqual(
+        expect.objectContaining({ code: 'AI_RUN_NOT_DECIDABLE' }),
+      );
+    });
+  });
+
+  describe('pathology-nuclei', () => {
+    it('VALIDATED means "map reviewed and accepted": no label, no agreement', async () => {
+      findFirst
+        .mockResolvedValueOnce(nucleiRun())
+        .mockResolvedValueOnce(decidedRun({ decisionStatus: 'VALIDATED' }));
+
+      await service.decide(doctor, 'patient-a', 'run-1', {
+        status: 'VALIDATED',
+      });
+
+      expect(lastWrite().data).toEqual(
+        expect.objectContaining({
+          decisionLabel: null,
+          decisionStatus: 'VALIDATED',
+        }),
+      );
+      expect(auditMetadata()).toEqual({
+        agreesWithModel: null,
+        decisionLabel: null,
+        modelLabel: null,
+        status: 'VALIDATED',
+      });
+    });
+
+    it('may be REJECTED', async () => {
+      findFirst
+        .mockResolvedValueOnce(nucleiRun())
+        .mockResolvedValueOnce(decidedRun({ decisionStatus: 'REJECTED' }));
+
+      await service.decide(doctor, 'patient-a', 'run-1', {
+        reason: 'Coloration hors H&E.',
+        status: 'REJECTED',
+      });
+
+      expect(lastWrite().data.decisionStatus).toBe('REJECTED');
+      expect(auditMetadata().agreesWithModel).toBeNull();
+    });
+
+    it('is never CORRECTED (400 AI_CORRECTION_NOT_APPLICABLE)', async () => {
+      findFirst.mockResolvedValueOnce(nucleiRun());
+
+      const error = await errorOf(
+        service.decide(doctor, 'patient-a', 'run-1', {
+          correctedLabel: 'other',
+          reason: 'Carte à reprendre.',
+          status: 'CORRECTED',
+        }),
+      );
+
+      expect(error).toBeInstanceOf(BadRequestException);
+      expect(error.getResponse()).toEqual(
+        expect.objectContaining({ code: 'AI_CORRECTION_NOT_APPLICABLE' }),
+      );
+      expect(updateMany).not.toHaveBeenCalled();
+    });
+  });
+
   it('answers 404 for a run of another patient', async () => {
     findFirst.mockResolvedValueOnce(null);
 
@@ -353,6 +539,15 @@ describe('DecideAiAnalysisRunDto', () => {
     expect(
       await errorsFor({ correctedLabel: 'other', reason, status: 'CORRECTED' }),
     ).toEqual([]);
+  });
+
+  it("knows the labels of every chain (the service checks the run's own)", async () => {
+    const reason = 'Relecture histologique.';
+    for (const correctedLabel of ['glioma', 'benign', 'malignant']) {
+      expect(
+        await errorsFor({ correctedLabel, reason, status: 'CORRECTED' }),
+      ).toEqual([]);
+    }
   });
 
   it('refuses an unknown status', async () => {

@@ -9,10 +9,26 @@ import {
 import { AiRunDecision } from '@prisma/client';
 
 import { normalizeStringWhitespace } from '../../common/utils/transform-input';
-import { BRAIN_LABELS } from '../ai-service.client';
+import { BRAIN_LABELS, BREAST_DECISIONS } from '../ai-service.client';
+import { type AiPipeline } from './create-ai-analysis-run.dto';
 
-// A physician may correct to a class the model does not know.
-export const AI_DECISION_LABELS = [...BRAIN_LABELS, 'other'] as const;
+// What a physician may correct to, per chain: a class the model gives, or
+// one it does not know ("other"). The nuclei segmentation is a map to review
+// (validated or rejected), never corrected to a class.
+export const CORRECTION_LABELS: Readonly<
+  Record<AiPipeline, readonly string[]>
+> = {
+  brain: [...BRAIN_LABELS, 'other'],
+  'pathology-breast': [...BREAST_DECISIONS, 'other'],
+  'pathology-nuclei': [],
+};
+
+// Every label of every chain; the service checks the run's own chain.
+export const AI_DECISION_LABELS = [
+  ...BRAIN_LABELS,
+  ...BREAST_DECISIONS,
+  'other',
+] as const;
 export type AiDecisionLabel = (typeof AI_DECISION_LABELS)[number];
 
 export const AI_DECISION_STATUSES = Object.values(AiRunDecision);
@@ -21,7 +37,8 @@ const needsReason = (dto: DecideAiAnalysisRunDto) =>
   dto.status !== AiRunDecision.VALIDATED || dto.reason !== undefined;
 
 // The physician's final decision on a SUCCEEDED run (POST .../decision).
-// "Different from the model's top class" needs the run: checked in the service.
+// "Different from the model's answer" and "a label of this chain" need the
+// run: checked in the service.
 export class DecideAiAnalysisRunDto {
   @IsIn(AI_DECISION_STATUSES)
   status!: AiRunDecision;

@@ -35,7 +35,10 @@ import {
   CreateAiAnalysisRunDto,
   NUCLEI_MAGNIFICATION,
 } from './dto/create-ai-analysis-run.dto';
-import { DecideAiAnalysisRunDto } from './dto/decide-ai-analysis-run.dto';
+import {
+  CORRECTION_LABELS,
+  DecideAiAnalysisRunDto,
+} from './dto/decide-ai-analysis-run.dto';
 
 // The inference service decodes PNG and JPEG only (no DICOM).
 const SUPPORTED_IMAGE_TYPES = new Set(['image/png', 'image/jpeg']);
@@ -422,6 +425,9 @@ export class AiAnalysisRunsService {
   }
 
   // The physician's decision is final: one per run, only on a SUCCEEDED run.
+  // Brain and breast: validate the model's answer, correct it to another
+  // label of the chain, or reject it. Nuclei: the map is validated (reviewed
+  // and accepted, no label) or rejected, never corrected.
   async decide(
     user: AuthenticatedUserPayload,
     patientId: string,
@@ -441,9 +447,10 @@ export class AiAnalysisRunsService {
       throw alreadyDecided();
     }
 
-    const modelLabel = getTopLabel(run.predictions);
+    const isNuclei = run.pipeline === 'pathology-nuclei';
+    const modelLabel = getModelLabel(run);
 
-    if (!modelLabel) {
+    if (!isNuclei && !modelLabel) {
       throw new ConflictException({
         code: 'AI_RUN_NOT_DECIDABLE',
         message: "Cette analyse n'a pas de résultat de classification.",
@@ -454,6 +461,26 @@ export class AiAnalysisRunsService {
       throw new BadRequestException({
         code: 'AI_CORRECTED_LABEL_UNEXPECTED',
         message: "Une classe corrigée n'accompagne qu'une correction.",
+      });
+    }
+
+    if (isNuclei && dto.status === AiRunDecision.CORRECTED) {
+      throw new BadRequestException({
+        code: 'AI_CORRECTION_NOT_APPLICABLE',
+        message:
+          'Une carte de segmentation des noyaux se valide ou se rejette ; elle ne se corrige pas.',
+      });
+    }
+
+    if (
+      dto.status === AiRunDecision.CORRECTED &&
+      !(CORRECTION_LABELS[run.pipeline as AiPipeline] ?? []).includes(
+        dto.correctedLabel as string,
+      )
+    ) {
+      throw new BadRequestException({
+        code: 'AI_CORRECTED_LABEL_INVALID',
+        message: "Cette classe n'appartient pas à cette chaîne d'analyse.",
       });
     }
 
@@ -496,14 +523,15 @@ export class AiAnalysisRunsService {
       throw alreadyDecided();
     }
 
-    // Agreement with the model only, never the reason's text.
+    // Agreement with the model only, never the reason's text. A nuclei map
+    // has no label to agree with.
     await this.patientAuditService.log(
       user,
       'AI_ANALYSIS_RUN_DECIDED',
       run.id,
       {
         agreesWithModel:
-          dto.status === AiRunDecision.REJECTED
+          dto.status === AiRunDecision.REJECTED || isNuclei
             ? null
             : decisionLabel === modelLabel,
         decisionLabel,

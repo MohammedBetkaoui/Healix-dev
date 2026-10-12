@@ -71,6 +71,21 @@ maximum for the nuclei segmentation, too large) makes the run
 `REJECTED_INPUT` and answers `422 AI_INPUT_REJECTED` with the `reason`. The
 audit log records the chain and the magnification, never a score.
 
+The physician's decision (`POST .../:runId/decision`, final) depends on the
+chain:
+
+- `brain`: validate the top class, or correct it to another brain class or
+  `other`;
+- `pathology-breast`: validate the result, or correct it to the other one or
+  `other`;
+- `pathology-nuclei`: validate the map (reviewed and accepted:
+  `decisionLabel` stays null) or reject it; a correction answers
+  `400 AI_CORRECTION_NOT_APPLICABLE`.
+
+A label of another chain answers `400 AI_CORRECTED_LABEL_INVALID`. A brain or
+breast run without a result answers `409 AI_RUN_NOT_DECIDABLE`. The audit
+log's `agreesWithModel` is null for a rejection and for a nuclei map.
+
 ### AI analysis reports (PDF)
 
 `GET /api/patients/:id/ai-analysis-runs/:runId/report` renders the report of
