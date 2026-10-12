@@ -22,9 +22,12 @@ from app.pathology_models import (
 )
 from app.pathology_pipeline import (
     NUCLEI_MARGIN,
+    NUCLEI_PALETTE,
+    NUCLEI_PALETTE_FILE,
     NUCLEI_STRIDE,
     NUCLEI_TILE,
     class_fractions,
+    load_nuclei_palette,
     segment_nuclei_rgb,
     tile_grid,
 )
@@ -337,15 +340,81 @@ def test_class_fractions_background_of_all_pixels_and_types_of_nuclei_pixels():
     assert fractions["nucleusTypes"] == pytest.approx(
         {"neoplastic": 0.6, "inflammatory": 0.3, "connective": 0.0, "dead": 0.0, "epithelial": 0.1}
     )
-    assert class_fractions(np.zeros((4, 4), dtype=np.uint8)) == {"background": 1.0, "nucleusTypes": None}
+    assert class_fractions(np.zeros((4, 4), dtype=np.uint8)) == {
+        "background": 1.0,
+        "nucleusTypes": {"neoplastic": None, "inflammatory": None, "connective": None, "dead": None, "epithelial": None},
+    }
 
 
 def test_nuclei_output_shape_has_no_nucleus_count():
     with make_client(pathology_registry(None, RedEncodesClass())) as client:
         body = segment(client, png_of_rgb(encoded_rgb(label_pattern(256, 256)))).json()
-    assert set(body) == {"modelId", "weightsSha256", "labelMapPng", "classFractions", "tiled", "tileCount", "durationMs"}
+    assert set(body) == {
+        "modelId", "weightsSha256", "labelMapPng", "overlayPng", "classFractions", "tiled", "tileCount",
+        "imageWidth", "imageHeight", "durationMs",
+    }
     assert body["modelId"] == NUCLEI_SEGMENTER_ID
+    assert (body["imageWidth"], body["imageHeight"]) == (256, 256)
     assert set(np.unique(decode_label_map(body))) <= set(range(6))
+
+
+def decode_overlay(body: dict) -> np.ndarray:
+    """The overlay as RGBA (OpenCV decodes BGRA)."""
+    bgra = cv2.imdecode(np.frombuffer(base64.b64decode(body["overlayPng"]), np.uint8), cv2.IMREAD_UNCHANGED)
+    assert bgra.ndim == 3 and bgra.shape[2] == 4 and bgra.dtype == np.uint8
+    return cv2.cvtColor(bgra, cv2.COLOR_BGRA2RGBA)
+
+
+@pytest.mark.parametrize("size", [(256, 256), (300, 520)])
+def test_the_overlay_has_the_size_of_the_label_map(size):
+    height, width = size
+    with make_client(pathology_registry(None, RedEncodesClass())) as client:
+        body = segment(client, png_of_rgb(encoded_rgb(label_pattern(height, width)))).json()
+    assert decode_overlay(body).shape[:2] == decode_label_map(body).shape == (height, width)
+    assert (body["imageWidth"], body["imageHeight"]) == (width, height)
+
+
+def test_each_class_has_its_exact_colour_and_the_background_is_transparent():
+    labels = label_pattern(256, 256)  # every class, background included
+    with make_client(pathology_registry(None, RedEncodesClass())) as client:
+        body = segment(client, png_of_rgb(encoded_rgb(labels))).json()
+    overlay = decode_overlay(body)
+    label_map = decode_label_map(body)
+    assert np.array_equal(label_map, labels)
+
+    assert np.all(overlay[label_map == 0] == 0)  # transparent background, alpha 0
+    for index, name in enumerate(NUCLEI_CLASSES[1:], start=1):
+        colour = NUCLEI_PALETTE[name]
+        expected = [int(colour[offset : offset + 2], 16) for offset in (1, 3, 5)] + [255]
+        pixels = overlay[label_map == index]
+        assert len(pixels) > 0
+        assert np.all(pixels == expected), name
+
+
+def test_the_loaded_palette_is_the_json_file():
+    assert NUCLEI_PALETTE == json.loads(NUCLEI_PALETTE_FILE.read_text(encoding="utf-8"))
+    assert NUCLEI_PALETTE == {
+        "neoplastic": "#D55E00",
+        "inflammatory": "#0072B2",
+        "connective": "#009E73",
+        "dead": "#6E6E6E",
+        "epithelial": "#F0E442",
+    }
+
+
+@pytest.mark.parametrize(
+    "palette",
+    [
+        {"neoplastic": "#D55E00"},  # a type missing
+        {**{name: "#000000" for name in NUCLEI_CLASSES[1:]}, "background": "#FFFFFF"},  # an extra one
+        {**{name: "#000000" for name in NUCLEI_CLASSES[1:]}, "dead": "grey"},  # not #RRGGBB
+    ],
+)
+def test_an_incomplete_or_invalid_palette_is_refused(tmp_path, palette):
+    path = tmp_path / "palette.json"
+    path.write_text(json.dumps(palette), encoding="utf-8")
+    with pytest.raises(ValueError):
+        load_nuclei_palette(path)
 
 
 def test_models_lists_the_pathology_models_after_the_brain_ones():
@@ -494,7 +563,7 @@ def test_real_nuclei_segmentation_output(real_pathology_registry, size):
     assert body["tiled"] is (size != (256, 256))
     fractions = body["classFractions"]
     assert 0.0 <= fractions["background"] <= 1.0
-    if fractions["nucleusTypes"] is not None:
+    if None not in fractions["nucleusTypes"].values():
         assert math.isclose(sum(fractions["nucleusTypes"].values()), 1.0, abs_tol=1e-9)
 
 

@@ -9,15 +9,20 @@ Preprocessing as in the training notebooks (see README):
   The score is not calibrated: it is never presented as a probability.
 - PanNuke: RGB -> float32 / 255, 256 x 256 exactly; argmax of the softmax.
   A larger image is cut into 256 x 256 tiles overlapping by 32 px, mirrored
-  at the image borders, of which only the central part is kept.
+  at the image borders, of which only the central part is kept. The class map
+  is also returned as a colour overlay (nuclei_palette.json, background
+  transparent).
 """
 
 from __future__ import annotations
 
 import base64
+import json
 import logging
 import math
+import re
 import time
+from pathlib import Path
 
 import cv2
 import numpy as np
@@ -42,6 +47,36 @@ NUCLEI_MARGIN = NUCLEI_OVERLAP // 2
 NUCLEI_STRIDE = NUCLEI_TILE - NUCLEI_OVERLAP
 # Tiles per forward pass (bounds memory on large images).
 NUCLEI_BATCH = 8
+
+# Overlay colour of each nucleus type (Okabe-Ito, legible on H&E); the
+# background stays transparent. Read once, when the module loads.
+NUCLEI_PALETTE_FILE = Path(__file__).with_name("nuclei_palette.json")
+
+
+def load_nuclei_palette(path: Path = NUCLEI_PALETTE_FILE) -> dict[str, str]:
+    """{type: "#RRGGBB"} for exactly the five nucleus types; ValueError otherwise."""
+    palette = json.loads(path.read_text(encoding="utf-8"))
+    if not isinstance(palette, dict) or set(palette) != set(NUCLEI_CLASSES[1:]):
+        raise ValueError(f"{path.name}: expected one colour for each of {', '.join(NUCLEI_CLASSES[1:])}.")
+    for name, colour in palette.items():
+        if not isinstance(colour, str) or not re.fullmatch(r"#[0-9A-Fa-f]{6}", colour):
+            raise ValueError(f"{path.name}: {name} is not a #RRGGBB colour.")
+    return palette
+
+
+NUCLEI_PALETTE = load_nuclei_palette()
+
+
+def _overlay_lut(palette: dict[str, str]) -> np.ndarray:
+    """(6, 4) BGRA rows by class index, as OpenCV encodes them; background fully transparent."""
+    lut = np.zeros((len(NUCLEI_CLASSES), 4), dtype=np.uint8)
+    for index, name in enumerate(NUCLEI_CLASSES[1:], start=1):
+        red, green, blue = (int(palette[name][offset : offset + 2], 16) for offset in (1, 3, 5))
+        lut[index] = (blue, green, red, 255)
+    return lut
+
+
+NUCLEI_OVERLAY_LUT = _overlay_lut(NUCLEI_PALETTE)
 
 
 class InvalidMagnification(Exception):
@@ -200,31 +235,48 @@ def class_fractions(labels: np.ndarray) -> dict:
     nuclei = total - int(counts[0])
     return {
         "background": int(counts[0]) / total,
-        # None when no pixel is a nucleus: no share to give.
-        "nucleusTypes": None
-        if nuclei == 0
-        else {name: int(counts[index]) / nuclei for index, name in enumerate(NUCLEI_CLASSES) if index > 0},
+        # The five types always; each None when no pixel is a nucleus (no share to give).
+        "nucleusTypes": {
+            name: None if nuclei == 0 else int(counts[index]) / nuclei
+            for index, name in enumerate(NUCLEI_CLASSES)
+            if index > 0
+        },
     }
+
+
+def overlay_rgba(labels: np.ndarray) -> np.ndarray:
+    """(H, W, 4) BGRA image (OpenCV order): each nucleus pixel in its type's colour, alpha 255; background alpha 0."""
+    return NUCLEI_OVERLAY_LUT[labels]
+
+
+def _png_base64(image: np.ndarray, what: str) -> str:
+    encoded, png = cv2.imencode(".png", image)
+    if not encoded:
+        raise RuntimeError(f"PNG encoding of the {what} failed.")
+    return base64.b64encode(png.tobytes()).decode("ascii")
 
 
 def analyze_nuclei(data: bytes, registry: ModelRegistry, max_pixels: int, max_side: int) -> dict:
     started = time.perf_counter()
     image = decode_image(data, max_pixels)
-    check_nuclei_size(*image.shape[:2], max_side)
+    height, width = image.shape[:2]
+    check_nuclei_size(height, width, max_side)
     entry = _loaded(registry, NUCLEI_SEGMENTER_ID)
 
     labels, tiles = segment_nuclei_rgb(_to_rgb(image), entry)
-    encoded, png = cv2.imencode(".png", labels)
-    if not encoded:
-        raise RuntimeError("PNG encoding of the label map failed.")
+    label_map = _png_base64(labels, "label map")
+    overlay = _png_base64(overlay_rgba(labels), "overlay")
     duration = round((time.perf_counter() - started) * 1000)
     logger.info("Nuclei segmentation: %s tile(s), %s ms.", tiles, duration)
     return {
         "modelId": NUCLEI_SEGMENTER_ID,
         "weightsSha256": entry.weights_sha256,
-        "labelMapPng": base64.b64encode(png.tobytes()).decode("ascii"),
+        "labelMapPng": label_map,
+        "overlayPng": overlay,
         "classFractions": class_fractions(labels),
         "tiled": tiles > 1,
         "tileCount": tiles,
+        "imageWidth": width,
+        "imageHeight": height,
         "durationMs": duration,
     }

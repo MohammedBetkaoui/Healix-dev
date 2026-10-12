@@ -111,6 +111,20 @@ Six classes, in output index order: 0 background, 1 neoplastic,
   `AI_NUCLEI_MAX_SIDE` (default 4096): 422 `image_dimensions_too_large`.
 
 No nucleus is counted: the output is a class per pixel, and pixel shares.
+
+The class map also comes as a colour overlay, from `app/nuclei_palette.json`
+(Okabe-Ito colours, legible on H&E), read when the module loads:
+
+| Class | Colour |
+| --- | --- |
+| neoplastic | `#D55E00` |
+| inflammatory | `#0072B2` |
+| connective | `#009E73` |
+| dead | `#6E6E6E` |
+| epithelial | `#F0E442` |
+
+Background pixels stay transparent. A palette without exactly these five
+types, or with a colour that is not `#RRGGBB`, stops the service at start-up.
 On a 12-thread laptop CPU, a tile takes about 0.14 s (a 4096×4096 image is
 361 tiles) and a classification about 0.5 s.
 
@@ -212,16 +226,21 @@ and both flips; `malignancyScore` is their mean.
     "background": 0.87,
     "nucleusTypes": { "neoplastic": 0.52, "inflammatory": 0.11, "connective": 0.3, "dead": 0.01, "epithelial": 0.06 }
   },
+  "overlayPng": "…base64…",
   "tiled": true,
   "tileCount": 9,
+  "imageWidth": 600,
+  "imageHeight": 500,
   "durationMs": 1600
 }
 ```
 
 `labelMapPng`: base64 of a one-channel PNG at the image's size, each pixel
-its class index (0–5). `classFractions.background`: share of all the pixels;
+its class index (0–5). `overlayPng`: base64 of an RGBA PNG of the same size,
+each nucleus pixel in its type's colour with alpha 255, the background with
+alpha 0. `classFractions.background`: share of all the pixels;
 `nucleusTypes`: share of each type among the non-background pixels (`null`
-when there is none).
+each, when no pixel is a nucleus).
 
 Errors, on every endpoint: 401 token, 413 too large, 422 `invalid_image`
 (not a decodable PNG/JPEG), 503 `model_not_loaded` (the classifier, for
