@@ -1,0 +1,1029 @@
+{
+  "schemaVersion": 1,
+  "pipeline": "pathology",
+  "generatedAt": "2026-10-12T11:31:16+00:00",
+  "method": {
+    "inference": "app.pathology_pipeline.analyze_breast and analyze_nuclei, from the image bytes (PNG for the PanNuke patches and mosaics): the service's code, CPU",
+    "breakhis": "test-time augmentation original, flip_left_right, flip_up_down, flip_left_right_and_up_down; mean of the sigmoid outputs; decision score >= threshold of breakhis_inference_config.json",
+    "pannuke": "one pass at 256 x 256; larger images in tiles overlapping by 32 px, mirrored borders, centre kept (16 px margins dropped)",
+    "bootstrap": {
+      "draws": 1000,
+      "seed": 42,
+      "unit": "patient",
+      "interval": "percentile 2.5-97.5"
+    }
+  },
+  "weights": {
+    "pathology-breakhis-classification": {
+      "file": "EfficientNetB0_BreakHis_phase2.keras",
+      "sha256": "c8cbd905cc039ed4775c98043e04d357bcfcaf971c4b9cc592a3600f97348e6b",
+      "loaded": true,
+      "config": {
+        "file": "breakhis_inference_config.json",
+        "sha256": "ea0646849ab49e9ce148f902895693f6a304f2e329d9cb2e591fe07c8025f552"
+      }
+    },
+    "pathology-unet-pannuke-segmentation": {
+      "file": "pannuke_unet_efficientnetb0_phase2_best.keras",
+      "sha256": "8d05b1f068d4fa9f25ed3ed9f05027d7fd68ef74af0bab15e798e6f324a5a248",
+      "loaded": true
+    }
+  },
+  "versions": {
+    "python": "3.12.13",
+    "tensorflow": "2.20.0",
+    "keras": "3.13.2",
+    "opencv": "4.14.0",
+    "numpy": "2.5.3",
+    "scikitLearn": "1.9.1",
+    "pandas": "3.0.6"
+  },
+  "breakhis": null,
+  "pannuke": {
+    "status": "ok",
+    "dataset": {
+      "name": "PanNuke, Fold 3 (the notebook's test fold)",
+      "folder": "fold_3",
+      "images": 2722,
+      "patchesNotExactlyUint8": 0
+    },
+    "reference": "mask channels 0-4 > 0 -> class c + 1; pixels under several channels -> 255, left out; others background",
+    "pooling": "pixel counts pooled over the whole fold (not a mean per image)",
+    "perClass": {
+      "background": {
+        "dice": 0.724785541070474,
+        "iou": 0.5683636473812353,
+        "truePixels": 148168339,
+        "predictedPixels": 102524300
+      },
+      "neoplastic": {
+        "dice": 0.0003260775099373422,
+        "iou": 0.0001630653409388363,
+        "truePixels": 16113411,
+        "predictedPixels": 29990
+      },
+      "inflammatory": {
+        "dice": 0.05828895758691243,
+        "iou": 0.03001937791653749,
+        "truePixels": 3060370,
+        "predictedPixels": 75733422
+      },
+      "connective": {
+        "dice": 0.0012590670753959783,
+        "iou": 0.0006299300998222327,
+        "truePixels": 6570537,
+        "predictedPixels": 96304
+      },
+      "dead": {
+        "dice": 0.0,
+        "iou": 0.0,
+        "truePixels": 140225,
+        "predictedPixels": 0
+      },
+      "epithelial": {
+        "dice": 7.468834903248621e-05,
+        "iou": 3.734556915569506e-05,
+        "truePixels": 4334580,
+        "predictedPixels": 3446
+      }
+    },
+    "nucleiMeanDice": 0.011989758104255647,
+    "pixels": 178387462,
+    "byTissue": {
+      "Adrenal_gland": {
+        "images": 155,
+        "perClass": {
+          "background": {
+            "dice": 0.7709041219171225,
+            "iou": 0.6272123563863589,
+            "truePixels": 8928049,
+            "predictedPixels": 6783936
+          },
+          "neoplastic": {
+            "dice": 0.0004541315806716177,
+            "iou": 0.00022711736091886488,
+            "truePixels": 883216,
+            "predictedPixels": 1990
+          },
+          "inflammatory": {
+            "dice": 0.00947522833377039,
+            "iou": 0.004760165996748114,
+            "truePixels": 34822,
+            "predictedPixels": 3355281
+          },
+          "connective": {
+            "dice": 0.0035281312164546033,
+            "iou": 0.0017671830350428637,
+            "truePixels": 143249,
+            "predictedPixels": 16609
+          },
+          "dead": {
+            "dice": 0.0,
+            "iou": 0.0,
+            "truePixels": 985,
+            "predictedPixels": 0
+          },
+          "epithelial": {
+            "dice": 0.0,
+            "iou": 0.0,
+            "truePixels": 167706,
+            "predictedPixels": 211
+          }
+        },
+        "nucleiMeanDice": 0.0026914982261793223,
+        "pixels": 10158027
+      },
+      "Bile-duct": {
+        "images": 158,
+        "perClass": {
+          "background": {
+            "dice": 0.7873828891772351,
+            "iou": 0.6493252339503878,
+            "truePixels": 8896356,
+            "predictedPixels": 7217761
+          },
+          "neoplastic": {
+            "dice": 0.0002779997915001564,
+            "iou": 0.00013901921940708304,
+            "truePixels": 746811,
+            "predictedPixels": 1391
+          },
+          "inflammatory": {
+            "dice": 0.06093347930166813,
+            "iou": 0.03142413045207116,
+            "truePixels": 207061,
+            "predictedPixels": 3126082
+          },
+          "connective": {
+            "dice": 0.00133101938537719,
+            "iou": 0.0006659528907922912,
+            "truePixels": 458100,
+            "predictedPixels": 9211
+          },
+          "dead": {
+            "dice": null,
+            "iou": null,
+            "truePixels": 0,
+            "predictedPixels": 0
+          },
+          "epithelial": {
+            "dice": 8.615305089491482e-05,
+            "iou": 4.307838111443772e-05,
+            "truePixels": 46273,
+            "predictedPixels": 156
+          }
+        },
+        "nucleiMeanDice": null,
+        "pixels": 10354601
+      },
+      "Bladder": {
+        "images": 64,
+        "perClass": {
+          "background": {
+            "dice": 0.8023280705478123,
+            "iou": 0.6699063832236556,
+            "truePixels": 3604363,
+            "predictedPixels": 3010385
+          },
+          "neoplastic": {
+            "dice": 0.000285663274415283,
+            "iou": 0.00014285204099853576,
+            "truePixels": 419489,
+            "predictedPixels": 586
+          },
+          "inflammatory": {
+            "dice": 0.01840321606365473,
+            "iou": 0.009287063954099502,
+            "truePixels": 19001,
+            "predictedPixels": 1181224
+          },
+          "connective": {
+            "dice": 0.0008509579823131657,
+            "iou": 0.00042566010058675606,
+            "truePixels": 150728,
+            "predictedPixels": 2041
+          },
+          "dead": {
+            "dice": null,
+            "iou": null,
+            "truePixels": 0,
+            "predictedPixels": 0
+          },
+          "epithelial": {
+            "dice": 0.0,
+            "iou": 0.0,
+            "truePixels": 711,
+            "predictedPixels": 56
+          }
+        },
+        "nucleiMeanDice": null,
+        "pixels": 4194292
+      },
+      "Breast": {
+        "images": 775,
+        "perClass": {
+          "background": {
+            "dice": 0.7470086535414581,
+            "iou": 0.5961802175671885,
+            "truePixels": 42291125,
+            "predictedPixels": 29369247
+          },
+          "neoplastic": {
+            "dice": 0.00032489482832684147,
+            "iou": 0.0001624738076133368,
+            "truePixels": 4406154,
+            "predictedPixels": 7582
+          },
+          "inflammatory": {
+            "dice": 0.04545093462504465,
+            "iou": 0.023253923593023473,
+            "truePixels": 625102,
+            "predictedPixels": 21404588
+          },
+          "connective": {
+            "dice": 0.00022628948508192652,
+            "iou": 0.00011315754572234058,
+            "truePixels": 1636112,
+            "predictedPixels": 7800
+          },
+          "dead": {
+            "dice": 0.0,
+            "iou": 0.0,
+            "truePixels": 143,
+            "predictedPixels": 0
+          },
+          "epithelial": {
+            "dice": 0.00016371086696363818,
+            "iou": 8.186213434231143e-05,
+            "truePixels": 1831540,
+            "predictedPixels": 959
+          }
+        },
+        "nucleiMeanDice": 0.009233165961083412,
+        "pixels": 50790176
+      },
+      "Cervix": {
+        "images": 86,
+        "perClass": {
+          "background": {
+            "dice": 0.7559785948925732,
+            "iou": 0.6076893788071848,
+            "truePixels": 4616035,
+            "predictedPixels": 3621812
+          },
+          "neoplastic": {
+            "dice": 0.00022331975712614708,
+            "iou": 0.0001116723478838771,
+            "truePixels": 731994,
+            "predictedPixels": 2379
+          },
+          "inflammatory": {
+            "dice": 0.05475320681384561,
+            "iou": 0.028147177522994064,
+            "truePixels": 117875,
+            "predictedPixels": 2002220
+          },
+          "connective": {
+            "dice": 0.0012184788621928417,
+            "iou": 0.0006096108300517118,
+            "truePixels": 133449,
+            "predictedPixels": 9352
+          },
+          "dead": {
+            "dice": 0.0,
+            "iou": 0.0,
+            "truePixels": 1016,
+            "predictedPixels": 0
+          },
+          "epithelial": {
+            "dice": 0.0,
+            "iou": 0.0,
+            "truePixels": 35635,
+            "predictedPixels": 241
+          }
+        },
+        "nucleiMeanDice": 0.011239001086632918,
+        "pixels": 5636004
+      },
+      "Colon": {
+        "images": 494,
+        "perClass": {
+          "background": {
+            "dice": 0.597415656485564,
+            "iou": 0.42593920233604493,
+            "truePixels": 27127830,
+            "predictedPixels": 12094510
+          },
+          "neoplastic": {
+            "dice": 0.0006983378450814293,
+            "iou": 0.00034929088406235597,
+            "truePixels": 1258268,
+            "predictedPixels": 4731
+          },
+          "inflammatory": {
+            "dice": 0.08879395809812829,
+            "iou": 0.04645964702464419,
+            "truePixels": 993720,
+            "predictedPixels": 20272299
+          },
+          "connective": {
+            "dice": 0.0001784077915548239,
+            "iou": 8.921185382232242e-05,
+            "truePixels": 1477435,
+            "predictedPixels": 2321
+          },
+          "dead": {
+            "dice": 0.0,
+            "iou": 0.0,
+            "truePixels": 26990,
+            "predictedPixels": 0
+          },
+          "epithelial": {
+            "dice": 4.025057323524716e-06,
+            "iou": 2.0125327120421237e-06,
+            "truePixels": 1490140,
+            "predictedPixels": 522
+          }
+        },
+        "nucleiMeanDice": 0.017934945758417614,
+        "pixels": 32374383
+      },
+      "Esophagus": {
+        "images": 141,
+        "perClass": {
+          "background": {
+            "dice": 0.7314735297573262,
+            "iou": 0.5766324526262291,
+            "truePixels": 7391367,
+            "predictedPixels": 5758588
+          },
+          "neoplastic": {
+            "dice": 0.0002594661061822735,
+            "iou": 0.00012974988593997798,
+            "truePixels": 1416810,
+            "predictedPixels": 1487
+          },
+          "inflammatory": {
+            "dice": 0.014781893191582652,
+            "iou": 0.007445979432127541,
+            "truePixels": 38137,
+            "predictedPixels": 3474133
+          },
+          "connective": {
+            "dice": 0.0013939672196438746,
+            "iou": 0.0006974697347954366,
+            "truePixels": 355384,
+            "predictedPixels": 6174
+          },
+          "dead": {
+            "dice": 0.0,
+            "iou": 0.0,
+            "truePixels": 11921,
+            "predictedPixels": 0
+          },
+          "epithelial": {
+            "dice": 0.0,
+            "iou": 0.0,
+            "truePixels": 26848,
+            "predictedPixels": 85
+          }
+        },
+        "nucleiMeanDice": 0.00328706530348176,
+        "pixels": 9240467
+      },
+      "HeadNeck": {
+        "images": 145,
+        "perClass": {
+          "background": {
+            "dice": 0.7870499608325939,
+            "iou": 0.648872530127326,
+            "truePixels": 8178071,
+            "predictedPixels": 6102936
+          },
+          "neoplastic": {
+            "dice": 0.0001873474503595224,
+            "iou": 9.368250076859235e-05,
+            "truePixels": 756610,
+            "predictedPixels": 1340
+          },
+          "inflammatory": {
+            "dice": 0.1444211326285505,
+            "iou": 0.07783077031542864,
+            "truePixels": 288844,
+            "predictedPixels": 3395506
+          },
+          "connective": {
+            "dice": 0.0007117134889046188,
+            "iou": 0.00035598342355449447,
+            "truePixels": 255793,
+            "predictedPixels": 2738
+          },
+          "dead": {
+            "dice": 0.0,
+            "iou": 0.0,
+            "truePixels": 7666,
+            "predictedPixels": 0
+          },
+          "epithelial": {
+            "dice": 0.0,
+            "iou": 0.0,
+            "truePixels": 15687,
+            "predictedPixels": 151
+          }
+        },
+        "nucleiMeanDice": 0.029064038713562928,
+        "pixels": 9502671
+      },
+      "Kidney": {
+        "images": 41,
+        "perClass": {
+          "background": {
+            "dice": 0.8025831956994338,
+            "iou": 0.6702621783968014,
+            "truePixels": 2387552,
+            "predictedPixels": 1870120
+          },
+          "neoplastic": {
+            "dice": 0.000262829358039293,
+            "iou": 0.00013143195110731419,
+            "truePixels": 166603,
+            "predictedPixels": 806
+          },
+          "inflammatory": {
+            "dice": 0.035774610668104605,
+            "iou": 0.018213088407472856,
+            "truePixels": 27618,
+            "predictedPixels": 812475
+          },
+          "connective": {
+            "dice": 0.0029799630840394065,
+            "iou": 0.0014922048997772829,
+            "truePixels": 86497,
+            "predictedPixels": 3437
+          },
+          "dead": {
+            "dice": null,
+            "iou": null,
+            "truePixels": 0,
+            "predictedPixels": 0
+          },
+          "epithelial": {
+            "dice": 0.0,
+            "iou": 0.0,
+            "truePixels": 18665,
+            "predictedPixels": 97
+          }
+        },
+        "nucleiMeanDice": null,
+        "pixels": 2686935
+      },
+      "Liver": {
+        "images": 93,
+        "perClass": {
+          "background": {
+            "dice": 0.7566849596192322,
+            "iou": 0.608602755571505,
+            "truePixels": 5266252,
+            "predictedPixels": 3967723
+          },
+          "neoplastic": {
+            "dice": 0.0002935725949982569,
+            "iou": 0.0001468078468794157,
+            "truePixels": 434938,
+            "predictedPixels": 1070
+          },
+          "inflammatory": {
+            "dice": 0.02109420016200613,
+            "iou": 0.010659527180997216,
+            "truePixels": 38000,
+            "predictedPixels": 2117474
+          },
+          "connective": {
+            "dice": 0.0035939319620863315,
+            "iou": 0.0018002008807849804,
+            "truePixels": 250887,
+            "predictedPixels": 8439
+          },
+          "dead": {
+            "dice": 0.0,
+            "iou": 0.0,
+            "truePixels": 38,
+            "predictedPixels": 0
+          },
+          "epithelial": {
+            "dice": 0.00011445467118126759,
+            "iou": 5.7230610746001013e-05,
+            "truePixels": 104718,
+            "predictedPixels": 127
+          }
+        },
+        "nucleiMeanDice": 0.005019231878054397,
+        "pixels": 6094833
+      },
+      "Lung": {
+        "images": 51,
+        "perClass": {
+          "background": {
+            "dice": 0.6078478578872505,
+            "iou": 0.4366245897267895,
+            "truePixels": 2670067,
+            "predictedPixels": 1537578
+          },
+          "neoplastic": {
+            "dice": 0.00036380790942382423,
+            "iou": 0.00018193704978077585,
+            "truePixels": 499716,
+            "predictedPixels": 548
+          },
+          "inflammatory": {
+            "dice": 0.009789600893094092,
+            "iou": 0.004918877369692729,
+            "truePixels": 20877,
+            "predictedPixels": 1802895
+          },
+          "connective": {
+            "dice": 0.0009380129758461659,
+            "iou": 0.0004692265582231954,
+            "truePixels": 101099,
+            "predictedPixels": 1245
+          },
+          "dead": {
+            "dice": 0.0,
+            "iou": 0.0,
+            "truePixels": 50556,
+            "predictedPixels": 0
+          },
+          "epithelial": {
+            "dice": 0.0,
+            "iou": 0.0,
+            "truePixels": 0,
+            "predictedPixels": 49
+          }
+        },
+        "nucleiMeanDice": 0.0022182843556728163,
+        "pixels": 3342315
+      },
+      "Ovarian": {
+        "images": 52,
+        "perClass": {
+          "background": {
+            "dice": 0.7133235646406766,
+            "iou": 0.5543923437452792,
+            "truePixels": 2550245,
+            "predictedPixels": 2234428
+          },
+          "neoplastic": {
+            "dice": 0.0002087015063536144,
+            "iou": 0.00010436164339289803,
+            "truePixels": 593402,
+            "predictedPixels": 748
+          },
+          "inflammatory": {
+            "dice": 0.01281003342958151,
+            "iou": 0.0064463054086820095,
+            "truePixels": 17346,
+            "predictedPixels": 1168131
+          },
+          "connective": {
+            "dice": 0.0027500209925266604,
+            "iou": 0.0013769037533765674,
+            "truePixels": 186131,
+            "predictedPixels": 4413
+          },
+          "dead": {
+            "dice": null,
+            "iou": null,
+            "truePixels": 0,
+            "predictedPixels": 0
+          },
+          "epithelial": {
+            "dice": 3.284180104436927e-05,
+            "iou": 1.64211701725865e-05,
+            "truePixels": 60747,
+            "predictedPixels": 151
+          }
+        },
+        "nucleiMeanDice": null,
+        "pixels": 3407871
+      },
+      "Pancreatic": {
+        "images": 28,
+        "perClass": {
+          "background": {
+            "dice": 0.7513415416729401,
+            "iou": 0.6017190182490575,
+            "truePixels": 1555944,
+            "predictedPixels": 1180460
+          },
+          "neoplastic": {
+            "dice": 3.5356928190078845e-05,
+            "iou": 1.7678776628657298e-05,
+            "truePixels": 56411,
+            "predictedPixels": 155
+          },
+          "inflammatory": {
+            "dice": 0.039227469195063,
+            "iou": 0.020006129512105786,
+            "truePixels": 28729,
+            "predictedPixels": 653548
+          },
+          "connective": {
+            "dice": 0.0018466343053056792,
+            "iou": 0.0009241704550859955,
+            "truePixels": 146469,
+            "predictedPixels": 826
+          },
+          "dead": {
+            "dice": null,
+            "iou": null,
+            "truePixels": 0,
+            "predictedPixels": 0
+          },
+          "epithelial": {
+            "dice": 0.0,
+            "iou": 0.0,
+            "truePixels": 47447,
+            "predictedPixels": 11
+          }
+        },
+        "nucleiMeanDice": null,
+        "pixels": 1835000
+      },
+      "Prostate": {
+        "images": 68,
+        "perClass": {
+          "background": {
+            "dice": 0.7130182753928884,
+            "iou": 0.554023621128387,
+            "truePixels": 3642425,
+            "predictedPixels": 2603241
+          },
+          "neoplastic": {
+            "dice": 0.00035594713120302524,
+            "iou": 0.00017800524582980873,
+            "truePixels": 656717,
+            "predictedPixels": 684
+          },
+          "inflammatory": {
+            "dice": 0.0027116262051297803,
+            "iou": 0.0013576538274128439,
+            "truePixels": 5508,
+            "predictedPixels": 1850205
+          },
+          "connective": {
+            "dice": 0.0017884316709285725,
+            "iou": 0.0008950161730992683,
+            "truePixels": 125232,
+            "predictedPixels": 2254
+          },
+          "dead": {
+            "dice": null,
+            "iou": null,
+            "truePixels": 0,
+            "predictedPixels": 0
+          },
+          "epithelial": {
+            "dice": 0.0,
+            "iou": 0.0,
+            "truePixels": 26549,
+            "predictedPixels": 47
+          }
+        },
+        "nucleiMeanDice": null,
+        "pixels": 4456431
+      },
+      "Skin": {
+        "images": 41,
+        "perClass": {
+          "background": {
+            "dice": 0.7398148946159931,
+            "iou": 0.587068432609791,
+            "truePixels": 2090365,
+            "predictedPixels": 1796610
+          },
+          "neoplastic": {
+            "dice": 4.845296601370527e-05,
+            "iou": 2.4227069943550928e-05,
+            "truePixels": 288505,
+            "predictedPixels": 435
+          },
+          "inflammatory": {
+            "dice": 0.19436348441460063,
+            "iou": 0.10764264165957382,
+            "truePixels": 211267,
+            "predictedPixels": 888384
+          },
+          "connective": {
+            "dice": 0.0010038834438485722,
+            "iou": 0.0005021937939419569,
+            "truePixels": 36587,
+            "predictedPixels": 1266
+          },
+          "dead": {
+            "dice": null,
+            "iou": null,
+            "truePixels": 0,
+            "predictedPixels": 0
+          },
+          "epithelial": {
+            "dice": 0.0,
+            "iou": 0.0,
+            "truePixels": 60026,
+            "predictedPixels": 55
+          }
+        },
+        "nucleiMeanDice": null,
+        "pixels": 2686750
+      },
+      "Stomach": {
+        "images": 48,
+        "perClass": {
+          "background": {
+            "dice": 0.6951199242177815,
+            "iou": 0.532707899460483,
+            "truePixels": 2484077,
+            "predictedPixels": 1715325
+          },
+          "neoplastic": {
+            "dice": 0.0006318418487930926,
+            "iou": 0.0003160207619677957,
+            "truePixels": 334779,
+            "predictedPixels": 748
+          },
+          "inflammatory": {
+            "dice": 0.12274907868687322,
+            "iou": 0.06538767795677038,
+            "truePixels": 176747,
+            "predictedPixels": 1427485
+          },
+          "connective": {
+            "dice": 0.0020586286149377477,
+            "iou": 0.001030374887082204,
+            "truePixels": 139870,
+            "predictedPixels": 1972
+          },
+          "dead": {
+            "dice": 0.0,
+            "iou": 0.0,
+            "truePixels": 10210,
+            "predictedPixels": 0
+          },
+          "epithelial": {
+            "dice": 0.0,
+            "iou": 0.0,
+            "truePixels": 0,
+            "predictedPixels": 153
+          }
+        },
+        "nucleiMeanDice": 0.025087909830120814,
+        "pixels": 3145683
+      },
+      "Testis": {
+        "images": 57,
+        "perClass": {
+          "background": {
+            "dice": 0.7158337077015064,
+            "iou": 0.5574306941356135,
+            "truePixels": 3131860,
+            "predictedPixels": 2168181
+          },
+          "neoplastic": {
+            "dice": 0.0003261116152450091,
+            "iou": 0.00016308239915480775,
+            "truePixels": 280971,
+            "predictedPixels": 1141
+          },
+          "inflammatory": {
+            "dice": 0.055024259386591,
+            "iou": 0.028290460511984267,
+            "truePixels": 90103,
+            "predictedPixels": 1562041
+          },
+          "connective": {
+            "dice": 0.0032063660941359937,
+            "iou": 0.0016057573700613836,
+            "truePixels": 133190,
+            "predictedPixels": 4037
+          },
+          "dead": {
+            "dice": null,
+            "iou": null,
+            "truePixels": 0,
+            "predictedPixels": 0
+          },
+          "epithelial": {
+            "dice": 0.0,
+            "iou": 0.0,
+            "truePixels": 99398,
+            "predictedPixels": 122
+          }
+        },
+        "nucleiMeanDice": null,
+        "pixels": 3735522
+      },
+      "Thyroid": {
+        "images": 62,
+        "perClass": {
+          "background": {
+            "dice": 0.7422355452589607,
+            "iou": 0.5901228504758305,
+            "truePixels": 3401737,
+            "predictedPixels": 2575212
+          },
+          "neoplastic": {
+            "dice": 0.0002845273999886189,
+            "iou": 0.00014228394183432458,
+            "truePixels": 174912,
+            "predictedPixels": 818
+          },
+          "inflammatory": {
+            "dice": 0.02134631931603903,
+            "iou": 0.010788304959289416,
+            "truePixels": 44996,
+            "predictedPixels": 1484448
+          },
+          "connective": {
+            "dice": 0.0010954517685226148,
+            "iou": 0.0005480260523154101,
+            "truePixels": 139789,
+            "predictedPixels": 2618
+          },
+          "dead": {
+            "dice": 0.0,
+            "iou": 0.0,
+            "truePixels": 604,
+            "predictedPixels": 0
+          },
+          "epithelial": {
+            "dice": 0.0,
+            "iou": 0.0,
+            "truePixels": 301154,
+            "predictedPixels": 96
+          }
+        },
+        "nucleiMeanDice": 0.0045452596969100525,
+        "pixels": 4063192
+      },
+      "Uterus": {
+        "images": 163,
+        "perClass": {
+          "background": {
+            "dice": 0.7149738286929624,
+            "iou": 0.5563885348465252,
+            "truePixels": 7954619,
+            "predictedPixels": 6916247
+          },
+          "neoplastic": {
+            "dice": 0.0002300274439669079,
+            "iou": 0.00011502695166129293,
+            "truePixels": 2007105,
+            "predictedPixels": 1351
+          },
+          "inflammatory": {
+            "dice": 0.01861072377938281,
+            "iou": 0.009392764966852787,
+            "truePixels": 74617,
+            "predictedPixels": 3755003
+          },
+          "connective": {
+            "dice": 0.0037398631921510945,
+            "iou": 0.001873434790984396,
+            "truePixels": 614536,
+            "predictedPixels": 9551
+          },
+          "dead": {
+            "dice": 0.0,
+            "iou": 0.0,
+            "truePixels": 30096,
+            "predictedPixels": 0
+          },
+          "epithelial": {
+            "dice": 0.0,
+            "iou": 0.0,
+            "truePixels": 1336,
+            "predictedPixels": 157
+          }
+        },
+        "nucleiMeanDice": 0.0045161228831001625,
+        "pixels": 10682309
+      }
+    },
+    "notebookReported": {
+      "dice": {
+        "background": 0.9625,
+        "neoplastic": 0.7119,
+        "inflammatory": 0.6239,
+        "connective": 0.56,
+        "dead": 0.3056,
+        "epithelial": 0.623
+      },
+      "nucleiMeanDice": 0.5649,
+      "note": "Cell 10 of the notebook evaluates val_dataset.take(316): Fold 2, the validation fold (the one phase2_best was selected on), not Fold 3. A gap with the Fold 3 figures is expected."
+    },
+    "tiling": {
+      "method": "2 x 2 mosaics of consecutive Fold 3 patches (512 x 512), segmented through the service's large-image path, compared with the 4 patches segmented one by one",
+      "mosaics": 680,
+      "patchesUsed": 2720,
+      "tilesPerMosaic": [
+        9
+      ],
+      "agreementWithPerPatch": {
+        "pixelShare": 0.8176714672761805,
+        "dicePerClass": {
+          "background": 0.8515208011756742,
+          "neoplastic": 0.11354243933453428,
+          "inflammatory": 0.7649443999152089,
+          "connective": 0.4155839067512305,
+          "dead": null,
+          "epithelial": 0.04660828261837613
+        }
+      },
+      "tiledVsReference": {
+        "perClass": {
+          "background": {
+            "dice": 0.7716246388362611,
+            "iou": 0.6281668154799515,
+            "truePixels": 148061054,
+            "predictedPixels": 115806798
+          },
+          "neoplastic": {
+            "dice": 5.0988836050174004e-05,
+            "iou": 2.5495068007008352e-05,
+            "truePixels": 16113411,
+            "predictedPixels": 7765
+          },
+          "inflammatory": {
+            "dice": 0.06494207511326328,
+            "iou": 0.03356079127040317,
+            "truePixels": 3051100,
+            "predictedPixels": 62330642
+          },
+          "connective": {
+            "dice": 0.0014366932106266678,
+            "iou": 0.0007188629981077099,
+            "truePixels": 6556020,
+            "predictedPixels": 107894
+          },
+          "dead": {
+            "dice": 0.0,
+            "iou": 0.0,
+            "truePixels": 140225,
+            "predictedPixels": 0
+          },
+          "epithelial": {
+            "dice": 0.0001060428030248018,
+            "iou": 5.3024212930484564e-05,
+            "truePixels": 4334580,
+            "predictedPixels": 3291
+          }
+        },
+        "nucleiMeanDice": 0.013307159992592984,
+        "pixels": 178256390
+      },
+      "perPatchVsReferenceOnSamePatches": {
+        "perClass": {
+          "background": {
+            "dice": 0.7248991615996595,
+            "iou": 0.5685033997068587,
+            "truePixels": 148061054,
+            "predictedPixels": 102482141
+          },
+          "neoplastic": {
+            "dice": 0.00032607765132908233,
+            "iou": 0.00016306541165776435,
+            "truePixels": 16113411,
+            "predictedPixels": 29983
+          },
+          "inflammatory": {
+            "dice": 0.05813146168345053,
+            "iou": 0.029935837847110923,
+            "truePixels": 3051100,
+            "predictedPixels": 75644530
+          },
+          "connective": {
+            "dice": 0.0012618173236063864,
+            "iou": 0.0006313069588317768,
+            "truePixels": 6556020,
+            "predictedPixels": 96290
+          },
+          "dead": {
+            "dice": 0.0,
+            "iou": 0.0,
+            "truePixels": 140225,
+            "predictedPixels": 0
+          },
+          "epithelial": {
+            "dice": 7.468834903248621e-05,
+            "iou": 3.734556915569506e-05,
+            "truePixels": 4334580,
+            "predictedPixels": 3446
+          }
+        },
+        "nucleiMeanDice": 0.011958809001483696,
+        "pixels": 178256390
+      }
+    },
+    "durationSeconds": 3020.8
+  },
+  "file": "pathology-2026-10-12-132137-c8cbd905-8d05b1f0.json"
+}
