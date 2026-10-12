@@ -73,9 +73,15 @@ const run = (overrides: Record<string, unknown> = {}) => ({
   decisionStatus: 'VALIDATED',
   durationMs: 313,
   id: 'run-1',
+  decisionThreshold: null,
+  magnification: null,
+  malignancyScore: null,
   maskAreaPx: null,
   maskAreaRatio: null,
   maskPath: null,
+  modelDecision: null,
+  nucleiFractions: null,
+  overlayPath: null,
   patient: {
     birthDate: new Date('1984-03-27T00:00:00Z'),
     doctorProfile: null,
@@ -99,6 +105,7 @@ const run = (overrides: Record<string, unknown> = {}) => ({
     },
   },
   patientId: 'patient-a',
+  pipeline: 'brain',
   predictions: [
     { label: 'meningioma', probability: 0.887 },
     { label: 'glioma', probability: 0.113 },
@@ -119,6 +126,8 @@ const run = (overrides: Record<string, unknown> = {}) => ({
     originalName: 'irm.png',
   },
   status: 'SUCCEEDED',
+  tileCount: null,
+  ttaScores: null,
   ...overrides,
 });
 
@@ -456,6 +465,100 @@ describe('AiAnalysisReportsService (GET .../ai-analysis-runs/:runId/report)', ()
     await service.getReport(doctor, 'patient-a', 'run-1');
 
     expect(renderedHtml().html).toContain('Exactitude : 95,5');
+  });
+
+  describe('histopathology', () => {
+    // Weights measured by the BreakHis report of the repository.
+    const BREAKHIS_SHA =
+      'c8cbd905cc039ed4775c98043e04d357bcfcaf971c4b9cc592a3600f97348e6b';
+    const breastRun = (overrides: Record<string, unknown> = {}) =>
+      run({
+        classificationModelId: 'pathology-breakhis-classification',
+        classificationWeightsSha256: BREAKHIS_SHA,
+        decisionLabel: 'malignant',
+        decisionThreshold: 0.13,
+        magnification: 200,
+        malignancyScore: 0.59,
+        modelDecision: 'malignant',
+        pipeline: 'pathology-breast',
+        predictions: null,
+        segmentationSkippedReason: null,
+        ttaScores: [0.58, 0.6, 0.57, 0.61],
+        ...overrides,
+      });
+
+    it('prints the BreakHis figures of these weights, found in the evaluation folder', async () => {
+      runFindFirst.mockResolvedValue(breastRun());
+
+      await service.getReport(doctor, 'patient-a', 'run-1');
+
+      const { html } = renderedHtml();
+      expect(html).toContain(
+        "<h1>Compte rendu d'analyse histopathologique assistée par IA</h1>",
+      );
+      expect(html).toContain('jeu de test : 13 patients, dont 4 bénins');
+      expect(html).toContain('20 des 251 résultats « malin » étaient bénins');
+      expect(html).not.toContain('Exactitude :');
+    });
+
+    it('prints no BreakHis figure for weights no report measured', async () => {
+      runFindFirst.mockResolvedValue(
+        breastRun({ classificationWeightsSha256: 'a'.repeat(64) }),
+      );
+
+      await service.getReport(doctor, 'patient-a', 'run-1');
+
+      expect(renderedHtml().html).toContain(
+        'Performance non mesurée sur un jeu de test indépendant.',
+      );
+    });
+
+    it('reports a validated nuclei map (no label) with its overlay', async () => {
+      const maskPath = '/uploads/patients/patient-a/ai-masks/run-1.png';
+      const overlayPath =
+        '/uploads/patients/patient-a/ai-masks/run-1-overlay.png';
+      disk.set(maskPath, Buffer.from('label-map'));
+      disk.set(overlayPath, Buffer.from('overlay-rgba'));
+      runFindFirst.mockResolvedValue(
+        run({
+          classificationModelId: null,
+          classificationWeightsSha256: null,
+          decisionLabel: null,
+          magnification: 40,
+          maskAreaPx: 30_000,
+          maskAreaRatio: 0.1,
+          maskPath,
+          nucleiFractions: {
+            background: 0.9,
+            nucleusTypes: {
+              connective: 0.2,
+              dead: 0,
+              epithelial: 0.1,
+              inflammatory: 0.2,
+              neoplastic: 0.5,
+            },
+          },
+          overlayPath,
+          pipeline: 'pathology-nuclei',
+          predictions: null,
+          segmentationModelId: 'pathology-unet-pannuke-segmentation',
+          segmentationSkippedReason: null,
+          segmentationWeightsSha256: 'b'.repeat(64),
+          tileCount: 9,
+        }),
+      );
+
+      const report = await service.getReport(doctor, 'patient-a', 'run-1');
+
+      expect(report.reportNumber).toMatch(/^CR-IA-\d{4}-\d{6}$/);
+      const { html } = renderedHtml();
+      expect(html).toContain('Carte de segmentation relue et acceptée');
+      expect(html).toContain(Buffer.from('overlay-rgba').toString('base64'));
+      expect(html).toContain(
+        'Performance non mesurée sur un jeu de test indépendant.',
+      );
+      expect(readStoredFile).toHaveBeenCalledWith(overlayPath);
+    });
   });
 
   it('never prints the national identity number nor the phone, nor any urgency, delay or suggested specialist', async () => {

@@ -26,6 +26,7 @@ function reportInput(overrides: Partial<ReportInput> = {}): ReportInput {
       role: 'physician',
       speciality: 'Radiologie',
     },
+    breakhisEvaluation: null,
     editedAt: new Date('2026-10-09T15:30:00Z'),
     evaluation: EVALUATION,
     fonts: {
@@ -34,6 +35,8 @@ function reportInput(overrides: Partial<ReportInput> = {}): ReportInput {
       semibold: Buffer.from('s'),
     },
     mask: { data: Buffer.from('mask'), sha256: 'f'.repeat(64) },
+    overlay: null,
+    pannukeEvaluation: null,
     patient: {
       birthDate: new Date('1984-03-27T00:00:00Z'),
       firstName: 'Karim',
@@ -70,6 +73,14 @@ function reportInput(overrides: Partial<ReportInput> = {}): ReportInput {
       segmentationModelId: 'brain-unet-meningioma-segmentation',
       segmentationSkippedReason: null,
       segmentationWeightsSha256: 'e'.repeat(64),
+      pipeline: 'brain',
+      magnification: null,
+      malignancyScore: null,
+      decisionThreshold: null,
+      ttaScores: null,
+      modelDecision: null,
+      nucleiFractions: null,
+      tileCount: null,
     },
     sourceDocument: {
       checksum: 'c'.repeat(64),

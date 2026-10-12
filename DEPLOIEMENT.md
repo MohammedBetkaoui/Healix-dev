@@ -33,8 +33,9 @@ Cinq conteneurs applicatifs, plus celui des sauvegardes, décrits par
     Caddy.
 - **Fichiers montés depuis le dépôt ou l'hôte, en lecture seule :**
   - les poids des modèles (`AI_MODELS_DIR`), jamais copiés dans une image ;
-  - le rapport d'évaluation `ai-service/evaluation/brain-latest.json`, lu par
-    le backend (`AI_EVALUATION_REPORT_PATH`) ;
+  - les rapports d'évaluation `ai-service/evaluation/` : `brain-latest.json`
+    (`AI_EVALUATION_REPORT_PATH`) et `pathology-*.json`
+    (`AI_PATHOLOGY_EVALUATION_DIR`), cités par les comptes rendus PDF ;
   - la configuration de Caddy (`caddy/`).
 - **Sauvegardes** : le dossier de l'hôte `BACKUP_DIR`, où écrit le service
   `backup` (section 8).

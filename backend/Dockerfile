@@ -41,6 +41,7 @@ ENV NODE_ENV=production \
     PORT=3001 \
     UPLOAD_ROOT=/app/uploads \
     AI_EVALUATION_REPORT_PATH=/app/evaluation/brain-latest.json \
+    AI_PATHOLOGY_EVALUATION_DIR=/app/evaluation \
     PLAYWRIGHT_BROWSERS_PATH=/ms-playwright \
     NPM_CONFIG_UPDATE_NOTIFIER=false
 WORKDIR /app

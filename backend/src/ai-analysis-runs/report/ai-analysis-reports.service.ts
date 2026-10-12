@@ -35,6 +35,11 @@ import {
   type ReportStructure,
 } from './ai-report-template';
 import { readImageSize } from './image-size';
+import {
+  type BreakhisEvaluation,
+  findPathologyEvaluation,
+  type PannukeEvaluation,
+} from './pathology-evaluation';
 
 const TIME_ZONE = 'Africa/Algiers';
 const FONT_DIRECTORY = resolve(process.cwd(), 'assets', 'fonts', 'inter');
@@ -202,6 +207,25 @@ function isUniqueViolation(error: unknown): boolean {
   );
 }
 
+type NucleiFractionsJson = {
+  background: number;
+  nucleusTypes: Record<string, number | null>;
+};
+
+function isNucleiFractions(value: unknown): value is NucleiFractionsJson {
+  if (typeof value !== 'object' || value === null) return false;
+  const fractions = value as Record<string, unknown>;
+  const types = fractions.nucleusTypes;
+  return (
+    typeof fractions.background === 'number' &&
+    typeof types === 'object' &&
+    types !== null &&
+    Object.values(types).every(
+      (share) => share === null || typeof share === 'number',
+    )
+  );
+}
+
 export type ServedReport = {
   fileName: string;
   pdf: Buffer;
@@ -215,6 +239,7 @@ export type ServedReport = {
 export class AiAnalysisReportsService {
   private readonly logger = new Logger(AiAnalysisReportsService.name);
   private readonly evaluationReportPath: string;
+  private readonly pathologyEvaluationDir: string;
   private fonts: Promise<ReportInput['fonts']> | null = null;
 
   constructor(
@@ -229,6 +254,11 @@ export class AiAnalysisReportsService {
       process.cwd(),
       configService.get<string>('AI_EVALUATION_REPORT_PATH') ??
         '../ai-service/evaluation/brain-latest.json',
+    );
+    this.pathologyEvaluationDir = resolve(
+      process.cwd(),
+      configService.get<string>('AI_PATHOLOGY_EVALUATION_DIR') ??
+        '../ai-service/evaluation',
     );
   }
 
@@ -377,10 +407,12 @@ export class AiAnalysisReportsService {
     editedAt: Date,
   ): Promise<ReportInput> {
     const decisionStatus = run.decisionStatus;
+    // A validated nuclei map has no label: it was reviewed and accepted.
+    const labelRequired = run.pipeline !== 'pathology-nuclei';
     if (
       !run.decidedBy ||
       !run.decidedAt ||
-      !run.decisionLabel ||
+      (labelRequired && !run.decisionLabel) ||
       (decisionStatus !== AiRunDecision.VALIDATED &&
         decisionStatus !== AiRunDecision.CORRECTED)
     ) {
@@ -394,13 +426,34 @@ export class AiAnalysisReportsService {
     const mask = run.maskPath
       ? await this.fileStorageService.readStoredFile(run.maskPath)
       : null;
+    const overlay = run.overlayPath
+      ? await this.fileStorageService.readStoredFile(run.overlayPath)
+      : null;
 
     return {
+      breakhisEvaluation:
+        run.pipeline === 'pathology-breast'
+          ? await this.findPathologyEvaluation(
+              'breakhis',
+              run.classificationWeightsSha256,
+            )
+          : null,
       decidedBy: toPerson(run.decidedBy),
       editedAt,
-      evaluation: await this.readEvaluationReport(),
+      evaluation:
+        run.pipeline === 'brain' ? await this.readEvaluationReport() : null,
       fonts: await this.loadFonts(),
       mask: mask ? { data: mask, sha256: createSha256Checksum(mask) } : null,
+      overlay: overlay
+        ? { data: overlay, sha256: createSha256Checksum(overlay) }
+        : null,
+      pannukeEvaluation:
+        run.pipeline === 'pathology-nuclei'
+          ? await this.findPathologyEvaluation(
+              'pannuke',
+              run.segmentationWeightsSha256,
+            )
+          : null,
       patient: {
         birthDate: run.patient.birthDate,
         firstName: run.patient.firstName,
@@ -420,16 +473,30 @@ export class AiAnalysisReportsService {
         decisionLabel: run.decisionLabel,
         decisionReason: run.decisionReason,
         decisionStatus,
+        decisionThreshold: run.decisionThreshold,
         durationMs: run.durationMs,
         id: run.id,
+        magnification: run.magnification,
+        malignancyScore: run.malignancyScore,
         maskAreaPx: run.maskAreaPx,
         maskAreaRatio: run.maskAreaRatio,
+        modelDecision: run.modelDecision,
+        nucleiFractions: isNucleiFractions(run.nucleiFractions)
+          ? run.nucleiFractions
+          : null,
+        pipeline: run.pipeline,
         predictions: Array.isArray(run.predictions)
           ? (run.predictions as { label: string; probability: number }[])
           : [],
         segmentationModelId: run.segmentationModelId,
         segmentationSkippedReason: run.segmentationSkippedReason,
         segmentationWeightsSha256: run.segmentationWeightsSha256,
+        tileCount: run.tileCount,
+        ttaScores:
+          Array.isArray(run.ttaScores) &&
+          run.ttaScores.every((score) => typeof score === 'number')
+            ? run.ttaScores
+            : null,
       },
       sourceDocument: {
         checksum: run.sourceDocument.checksum,
@@ -442,6 +509,39 @@ export class AiAnalysisReportsService {
       },
       structure: toStructure(run.patient),
     };
+  }
+
+  // The pathology evaluation of these weights; none prints no figure.
+  private async findPathologyEvaluation(
+    part: 'breakhis',
+    weightsSha256: string | null,
+  ): Promise<BreakhisEvaluation | null>;
+  private async findPathologyEvaluation(
+    part: 'pannuke',
+    weightsSha256: string | null,
+  ): Promise<PannukeEvaluation | null>;
+  private async findPathologyEvaluation(
+    part: 'breakhis' | 'pannuke',
+    weightsSha256: string | null,
+  ): Promise<BreakhisEvaluation | PannukeEvaluation | null> {
+    const evaluation =
+      part === 'breakhis'
+        ? await findPathologyEvaluation(
+            this.pathologyEvaluationDir,
+            'breakhis',
+            weightsSha256,
+          )
+        : await findPathologyEvaluation(
+            this.pathologyEvaluationDir,
+            'pannuke',
+            weightsSha256,
+          );
+    if (!evaluation) {
+      this.logger.warn(
+        `No ${part} evaluation of weights ${weightsSha256 ?? '(none)'} in ${this.pathologyEvaluationDir}.`,
+      );
+    }
+    return evaluation;
   }
 
   // A missing or incomplete evaluation report prints no figure.

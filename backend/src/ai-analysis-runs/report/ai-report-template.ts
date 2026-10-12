@@ -3,9 +3,12 @@
 // through ReportInput, which carries only what may be printed (never the
 // national identity number nor the phone of the patient). No urgency level,
 // no suggested specialist, no consultation delay, no recommendation: the
-// physician's conclusion is the only conclusion of the document.
+// physician's conclusion is the only conclusion of the document. One template
+// for the three chains (brain, pathology-breast, pathology-nuclei); a measured
+// figure is printed only from the evaluation of the analysis's own weights.
 
 import { createSha256Checksum } from '../../common/utils/checksum.util';
+import { NUCLEUS_TYPES, type NucleusType } from '../ai-service.client';
 import {
   BRAIN_CLASS_LABELS,
   type ConfusionWarning,
@@ -16,17 +19,49 @@ import {
   isUncertain,
   UNCERTAINTY_THRESHOLD,
 } from './ai-report-rules';
+import { NUCLEI_PALETTE } from './nuclei-palette';
+import {
+  type BreakhisEvaluation,
+  type PannukeEvaluation,
+} from './pathology-evaluation';
 
 export const ACCENT_COLOR = '#0F2942';
 const TIME_ZONE = 'Africa/Algiers';
 
 const CLASS_LABELS: Record<string, string> = {
+  benign: 'Bénin',
   glioma: 'Gliome',
+  malignant: 'Malin',
   meningioma: 'Méningiome',
   notumor: 'Absence de tumeur décelée',
   other: 'Autre (hors des classes du modèle)',
   pituitary: 'Adénome hypophysaire',
 };
+
+// The BreakHis result, as written in a sentence.
+const BREAST_RESULTS: Record<string, string> = {
+  benign: 'bénin',
+  malignant: 'malin',
+};
+
+const TTA_VIEW_NAMES = [
+  'Image originale',
+  'Retournement horizontal',
+  'Retournement vertical',
+  'Retournements horizontal et vertical',
+];
+
+const NUCLEUS_NAMES: Record<NucleusType, string> = {
+  connective: 'Conjonctifs',
+  dead: 'Morts',
+  epithelial: 'Épithéliaux',
+  inflammatory: 'Inflammatoires',
+  neoplastic: 'Néoplasiques',
+};
+// Too rare in training and in test: its share is shown, flagged.
+const UNRELIABLE_NUCLEUS_TYPES: readonly NucleusType[] = ['dead'];
+
+const NOT_MEASURED = 'Performance non mesurée sur un jeu de test indépendant.';
 
 const ESTABLISHMENT_TYPES: Record<string, string> = {
   CLINIC: 'Clinique',
@@ -42,6 +77,10 @@ const MODEL_NAMES: Record<string, string> = {
   'brain-unet-meningioma-segmentation': 'U-Net méningiome (segmentation)',
   'brain-unet-pituitary-segmentation':
     'U-Net adénome hypophysaire (segmentation)',
+  'pathology-breakhis-classification':
+    'EfficientNet-B0 BreakHis (classification bénin / malin)',
+  'pathology-unet-pannuke-segmentation':
+    'U-Net EfficientNet-B0 PanNuke (segmentation des noyaux)',
 };
 
 const SKIPPED_SEGMENTATION: Record<string, string> = {
@@ -90,6 +129,8 @@ export type ReportInput = {
   };
   run: {
     id: string;
+    /** brain, pathology-breast or pathology-nuclei. */
+    pipeline: string;
     createdAt: Date;
     clinicianImpression: string | null;
     predictions: { label: string; probability: number }[];
@@ -102,9 +143,21 @@ export type ReportInput = {
     segmentationSkippedReason: string | null;
     durationMs: number | null;
     decisionStatus: 'VALIDATED' | 'CORRECTED';
-    decisionLabel: string;
+    /** null for a validated nuclei map: no label. */
+    decisionLabel: string | null;
     decisionReason: string | null;
     decidedAt: Date;
+    // Pathology (null for brain).
+    magnification: number | null;
+    malignancyScore: number | null;
+    decisionThreshold: number | null;
+    ttaScores: number[] | null;
+    modelDecision: string | null;
+    nucleiFractions: {
+      background: number;
+      nucleusTypes: Record<string, number | null>;
+    } | null;
+    tileCount: number | null;
   };
   requestedBy: ReportPerson;
   decidedBy: ReportPerson;
@@ -118,8 +171,13 @@ export type ReportInput = {
     checksum: string | null;
   };
   mask: { data: Buffer; sha256: string } | null;
-  /** null when the evaluation report is missing or incomplete. */
+  /** Colour overlay of a nuclei segmentation. */
+  overlay: { data: Buffer; sha256: string } | null;
+  /** brain: null when the evaluation report is missing or incomplete. */
   evaluation: EvaluationReport | null;
+  /** Pathology: the evaluation of these very weights, or null. */
+  breakhisEvaluation: BreakhisEvaluation | null;
+  pannukeEvaluation: PannukeEvaluation | null;
   fonts: { regular: Buffer; semibold: Buffer; bold: Buffer };
 };
 
@@ -167,10 +225,29 @@ const probability = new Intl.NumberFormat('fr-FR', {
   style: 'percent',
 });
 const integer = new Intl.NumberFormat('fr-FR');
+const decimals = (digits: number) =>
+  new Intl.NumberFormat('fr-FR', {
+    maximumFractionDigits: digits,
+    minimumFractionDigits: digits,
+  });
 
 export const formatDate = (value: Date) => date.format(value);
 export const formatDateTime = (value: Date) => dateTime.format(value);
 export const formatPercent = (value: number) => percent.format(value);
+
+/**
+ * A malignancy score with 2 decimals, more if 2 would put it on the other
+ * side of the threshold (0.128 would read 0,13 at a 0.13 threshold).
+ */
+export function formatScore(score: number, threshold: number): string {
+  for (let digits = 2; digits < 6; digits += 1) {
+    const shown = Number(score.toFixed(digits));
+    if (shown >= threshold === score >= threshold) {
+      return decimals(digits).format(score);
+    }
+  }
+  return decimals(6).format(score);
+}
 
 export function ageAt(birth: Date, at: Date): number {
   let age = at.getUTCFullYear() - birth.getUTCFullYear();
@@ -294,6 +371,23 @@ function technique(input: ReportInput): string {
       ? 'Non renseignée'
       : `${new Intl.NumberFormat('fr-FR', { maximumFractionDigits: 1 }).format(run.durationMs / 1000)} s`;
 
+  if (run.pipeline !== 'brain') {
+    const breast = run.pipeline === 'pathology-breast';
+    return `<section>
+  <h2>Technique</h2>
+  <table class="facts">
+    ${row('Document analysé', escapeHtml(sourceDocument.originalName))}
+    ${row("Date d'import", formatDateTime(sourceDocument.createdAt))}
+    ${row('Dimensions', dimensions)}
+    ${row('Grossissement', run.magnification === null ? 'Non renseigné' : `${integer.format(run.magnification)}×${breast ? '' : ' (image H&amp;E, déclarée lors de la demande)'}`)}
+    ${row("Chaîne d'analyse", breast ? 'Classification bénin / malin, moyenne de 4 vues de l’image (originale et retournements)' : `Segmentation sémantique des noyaux, en tuiles de 256 × 256 pixels${run.tileCount === null ? '' : ` (${integer.format(run.tileCount)} tuile${run.tileCount > 1 ? 's' : ''} analysée${run.tileCount > 1 ? 's' : ''})`}`)}
+    ${row('Modèle utilisé', models.join('<br />'))}
+    ${row('Durée de traitement', duration)}
+  </table>
+  <p class="note">Analyse automatisée d'une image unique ; elle ne remplace pas la lecture de la lame complète.</p>
+</section>`;
+  }
+
   return `<section>
   <h2>Technique</h2>
   <table class="facts">
@@ -415,13 +509,35 @@ function results(input: ReportInput, evaluationApplies: boolean): string {
 
 function conclusion(input: ReportInput): string {
   const { run } = input;
+  const nuclei = run.pipeline === 'pathology-nuclei';
+  const verdict = nuclei
+    ? 'Carte de segmentation relue et acceptée'
+    : run.decisionStatus === 'CORRECTED'
+      ? 'Résultat corrigé'
+      : 'Résultat validé';
+  const labelRow =
+    nuclei || run.decisionLabel === null
+      ? ''
+      : row(
+          run.pipeline === 'pathology-breast'
+            ? 'Résultat retenu'
+            : 'Classe retenue',
+          `<strong>${escapeHtml(classLabel(run.decisionLabel))}</strong>`,
+        );
+  const reasonRow = run.decisionReason
+    ? row('Motif', escapeHtml(run.decisionReason))
+    : '';
   return `<section class="conclusion">
   <h2>Conclusion du médecin</h2>
-  <p class="verdict">${run.decisionStatus === 'CORRECTED' ? 'Résultat corrigé' : 'Résultat validé'}</p>
-  <table class="facts">
-    ${row('Classe retenue', `<strong>${escapeHtml(classLabel(run.decisionLabel))}</strong>`)}
-    ${run.decisionReason ? row('Motif', escapeHtml(run.decisionReason)) : ''}
-  </table>
+  <p class="verdict">${verdict}</p>
+  ${
+    labelRow || reasonRow
+      ? `<table class="facts">
+    ${labelRow}
+    ${reasonRow}
+  </table>`
+      : ''
+  }
 </section>`;
 }
 
@@ -485,6 +601,234 @@ function signature(input: ReportInput, contentSha256: string): string {
 </div>`;
 }
 
+// --- Pathology ----------------------------------------------------------------
+
+function sourceFigure(input: ReportInput, caption: string): string {
+  const { sourceDocument } = input;
+  const ratio =
+    sourceDocument.width && sourceDocument.height
+      ? `aspect-ratio: ${sourceDocument.width} / ${sourceDocument.height}`
+      : '';
+  return `<figure>
+      <div class="slice" style="${ratio}"><img src="${imageUri(input)}" alt="" /></div>
+      <figcaption><strong>Figure 1</strong> — ${caption}</figcaption>
+    </figure>`;
+}
+
+const imageUri = (input: ReportInput) =>
+  `data:${input.sourceDocument.mimeType};base64,${input.sourceDocument.data.toString('base64')}`;
+
+/** The evaluation describes these weights (and was found for them). */
+function breakhisApplies(input: ReportInput): boolean {
+  return evaluationMatchesWeights(
+    input.run.classificationWeightsSha256,
+    input.breakhisEvaluation?.weightsSha256 ?? null,
+  );
+}
+
+function pannukeApplies(input: ReportInput): boolean {
+  return evaluationMatchesWeights(
+    input.run.segmentationWeightsSha256,
+    input.pannukeEvaluation?.weightsSha256 ?? null,
+  );
+}
+
+/**
+ * Warning for the result, read from the confusion matrix of the image's
+ * magnification: for "malignant", the benign images among the "malignant"
+ * results; for "benign", the malignant ones among the "benign" results.
+ */
+export function breastConfusionWarning(
+  evaluation: BreakhisEvaluation,
+  magnification: number | null,
+  result: string | null,
+): string | null {
+  const metrics =
+    magnification === null
+      ? undefined
+      : evaluation.byMagnification[String(magnification)];
+  if (!metrics || (result !== 'malignant' && result !== 'benign')) return null;
+  const [[tn, fp], [fn, tp]] = metrics.confusionMatrix;
+  const [wrong, total] = result === 'malignant' ? [fp, fp + tp] : [fn, fn + tn];
+  if (total === 0) return null;
+  const at = `${integer.format(magnification as number)}×`;
+  return result === 'malignant'
+    ? `Sur le jeu de test à ${at}, ${integer.format(wrong)} des ${integer.format(total)} résultats « malin » étaient bénins.`
+    : `Sur le jeu de test à ${at}, ${integer.format(wrong)} des ${integer.format(total)} résultats « bénin » étaient malins.`;
+}
+
+function breastResults(input: ReportInput): string {
+  const { run } = input;
+  const threshold = run.decisionThreshold ?? 0;
+  const score = run.malignancyScore ?? 0;
+  const result = BREAST_RESULTS[run.modelDecision ?? ''] ?? '—';
+  const views = run.ttaScores ?? [];
+  const magnification =
+    run.magnification === null
+      ? ''
+      : ` (grossissement ${integer.format(run.magnification)}×)`;
+  const warning =
+    breakhisApplies(input) && input.breakhisEvaluation
+      ? breastConfusionWarning(
+          input.breakhisEvaluation,
+          run.magnification,
+          run.modelDecision,
+        )
+      : null;
+
+  return `<section>
+  <h2>Résultats</h2>
+  <p class="model-result">Score de malignité du modèle : ${formatScore(score, threshold)} (score non calibré, ce n'est pas une probabilité) — seuil de décision ${decimals(2).format(threshold)} — résultat du modèle : ${result}</p>
+  <table class="grid">
+    <thead><tr><th scope="col">Vue de l'image</th><th scope="col" class="num">Score</th></tr></thead>
+    <tbody>
+      ${views
+        .map(
+          (view, index) =>
+            `<tr><td>${TTA_VIEW_NAMES[index] ?? `Vue ${index + 1}`}</td><td class="num">${formatScore(view, threshold)}</td></tr>`,
+        )
+        .join('\n      ')}
+    </tbody>
+  </table>
+  <p class="note">Le score retenu est la moyenne des ${integer.format(views.length)} vues.</p>
+  <div class="figures">
+    ${sourceFigure(input, `Image analysée${magnification}`)}
+  </div>
+  ${warning ? `<div class="notice"><strong>Confusions observées sur le jeu de test</strong>${escapeHtml(warning)}</div>` : ''}
+</section>`;
+}
+
+function overlayFigure(input: ReportInput): string {
+  const { sourceDocument, overlay } = input;
+  const width = sourceDocument.width ?? 512;
+  const height = sourceDocument.height ?? 512;
+  // The RGBA overlay over the image, as it is: no contour filter.
+  return `<figure>
+    <div class="slice" style="aspect-ratio: ${width} / ${height}">
+      <img src="${imageUri(input)}" alt="" />
+      <svg viewBox="0 0 ${width} ${height}" preserveAspectRatio="none" aria-hidden="true">
+        <image href="data:image/png;base64,${overlay?.data.toString('base64') ?? ''}" x="0" y="0" width="${width}" height="${height}" preserveAspectRatio="none" />
+      </svg>
+    </div>
+    <figcaption><strong>Figure 2</strong> — Même image, noyaux colorés par type</figcaption>
+  </figure>`;
+}
+
+function nucleiResults(input: ReportInput): string {
+  const { run, overlay } = input;
+  const fractions = run.nucleiFractions;
+  const shares = NUCLEUS_TYPES.map((type) => ({
+    share: fractions?.nucleusTypes[type] ?? null,
+    type,
+  }));
+  const anyNucleus = shares.some(({ share }) => share !== null);
+  const legend = NUCLEUS_TYPES.map(
+    (type) =>
+      `<li><span class="swatch" style="background:${NUCLEI_PALETTE[type]}"></span>${NUCLEUS_NAMES[type]}</li>`,
+  ).join('');
+  const composition = anyNucleus
+    ? `<table class="grid">
+    <thead><tr><th scope="col">Composition par type</th><th scope="col" class="num">Part de la surface nucléaire</th></tr></thead>
+    <tbody>
+      ${shares
+        .map(
+          ({ share, type }) =>
+            `<tr><td>${NUCLEUS_NAMES[type]}${UNRELIABLE_NUCLEUS_TYPES.includes(type) ? ' <span class="tag">non fiable</span>' : ''}</td><td class="num">${formatPercent(share ?? 0)}</td></tr>`,
+        )
+        .join('\n      ')}
+    </tbody>
+  </table>`
+    : '<p>Aucun pixel de noyau sur cette image : pas de composition par type.</p>';
+
+  return `<section>
+  <h2>Résultats</h2>
+  <table class="facts">
+    ${row("Part de l'image couverte par des noyaux", fractions ? `<strong>${formatPercent(1 - fractions.background)}</strong>` : '—')}
+  </table>
+  ${composition}
+  <div class="figures">
+    ${sourceFigure(input, 'Image analysée (grossissement 40×)')}
+    ${overlay ? overlayFigure(input) : ''}
+  </div>
+  <ul class="legend">${legend}</ul>
+  <ul class="limits">
+    <li>Segmentation sémantique : des noyaux accolés ne sont pas séparés ; les parts sont des surfaces, sans dénombrement.</li>
+    <li>Modèle entraîné sur des patchs H&amp;E à 40×.</li>
+    <li>Classe « morts » non fiable.</li>
+  </ul>
+</section>`;
+}
+
+function percentWithInterval(measured: {
+  value: number;
+  ci95: readonly [number, number] | null;
+}): string {
+  return measured.ci95
+    ? `${formatPercent(measured.value)} (IC 95 % : ${formatPercent(measured.ci95[0])} – ${formatPercent(measured.ci95[1])})`
+    : formatPercent(measured.value);
+}
+
+function breastPerformances(input: ReportInput): string {
+  const evaluation = input.breakhisEvaluation;
+  if (!breakhisApplies(input) || !evaluation) {
+    return `<section class="small">
+  <h2>Performances de référence</h2>
+  <p>${NOT_MEASURED}</p>
+</section>`;
+  }
+  const magnification = input.run.magnification;
+  const atMagnification =
+    magnification === null
+      ? undefined
+      : evaluation.byMagnification[String(magnification)];
+  const line = atMagnification
+    ? ` À ${integer.format(magnification as number)}×, grossissement de cette image : ${integer.format(atMagnification.n)} images, sensibilité ${atMagnification.sensitivity === null ? '—' : formatPercent(atMagnification.sensitivity)}, spécificité ${atMagnification.specificity === null ? '—' : formatPercent(atMagnification.specificity)}.`
+    : '';
+  return `<section class="small">
+  <h2>Performances de référence</h2>
+  <p>Mesurées le ${formatDate(new Date(evaluation.generatedAt))} sur le jeu de test BreakHis (jeu de test : ${integer.format(evaluation.testPatients)} patients, dont ${integer.format(evaluation.benignPatients)} bénins ; ${integer.format(evaluation.n)} images), au seuil ${decimals(2).format(evaluation.threshold)}, avec les 4 vues (rapport ${escapeHtml(evaluation.file)}). Sensibilité globale : ${percentWithInterval(evaluation.sensitivity)} ; spécificité globale : ${percentWithInterval(evaluation.specificity)}. Intervalles obtenus en rééchantillonnant les patients.${line}</p>
+</section>`;
+}
+
+function nucleiPerformances(input: ReportInput): string {
+  const evaluation = input.pannukeEvaluation;
+  if (!pannukeApplies(input) || !evaluation) {
+    return `<section class="small">
+  <h2>Performances de référence</h2>
+  <p>${NOT_MEASURED}</p>
+</section>`;
+  }
+  const dice = NUCLEUS_TYPES.map((type) => {
+    const value = evaluation.perClass[type].dice;
+    return `${NUCLEUS_NAMES[type]} ${value === null ? '—' : decimals(2).format(value)}`;
+  }).join(' ; ');
+  return `<section class="small">
+  <h2>Performances de référence</h2>
+  <p>Mesurées le ${formatDate(new Date(evaluation.generatedAt))} sur le Fold 3 de PanNuke (rapport ${escapeHtml(evaluation.file)}), sur les pixels de tout le jeu de test. Dice moyen des noyaux : ${evaluation.nucleiMeanDice === null ? '—' : decimals(2).format(evaluation.nucleiMeanDice)}. Dice par type : ${dice}.</p>
+</section>`;
+}
+
+function pathologyLegal(input: ReportInput): string {
+  const limitations =
+    input.run.pipeline === 'pathology-breast'
+      ? [
+          "Métriques issues d'une validation interne sur BreakHis : performances à confirmer sur les données de votre laboratoire.",
+          "Le score de malignité n'est pas calibré : ce n'est pas une probabilité.",
+          'Classification bénin / malin : le type histologique de la tumeur n’est pas donné.',
+          "Analyse d'une image : le reste de la lame n'est pas pris en compte.",
+        ]
+      : [
+          'Segmentation sémantique : chaque pixel reçoit une classe ; les noyaux ne sont ni séparés ni dénombrés.',
+          'Modèle entraîné sur des patchs H&E à 40× : une autre coloration ou un autre grossissement sort de son domaine.',
+          "Analyse d'une image : le reste de la lame n'est pas pris en compte.",
+        ];
+  return `<section class="small">
+  <h2>Mentions légales</h2>
+  <p>Aide à la décision. Ce compte rendu ne constitue pas un diagnostic à lui seul et ne remplace pas l'avis d'un médecin. Modèles non certifiés comme dispositifs médicaux.</p>
+  <ul>${limitations.map((item) => `<li>${escapeHtml(item)}</li>`).join('')}</ul>
+</section>`;
+}
+
 const STYLES = `
 *{box-sizing:border-box}
 html{-webkit-print-color-adjust:exact;print-color-adjust:exact}
@@ -522,14 +866,57 @@ section.small ul{margin:1mm 0 0;padding-left:4mm}
 .signature .signer{font-size:10pt;font-weight:700}
 .signature .electronic{margin-top:1.4mm;font-weight:600;color:${ACCENT_COLOR}}
 .signature .fingerprint{margin-top:2mm;font-size:7.4pt;color:#5a5a5a;letter-spacing:.03em}
+h1{text-transform:uppercase}
+.model-result{margin:0 0 3mm;font-weight:600}
+ul.legend{display:flex;flex-wrap:wrap;gap:1.5mm 5mm;margin:0 0 3mm;padding:0;list-style:none;font-size:8.4pt}
+ul.legend .swatch{display:inline-block;width:3mm;height:3mm;margin-right:1.4mm;vertical-align:-.3mm;border:.3pt solid #5a5a5a}
+ul.limits{margin:2mm 0 0;padding-left:4mm;font-size:8.4pt;color:#4a4a4a}
 `;
+
+const PATHOLOGY_SUBTITLES: Record<string, string> = {
+  'pathology-breast': 'Histopathologie mammaire — classification bénin / malin',
+  'pathology-nuclei': 'Histopathologie — segmentation des noyaux (H&amp;E)',
+};
+
+// The evaluation a report prints from, named in its fingerprint.
+function evaluationIdentity(
+  input: ReportInput,
+  brainEvaluationApplies: boolean,
+): { file: string; sha256: string | null } | null {
+  switch (input.run.pipeline) {
+    case 'brain':
+      return brainEvaluationApplies && input.evaluation
+        ? {
+            file: input.evaluation.file,
+            sha256: input.evaluation.classifierSha256,
+          }
+        : null;
+    case 'pathology-breast':
+      return breakhisApplies(input) && input.breakhisEvaluation
+        ? {
+            file: input.breakhisEvaluation.file,
+            sha256: input.breakhisEvaluation.weightsSha256,
+          }
+        : null;
+    default:
+      return pannukeApplies(input) && input.pannukeEvaluation
+        ? {
+            file: input.pannukeEvaluation.file,
+            sha256: input.pannukeEvaluation.weightsSha256,
+          }
+        : null;
+  }
+}
 
 /** Builds the report; the printed facts are hashed into its fingerprint. */
 export function buildReportDocument(input: ReportInput): ReportDocument {
-  const evaluationApplies = evaluationMatchesWeights(
-    input.run.classificationWeightsSha256,
-    input.evaluation?.classifierSha256 ?? null,
-  );
+  const brain = input.run.pipeline === 'brain';
+  const evaluationApplies =
+    brain &&
+    evaluationMatchesWeights(
+      input.run.classificationWeightsSha256,
+      input.evaluation?.classifierSha256 ?? null,
+    );
 
   // What the document certifies: printed facts, and the hashes of the images.
   const contentSha256 = createSha256Checksum(
@@ -546,14 +933,9 @@ export function buildReportDocument(input: ReportInput): ReportDocument {
           width: input.sourceDocument.width,
         },
         editedAt: input.editedAt,
-        evaluation:
-          evaluationApplies && input.evaluation
-            ? {
-                file: input.evaluation.file,
-                sha256: input.evaluation.classifierSha256,
-              }
-            : null,
+        evaluation: evaluationIdentity(input, evaluationApplies),
         maskSha256: input.mask?.sha256 ?? null,
+        overlaySha256: input.overlay?.sha256 ?? null,
         patient: input.patient,
         reportNumber: input.reportNumber,
         requestedBy: input.requestedBy,
@@ -574,19 +956,19 @@ export function buildReportDocument(input: ReportInput): ReportDocument {
 </head>
 <body>
 <div class="title">
-  <h1>COMPTE RENDU D'ANALYSE D'IMAGERIE ASSISTÉE PAR INTELLIGENCE ARTIFICIELLE</h1>
-  <p class="subtitle">Imagerie cérébrale (IRM)</p>
+  <h1>${brain ? "COMPTE RENDU D'ANALYSE D'IMAGERIE ASSISTÉE PAR INTELLIGENCE ARTIFICIELLE" : "Compte rendu d'analyse histopathologique assistée par IA"}</h1>
+  <p class="subtitle">${brain ? 'Imagerie cérébrale (IRM)' : (PATHOLOGY_SUBTITLES[input.run.pipeline] ?? 'Histopathologie')}</p>
 </div>
 ${identification(input)}
 ${indication(input)}
 ${technique(input)}
-${results(input, evaluationApplies)}
+${brain ? results(input, evaluationApplies) : input.run.pipeline === 'pathology-breast' ? breastResults(input) : nucleiResults(input)}
 <div class="closing">
 ${conclusion(input)}
 ${signature(input, contentSha256)}
 </div>
-${performances(input, evaluationApplies)}
-${legal(input, evaluationApplies)}
+${brain ? performances(input, evaluationApplies) : input.run.pipeline === 'pathology-breast' ? breastPerformances(input) : nucleiPerformances(input)}
+${brain ? legal(input, evaluationApplies) : pathologyLegal(input)}
 </body>
 </html>`;
 

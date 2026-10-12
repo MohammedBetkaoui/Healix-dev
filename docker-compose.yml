@@ -122,6 +122,8 @@ services:
       AI_SERVICE_URL: http://ai-service:8001
       AI_SERVICE_TOKEN: ${AI_SERVICE_TOKEN:?AI_SERVICE_TOKEN manque dans .env}
       AI_EVALUATION_REPORT_PATH: /app/evaluation/brain-latest.json
+      # The pathology reports: the one of the analysis's own weights is used.
+      AI_PATHOLOGY_EVALUATION_DIR: /app/evaluation
       UPLOAD_ROOT: /app/uploads
       SMTP_HOST: ${SMTP_HOST:-}
       SMTP_PORT: ${SMTP_PORT:-587}
@@ -132,7 +134,8 @@ services:
     volumes:
       # Patient documents, segmentation masks and PDF reports.
       - patient-files:/app/uploads
-      # The evaluation report shown in the PDF reports, read-only.
+      # The evaluation reports (brain-latest.json, pathology-*.json) quoted
+      # in the PDF reports, read-only.
       - type: bind
         source: ./ai-service/evaluation
         target: /app/evaluation

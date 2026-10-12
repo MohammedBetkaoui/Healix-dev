@@ -111,16 +111,41 @@ the first report, reused, and closed when the application stops. The page
 loads nothing from the network: the Inter font (SIL OFL 1.1, in
 `assets/fonts/inter/`) and the images are embedded.
 
-The report quotes the measured performance from the evaluation report of
-`ai-service/scripts/evaluate_brain.py`:
+The report quotes the measured performance from the evaluation reports of
+`ai-service/scripts/evaluate_brain.py` and `evaluate_pathology.py`:
 
 | Variable | Default |
 | --- | --- |
 | `AI_EVALUATION_REPORT_PATH` | `../ai-service/evaluation/brain-latest.json` (from the backend folder) |
+| `AI_PATHOLOGY_EVALUATION_DIR` | `../ai-service/evaluation` (from the backend folder) |
 
-When it is missing, or describes other classifier weights than those of the
-analysis, the report prints "Performances non mesurées pour cette version des
-modèles" and no figure.
+Brain: when the report is missing, or describes other classifier weights than
+those of the analysis, the report prints "Performances non mesurées pour cette
+version des modèles" and no figure.
+
+Histopathology (`report/pathology-evaluation.ts`): among the
+`pathology-*.json` files of the folder, the most recent whose part
+(`breakhis` or `pannuke`) has status `ok` **and** whose SHA-256 for that model
+is the run's own; none prints "Performance non mesurée sur un jeu de test
+indépendant" and no figure. No figure is ever written by hand.
+
+The histopathology report ("Compte rendu d'analyse histopathologique assistée
+par IA") keeps the template, the CR-IA numbering and the SHA-256 freezing:
+
+- **breast**: the image and its magnification; "Score de malignité du modèle :
+  0,59 (score non calibré, ce n'est pas une probabilité) — seuil de décision
+  0,13 — résultat du modèle : malin" (a score is never called a probability);
+  the 4 view scores; the physician's decision; when measured on these
+  weights, the overall sensitivity and specificity with their 95 % intervals
+  (patients resampled), the line of the image's magnification, a warning from
+  that magnification's confusion matrix (the benign images among the
+  "malignant" results, or the malignant ones among the "benign" results) and
+  the test set (13 patients, 4 of them benign).
+- **nuclei**: the image, then the image with the colour overlay and its
+  legend; the share of the image covered by nuclei and the composition by
+  type in % of the nuclear surface ("morts" flagged unreliable), never a
+  number of nuclei; the limits (semantic segmentation, 40x H&E training), the
+  tiles; the PanNuke performance when measured on these weights.
 
 A report is generated on the first request, numbered `CR-IA-<year>-<NNNNNN>`
 (sequential within the year), stored under
