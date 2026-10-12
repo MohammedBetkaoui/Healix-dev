@@ -10,14 +10,26 @@ import {
 } from "react";
 
 import { StatusBadge } from "@/components/dashboard/shared/StatusBadge";
-import { type AiConfusionMatrix, type AiModel } from "@/features/ai-analyses/ai-analyses.types";
+import {
+  aiMagnifications,
+  nucleusTypes,
+  type AiConfusionMatrix,
+  type AiModel,
+} from "@/features/ai-analyses/ai-analyses.types";
 import { formatEvaluationDate, formatInterval, isolate } from "@/features/ai-analyses/evaluation-presentation";
 import {
   datasetLabelParams,
   formatAiMetricInterval,
   formatAiMetricValue,
   limitationParams,
+  testPatientsParams,
 } from "@/features/ai-analyses/format-ai-metric";
+import {
+  breakhisEvaluation,
+  pannukeEvaluation,
+  pannukeNotebookValidation,
+  type PannukeEvaluation,
+} from "@/features/ai-analyses/pathology-evaluation";
 import { type Locale } from "@/i18n";
 import { type TranslationFunction } from "@/lib/i18n";
 
@@ -112,6 +124,159 @@ function ConfusionMatrixTable({
   );
 }
 
+const BREAKHIS_ID = "pathology-breakhis-classification";
+const PANNUKE_ID = "pathology-unet-pannuke-segmentation";
+
+// BreakHis on its test set, one row per image magnification, in two narrow
+// tables: images, sensitivity and specificity; then the four cells of its
+// matrix, each named.
+function MagnificationTable({ locale, t }: { locale: Locale; t: TranslationFunction }) {
+  const intlLocale = locale === "ar" ? "ar-DZ" : "fr-DZ";
+  const integer = new Intl.NumberFormat(intlLocale);
+  const percent = new Intl.NumberFormat(intlLocale, { maximumFractionDigits: 1, minimumFractionDigits: 1, style: "percent" });
+  const cells = ["trueNegative", "falsePositive", "falseNegative", "truePositive"] as const;
+  const caption = "mb-2 text-start text-xs leading-5 text-[var(--text-secondary)]";
+  const head = "pb-1 pe-3 text-start align-bottom font-medium";
+  const mono = "py-1.5 pe-3 font-[family-name:var(--font-auth-mono)] tabular-nums";
+  const rows = aiMagnifications.map((magnification) => {
+    const metrics = breakhisEvaluation.byMagnification[magnification];
+    const [[trueNegative, falsePositive], [falseNegative, truePositive]] = metrics.confusionMatrix;
+    return { counts: { falseNegative, falsePositive, trueNegative, truePositive }, magnification, metrics };
+  });
+  const rowHeader = (magnification: number) => (
+    <th scope="row" className="py-1.5 pe-3 text-start font-normal">
+      <bdi dir="ltr">{t("aiAnalyses.sheet.magnificationValue", { value: magnification })}</bdi>
+    </th>
+  );
+
+  return (
+    <div className="space-y-4">
+      <div className="overflow-x-auto">
+        <table className="w-full text-sm">
+          <caption className={caption}>{t("aiAnalyses.sheet.byMagnificationCaption")}</caption>
+          <thead>
+            <tr className="text-xs text-[var(--text-secondary)]">
+              <th scope="col" className={head}>{t("aiAnalyses.sheet.magnification")}</th>
+              <th scope="col" className={head}>{t("aiAnalyses.sheet.images")}</th>
+              <th scope="col" className={head}>{t("aiAnalyses.sheet.sensitivity")}</th>
+              <th scope="col" className={head}>{t("aiAnalyses.sheet.specificity")}</th>
+            </tr>
+          </thead>
+          <tbody>
+            {rows.map(({ magnification, metrics }) => (
+              <tr key={magnification} className="border-t border-[var(--line-soft)]">
+                {rowHeader(magnification)}
+                <td className={mono}><bdi dir="ltr">{integer.format(metrics.n)}</bdi></td>
+                <td className={mono}><bdi dir="ltr">{percent.format(metrics.sensitivity)}</bdi></td>
+                <td className={mono}><bdi dir="ltr">{percent.format(metrics.specificity)}</bdi></td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+      <div className="overflow-x-auto">
+        <table className="w-full text-sm">
+          <caption className={caption}>{t("aiAnalyses.sheet.byMagnificationMatrix")}</caption>
+          <thead>
+            <tr className="text-xs text-[var(--text-secondary)]">
+              <th scope="col" className={head}>{t("aiAnalyses.sheet.magnification")}</th>
+              {cells.map((cell) => (
+                <th key={cell} scope="col" className={head}>{t(`aiAnalyses.sheet.matrixCells.${cell}`)}</th>
+              ))}
+            </tr>
+          </thead>
+          <tbody>
+            {rows.map(({ counts, magnification }) => (
+              <tr key={magnification} className="border-t border-[var(--line-soft)]">
+                {rowHeader(magnification)}
+                {cells.map((cell) => (
+                  <td key={cell} className={mono}><bdi dir="ltr">{integer.format(counts[cell])}</bdi></td>
+                ))}
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  );
+}
+
+// Dice and IoU per class of a PanNuke measure (the background first).
+function PannukeTable({
+  caption,
+  evaluation,
+  locale,
+  t,
+}: {
+  caption: string;
+  evaluation: PannukeEvaluation;
+  locale: Locale;
+  t: TranslationFunction;
+}) {
+  const decimal = new Intl.NumberFormat(locale === "ar" ? "ar-DZ" : "fr-DZ", { maximumFractionDigits: 2, minimumFractionDigits: 2 });
+  const rows = ["background", ...nucleusTypes] as const;
+
+  return (
+    <div className="overflow-x-auto">
+      <table className="w-full text-sm">
+        <caption className="mb-2 text-start text-xs font-semibold leading-5 text-[var(--text-primary)]">{caption}</caption>
+        <thead>
+          <tr className="text-xs text-[var(--text-secondary)]">
+            <th scope="col" className="pb-1 pe-3 text-start font-medium">{t("aiAnalyses.sheet.nucleusType")}</th>
+            <th scope="col" className="pb-1 pe-3 text-start font-medium">{t("aiAnalyses.sheet.dice")}</th>
+            <th scope="col" className="pb-1 text-start font-medium">{t("aiAnalyses.sheet.iou")}</th>
+          </tr>
+        </thead>
+        <tbody>
+          {rows.map((row) => (
+            <tr key={row} className="border-t border-[var(--line-soft)]">
+              <th scope="row" className="py-1.5 pe-3 text-start font-normal">
+                {row === "background" ? t("aiAnalyses.sheet.background") : t(`aiAnalyses.classes.${row}`)}
+              </th>
+              <td className="py-1.5 pe-3 font-[family-name:var(--font-auth-mono)] tabular-nums">
+                <bdi dir="ltr">{decimal.format(evaluation.perClass[row].dice)}</bdi>
+              </td>
+              <td className="py-1.5 font-[family-name:var(--font-auth-mono)] tabular-nums">
+                <bdi dir="ltr">{decimal.format(evaluation.perClass[row].iou)}</bdi>
+              </td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+      <p className="mt-2 text-xs text-[var(--text-secondary)]">
+        {t("aiAnalyses.sheet.nucleiMeanDice", { value: isolate(decimal.format(evaluation.nucleiMeanDice)) })}
+      </p>
+    </div>
+  );
+}
+
+// PanNuke: the test measure once there is one; until then, that it is
+// pending, then the notebook's figures, marked as an optimistic validation.
+function PannukeMetrics({ locale, t }: { locale: Locale; t: TranslationFunction }) {
+  if (pannukeEvaluation !== null) {
+    return <PannukeTable caption={t("aiAnalyses.sheet.testByType")} evaluation={pannukeEvaluation} locale={locale} t={t} />;
+  }
+
+  return (
+    <div className="space-y-3">
+      <div
+        role="note"
+        className="rounded-[var(--radius-sm)] border border-s-[3px] border-[var(--warning-line)] border-s-[color:var(--warning)] bg-[var(--warning-soft)] px-3 py-2.5"
+      >
+        <p className="text-sm font-semibold text-[var(--warning-ink)]">{t("aiAnalyses.sheet.testPending")}</p>
+        <p className="mt-0.5 text-xs leading-5 text-[var(--text-primary)]">{t("aiAnalyses.sheet.testPendingNote")}</p>
+      </div>
+      <PannukeTable
+        caption={t("aiAnalyses.sheet.notebookValidation")}
+        evaluation={pannukeNotebookValidation}
+        locale={locale}
+        t={t}
+      />
+      <p className="text-xs leading-5 text-[var(--text-secondary)]">{t("aiAnalyses.sheet.notebookValidationNote")}</p>
+    </div>
+  );
+}
+
 // Side panel over the hub: a native modal <dialog> (the page behind is inert,
 // Escape closes it), plus a Tab loop so focus never leaves it for the browser
 // chrome. Focus returns to the button that opened it.
@@ -176,11 +341,15 @@ export function AiModelSheet({ locale, model, onClose, t }: AiModelSheetProps) {
   const percent = new Intl.NumberFormat(intlLocale, { maximumFractionDigits: 2, minimumFractionDigits: 2, style: "percent" });
   const decimal = new Intl.NumberFormat(intlLocale, { maximumFractionDigits: 4, minimumFractionDigits: 4 });
   // "Évaluation du <date>, rapport <name>": the source of the "evaluation" metrics.
-  const evaluationSource = model?.evaluation
-    ? t("aiAnalyses.evaluation.source", {
-        date: formatEvaluationDate(model.evaluation.date, locale),
-        report: isolate(model.evaluation.report),
-      })
+  const evaluationParams = model?.evaluation
+    ? { date: formatEvaluationDate(model.evaluation.date, locale), report: isolate(model.evaluation.report) }
+    : null;
+  const evaluationSource = evaluationParams
+    ? model?.id === PANNUKE_ID
+      ? t("aiAnalyses.evaluation.sourcePannuke", evaluationParams)
+      : model?.module === "pathology"
+        ? t("aiAnalyses.evaluation.sourcePathology", evaluationParams)
+        : t("aiAnalyses.evaluation.source", evaluationParams)
     : null;
 
   return (
@@ -278,7 +447,12 @@ export function AiModelSheet({ locale, model, onClose, t }: AiModelSheetProps) {
             </SheetSection>
 
             <SheetSection title={t("aiAnalyses.sheet.metrics")}>
-              {model.metrics ? (
+              {model.id === PANNUKE_ID ? (
+                <>
+                  <PannukeMetrics locale={locale} t={t} />
+                  {evaluationSource ? <p className="mt-2 text-xs text-[var(--text-secondary)]">{evaluationSource}</p> : null}
+                </>
+              ) : model.metrics ? (
                 <>
                   <table className="w-full text-sm">
                     <thead>
@@ -307,6 +481,11 @@ export function AiModelSheet({ locale, model, onClose, t }: AiModelSheetProps) {
                       ))}
                     </tbody>
                   </table>
+                  {model.id === BREAKHIS_ID ? (
+                    <p className="mt-2 text-xs font-medium text-[var(--text-primary)]">
+                      {t("aiAnalyses.sheet.testPatients", testPatientsParams(locale))}
+                    </p>
+                  ) : null}
                   {evaluationSource ? <p className="mt-2 text-xs text-[var(--text-secondary)]">{evaluationSource}</p> : null}
                   <p className="mt-1 text-xs text-[var(--text-secondary)]">{t("aiAnalyses.sheet.metricsNote")}</p>
                 </>
@@ -379,6 +558,12 @@ export function AiModelSheet({ locale, model, onClose, t }: AiModelSheetProps) {
                   t={t}
                 />
                 {evaluationSource ? <p className="mt-2 text-xs text-[var(--text-secondary)]">{evaluationSource}</p> : null}
+              </SheetSection>
+            ) : null}
+
+            {model.id === BREAKHIS_ID ? (
+              <SheetSection title={t("aiAnalyses.sheet.byMagnification")}>
+                <MagnificationTable locale={locale} t={t} />
               </SheetSection>
             ) : null}
 

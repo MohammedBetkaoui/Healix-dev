@@ -19,6 +19,7 @@ describe("format check", () => {
   it("refuses a format the model does not accept, and blocks", () => {
     const report = evaluateQualityChecks({
       acceptedFormats: ["png"],
+      inputConstraints: null,
       fileName: "irm.jpeg",
       probe: decoded(512, 512),
     });
@@ -31,6 +32,7 @@ describe("format check", () => {
     for (const fileName of ["irm.PNG", "irm.jpg", "irm.jpeg"]) {
       const report = evaluateQualityChecks({
         acceptedFormats: ["png", ".JPEG"],
+        inputConstraints: null,
         fileName,
         probe: decoded(512, 512),
       });
@@ -43,6 +45,7 @@ describe("format check", () => {
   it("refuses a file without extension when formats are known", () => {
     const report = evaluateQualityChecks({
       acceptedFormats: ["png"],
+      inputConstraints: null,
       fileName: "irm",
       probe: decoded(512, 512),
     });
@@ -53,6 +56,7 @@ describe("format check", () => {
   it("shows 'non renseigné' without blocking when the registry gives no format (null)", () => {
     const report = evaluateQualityChecks({
       acceptedFormats: null,
+      inputConstraints: null,
       fileName: "irm.png",
       probe: decoded(512, 512),
     });
@@ -70,6 +74,7 @@ describe("decoding and dimensions", () => {
   it("passes a decoded image of at least the minimum size", () => {
     const report = evaluateQualityChecks({
       acceptedFormats: null,
+      inputConstraints: null,
       fileName: "irm.png",
       probe: decoded(MIN_IMAGE_SIDE_PX, MIN_IMAGE_SIDE_PX),
     });
@@ -81,6 +86,7 @@ describe("decoding and dimensions", () => {
   it("blocks an image smaller than the minimum on either side", () => {
     const report = evaluateQualityChecks({
       acceptedFormats: null,
+      inputConstraints: null,
       fileName: "irm.png",
       probe: decoded(1024, MIN_IMAGE_SIDE_PX - 1),
     });
@@ -94,6 +100,7 @@ describe("decoding and dimensions", () => {
     (state) => {
       const report = evaluateQualityChecks({
         acceptedFormats: null,
+        inputConstraints: null,
         fileName: "compte-rendu.pdf",
         probe: { state },
       });
@@ -107,6 +114,7 @@ describe("decoding and dimensions", () => {
   it("does not block a DICOM file, which is not previewed at this step", () => {
     const report = evaluateQualityChecks({
       acceptedFormats: null,
+      inputConstraints: null,
       fileName: "serie.dcm",
       probe: { state: "dicom" },
     });
@@ -119,11 +127,53 @@ describe("decoding and dimensions", () => {
   it("waits while the image is being decoded", () => {
     const report = evaluateQualityChecks({
       acceptedFormats: null,
+      inputConstraints: null,
       fileName: "irm.png",
       probe: { state: "pending" },
     });
 
     expect(report.canContinue).toBe(false);
+  });
+});
+
+describe("model sizes (inputConstraints)", () => {
+  const constraints = { maxSide: 4096, minSide: 256 };
+  const check = (probe: ImageProbe) =>
+    evaluateQualityChecks({ acceptedFormats: ["png"], fileName: "lame.png", inputConstraints: constraints, probe });
+
+  it("checks the model's minimum and maximum instead of the generic floor", () => {
+    const report = check(decoded(256, 4096));
+
+    expect(report.checks.map((item) => item.key)).toEqual(["format", "decodable", "minSide", "maxSide"]);
+    expect(statusOf(report, "minSide")).toBe("pass");
+    expect(statusOf(report, "maxSide")).toBe("pass");
+    expect(report.checks.find((item) => item.key === "minSide")?.detail).toEqual({ height: 4096, min: 256, width: 256 });
+    expect(report.checks.find((item) => item.key === "maxSide")?.detail).toEqual({ height: 4096, max: 4096, width: 256 });
+    expect(report.canContinue).toBe(true);
+  });
+
+  it("blocks an image under the minimum on either side", () => {
+    const report = check(decoded(1024, 255));
+
+    expect(statusOf(report, "minSide")).toBe("fail");
+    expect(statusOf(report, "maxSide")).toBe("pass");
+    expect(report.canContinue).toBe(false);
+  });
+
+  it("blocks an image over the maximum on either side", () => {
+    const report = check(decoded(4097, 512));
+
+    expect(statusOf(report, "minSide")).toBe("pass");
+    expect(statusOf(report, "maxSide")).toBe("fail");
+    expect(report.canContinue).toBe(false);
+  });
+
+  it("cannot check the sizes without a decoded image", () => {
+    const report = check({ state: "dicom" });
+
+    expect(statusOf(report, "minSide")).toBe("not_applicable");
+    expect(statusOf(report, "maxSide")).toBe("not_applicable");
+    expect(check({ state: "pending" }).canContinue).toBe(false);
   });
 });
 

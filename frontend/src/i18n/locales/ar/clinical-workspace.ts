@@ -70,7 +70,7 @@ export const clinicalWorkspaceAr = {
   },
   recent: {
     title: "آخر تحاليل الذكاء الاصطناعي", subtitle: "الخمسة الأحدث في فضائكم",
-    columns: { date: "التاريخ", patient: "المريض", modelClass: "فئة النموذج", decision: "القرار", result: "النتيجة" },
+    columns: { date: "التاريخ", patient: "المريض", pipeline: "السلسلة", modelClass: "نتيجة النموذج", decision: "القرار", result: "النتيجة" },
     open: "عرض", openFor: "عرض نتيجة تحليل {date}، المريض {patient}",
     noClass: "—", empty: "لا توجد تحاليل ذكاء اصطناعي حتى الآن.",
   },
@@ -80,7 +80,7 @@ export const clinicalWorkspaceAr = {
     pending: "في انتظار القرار",
     oldestHours: "أقدمها منذ (بالساعات): {count}", oldestDays: "أقدمها منذ (بالأيام): {count}",
     validated: "مصادق عليها", corrected: "مصحَّحة", rejected: "مرفوضة",
-    uncertain: "نتائج غير مؤكدة (احتمال أقل من {threshold})",
+    uncertain: "نتائج غير مؤكدة، الرنين المغناطيسي للدماغ (احتمال أقل من {threshold})",
     uncertainValue: "{percent} · {count} من {total}",
     uncertainNone: "لا توجد تحاليل ناجحة خلال الفترة",
     tracking: "فتح متابعة التحاليل",

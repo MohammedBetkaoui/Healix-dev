@@ -23,7 +23,7 @@ import {
 import Link from "next/link";
 import { useMemo, useState } from "react";
 
-import { LatestRetainedAiRun, PatientAiRunsSection, getNewAiAnalysisHref } from "@/components/ai-analyses/record/PatientAiRuns";
+import { LatestRetainedAiRun, NewAiAnalysisMenu, PatientAiRunsSection } from "@/components/ai-analyses/record/PatientAiRuns";
 import { AppointmentDetailsModal } from "@/components/appointments/AppointmentDetailsModal";
 import { CreateAppointmentModal } from "@/components/appointments/CreateAppointmentModal";
 import { DashboardShell } from "@/components/dashboard/layout/DashboardShell";
@@ -312,7 +312,7 @@ export function PatientRecordPage({ accountType, initialTab, patientId }: Patien
             <Button variant="outline" className="rounded-[var(--radius-sm)] border-[var(--line)] bg-[var(--panel)] text-[var(--ink-soft)]" onClick={() => setAppointmentModalOpen(true)}><CalendarPlus className="h-4 w-4" strokeWidth={1.7} />{localized.actions.appointment}</Button>
             <Button variant="outline" className="rounded-[var(--radius-sm)] border-[var(--line)] bg-[var(--panel)] text-[var(--ink-soft)]" onClick={() => setDocumentModalOpen(true)}><FilePlus2 className="h-4 w-4" strokeWidth={1.7} />{localized.actions.document}</Button>
             {/* The wizard checks the DIAGNOSTIC_AI consent and explains a missing one. */}
-            <Link href={getNewAiAnalysisHref(accountType, patientId)} className="inline-flex h-11 items-center justify-center gap-2 rounded-[var(--radius-sm)] border border-[var(--ai-line)] bg-[var(--ai-soft)] px-4 text-sm font-medium text-[var(--ai)] transition-colors hover:brightness-95 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--accent)] focus-visible:ring-offset-2 focus-visible:ring-offset-[var(--bg)]"><BrainCircuit className="h-4 w-4" strokeWidth={1.7} aria-hidden="true" />{t("patients.actions.newAiAnalysis")}</Link>
+            <NewAiAnalysisMenu accountType={accountType} className="inline-flex h-11 items-center justify-center gap-2 rounded-[var(--radius-sm)] border border-[var(--ai-line)] bg-[var(--ai-soft)] px-4 text-sm font-medium text-[var(--ai)] transition-colors hover:brightness-95 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--accent)] focus-visible:ring-offset-2 focus-visible:ring-offset-[var(--bg)]" patientId={patientId} t={t}><BrainCircuit className="h-4 w-4" strokeWidth={1.7} aria-hidden="true" />{t("patients.actions.newAiAnalysis")}</NewAiAnalysisMenu>
           </div>
         </section>
 

@@ -5,6 +5,7 @@
 import { type Locale } from "@/i18n";
 
 import {
+  aiPipelineIds,
   type AiAnalysisRunStatus,
   type AiRunDecisionFilter,
   type AiRunsRate,
@@ -23,6 +24,10 @@ export type TrackingDecision = (typeof TRACKING_DECISIONS)[number];
 export const TRACKING_STATUSES = ["all", "SUCCEEDED", "RUNNING", "FAILED", "REJECTED_INPUT"] as const;
 export type TrackingStatus = (typeof TRACKING_STATUSES)[number];
 
+/** "all": every chain. */
+export const TRACKING_PIPELINES = ["all", ...aiPipelineIds] as const;
+export type TrackingPipeline = (typeof TRACKING_PIPELINES)[number];
+
 export const TRACKING_PERIODS = ["30d", "90d", "365d", "all"] as const;
 export type TrackingPeriod = (typeof TRACKING_PERIODS)[number];
 
@@ -32,6 +37,7 @@ export type TrackingState = {
   tab: TrackingTab;
   decision: TrackingDecision;
   status: TrackingStatus;
+  pipeline: TrackingPipeline;
   /** YYYY-MM-DD (local day) or "". */
   from: string;
   to: string;
@@ -49,6 +55,7 @@ export const DEFAULT_TRACKING_STATE: TrackingState = {
   mine: false,
   page: 1,
   period: "90d",
+  pipeline: "all",
   status: "all",
   tab: "worklist",
   to: "",
@@ -71,6 +78,7 @@ export function parseTrackingState(params: { get(name: string): string | null })
     mine: params.get("mine") === "1",
     page: Number.isInteger(page) && page >= 1 ? page : 1,
     period: oneOf(TRACKING_PERIODS, params.get("period"), DEFAULT_TRACKING_STATE.period),
+    pipeline: oneOf(TRACKING_PIPELINES, params.get("pipeline"), DEFAULT_TRACKING_STATE.pipeline),
     status: oneOf(TRACKING_STATUSES, params.get("status"), DEFAULT_TRACKING_STATE.status),
     tab: oneOf(TRACKING_TABS, params.get("tab"), DEFAULT_TRACKING_STATE.tab),
     to: DAY.test(to) ? to : "",
@@ -83,6 +91,7 @@ export function buildTrackingSearch(state: TrackingState): string {
   if (state.tab !== DEFAULT_TRACKING_STATE.tab) params.set("tab", state.tab);
   if (state.decision !== DEFAULT_TRACKING_STATE.decision) params.set("decision", state.decision);
   if (state.status !== DEFAULT_TRACKING_STATE.status) params.set("status", state.status);
+  if (state.pipeline !== DEFAULT_TRACKING_STATE.pipeline) params.set("pipeline", state.pipeline);
   if (state.from) params.set("from", state.from);
   if (state.to) params.set("to", state.to);
   if (state.mine) params.set("mine", "1");
@@ -104,6 +113,7 @@ export function worklistParams(state: TrackingState): AiRunsListParams {
     from: state.from ? localDayBound(state.from, false) : undefined,
     limit: WORKLIST_PAGE_SIZE,
     page: state.page,
+    pipeline: state.pipeline === "all" ? undefined : state.pipeline,
     requestedBy: state.mine ? "me" : undefined,
     status: state.status === "all" ? undefined : (state.status satisfies AiAnalysisRunStatus),
     to: state.to ? localDayBound(state.to, true) : undefined,

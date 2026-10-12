@@ -1,6 +1,6 @@
 "use client";
 
-import { AlertTriangle, ArrowLeft, Clock3, Info, RefreshCw, ScanLine, ShieldAlert } from "lucide-react";
+import { AlertTriangle, ArrowLeft, Clock3, RefreshCw, ShieldAlert } from "lucide-react";
 import Link from "next/link";
 import { isAxiosError } from "axios";
 
@@ -10,27 +10,14 @@ import {
   establishmentNavSections,
 } from "@/components/dashboard/layout/navigation";
 import { VerificationRequiredNotice } from "@/components/shared/VerificationRequiredNotice";
-import { findModel } from "@/features/ai-analyses/ai-models.registry";
+import { findModel, findPipeline } from "@/features/ai-analyses/ai-models.registry";
 import {
   useAiAnalysisRun,
   useAiAnalysisRunMask,
+  useAiAnalysisRunOverlay,
 } from "@/features/ai-analyses/hooks/use-ai-analysis-run";
-import { brainEvaluationSource, UNCERTAINTY_THRESHOLD } from "@/features/ai-analyses/brain-evaluation";
-import {
-  evaluationMatchesWeights,
-  getConfidenceSplit,
-  getConfusionWarning,
-  getProbabilityCeiling,
-  isolate,
-  isUncertain,
-} from "@/features/ai-analyses/evaluation-presentation";
 import { limitationParams } from "@/features/ai-analyses/format-ai-metric";
-import {
-  getRunErrorKey,
-  getTopLabel,
-  shortSha256,
-  sortPredictions,
-} from "@/features/ai-analyses/run-presentation";
+import { getRunErrorKey, shortSha256 } from "@/features/ai-analyses/run-presentation";
 import { useCurrentUser } from "@/features/auth/hooks/use-current-user";
 import { formatPatientDateTime } from "@/features/patients/patient-registry";
 import { usePatient } from "@/features/patients/hooks/use-patient";
@@ -41,10 +28,12 @@ import { isVerificationRequiredError } from "@/lib/api/api-error";
 import { getAccountInitials } from "@/lib/format/get-account-initials";
 import { useStoredLocale, useTranslation } from "@/lib/i18n";
 
-import { ImageViewer } from "../viewer/ImageViewer";
 import { getPatientDisplayName } from "../wizard/PatientStep";
 import { AiRunDecisionBadge, AiRunDecisionPanel } from "./AiRunDecisionPanel";
 import { AiRunReportSection } from "./AiRunReportSection";
+import { BrainResult } from "./BrainResult";
+import { BreastResult } from "./BreastResult";
+import { NucleiResult } from "./NucleiResult";
 
 type AiAnalysisRunPageProps = {
   accountType: "DOCTOR" | "ESTABLISHMENT";
@@ -68,7 +57,10 @@ export function AiAnalysisRunPage({ accountType, patientId, runId }: AiAnalysisR
   const imageQuery = usePatientDocumentView(patientId, run?.sourceDocumentId ?? null, {
     enabled: run?.status === "SUCCEEDED",
   });
-  const maskQuery = useAiAnalysisRunMask(patientId, runId, { enabled: run?.hasMask === true });
+  // The brain mask is shown at once; a nuclei map shows its colour overlay
+  // (its label map is fetched by NucleiResult, only to hide types).
+  const maskQuery = useAiAnalysisRunMask(patientId, runId, { enabled: run?.hasMask === true && run.pipeline === "brain" });
+  const overlayQuery = useAiAnalysisRunOverlay(patientId, runId, { enabled: run?.hasOverlay === true });
 
   const verificationRequired = [
     runQuery.error,
@@ -76,6 +68,7 @@ export function AiAnalysisRunPage({ accountType, patientId, runId }: AiAnalysisR
     documentsQuery.error,
     imageQuery.error,
     maskQuery.error,
+    overlayQuery.error,
   ].some(isVerificationRequiredError);
 
   const shellProps = accountType === "ESTABLISHMENT"
@@ -93,25 +86,16 @@ export function AiAnalysisRunPage({ accountType, patientId, runId }: AiAnalysisR
   const patientName = patientQuery.data
     ? getPatientDisplayName(patientQuery.data, locale)
     : patientId;
-  const predictions = sortPredictions(run?.predictions ?? []);
-  const topLabel = getTopLabel(predictions);
+  // Everything chain-specific (title, link, colour, content) follows run.pipeline.
+  const pipeline = findPipeline(run?.pipeline);
   const classifier = findModel(run?.classificationModelId);
   const segmenter = findModel(run?.segmentationModelId);
-  // The measured figures describe one set of classifier weights: they are
-  // quoted only for a run made with those weights.
-  const evaluationApplies = evaluationMatchesWeights(run?.classificationWeightsSha256 ?? null);
-  const topProbability = predictions[0]?.probability ?? null;
-  const uncertain = evaluationApplies && isUncertain(topProbability);
-  const confidenceSplit = getConfidenceSplit();
-  const confusionWarning = evaluationApplies ? getConfusionWarning(topLabel) : null;
-  const probabilityCeiling = getProbabilityCeiling();
   const usedModels = [classifier, segmenter].filter((model) => model !== undefined);
   const limitations = [...new Set(usedModels.flatMap((model) => model.knownLimitations))];
   const intlLocale = locale === "ar" ? "ar-DZ" : "fr-DZ";
-  const percent = new Intl.NumberFormat(intlLocale, { style: "percent", maximumFractionDigits: 1 });
-  const integer = new Intl.NumberFormat(intlLocale, { maximumFractionDigits: 0 });
   const decimal = new Intl.NumberFormat(intlLocale, { maximumFractionDigits: 2 });
   const imageName = sourceDocument?.fileName ?? run?.sourceDocumentId ?? "image";
+  const imageProps = { imageBlob: imageQuery.data ?? null, imageError: imageQuery.isError, imageName, locale, t };
 
   const content = () => {
     if (verificationRequired) {
@@ -167,158 +151,13 @@ export function AiAnalysisRunPage({ accountType, patientId, runId }: AiAnalysisR
 
     return (
       <>
-        {!evaluationApplies ? (
-          <div role="note" className="flex items-start gap-3 rounded-[var(--radius-md)] border border-[var(--border)] bg-[var(--surface)] px-4 py-3">
-            <Info size={18} className="mt-0.5 shrink-0 text-[var(--text-secondary)]" aria-hidden="true" />
-            <p className="text-sm text-[var(--text-primary)]">
-              {t("aiAnalyses.run.evaluationMismatch", { report: isolate(brainEvaluationSource.report) })}
-            </p>
-          </div>
-        ) : null}
-
-        {uncertain && topProbability !== null ? (
-          <div role="note" className="flex items-start gap-3 rounded-[var(--radius-md)] border border-s-[3px] border-[var(--warning-line)] border-s-[color:var(--warning)] bg-[var(--warning-soft)] px-4 py-3">
-            <AlertTriangle size={18} className="mt-0.5 shrink-0 text-[var(--warning-ink)]" aria-hidden="true" />
-            <div>
-              <p className="text-sm font-semibold text-[var(--warning-ink)]">{t("aiAnalyses.run.uncertainTitle")}</p>
-              <p className="mt-1 text-sm text-[var(--text-primary)]">
-                {confidenceSplit
-                  ? t("aiAnalyses.run.uncertainText", {
-                      above: isolate(percent.format(confidenceSplit.aboveAccuracy)),
-                      below: isolate(percent.format(confidenceSplit.belowAccuracy)),
-                      probability: isolate(percent.format(topProbability)),
-                      threshold: isolate(percent.format(UNCERTAINTY_THRESHOLD)),
-                    })
-                  : t("aiAnalyses.run.uncertainTextNoSplit", {
-                      probability: isolate(percent.format(topProbability)),
-                      threshold: isolate(percent.format(UNCERTAINTY_THRESHOLD)),
-                    })}
-              </p>
-            </div>
-          </div>
-        ) : null}
-
-        {confusionWarning ? (
-          <div role="note" className="flex items-start gap-3 rounded-[var(--radius-md)] border border-s-[3px] border-[var(--warning-line)] border-s-[color:var(--warning)] bg-[var(--warning-soft)] px-4 py-3">
-            <AlertTriangle size={18} className="mt-0.5 shrink-0 text-[var(--warning-ink)]" aria-hidden="true" />
-            <p className="text-sm font-medium text-[var(--text-primary)]">
-              {t(
-                confusionWarning.kind === "otherClasses"
-                  ? "aiAnalyses.run.confusion.otherClasses"
-                  : confusionWarning.negative
-                    ? "aiAnalyses.run.confusion.missedGliomaNegative"
-                    : "aiAnalyses.run.confusion.missedGlioma",
-                {
-                  class: t(`aiAnalyses.classes.${confusionWarning.predicted}`),
-                  count: isolate(integer.format(confusionWarning.count)),
-                  total: isolate(integer.format(confusionWarning.total)),
-                },
-              )}
-            </p>
-          </div>
-        ) : null}
-
-        <div className="grid gap-5 xl:grid-cols-[minmax(0,1.4fr)_minmax(20rem,.8fr)]">
-          <section aria-labelledby="ai-run-image" className="surface-section min-w-0 overflow-hidden border-t-2 border-t-[var(--specialty-brain)]">
-            <header className="flex flex-wrap items-start justify-between gap-3 border-b border-[var(--border)] bg-[var(--surface-muted)] px-5 py-4">
-              <div className="flex items-start gap-3">
-                <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-[var(--radius-sm)] border border-[var(--ai-line)] bg-[var(--ai-soft)] text-[var(--ai)]">
-                  <ScanLine size={17} strokeWidth={1.8} aria-hidden="true" />
-                </span>
-                <div>
-                  <h2 id="ai-run-image" className="text-base font-semibold text-[var(--text-primary)]">
-                    {t("aiAnalyses.run.image")}
-                  </h2>
-                  <p className="mt-1 max-w-2xl text-xs leading-5 text-[var(--text-secondary)]">{t("aiAnalyses.run.imageHint")}</p>
-                </div>
-              </div>
-              <span className="rounded-full border border-[var(--ai-line)] bg-[var(--ai-soft)] px-2.5 py-1 text-[.68rem] font-semibold text-[var(--ai)]">{t("aiAnalyses.run.imageBadge")}</span>
-            </header>
-            <div className="p-3 sm:p-4">
-              <ImageViewer
-                blob={imageQuery.data ?? null}
-                fileName={imageName}
-                module="brain"
-                overlay={maskQuery.data ? { color: "var(--ai-module-color)", opacity: 0.4, src: maskQuery.data } : undefined}
-                placeholder={imageQuery.isError ? t("aiAnalyses.run.imageError") : t("aiAnalyses.run.imageLoading")}
-                t={t}
-              />
-            </div>
-          </section>
-
-          <div className="space-y-5">
-            <section aria-labelledby="ai-run-probabilities" className="surface-section p-5">
-              <h2 id="ai-run-probabilities" className="text-base font-semibold text-[var(--text-primary)]">
-                {t("aiAnalyses.run.probabilities")}
-              </h2>
-              <p className="mt-1 text-xs text-[var(--text-secondary)]">{t("aiAnalyses.run.probabilitiesHint")}</p>
-              <ol className="mt-4 space-y-3">
-                {predictions.map((prediction, index) => (
-                  <li key={prediction.label}>
-                    <div className="flex items-baseline justify-between gap-3 text-sm">
-                      <span className={index === 0 ? "font-semibold text-[var(--text-primary)]" : "text-[var(--text-secondary)]"}>
-                        {t(`aiAnalyses.classes.${prediction.label}`)}
-                        {index === 0 ? <span className="ms-2 text-xs font-medium text-[var(--medical)]">— {t("aiAnalyses.run.topClass")}</span> : null}
-                      </span>
-                      <bdi dir="ltr" className="font-[var(--font-auth-mono)] tabular-nums text-[var(--text-primary)]">
-                        {percent.format(prediction.probability)}
-                      </bdi>
-                    </div>
-                    <div className="mt-1.5 h-2 overflow-hidden rounded-full bg-[var(--line-soft)]" dir="ltr">
-                      <div
-                        className="h-full rounded-full bg-[var(--specialty-brain)]"
-                        style={{ width: `${Math.max(0, Math.min(100, prediction.probability * 100))}%` }}
-                      />
-                    </div>
-                  </li>
-                ))}
-              </ol>
-              {evaluationApplies ? (
-                <p className="mt-4 text-xs leading-5 text-[var(--text-secondary)]">
-                  {probabilityCeiling.unreachedThreshold !== null
-                    ? t("aiAnalyses.run.probabilityCeiling", {
-                        target: isolate(percent.format(probabilityCeiling.target)),
-                        threshold: isolate(percent.format(probabilityCeiling.unreachedThreshold)),
-                      })
-                    : t("aiAnalyses.run.probabilityCeilingNoBound", {
-                        target: isolate(percent.format(probabilityCeiling.target)),
-                      })}
-                </p>
-              ) : null}
-            </section>
-
-            <section aria-labelledby="ai-run-segmentation" className="surface-section p-5">
-              <h2 id="ai-run-segmentation" className="text-base font-semibold text-[var(--text-primary)]">
-                {t("aiAnalyses.run.segmentation")}
-              </h2>
-              {run.hasMask && run.maskAreaPx !== null && run.maskAreaRatio !== null ? (
-                <>
-                  <dl className="mt-3 grid grid-cols-2 gap-3">
-                    <div className="rounded-[var(--radius-sm)] border border-[var(--line-soft)] p-3">
-                      <dt className="text-xs text-[var(--text-secondary)]">{t("aiAnalyses.run.areaPixelsLabel")}</dt>
-                      <dd className="mt-1 font-[var(--font-auth-mono)] text-lg font-semibold tabular-nums">
-                        {t("aiAnalyses.run.areaPx", { value: integer.format(run.maskAreaPx) })}
-                      </dd>
-                    </div>
-                    <div className="rounded-[var(--radius-sm)] border border-[var(--line-soft)] p-3">
-                      <dt className="text-xs text-[var(--text-secondary)]">{t("aiAnalyses.run.areaRatioLabel")}</dt>
-                      <dd className="mt-1 font-[var(--font-auth-mono)] text-lg font-semibold tabular-nums">
-                        {t("aiAnalyses.run.areaRatio", { value: percent.format(run.maskAreaRatio) })}
-                      </dd>
-                    </div>
-                  </dl>
-                  <p className="mt-3 text-xs leading-5 text-[var(--text-secondary)]">{t("aiAnalyses.run.areaNote")}</p>
-                </>
-              ) : run.segmentationSkippedReason ? (
-                <p className="mt-3 text-sm leading-6 text-[var(--text-secondary)]">
-                  {t(`aiAnalyses.run.skipped.${run.segmentationSkippedReason}`)}
-                </p>
-              ) : (
-                <p className="mt-3 text-sm text-[var(--text-secondary)]">{t("aiAnalyses.run.none")}</p>
-              )}
-            </section>
-          </div>
-        </div>
+        {run.pipeline === "pathology-breast" ? (
+          <BreastResult {...imageProps} run={run} />
+        ) : run.pipeline === "pathology-nuclei" ? (
+          <NucleiResult {...imageProps} overlayBlob={overlayQuery.data} patientId={patientId} run={run} />
+        ) : (
+          <BrainResult {...imageProps} maskBlob={maskQuery.data} run={run} />
+        )}
 
         <AiRunDecisionPanel locale={locale} patientId={patientId} run={run} t={t} />
 
@@ -330,14 +169,40 @@ export function AiAnalysisRunPage({ accountType, patientId, runId }: AiAnalysisR
               {t("aiAnalyses.run.traceability")}
             </h2>
             <dl className="mt-3 grid grid-cols-[minmax(0,10rem)_minmax(0,1fr)] gap-x-4 gap-y-2 text-sm">
-              <dt className="text-[var(--text-secondary)]">{t("aiAnalyses.run.classificationModel")}</dt>
-              <dd className="break-words">{classifier ? t(`aiAnalyses.models.${classifier.id}.name`) : run.classificationModelId}</dd>
-              <dt className="text-[var(--text-secondary)]">{t("aiAnalyses.run.weights")}</dt>
-              <dd><bdi dir="ltr" className="font-[var(--font-auth-mono)]">{shortSha256(run.classificationWeightsSha256) ?? t("aiAnalyses.run.none")}</bdi></dd>
-              <dt className="text-[var(--text-secondary)]">{t("aiAnalyses.run.segmentationModel")}</dt>
-              <dd className="break-words">{segmenter ? t(`aiAnalyses.models.${segmenter.id}.name`) : run.segmentationModelId ?? t("aiAnalyses.run.none")}</dd>
-              <dt className="text-[var(--text-secondary)]">{t("aiAnalyses.run.weights")}</dt>
-              <dd><bdi dir="ltr" className="font-[var(--font-auth-mono)]">{shortSha256(run.segmentationWeightsSha256) ?? t("aiAnalyses.run.none")}</bdi></dd>
+              <dt className="text-[var(--text-secondary)]">{t("aiAnalyses.run.pipeline")}</dt>
+              <dd className="break-words">{t(`aiAnalyses.pipelines.${run.pipeline}.name`)}</dd>
+              {run.pipeline === "brain" ? (
+                <>
+                  <dt className="text-[var(--text-secondary)]">{t("aiAnalyses.run.classificationModel")}</dt>
+                  <dd className="break-words">{classifier ? t(`aiAnalyses.models.${classifier.id}.name`) : run.classificationModelId}</dd>
+                  <dt className="text-[var(--text-secondary)]">{t("aiAnalyses.run.weights")}</dt>
+                  <dd><bdi dir="ltr" className="font-[var(--font-auth-mono)]">{shortSha256(run.classificationWeightsSha256) ?? t("aiAnalyses.run.none")}</bdi></dd>
+                  <dt className="text-[var(--text-secondary)]">{t("aiAnalyses.run.segmentationModel")}</dt>
+                  <dd className="break-words">{segmenter ? t(`aiAnalyses.models.${segmenter.id}.name`) : run.segmentationModelId ?? t("aiAnalyses.run.none")}</dd>
+                  <dt className="text-[var(--text-secondary)]">{t("aiAnalyses.run.weights")}</dt>
+                  <dd><bdi dir="ltr" className="font-[var(--font-auth-mono)]">{shortSha256(run.segmentationWeightsSha256) ?? t("aiAnalyses.run.none")}</bdi></dd>
+                </>
+              ) : (
+                // One model per pathology chain: the classifier (breast) or the segmenter (nuclei).
+                <>
+                  <dt className="text-[var(--text-secondary)]">{t("aiAnalyses.run.model")}</dt>
+                  <dd className="break-words">
+                    {usedModels[0] ? t(`aiAnalyses.models.${usedModels[0].id}.name`) : run.classificationModelId ?? run.segmentationModelId ?? t("aiAnalyses.run.none")}
+                  </dd>
+                  <dt className="text-[var(--text-secondary)]">{t("aiAnalyses.run.weights")}</dt>
+                  <dd>
+                    <bdi dir="ltr" className="font-[var(--font-auth-mono)]">
+                      {shortSha256(run.classificationWeightsSha256 ?? run.segmentationWeightsSha256) ?? t("aiAnalyses.run.none")}
+                    </bdi>
+                  </dd>
+                  <dt className="text-[var(--text-secondary)]">{t("aiAnalyses.run.magnification")}</dt>
+                  <dd>
+                    {run.magnification === null
+                      ? t("aiAnalyses.run.none")
+                      : <bdi dir="ltr">{t("aiAnalyses.run.magnificationValue", { value: run.magnification })}</bdi>}
+                  </dd>
+                </>
+              )}
               <dt className="text-[var(--text-secondary)]">{t("aiAnalyses.run.duration")}</dt>
               <dd>{run.durationMs === null ? t("aiAnalyses.run.none") : t("aiAnalyses.run.durationValue", { value: decimal.format(run.durationMs / 1000) })}</dd>
               <dt className="text-[var(--text-secondary)]">{t("aiAnalyses.run.runDate")}</dt>
@@ -385,7 +250,7 @@ export function AiAnalysisRunPage({ accountType, patientId, runId }: AiAnalysisR
         <header className="workspace-intro">
           <div className="min-w-0">
             <p className="mb-2 text-xs font-medium text-[var(--medical)]">{t("aiAnalyses.run.context")}</p>
-            <h1 className="break-words">{t("aiAnalyses.pipelines.brain.name")}</h1>
+            <h1 className="break-words">{pipeline ? t(`aiAnalyses.pipelines.${pipeline.id}.name`) : t("aiAnalyses.run.breadcrumb")}</h1>
             <p className="mt-1 text-sm text-[var(--text-secondary)]">
               {t("aiAnalyses.run.patient", { name: patientName })}
               {run ? <> · {t("aiAnalyses.run.date", { date: formatPatientDateTime(run.createdAt, locale) })}</> : null}
@@ -397,8 +262,11 @@ export function AiAnalysisRunPage({ accountType, patientId, runId }: AiAnalysisR
             ) : null}
           </div>
           <div className="flex flex-wrap gap-2">
-            {run ? (
-              <Link href={`${roleBase}/ai-analyses/new?pipeline=brain&patient=${encodeURIComponent(patientId)}`} className="clinical-button clinical-button-primary">
+            {run && pipeline ? (
+              <Link
+                href={`${roleBase}/ai-analyses/new?pipeline=${encodeURIComponent(pipeline.id)}&patient=${encodeURIComponent(patientId)}`}
+                className="clinical-button clinical-button-primary"
+              >
                 {t("aiAnalyses.run.newAnalysis")}
               </Link>
             ) : null}

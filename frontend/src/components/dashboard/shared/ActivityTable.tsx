@@ -49,6 +49,7 @@ export function ActivityTable({ analyses, roleBase, locale, t, timeZone }: {
               <tr className="text-start font-[family-name:var(--font-auth-mono)] text-[0.66rem] uppercase tracking-[0.14em] text-[var(--ink-faint)]">
                 <th scope="col" className="px-6 py-4 font-medium">{t("dashboard.clinical.recent.columns.date")}</th>
                 <th scope="col" className="px-6 py-4 font-medium">{t("dashboard.clinical.recent.columns.patient")}</th>
+                <th scope="col" className="px-6 py-4 font-medium">{t("dashboard.clinical.recent.columns.pipeline")}</th>
                 <th scope="col" className="px-6 py-4 font-medium">{t("dashboard.clinical.recent.columns.modelClass")}</th>
                 <th scope="col" className="px-6 py-4 font-medium">{t("dashboard.clinical.recent.columns.decision")}</th>
                 <th scope="col" className="px-6 py-4 font-medium"><span className="sr-only">{t("dashboard.clinical.recent.columns.result")}</span></th>
@@ -63,6 +64,7 @@ export function ActivityTable({ analyses, roleBase, locale, t, timeZone }: {
                   <tr key={run.id} className="border-t border-[var(--line-soft)] text-[var(--ink-soft)] transition hover:bg-[var(--panel-soft)]/70">
                     <td className="clinical-figure whitespace-nowrap px-6 py-4">{date}</td>
                     <td className="px-6 py-4 font-medium text-[var(--ink)]">{name}</td>
+                    <td className="px-6 py-4">{t(`aiAnalyses.pipelines.${run.pipeline}.name`)}</td>
                     <td className="px-6 py-4">{run.modelLabel ? t(`aiAnalyses.classes.${run.modelLabel}`) : t("dashboard.clinical.recent.noClass")}</td>
                     <td className="min-w-[140px] px-6 py-4">
                       <span className="inline-flex items-center gap-1.5">

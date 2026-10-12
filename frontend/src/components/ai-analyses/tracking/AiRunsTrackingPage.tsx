@@ -1,6 +1,6 @@
 "use client";
 
-import { ArrowLeft } from "lucide-react";
+import { ArrowLeft, BarChart3, ClipboardList, ShieldCheck } from "lucide-react";
 import Link from "next/link";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 
@@ -66,22 +66,35 @@ export function AiRunsTrackingPage({ accountType }: AiRunsTrackingPageProps) {
       breadcrumbLabel={t("aiAnalyses.tracking.breadcrumb")}
       titleKey="aiAnalyses.tracking.title"
     >
-      <div className="workspace-stack">
-        <header className="workspace-intro">
-          <div className="min-w-0">
-            <p className="mb-2 text-xs font-medium text-[var(--medical)]">{t("aiAnalyses.tracking.context")}</p>
-            <h1 className="break-words">{t("aiAnalyses.tracking.title")}</h1>
-            <p className="mt-1 max-w-3xl text-sm text-[var(--text-secondary)]">{t("aiAnalyses.tracking.subtitle")}</p>
+      <div className="space-y-6">
+        <section className="surface-section surface-raised relative overflow-hidden border-t-2 border-t-[var(--medical)]">
+          <div className="grid gap-6 px-5 py-6 lg:grid-cols-[minmax(0,1fr)_auto] lg:items-center lg:px-7">
+            <div className="flex min-w-0 items-start gap-4">
+              <span className="flex h-12 w-12 shrink-0 items-center justify-center rounded-[var(--radius-md)] bg-[var(--medical-soft)] text-[var(--medical)] ring-1 ring-[var(--accent-line)]">
+                <ClipboardList className="h-5 w-5" strokeWidth={1.7} aria-hidden="true" />
+              </span>
+              <div className="min-w-0">
+                <span className="inline-flex items-center gap-1.5 text-[0.7rem] font-semibold uppercase tracking-[0.12em] text-[var(--medical)]">
+                  <ShieldCheck className="h-3.5 w-3.5" strokeWidth={1.8} aria-hidden="true" />
+                  {t("aiAnalyses.tracking.context")}
+                </span>
+                <h1 className="mt-1.5 break-words text-2xl font-semibold tracking-[-0.02em] text-[var(--ink)] sm:text-[1.75rem]">
+                  {t("aiAnalyses.tracking.title")}
+                </h1>
+                <p className="mt-2 max-w-3xl text-sm leading-6 text-[var(--ink-soft)]">{t("aiAnalyses.tracking.subtitle")}</p>
+              </div>
+            </div>
+            <Link href={`${roleBase}/ai-analyses`} className="clinical-button bg-[var(--panel)] lg:justify-self-end">
+              <ArrowLeft size={16} strokeWidth={1.8} aria-hidden="true" className="clinical-directional" />
+              {t("aiAnalyses.tracking.backToHub")}
+            </Link>
           </div>
-          <Link href={`${roleBase}/ai-analyses`} className="clinical-button">
-            <ArrowLeft size={16} strokeWidth={1.8} aria-hidden="true" className="clinical-directional" />
-            {t("aiAnalyses.tracking.backToHub")}
-          </Link>
-        </header>
+        </section>
 
-        <nav aria-label={t("aiAnalyses.tracking.tabsLabel")} className="flex flex-wrap gap-1 border-b border-[var(--border)]">
+        <nav aria-label={t("aiAnalyses.tracking.tabsLabel")} className="surface-section grid gap-1.5 p-1.5 sm:grid-cols-2">
           {TRACKING_TABS.map((tab) => {
             const isCurrent = state.tab === tab;
+            const Icon = tab === "worklist" ? ClipboardList : BarChart3;
             return (
               <Link
                 key={tab}
@@ -90,13 +103,28 @@ export function AiRunsTrackingPage({ accountType }: AiRunsTrackingPageProps) {
                 scroll={false}
                 aria-current={isCurrent ? "page" : undefined}
                 className={cn(
-                  "-mb-px border-b-2 px-4 py-2.5 text-sm font-medium",
+                  "group flex min-w-0 items-center gap-3 rounded-[var(--radius-sm)] border px-4 py-3.5 transition",
                   isCurrent
-                    ? "border-[var(--accent)] text-[var(--text-primary)]"
-                    : "border-transparent text-[var(--text-secondary)] hover:text-[var(--text-primary)]",
+                    ? "border-[var(--accent-line)] bg-[var(--accent-soft)] text-[var(--accent-dark)] shadow-sm"
+                    : "border-transparent text-[var(--ink-soft)] hover:border-[var(--line)] hover:bg-[var(--panel-soft)] hover:text-[var(--ink)]",
                 )}
               >
-                {t(`aiAnalyses.tracking.tabs.${tab}`)}
+                <span className={cn(
+                  "flex h-9 w-9 shrink-0 items-center justify-center rounded-[var(--radius-sm)] ring-1",
+                  isCurrent
+                    ? "bg-[var(--panel)] text-[var(--medical)] ring-[var(--accent-line)]"
+                    : "bg-[var(--panel-soft)] text-[var(--ink-faint)] ring-[var(--line)] group-hover:text-[var(--medical)]",
+                )}>
+                  <Icon className="h-4 w-4" strokeWidth={1.8} aria-hidden="true" />
+                </span>
+                <span className="min-w-0">
+                  <span className="block text-sm font-semibold">{t(`aiAnalyses.tracking.tabs.${tab}`)}</span>
+                  <span className="mt-0.5 hidden truncate text-xs font-normal text-[var(--ink-faint)] md:block">
+                    {tab === "worklist"
+                      ? t("aiAnalyses.tracking.worklist.caption")
+                      : t("aiAnalyses.tracking.agreement.help")}
+                  </span>
+                </span>
               </Link>
             );
           })}

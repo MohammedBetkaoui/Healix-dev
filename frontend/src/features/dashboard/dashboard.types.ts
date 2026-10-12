@@ -1,5 +1,7 @@
 // GET /dashboard/overview (backend/src/dashboard/dashboard-overview.dto.ts).
 
+import { type AiPipelineId } from "@/features/ai-analyses/ai-analyses.types";
+
 export type DashboardPatientName = {
   firstName: string;
   firstNameAr: string;
@@ -31,6 +33,9 @@ export type DashboardRecentAnalysis = {
   id: string;
   createdAt: string;
   status: "RUNNING" | "SUCCEEDED" | "FAILED" | "REJECTED_INPUT";
+  /** The analysis chain (brain, pathology-breast, pathology-nuclei). */
+  pipeline: AiPipelineId;
+  /** The model's answer: brain top class, BreakHis result; null for a nuclei map. */
   modelLabel: string | null;
   decision: "VALIDATED" | "CORRECTED" | "REJECTED" | null;
   decisionLabel: string | null;

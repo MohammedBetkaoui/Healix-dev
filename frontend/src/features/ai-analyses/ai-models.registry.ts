@@ -1,4 +1,4 @@
-import { type AiDatasetKey, type AiModel, type AiModelMetric, type AiPipeline } from "./ai-analyses.types";
+import { type AiDatasetKey, type AiModel, type AiModelMetric, type AiPipeline, type AiPipelineId } from "./ai-analyses.types";
 import {
   brainClassificationEvaluation,
   brainClassLabels,
@@ -6,19 +6,39 @@ import {
   brainSegmentationEvaluation,
   type BrainSegmentationEvaluation,
 } from "./brain-evaluation";
+import {
+  breakhisEvaluation,
+  pannukeEvaluation,
+  pannukeEvaluationSource,
+  pannukeNotebookValidation,
+  pathologyEvaluationSource,
+} from "./pathology-evaluation";
 
 // Single source of truth of the AI models shown in HealixDZ. The metrics of
-// the three deployed brain models are measured on the service itself
-// (brain-evaluation.ts, source "evaluation"); the few other figures are read
-// from the training notebooks (source "notebook"); the other facts come from
-// the model team. Only what was provided is filled in: every other fact stays
-// null and the UI shows "non renseigné". No metric may be added without its
-// source (see ai-models.registry.test.ts).
+// the deployed models are measured on the service itself (brain-evaluation.ts,
+// pathology-evaluation.ts: source "evaluation"); the few other figures are
+// read from the training notebooks (source "notebook"); the other facts come
+// from the model team. Only what was provided is filled in: every other fact
+// stays null and the UI shows "non renseigné". No metric may be added without
+// its source (see ai-models.registry.test.ts).
 // Names and intended uses are translated under aiAnalyses.models.<id>.
 
 const classification = brainClassificationEvaluation;
 const { meningioma, pituitary } = brainSegmentationEvaluation;
 const serviceEvaluation = { date: brainEvaluationSource.date, report: brainEvaluationSource.report };
+const pathologyServiceEvaluation = { date: pathologyEvaluationSource.date, report: pathologyEvaluationSource.report };
+const pannukeServiceEvaluation = { date: pannukeEvaluationSource.date, report: pannukeEvaluationSource.report };
+
+// BreakHis at the service's threshold, with 4 views, on the test patients:
+// intervals from resampling the patients.
+const breakhisMeasured = { approximate: false, dataset: "breakhisTest", source: "evaluation" } as const;
+const breakhisMetrics = [
+  { key: "breakhisAccuracy", value: breakhisEvaluation.accuracy.value, ci95: breakhisEvaluation.accuracy.ci95, unit: "percent", ...breakhisMeasured },
+  { key: "breakhisSensitivity", value: breakhisEvaluation.sensitivity.value, ci95: breakhisEvaluation.sensitivity.ci95, unit: "percent", ...breakhisMeasured },
+  { key: "breakhisSpecificity", value: breakhisEvaluation.specificity.value, ci95: breakhisEvaluation.specificity.ci95, unit: "percent", ...breakhisMeasured },
+  { key: "breakhisPrecision", value: breakhisEvaluation.precision.value, ci95: breakhisEvaluation.precision.ci95, unit: "percent", ...breakhisMeasured },
+  { key: "breakhisAucRoc", value: breakhisEvaluation.aucRoc.value, ci95: breakhisEvaluation.aucRoc.ci95, unit: "score", ...breakhisMeasured },
+] as const satisfies readonly AiModelMetric[];
 
 // Mean Dice with its interval first (the main metric); median, sensitivity
 // and IoU in the model sheet.
@@ -37,6 +57,8 @@ export const datasetSizes: Partial<Record<AiDatasetKey, number>> = {
   brainClassificationTest: classification.testImages,
   meningiomaTest: meningioma.testImages,
   pituitaryTest: pituitary.testImages,
+  breakhisTest: breakhisEvaluation.n,
+  pannukeTest: pannukeEvaluationSource.images,
 };
 
 export const aiModels = [
@@ -51,6 +73,7 @@ export const aiModels = [
     acceptedFormats: ["png", "jpeg"],
     // The model's raw output labels, in index order.
     outputClasses: ["glioma", "meningioma", "notumor", "pituitary"],
+    inputConstraints: null,
     // Test accuracy of the service (one pass) first: it is the main metric.
     metrics: [
       {
@@ -100,6 +123,7 @@ export const aiModels = [
     inputModality: "brainMriT1ceFlairT2Composite",
     acceptedFormats: null,
     outputClasses: ["glioma"],
+    inputConstraints: null,
     metrics: [
       { key: "validationDice", value: 0.8976, ci95: null, unit: "score", approximate: false, dataset: "gliomaValidation", source: "notebook" },
     ],
@@ -122,6 +146,7 @@ export const aiModels = [
     inputModality: "brainMri",
     acceptedFormats: ["png", "jpeg"],
     outputClasses: ["meningioma"],
+    inputConstraints: null,
     metrics: segmentationMetrics(meningioma, "meningiomaTest"),
     classMetrics: null,
     classMetricsDataset: null,
@@ -141,6 +166,7 @@ export const aiModels = [
     inputModality: "brainMri",
     acceptedFormats: ["png", "jpeg"],
     outputClasses: ["pituitary"],
+    inputConstraints: null,
     metrics: segmentationMetrics(pituitary, "pituitaryTest"),
     classMetrics: null,
     classMetricsDataset: null,
@@ -161,6 +187,7 @@ export const aiModels = [
     inputModality: "brainMriT1ceToFlair",
     acceptedFormats: null,
     outputClasses: [],
+    inputConstraints: null,
     metrics: null,
     classMetrics: null,
     classMetricsDataset: null,
@@ -181,6 +208,7 @@ export const aiModels = [
     inputModality: "chestXray",
     acceptedFormats: null,
     outputClasses: ["normal", "cardiomegaly", "effusion", "edema"],
+    inputConstraints: null,
     metrics: null,
     classMetrics: null,
     classMetricsDataset: null,
@@ -201,6 +229,7 @@ export const aiModels = [
     inputModality: "cardiacCineMri",
     acceptedFormats: null,
     outputClasses: ["leftVentricle", "rightVentricle", "myocardium"],
+    inputConstraints: null,
     metrics: null,
     classMetrics: null,
     classMetricsDataset: null,
@@ -220,6 +249,7 @@ export const aiModels = [
     inputModality: "cardiacCt",
     acceptedFormats: null,
     outputClasses: [],
+    inputConstraints: null,
     metrics: null,
     classMetrics: null,
     classMetricsDataset: null,
@@ -232,73 +262,137 @@ export const aiModels = [
   },
   // --- Pathology -------------------------------------------------------------
   {
-    id: "pathology-hovernet-nuclei-segmentation",
-    module: "pathology",
-    version: null,
-    architecture: "HoVer-Net",
-    task: "segmentation",
-    inputModality: "histopathology",
-    acceptedFormats: null,
-    outputClasses: ["nuclei"],
-    metrics: null,
-    classMetrics: null,
-    classMetricsDataset: null,
-    confusionMatrix: null,
-    evaluation: null,
-    trainingData: null,
-    knownLimitations: ["notCertified", "undocumentedPerformance"],
-    underrepresentedPopulations: null,
-    status: "exploring",
-  },
-  {
     id: "pathology-breakhis-classification",
     module: "pathology",
     version: null,
-    architecture: null,
+    architecture: "EfficientNetB0",
     task: "classification",
-    // BreakHis is a breast histopathology image dataset.
-    inputModality: "histopathology",
-    acceptedFormats: null,
-    outputClasses: [],
-    metrics: null,
+    inputModality: "breastHistopathologyHe",
+    acceptedFormats: ["png", "jpeg"],
+    // The model's two results; the score is compared with a calibrated threshold.
+    outputClasses: ["benign", "malignant"],
+    inputConstraints: null,
+    metrics: breakhisMetrics,
+    classMetrics: null,
+    classMetricsDataset: null,
+    confusionMatrix: { labels: ["benign", "malignant"], matrix: breakhisEvaluation.confusionMatrix },
+    evaluation: pathologyServiceEvaluation,
+    trainingData: "BreakHis",
+    knownLimitations: [
+      "notCertified",
+      "internalValidation",
+      "fewTestPatients",
+      "uncalibratedScore",
+      "breastHeOnly",
+      "magnificationDependent",
+    ],
+    underrepresentedPopulations: null,
+    status: "available",
+  },
+  {
+    id: "pathology-unet-pannuke-segmentation",
+    module: "pathology",
+    version: null,
+    architecture: "U-Net (encodeur EfficientNetB0)",
+    task: "segmentation",
+    inputModality: "histopathologyHe40x",
+    acceptedFormats: ["png", "jpeg"],
+    outputClasses: ["neoplastic", "inflammatory", "connective", "dead", "epithelial"],
+    // ai-service: 422 under 256 px on a side, over 4096 px (AI_NUCLEI_MAX_SIDE).
+    inputConstraints: { minSide: 256, maxSide: 4096 },
+    // The test measure first, once there is one; the notebook's validation
+    // figure stays marked as such.
+    metrics: [
+      ...(pannukeEvaluation === null
+        ? []
+        : [
+            {
+              key: "testNucleiDice",
+              value: pannukeEvaluation.nucleiMeanDice,
+              ci95: null,
+              unit: "score",
+              approximate: false,
+              dataset: "pannukeTest",
+              source: "evaluation",
+            } as const,
+          ]),
+      {
+        key: "validationNucleiDice",
+        value: pannukeNotebookValidation.nucleiMeanDice,
+        ci95: null,
+        unit: "score",
+        approximate: false,
+        dataset: "pannukeValidationFold2",
+        source: "notebook",
+      },
+    ],
     classMetrics: null,
     classMetricsDataset: null,
     confusionMatrix: null,
-    evaluation: null,
-    trainingData: "BreakHis",
-    knownLimitations: ["notCertified", "undocumentedPerformance"],
+    evaluation: pannukeEvaluation === null ? null : pannukeServiceEvaluation,
+    trainingData: "PanNuke",
+    knownLimitations: [
+      "notCertified",
+      "semanticNotInstances",
+      "deadUnreliable",
+      "he40xOnly",
+      ...(pannukeEvaluation === null ? (["testEvaluationPending"] as const) : []),
+    ],
     underrepresentedPopulations: null,
-    status: "exploring",
+    status: "available",
   },
 ] as const satisfies readonly AiModel[];
 
 export type AiModelId = (typeof aiModels)[number]["id"];
 
-// The launchable chains. Their models stay visible on the hub as components;
-// only the pipeline itself is started (ai-service routes the same way).
+// The launchable chains, never run one after another. Their models stay
+// visible on the hub; only the pipeline itself is started (ai-service routes
+// the brain chain the same way).
 export const aiPipelines = [
   {
     id: "brain",
     module: "brain",
-    classifierId: "brain-efficientnetb4-tumor-classification",
+    kind: "routed",
+    entryModelId: "brain-efficientnetb4-tumor-classification",
     segmenterByClass: {
       meningioma: "brain-unet-meningioma-segmentation",
       pituitary: "brain-unet-pituitary-segmentation",
     },
   },
+  {
+    id: "pathology-breast",
+    module: "pathology",
+    kind: "single",
+    entryModelId: "pathology-breakhis-classification",
+    segmenterByClass: {},
+  },
+  {
+    id: "pathology-nuclei",
+    module: "pathology",
+    kind: "single",
+    entryModelId: "pathology-unet-pannuke-segmentation",
+    segmenterByClass: {},
+  },
 ] as const satisfies readonly AiPipeline[];
+
+/** The steps the hub lists for each chain (aiAnalyses.pipelines.<id>.steps.<step>). */
+export const pipelineSteps: Readonly<Record<AiPipelineId, readonly string[]>> = {
+  brain: ["classify", "segmentMeningioma", "segmentPituitary"],
+  "pathology-breast": ["views", "threshold"],
+  "pathology-nuclei": ["tiles", "classes"],
+};
 
 export function findModel(modelId: string | null | undefined): AiModel | undefined {
   return aiModels.find((model) => model.id === modelId);
 }
 
 /**
- * Compatibility helper for old consumers. Only a pipeline classifier is a
+ * Compatibility helper for old consumers. Only a pipeline's entry model is a
  * launch entry point; conditional segmenters must never be launched alone.
  */
 export function findLaunchableModel(modelId: string | undefined) {
   const pipeline = pipelineForLegacyModel(modelId);
-  return pipeline?.classifierId === modelId
+  return pipeline?.entryModelId === modelId
     ? aiModels.find((model) => model.id === modelId && model.status === "available")
     : undefined;
 }
@@ -311,9 +405,9 @@ export function findPipeline(pipelineId: string | undefined): AiPipeline | undef
 /** Where a model sits in a pipeline, or null when it is in none. */
 export function getPipelineRole(
   modelId: string,
-): { pipeline: AiPipeline; role: "classifier" } | { pipeline: AiPipeline; role: "segmenter"; classKey: string } | null {
+): { pipeline: AiPipeline; role: "entry" } | { pipeline: AiPipeline; role: "segmenter"; classKey: string } | null {
   for (const pipeline of aiPipelines) {
-    if (pipeline.classifierId === modelId) return { pipeline, role: "classifier" };
+    if (pipeline.entryModelId === modelId) return { pipeline, role: "entry" };
     const entry = Object.entries(pipeline.segmenterByClass).find(([, id]) => id === modelId);
     if (entry) return { pipeline, role: "segmenter", classKey: entry[0] };
   }

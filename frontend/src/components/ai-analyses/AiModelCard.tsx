@@ -9,7 +9,11 @@ import {
   type AiModelStatus,
 } from "@/features/ai-analyses/ai-analyses.types";
 import { isolate } from "@/features/ai-analyses/evaluation-presentation";
-import { formatAiMetricInterval, formatAiMetricValue } from "@/features/ai-analyses/format-ai-metric";
+import {
+  datasetLabelParams,
+  formatAiMetricInterval,
+  formatAiMetricValue,
+} from "@/features/ai-analyses/format-ai-metric";
 import { type Locale } from "@/i18n";
 import { type TranslationFunction } from "@/lib/i18n";
 import { cn } from "@/lib/utils";
@@ -102,6 +106,12 @@ export function AiModelCard({
             {mainMetric.ci95 ? (
               <p className="mt-0.5 text-xs tabular-nums text-[var(--text-secondary)]">
                 {t("aiAnalyses.evaluation.interval", { range: isolate(formatAiMetricInterval(mainMetric, locale) ?? "") })}
+              </p>
+            ) : null}
+            {/* A notebook figure always says which set it was read on (e.g. an optimistic validation fold). */}
+            {mainMetric.source === "notebook" && mainMetric.dataset ? (
+              <p className="mt-0.5 text-xs text-[var(--text-secondary)]">
+                {t(`aiAnalyses.datasets.${mainMetric.dataset}`, datasetLabelParams(mainMetric.dataset, locale))}
               </p>
             ) : null}
           </>

@@ -21,7 +21,7 @@ export const aiAnalysesFr = {
     },
     pathology: {
       title: "Pathologie",
-      description: "Histopathologie : modèles à l’étude.",
+      description: "Histopathologie : classification de lames du sein et carte des noyaux cellulaires.",
     },
   },
   statuses: {
@@ -49,8 +49,9 @@ export const aiAnalysesFr = {
     chestXray: "Radiographie thoracique",
     cardiacCineMri: "IRM cardiaque ciné",
     cardiacCt: "Scanner cardiaque",
-    histopathology: "Images d’histopathologie",
     brainMriT1ceFlairT2Composite: "Composite IRM 3 séquences (T1ce / FLAIR / T2)",
+    breastHistopathologyHe: "Histopathologie du sein, coloration H&E",
+    histopathologyHe40x: "Histopathologie, coloration H&E à 40×",
   },
   classes: {
     glioma: "Gliome",
@@ -64,7 +65,13 @@ export const aiAnalysesFr = {
     leftVentricle: "Ventricule gauche (VG)",
     rightVentricle: "Ventricule droit (VD)",
     myocardium: "Myocarde (MYO)",
-    nuclei: "Noyaux cellulaires",
+    benign: "Bénin",
+    malignant: "Malin",
+    neoplastic: "Néoplasique",
+    inflammatory: "Inflammatoire",
+    connective: "Conjonctif",
+    dead: "Mort",
+    epithelial: "Épithélial",
     other: "Autre (hors des classes du modèle)",
   },
   metrics: {
@@ -76,6 +83,13 @@ export const aiAnalysesFr = {
     testIou: "IoU moyen (test)",
     testSensitivity: "Sensibilité moyenne (test)",
     validationDice: "Dice (validation)",
+    breakhisAccuracy: "Exactitude (test, 4 vues, au seuil)",
+    breakhisSensitivity: "Sensibilité : malins reconnus (test)",
+    breakhisSpecificity: "Spécificité : bénins reconnus (test)",
+    breakhisPrecision: "Valeur prédictive positive (test)",
+    breakhisAucRoc: "AUC ROC (test)",
+    validationNucleiDice: "Dice moyen des 5 types de noyaux",
+    testNucleiDice: "Dice moyen des 5 types de noyaux (test)",
   },
   datasets: {
     crossValidation: "Validation croisée",
@@ -83,6 +97,9 @@ export const aiAnalysesFr = {
     meningiomaTest: "Test BRISC 2025, méningiomes ({count} images)",
     pituitaryTest: "Test BRISC 2025, tumeurs hypophysaires ({count} images)",
     gliomaValidation: "Jeu de validation",
+    breakhisTest: "Test BreakHis ({count} images)",
+    pannukeValidationFold2: "Validation PanNuke, Fold 2 (optimiste : sert au choix du modèle)",
+    pannukeTest: "Test PanNuke, Fold 3 ({count} images)",
   },
   limitations: {
     notCertified: "Non certifié comme dispositif médical : aide à la décision uniquement.",
@@ -95,6 +112,20 @@ export const aiAnalysesFr = {
       "Analyse d’images 2D : le contexte volumique de l’examen (autres coupes) n’est pas pris en compte.",
     lowerGliomaRecall: "Rappel plus faible sur les gliomes : {recall} sur le jeu de test.",
     targetTumourOnly: "Évalué uniquement sur des images contenant la tumeur visée.",
+    fewTestPatients:
+      "Jeu de test réduit : {patients} patients, dont {benign} bénins ; les IC 95 %, calculés par patient, sont larges.",
+    uncalibratedScore:
+      "Score non calibré : il se lit seulement par rapport au seuil de décision, jamais comme un pourcentage.",
+    breastHeOnly:
+      "Entraîné uniquement sur des lames de sein colorées à l’H&E (BreakHis) : un autre organe ou une autre coloration sort de son domaine.",
+    magnificationDependent:
+      "Performances différentes selon le grossissement : celui indiqué doit être celui de l’image.",
+    semanticNotInstances:
+      "Segmentation sémantique : des surfaces par type, pas un compte de noyaux ; des noyaux accolés ne sont pas séparés.",
+    deadUnreliable: "Type « mort » non fiable : rare dans PanNuke et mal segmenté.",
+    he40xOnly:
+      "Entraîné sur des images H&E à 40× (PanNuke) : à un autre grossissement ou avec une autre coloration, les surfaces sont faussées.",
+    testEvaluationPending: "Performance non encore mesurée sur un jeu de test indépendant.",
   },
   models: {
     "brain-efficientnetb4-tumor-classification": {
@@ -132,13 +163,15 @@ export const aiAnalysesFr = {
       name: "CT Heart",
       intendedUse: "Prévu : segmentation cardiaque sur scanner.",
     },
-    "pathology-hovernet-nuclei-segmentation": {
-      name: "HoVer-Net",
-      intendedUse: "À l’étude : segmentation des noyaux cellulaires sur images d’histopathologie.",
-    },
     "pathology-breakhis-classification": {
-      name: "BreakHis",
-      intendedUse: "À l’étude : classification d’images d’histopathologie.",
+      name: "EfficientNetB0 BreakHis",
+      intendedUse:
+        "Aide au classement d’une image d’histopathologie du sein colorée à l’H&E, bénin ou malin, à un grossissement connu (40×, 100×, 200× ou 400×).",
+    },
+    "pathology-unet-pannuke-segmentation": {
+      name: "U-Net PanNuke",
+      intendedUse:
+        "Aide à la lecture d’une image H&E à 40× : carte des noyaux cellulaires par type (néoplasique, inflammatoire, conjonctif, mort, épithélial).",
     },
   },
   card: {
@@ -153,8 +186,9 @@ export const aiAnalysesFr = {
     openSheetFor: "Fiche modèle : {name}",
     comingSoon: "Bientôt",
     pipelineRole: {
-      classifier: "Étape 1 de l’analyse cérébrale : toujours exécuté.",
+      entry: "Étape 1 de l’analyse cérébrale : toujours exécuté.",
       segmenter: "Étape 2 de l’analyse cérébrale : uniquement si la classe prédite est « {class} ».",
+      single: "Seul modèle de la chaîne « {pipeline} ».",
     },
   },
   pipelines: {
@@ -170,6 +204,26 @@ export const aiAnalysesFr = {
         segmentPituitary: "Segmentation de la tumeur hypophysaire, si cette classe est prédite",
       },
       launch: "Lancer l’analyse cérébrale",
+    },
+    "pathology-breast": {
+      name: "Lame de sein : bénin ou malin",
+      description:
+        "Classement d’une image H&E de sein en bénin ou malin, au grossissement indiqué. Le score de malignité est la moyenne de 4 orientations de l’image, comparée au seuil de décision du modèle.",
+      steps: {
+        views: "Score de l’image dans 4 orientations (originale et miroirs), puis leur moyenne",
+        threshold: "Comparaison au seuil de décision : bénin ou malin",
+      },
+      launch: "Analyser une lame de sein",
+    },
+    "pathology-nuclei": {
+      name: "Carte des noyaux (H&E 40×)",
+      description:
+        "Segmentation des noyaux cellulaires d’une image H&E à 40× en 5 types. Le résultat est une carte et des surfaces par type, pas un compte de noyaux.",
+      steps: {
+        tiles: "Découpage de l’image en tuiles de 256 × 256 px",
+        classes: "Type de chaque pixel : fond ou l’un des 5 types de noyaux",
+      },
+      launch: "Établir la carte des noyaux",
     },
   },
   sheet: {
@@ -204,10 +258,40 @@ export const aiAnalysesFr = {
     trueClass: "Classe réelle",
     predictedClass: "Classe prédite",
     correct: "résultats justes",
+    byMagnification: "Performance par grossissement",
+    byMagnificationCaption:
+      "Jeu de test, au seuil de décision : images, sensibilité, spécificité et résultats par grossissement de l’image.",
+    byMagnificationMatrix:
+      "Résultats par grossissement : nombre d’images de chaque case de la matrice de confusion.",
+    magnification: "Grossissement",
+    magnificationValue: "{value}×",
+    images: "Images",
+    sensitivity: "Sensibilité",
+    specificity: "Spécificité",
+    matrixCells: {
+      trueNegative: "Bénins reconnus",
+      falsePositive: "Bénins classés malins",
+      falseNegative: "Malins classés bénins",
+      truePositive: "Malins reconnus",
+    },
+    testPatients: "{patients} patients de test, dont {benign} bénins : les IC 95 % sont calculés par patient.",
+    testPending: "Performance de test en attente",
+    testPendingNote: "Le modèle n’a pas encore été évalué sur le jeu de test PanNuke (Fold 3).",
+    notebookValidation: "Chiffres du notebook : validation (Fold 2), optimiste",
+    notebookValidationNote:
+      "Mesurés sur le pli qui a servi à choisir le modèle : ils surestiment sa performance et n’ont pas été vérifiés sur les poids déployés.",
+    testByType: "Dice et IoU par type (test PanNuke, Fold 3)",
+    nucleusType: "Type",
+    background: "Fond",
+    dice: "Dice",
+    iou: "IoU",
+    nucleiMeanDice: "Dice moyen des 5 types de noyaux : {value}",
   },
   evaluation: {
     interval: "IC 95 % : {range}",
     source: "Évaluation du {date}, rapport {report} : une passe, sans TTA.",
+    sourcePathology: "Évaluation du {date}, rapport {report} : 4 vues par image, au seuil de décision du service.",
+    sourcePannuke: "Évaluation du {date}, rapport {report} : pixels mis en commun sur tout le pli, une passe par image de 256 × 256 px.",
   },
   wizard: {
     breadcrumb: "Nouvelle analyse",
@@ -272,6 +356,8 @@ export const aiAnalysesFr = {
         format: "Format accepté par le modèle",
         decodable: "Image décodable",
         dimensions: "Dimensions minimales ({min} × {min} px)",
+    minSide: "Taille minimale du modèle ({min} px de côté)",
+    maxSide: "Taille maximale du modèle ({max} px de côté)",
       },
       details: {
         formatAccepted: "Formats acceptés : {accepted}. Fichier : {extension}.",
@@ -291,8 +377,13 @@ export const aiAnalysesFr = {
     reading: {
       title: "Lire l’image",
       impressionLabel: "Votre impression avant l’analyse",
-      impressionHint:
-        "Facultatif. Elle est enregistrée avec l’analyse, pour comparer ensuite votre lecture avec le résultat.",
+      impressionHints: {
+        brain: "Facultatif. Elle est enregistrée avec l’analyse, pour comparer ensuite votre lecture avec le résultat.",
+        "pathology-breast":
+          "Facultatif. Notez votre lecture de la lame (bénin ou malin, type histologique) avant de voir le score du modèle ; elle est enregistrée avec l’analyse.",
+        "pathology-nuclei":
+          "Facultatif. Notez votre lecture de l’image (cellularité, types cellulaires dominants) avant de voir la carte du modèle ; elle est enregistrée avec l’analyse.",
+      },
       characters: "{count} / {max} caractères",
       launch: "Lancer l’analyse",
       running: "Analyse en cours… (60 secondes au plus)",
@@ -304,7 +395,23 @@ export const aiAnalysesFr = {
         service_not_configured: "Service d’analyse non configuré sur le serveur.",
         service_unauthorized: "Le service d’analyse refuse la connexion du serveur (jeton).",
         service_error: "Le service d’analyse est en erreur.",
-        classifier_not_loaded: "Le modèle de classification n’est pas chargé dans le service d’analyse.",
+        model_not_loaded: "Le modèle de cette chaîne n’est pas chargé dans le service d’analyse.",
+      },
+      magnification: {
+        legend: "Grossissement de l’image",
+        hint: "Obligatoire : le grossissement auquel l’image a été acquise. Rappel : lame de sein, coloration H&E uniquement.",
+        option: "{value}×",
+        required: "Choisissez le grossissement de l’image pour lancer l’analyse.",
+      },
+      he40x: {
+        label: "Image H&E acquise à 40×",
+        hint: "Obligatoire : le modèle a été entraîné sur des images H&E à 40× ; à un autre grossissement, ses surfaces sont faussées.",
+        required: "Confirmez que l’image est une H&E acquise à 40× pour lancer l’analyse.",
+      },
+      launchErrors: {
+        AI_MAGNIFICATION_REQUIRED: "Indiquez le grossissement de l’image.",
+        AI_MAGNIFICATION_NOT_SUPPORTED: "La carte des noyaux ne prend que des images H&E acquises à 40×.",
+        AI_MAGNIFICATION_UNEXPECTED: "Le grossissement ne concerne que les analyses d’histopathologie.",
       },
     },
   },
@@ -324,13 +431,15 @@ export const aiAnalysesFr = {
     errors: {
       SERVICE_UNAVAILABLE: "Le service d’analyse était injoignable.",
       SERVICE_TIMEOUT: "Le service d’analyse n’a pas répondu dans le délai de 60 secondes.",
-      MODEL_NOT_LOADED: "Le modèle de classification n’était pas chargé dans le service d’analyse.",
+      MODEL_NOT_LOADED: "Le modèle de cette analyse n’était pas chargé dans le service d’analyse.",
       SERVICE_NOT_CONFIGURED: "Le service d’analyse n’est pas configuré sur le serveur.",
       SERVICE_ERROR: "Le service d’analyse a renvoyé une réponse invalide.",
       MASK_STORAGE_FAILED: "Le masque de segmentation n’a pas pu être enregistré.",
       RUN_INTERRUPTED: "L’analyse a été interrompue avant sa fin (redémarrage du serveur). Relancez-la.",
       INVALID_IMAGE: "Le fichier n’a pas pu être lu comme une image PNG ou JPEG.",
       IMAGE_TOO_LARGE: "L’image dépasse la taille maximale acceptée.",
+      IMAGE_TOO_SMALL: "L’image est plus petite que la taille minimale acceptée par ce modèle.",
+      IMAGE_DIMENSIONS_TOO_LARGE: "L’image dépasse les dimensions maximales acceptées par ce modèle.",
       unknown: "Motif non précisé.",
     },
     image: "Image analysée",
@@ -372,6 +481,10 @@ export const aiAnalysesFr = {
     traceability: "Traçabilité",
     classificationModel: "Modèle de classification",
     segmentationModel: "Modèle de segmentation",
+    pipeline: "Chaîne d’analyse",
+    model: "Modèle",
+    magnification: "Grossissement",
+    magnificationValue: "{value}×",
     weights: "Empreinte des poids",
     duration: "Durée d’analyse",
     durationValue: "{value} s",
@@ -380,6 +493,67 @@ export const aiAnalysesFr = {
     none: "Aucun",
     limitations: "Limites des modèles utilisés",
     noValidation: "Ce résultat n’est ni validé ni inscrit au dossier du patient.",
+    pathology: {
+      breast: {
+        imageHint: "Examinez l’image analysée par le modèle.",
+        scoreTitle: "Score de malignité",
+        scoreHint: "Moyenne des 4 vues de l’image. Score non calibré : seule sa position par rapport au seuil compte.",
+        scoreLine: "Score de malignité {score} · seuil {threshold} → résultat du modèle : {result}",
+        gaugeLabel: "Score de malignité sur une échelle de 0 à 1, seuil de décision marqué",
+        thresholdMark: "seuil {threshold}",
+        magnification: "Grossissement indiqué : {value}×",
+        viewsTitle: "Score des 4 vues",
+        viewsHint: "Le modèle lit l’image dans 4 orientations ; le score de malignité est leur moyenne.",
+        views: {
+          original: "Originale",
+          flipHorizontal: "Miroir horizontal",
+          flipVertical: "Miroir vertical",
+          flipBoth: "Les deux miroirs",
+        },
+        viewAbove: "au seuil ou au-dessus",
+        viewBelow: "sous le seuil",
+        viewsDisagreeTitle: "Résultat différent selon l’orientation de l’image",
+        viewsDisagreeText:
+          "Certaines vues sont au-dessus du seuil, d’autres en dessous : pour cette image, le résultat du modèle dépend de son orientation.",
+        warnings: {
+          falsePositive: "Sur le jeu de test à {magnification}×, {count} des {total} résultats « malin » étaient bénins.",
+          falseNegative:
+            "Sur le jeu de test à {magnification}×, {count} des {total} résultats « bénin » étaient malins. Un résultat bénin n’exclut pas une lésion maligne.",
+        },
+        performanceTitle: "Performance mesurée",
+        atMagnification: "Au grossissement de l’image, {magnification}× (jeu de test, {count} images)",
+        overall: "Tous grossissements (jeu de test, {count} images)",
+        sensitivity: "Sensibilité (malins reconnus)",
+        specificity: "Spécificité (bénins reconnus)",
+        patientInterval: "IC 95 % par patient : {range}",
+      },
+      nuclei: {
+        imageHint: "Examinez l’image source et la carte des noyaux superposée ; réglez son opacité ou masquez des types.",
+        typesLegend: "Types de noyaux affichés sur la carte",
+        typesHint: "Chaque type a sa couleur et son nom ; décochez un type pour le masquer.",
+        unreliable: "non fiable",
+        recolouring: "Mise à jour de la carte…",
+        recolourError: "Impossible de masquer des types : la carte complète reste affichée.",
+        surfacesTitle: "Surfaces",
+        coverage: "Surface occupée par des noyaux : {value} de l’image",
+        compositionCaption: "Composition par type, en % de la surface nucléaire",
+        type: "Type",
+        share: "Part de la surface nucléaire",
+        noNuclei: "Aucun noyau détecté sur cette image.",
+        notesTitle: "À lire avec ces chiffres",
+        notes: {
+          surfaces: "Ce sont des surfaces, pas un nombre de noyaux.",
+          touching: "Des noyaux accolés ne sont pas séparés.",
+          training: "Le modèle a été entraîné sur des images H&E à 40×.",
+          tiles: "L’image a été découpée en {count} tuiles de 256 × 256 px.",
+          tilesOne: "L’image a été analysée en une seule tuile de 256 × 256 px.",
+        },
+        performanceTitle: "Performance du modèle",
+        performancePending: "Performance non encore mesurée sur un jeu de test indépendant.",
+        performanceCaption: "Dice par type sur le jeu de test PanNuke",
+        dice: "Dice",
+      },
+    },
   },
   decision: {
     title: "Votre décision",
@@ -432,6 +606,8 @@ export const aiAnalysesFr = {
       AI_RUN_NOT_DECIDABLE: "Cette analyse ne peut pas recevoir de décision.",
       AI_CORRECTION_MATCHES_MODEL: "La classe corrigée doit différer de celle proposée par le modèle.",
       AI_CORRECTED_LABEL_UNEXPECTED: "Une classe corrigée n’accompagne qu’une correction.",
+      AI_CORRECTED_LABEL_INVALID: "Cette classe n’appartient pas à cette chaîne d’analyse.",
+      AI_CORRECTION_NOT_APPLICABLE: "Une carte des noyaux se valide ou se rejette ; elle ne se corrige pas.",
       unknown: "La décision n’a pas pu être enregistrée. Réessayez.",
     },
     statuses: {
@@ -462,10 +638,20 @@ export const aiAnalysesFr = {
       CORRECTED: "Résultat corrigé par le médecin : la classe retenue est inscrite au dossier du patient.",
       REJECTED: "Analyse rejetée par le médecin : elle reste listée au dossier, sans classe retenue.",
     },
+    nucleiOptions: {
+      VALIDATED: "Valider la carte",
+      REJECTED: "Rejeter la carte",
+    },
+    nucleiOptionHints: {
+      VALIDATED: "La carte des noyaux est jugée exploitable et inscrite au dossier du patient. Elle ne se corrige pas.",
+      REJECTED: "La carte n’est pas retenue ; l’analyse reste listée au dossier, marquée « rejetée ».",
+    },
+    mapAccepted: "Carte des noyaux validée",
   },
   record: {
     title: "Analyses IA",
     newAnalysis: "Nouvelle analyse IA",
+    newAnalysisChoose: "Choisir la chaîne d’analyse",
     loading: "Chargement des analyses IA…",
     error: "Impossible de charger les analyses IA de ce patient.",
     empty: "Aucune analyse IA pour ce patient.",
@@ -475,7 +661,7 @@ export const aiAnalysesFr = {
     columns: {
       date: "Date",
       pipeline: "Chaîne",
-      topClass: "Classe principale (modèle)",
+      modelResult: "Résultat du modèle",
       mask: "Masque",
       decision: "Décision",
       result: "Résultat",
@@ -498,6 +684,8 @@ export const aiAnalysesFr = {
       CORRECTED: "Corrigé par {doctor} · analyse du {date}",
       open: "Voir l’analyse",
     },
+    nucleiMap: "Carte des noyaux",
+    score: "score {value}",
   },
   report: {
     title: "Compte rendu",
@@ -540,6 +728,10 @@ export const aiAnalysesFr = {
       label: "Filtres de la file de travail",
       decision: "Décision",
       status: "Statut de l’analyse",
+      pipeline: "Chaîne",
+      pipelines: {
+        all: "Toutes les chaînes",
+      },
       from: "Du",
       to: "Au",
       mine: "Mes demandes uniquement",
@@ -565,7 +757,8 @@ export const aiAnalysesFr = {
       columns: {
         date: "Date",
         patient: "Patient",
-        modelClass: "Classe du modèle",
+        pipeline: "Chaîne",
+        modelClass: "Résultat du modèle",
         uncertain: "Incertain",
         mask: "Masque",
         decision: "Décision",
@@ -625,6 +818,9 @@ export const aiAnalysesFr = {
       notEnough: "Effectif insuffisant",
       belowShare: "Analyses sous le seuil : {percent} ({count} sur {total})",
       belowShareCounts: "Analyses sous le seuil : {count} sur {total}",
+      brainOnly: "IRM cérébrale uniquement",
+      brainOnlyNote:
+        "Le taux d’accord, la matrice et l’accord selon la probabilité ne portent que sur l’analyse cérébrale : les chaînes de pathologie n’y sont pas comptées.",
     },
     hub: {
       pendingOne: "1 analyse en attente de votre décision",
@@ -660,5 +856,7 @@ export const aiAnalysesFr = {
     dicomUnavailable: "Aperçu non disponible à cette étape pour un fichier DICOM.",
     dimensions: "{width} × {height} px",
     dimensionsUnknown: "— × — px",
+    showMap: "Afficher la carte",
+    mapOpacity: "Opacité de la carte",
   },
 } as const;

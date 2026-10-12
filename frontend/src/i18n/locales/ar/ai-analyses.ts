@@ -21,7 +21,7 @@ export const aiAnalysesAr = {
     },
     pathology: {
       title: "علم الأمراض",
-      description: "التشريح المرضي النسيجي: نماذج قيد الدراسة.",
+      description: "التشريح المرضي النسيجي: تصنيف شرائح الثدي وخريطة أنوية الخلايا.",
     },
   },
   statuses: {
@@ -49,8 +49,9 @@ export const aiAnalysesAr = {
     chestXray: "صورة أشعة للصدر",
     cardiacCineMri: "رنين مغناطيسي قلبي سينمائي",
     cardiacCt: "تصوير مقطعي للقلب",
-    histopathology: "صور التشريح المرضي النسيجي",
     brainMriT1ceFlairT2Composite: "صورة رنين مغناطيسي مركبة من 3 متتاليات (T1ce / FLAIR / T2)",
+    breastHistopathologyHe: "تشريح مرضي نسيجي للثدي، صبغة H&E",
+    histopathologyHe40x: "تشريح مرضي نسيجي، صبغة H&E بتكبير 40×",
   },
   classes: {
     glioma: "ورم دبقي",
@@ -64,7 +65,13 @@ export const aiAnalysesAr = {
     leftVentricle: "البطين الأيسر (LV)",
     rightVentricle: "البطين الأيمن (RV)",
     myocardium: "عضلة القلب (MYO)",
-    nuclei: "أنوية الخلايا",
+    benign: "حميد",
+    malignant: "خبيث",
+    neoplastic: "ورمي",
+    inflammatory: "التهابي",
+    connective: "ضام",
+    dead: "ميت",
+    epithelial: "ظهاري",
     other: "أخرى (خارج فئات النموذج)",
   },
   metrics: {
@@ -76,6 +83,13 @@ export const aiAnalysesAr = {
     testIou: "متوسط IoU (الاختبار)",
     testSensitivity: "متوسط الحساسية (الاختبار)",
     validationDice: "Dice (التحقق)",
+    breakhisAccuracy: "نسبة النتائج الصحيحة (الاختبار، 4 مناظر، عند العتبة)",
+    breakhisSensitivity: "الحساسية: الخبيثة المُتعرَّف عليها (الاختبار)",
+    breakhisSpecificity: "النوعية: الحميدة المُتعرَّف عليها (الاختبار)",
+    breakhisPrecision: "القيمة التنبؤية الإيجابية (الاختبار)",
+    breakhisAucRoc: "AUC ROC (الاختبار)",
+    validationNucleiDice: "متوسط Dice لأنواع الأنوية الخمسة",
+    testNucleiDice: "متوسط Dice لأنواع الأنوية الخمسة (الاختبار)",
   },
   datasets: {
     crossValidation: "التحقق المتقاطع",
@@ -83,6 +97,9 @@ export const aiAnalysesAr = {
     meningiomaTest: "اختبار BRISC 2025، أورام سحائية ({count} صورة)",
     pituitaryTest: "اختبار BRISC 2025، أورام الغدة النخامية ({count} صورة)",
     gliomaValidation: "مجموعة التحقق",
+    breakhisTest: "اختبار BreakHis ({count} صورة)",
+    pannukeValidationFold2: "تحقق PanNuke، الطية 2 (متفائل: استُعمل لاختيار النموذج)",
+    pannukeTest: "اختبار PanNuke، الطية 3 ({count} صورة)",
   },
   limitations: {
     notCertified: "غير معتمد كجهاز طبي: أداة مساعدة على اتخاذ القرار فقط.",
@@ -95,6 +112,20 @@ export const aiAnalysesAr = {
       "تحليل صور ثنائية الأبعاد: لا يؤخذ السياق الحجمي للفحص (المقاطع الأخرى) بعين الاعتبار.",
     lowerGliomaRecall: "استدعاء أضعف للأورام الدبقية: {recall} على مجموعة الاختبار.",
     targetTumourOnly: "تم تقييمه فقط على صور تحتوي على الورم المستهدف.",
+    fewTestPatients:
+      "مجموعة اختبار صغيرة: عدد المرضى {patients}، منهم {benign} بأورام حميدة؛ فواصل 95٪، المحسوبة حسب المريض، واسعة.",
+    uncalibratedScore:
+      "درجة غير معايَرة: تُقرأ فقط مقارنةً بعتبة القرار، ولا تُقرأ أبدًا كنسبة مئوية.",
+    breastHeOnly:
+      "دُرِّب فقط على شرائح ثدي مصبوغة بـ H&E (BreakHis): أي عضو آخر أو صبغة أخرى خارج نطاقه.",
+    magnificationDependent:
+      "يختلف الأداء حسب التكبير: يجب أن يكون التكبير المُدخَل هو تكبير الصورة.",
+    semanticNotInstances:
+      "تجزئة دلالية: مساحات حسب النوع، وليست عدًّا للأنوية؛ لا تُفصل الأنوية المتلاصقة.",
+    deadUnreliable: "نوع «ميت» غير موثوق: نادر في PanNuke وتجزئته ضعيفة.",
+    he40xOnly:
+      "دُرِّب على صور H&E بتكبير 40× (PanNuke): مع تكبير آخر أو صبغة أخرى تكون المساحات خاطئة.",
+    testEvaluationPending: "لم يُقَس الأداء بعد على مجموعة اختبار مستقلة.",
   },
   models: {
     "brain-efficientnetb4-tumor-classification": {
@@ -132,13 +163,15 @@ export const aiAnalysesAr = {
       name: "CT Heart",
       intendedUse: "مُخطَّط: تجزئة القلب في التصوير المقطعي.",
     },
-    "pathology-hovernet-nuclei-segmentation": {
-      name: "HoVer-Net",
-      intendedUse: "قيد الدراسة: تجزئة أنوية الخلايا في صور التشريح المرضي النسيجي.",
-    },
     "pathology-breakhis-classification": {
-      name: "BreakHis",
-      intendedUse: "قيد الدراسة: تصنيف صور التشريح المرضي النسيجي.",
+      name: "EfficientNetB0 BreakHis",
+      intendedUse:
+        "المساعدة على تصنيف صورة تشريح مرضي نسيجي للثدي مصبوغة بـ H&E، حميد أو خبيث، بتكبير معروف (40× أو 100× أو 200× أو 400×).",
+    },
+    "pathology-unet-pannuke-segmentation": {
+      name: "U-Net PanNuke",
+      intendedUse:
+        "المساعدة على قراءة صورة H&E بتكبير 40×: خريطة أنوية الخلايا حسب النوع (ورمي، التهابي، ضام، ميت، ظهاري).",
     },
   },
   card: {
@@ -153,8 +186,9 @@ export const aiAnalysesAr = {
     openSheetFor: "بطاقة النموذج: {name}",
     comingSoon: "قريبًا",
     pipelineRole: {
-      classifier: "المرحلة 1 من تحليل الدماغ: يُنفَّذ دائمًا.",
+      entry: "المرحلة 1 من تحليل الدماغ: يُنفَّذ دائمًا.",
       segmenter: "المرحلة 2 من تحليل الدماغ: فقط إذا كانت الفئة المتوقعة «{class}».",
+      single: "النموذج الوحيد في سلسلة «{pipeline}».",
     },
   },
   pipelines: {
@@ -170,6 +204,26 @@ export const aiAnalysesAr = {
         segmentPituitary: "تجزئة ورم الغدة النخامية، إذا كانت هذه الفئة متوقعة",
       },
       launch: "إطلاق تحليل الدماغ",
+    },
+    "pathology-breast": {
+      name: "شريحة الثدي: حميد أو خبيث",
+      description:
+        "تصنيف صورة H&E للثدي إلى حميد أو خبيث، بالتكبير المُدخَل. درجة الخباثة هي متوسط 4 اتجاهات للصورة، تُقارن بعتبة قرار النموذج.",
+      steps: {
+        views: "درجة الصورة في 4 اتجاهات (الأصلية والمعكوسة)، ثم متوسطها",
+        threshold: "المقارنة بعتبة القرار: حميد أو خبيث",
+      },
+      launch: "تحليل شريحة ثدي",
+    },
+    "pathology-nuclei": {
+      name: "خريطة الأنوية (H&E بتكبير 40×)",
+      description:
+        "تجزئة أنوية الخلايا في صورة H&E بتكبير 40× إلى 5 أنواع. النتيجة خريطة ومساحات حسب النوع، وليست عدًّا للأنوية.",
+      steps: {
+        tiles: "تقطيع الصورة إلى مربعات 256 × 256 بكسل",
+        classes: "نوع كل بكسل: خلفية أو أحد أنواع الأنوية الخمسة",
+      },
+      launch: "إنشاء خريطة الأنوية",
     },
   },
   sheet: {
@@ -204,10 +258,40 @@ export const aiAnalysesAr = {
     trueClass: "الفئة الحقيقية",
     predictedClass: "الفئة المتنبأ بها",
     correct: "نتائج صحيحة",
+    byMagnification: "الأداء حسب التكبير",
+    byMagnificationCaption:
+      "مجموعة الاختبار، عند عتبة القرار: الصور والحساسية والنوعية والنتائج حسب تكبير الصورة.",
+    byMagnificationMatrix:
+      "النتائج حسب التكبير: عدد الصور في كل خانة من مصفوفة الالتباس.",
+    magnification: "التكبير",
+    magnificationValue: "{value}×",
+    images: "الصور",
+    sensitivity: "الحساسية",
+    specificity: "النوعية",
+    matrixCells: {
+      trueNegative: "حميدة مُتعرَّف عليها",
+      falsePositive: "حميدة صُنِّفت خبيثة",
+      falseNegative: "خبيثة صُنِّفت حميدة",
+      truePositive: "خبيثة مُتعرَّف عليها",
+    },
+    testPatients: "عدد مرضى الاختبار: {patients}، منهم {benign} بأورام حميدة؛ تُحسب فواصل 95٪ حسب المريض.",
+    testPending: "أداء الاختبار قيد الانتظار",
+    testPendingNote: "لم يُقيَّم النموذج بعد على مجموعة اختبار PanNuke (الطية 3).",
+    notebookValidation: "أرقام دفتر التدريب: التحقق (الطية 2)، متفائلة",
+    notebookValidationNote:
+      "قيست على الطية التي استُعملت لاختيار النموذج: تبالغ في تقدير أدائه ولم يُتحقَّق منها على الأوزان المنشورة.",
+    testByType: "Dice و IoU حسب النوع (اختبار PanNuke، الطية 3)",
+    nucleusType: "النوع",
+    background: "الخلفية",
+    dice: "Dice",
+    iou: "IoU",
+    nucleiMeanDice: "متوسط Dice لأنواع الأنوية الخمسة: {value}",
   },
   evaluation: {
     interval: "فاصل الثقة 95٪: {range}",
     source: "تقييم بتاريخ {date}، التقرير {report}: تمريرة واحدة، دون TTA.",
+    sourcePathology: "تقييم بتاريخ {date}، التقرير {report}: 4 مناظر لكل صورة، عند عتبة قرار الخدمة.",
+    sourcePannuke: "تقييم بتاريخ {date}، التقرير {report}: بكسلات مجمّعة على كامل الطية، تمريرة واحدة لكل صورة 256 × 256 بكسل.",
   },
   wizard: {
     breadcrumb: "تحليل جديد",
@@ -272,6 +356,8 @@ export const aiAnalysesAr = {
         format: "صيغة يقبلها النموذج",
         decodable: "صورة قابلة للقراءة",
         dimensions: "الأبعاد الدنيا ({min} × {min} بكسل)",
+    minSide: "الحجم الأدنى للنموذج ({min} بكسل للضلع)",
+    maxSide: "الحجم الأقصى للنموذج ({max} بكسل للضلع)",
       },
       details: {
         formatAccepted: "الصيغ المقبولة: {accepted}. الملف: {extension}.",
@@ -291,8 +377,13 @@ export const aiAnalysesAr = {
     reading: {
       title: "قراءة الصورة",
       impressionLabel: "انطباعكم قبل التحليل",
-      impressionHint:
-        "اختياري. يُحفظ مع التحليل لمقارنة قراءتكم لاحقًا بالنتيجة.",
+      impressionHints: {
+        brain: "اختياري. يُحفظ مع التحليل لمقارنة قراءتكم لاحقًا بالنتيجة.",
+        "pathology-breast":
+          "اختياري. دوّنوا قراءتكم للشريحة (حميد أو خبيث، النوع النسيجي) قبل رؤية درجة النموذج؛ تُحفظ مع التحليل.",
+        "pathology-nuclei":
+          "اختياري. دوّنوا قراءتكم للصورة (الكثافة الخلوية، الأنواع الخلوية الغالبة) قبل رؤية خريطة النموذج؛ تُحفظ مع التحليل.",
+      },
       characters: "{count} / {max} حرف",
       launch: "إطلاق التحليل",
       running: "التحليل جارٍ… (60 ثانية على الأكثر)",
@@ -304,7 +395,23 @@ export const aiAnalysesAr = {
         service_not_configured: "خدمة التحليل غير مهيأة على الخادم.",
         service_unauthorized: "خدمة التحليل ترفض اتصال الخادم (الرمز).",
         service_error: "خدمة التحليل في حالة خطأ.",
-        classifier_not_loaded: "نموذج التصنيف غير محمَّل في خدمة التحليل.",
+        model_not_loaded: "نموذج هذه السلسلة غير محمَّل في خدمة التحليل.",
+      },
+      magnification: {
+        legend: "تكبير الصورة",
+        hint: "إلزامي: التكبير الذي التُقطت به الصورة. تذكير: شريحة ثدي مصبوغة بـ H&E فقط.",
+        option: "{value}×",
+        required: "اختاروا تكبير الصورة لإطلاق التحليل.",
+      },
+      he40x: {
+        label: "صورة H&E ملتقطة بتكبير 40×",
+        hint: "إلزامي: دُرِّب النموذج على صور H&E بتكبير 40×؛ مع تكبير آخر تكون مساحاته خاطئة.",
+        required: "أكّدوا أن الصورة H&E ملتقطة بتكبير 40× لإطلاق التحليل.",
+      },
+      launchErrors: {
+        AI_MAGNIFICATION_REQUIRED: "حدّدوا تكبير الصورة.",
+        AI_MAGNIFICATION_NOT_SUPPORTED: "لا تقبل خريطة الأنوية إلا صور H&E ملتقطة بتكبير 40×.",
+        AI_MAGNIFICATION_UNEXPECTED: "لا يخص التكبير إلا تحاليل التشريح المرضي النسيجي.",
       },
     },
   },
@@ -324,13 +431,15 @@ export const aiAnalysesAr = {
     errors: {
       SERVICE_UNAVAILABLE: "تعذر الوصول إلى خدمة التحليل.",
       SERVICE_TIMEOUT: "لم تستجب خدمة التحليل في مهلة 60 ثانية.",
-      MODEL_NOT_LOADED: "لم يكن نموذج التصنيف محمَّلًا في خدمة التحليل.",
+      MODEL_NOT_LOADED: "لم يكن نموذج هذا التحليل محمَّلًا في خدمة التحليل.",
       SERVICE_NOT_CONFIGURED: "خدمة التحليل غير مهيأة على الخادم.",
       SERVICE_ERROR: "أعادت خدمة التحليل استجابة غير صالحة.",
       MASK_STORAGE_FAILED: "تعذر حفظ قناع التجزئة.",
       RUN_INTERRUPTED: "توقف التحليل قبل اكتماله (إعادة تشغيل الخادم). أعيدوا إطلاقه.",
       INVALID_IMAGE: "تعذرت قراءة الملف كصورة PNG أو JPEG.",
       IMAGE_TOO_LARGE: "تتجاوز الصورة الحجم الأقصى المقبول.",
+      IMAGE_TOO_SMALL: "الصورة أصغر من الحجم الأدنى الذي يقبله هذا النموذج.",
+      IMAGE_DIMENSIONS_TOO_LARGE: "تتجاوز الصورة الأبعاد القصوى التي يقبلها هذا النموذج.",
       unknown: "السبب غير محدد.",
     },
     image: "الصورة المحللة",
@@ -372,6 +481,10 @@ export const aiAnalysesAr = {
     traceability: "قابلية التتبع",
     classificationModel: "نموذج التصنيف",
     segmentationModel: "نموذج التجزئة",
+    pipeline: "سلسلة التحليل",
+    model: "النموذج",
+    magnification: "التكبير",
+    magnificationValue: "{value}×",
     weights: "بصمة الأوزان",
     duration: "مدة التحليل",
     durationValue: "{value} ث",
@@ -380,6 +493,67 @@ export const aiAnalysesAr = {
     none: "لا يوجد",
     limitations: "حدود النماذج المستخدمة",
     noValidation: "هذه النتيجة غير مصادق عليها وغير مسجلة في ملف المريض.",
+    pathology: {
+      breast: {
+        imageHint: "افحصوا الصورة التي حلّلها النموذج.",
+        scoreTitle: "درجة الخباثة",
+        scoreHint: "متوسط المناظر الأربعة للصورة. درجة غير معايَرة: المهم فقط موقعها بالنسبة إلى العتبة.",
+        scoreLine: "درجة الخباثة {score} · العتبة {threshold} ← نتيجة النموذج: {result}",
+        gaugeLabel: "درجة الخباثة على سلم من 0 إلى 1، مع تحديد عتبة القرار",
+        thresholdMark: "العتبة {threshold}",
+        magnification: "التكبير المُدخَل: {value}×",
+        viewsTitle: "درجات المناظر الأربعة",
+        viewsHint: "يقرأ النموذج الصورة في 4 اتجاهات؛ درجة الخباثة هي متوسطها.",
+        views: {
+          original: "الأصلية",
+          flipHorizontal: "انعكاس أفقي",
+          flipVertical: "انعكاس عمودي",
+          flipBoth: "الانعكاسان معًا",
+        },
+        viewAbove: "عند العتبة أو فوقها",
+        viewBelow: "تحت العتبة",
+        viewsDisagreeTitle: "نتيجة مختلفة حسب اتجاه الصورة",
+        viewsDisagreeText:
+          "بعض المناظر فوق العتبة وبعضها تحتها: نتيجة النموذج لهذه الصورة تتوقف على اتجاهها.",
+        warnings: {
+          falsePositive: "في مجموعة الاختبار بتكبير {magnification}×، كانت {count} من أصل {total} نتيجة «خبيث» حميدة.",
+          falseNegative:
+            "في مجموعة الاختبار بتكبير {magnification}×، كانت {count} من أصل {total} نتيجة «حميد» خبيثة. النتيجة الحميدة لا تستبعد وجود آفة خبيثة.",
+        },
+        performanceTitle: "الأداء المقاس",
+        atMagnification: "بتكبير الصورة، {magnification}× (مجموعة الاختبار، {count} صورة)",
+        overall: "كل التكبيرات (مجموعة الاختبار، {count} صورة)",
+        sensitivity: "الحساسية (الخبيثة المُتعرَّف عليها)",
+        specificity: "النوعية (الحميدة المُتعرَّف عليها)",
+        patientInterval: "فاصل 95٪ حسب المريض: {range}",
+      },
+      nuclei: {
+        imageHint: "افحصوا الصورة الأصلية وخريطة الأنوية المركّبة فوقها؛ اضبطوا شفافيتها أو أخفوا بعض الأنواع.",
+        typesLegend: "أنواع الأنوية المعروضة على الخريطة",
+        typesHint: "لكل نوع لونه واسمه؛ ألغوا تحديد نوع لإخفائه.",
+        unreliable: "غير موثوق",
+        recolouring: "جارٍ تحديث الخريطة…",
+        recolourError: "تعذر إخفاء الأنواع: تبقى الخريطة الكاملة معروضة.",
+        surfacesTitle: "المساحات",
+        coverage: "المساحة التي تشغلها الأنوية: {value} من الصورة",
+        compositionCaption: "التركيب حسب النوع، بالنسبة المئوية من مساحة الأنوية",
+        type: "النوع",
+        share: "النسبة من مساحة الأنوية",
+        noNuclei: "لم تُكتشف أي نواة في هذه الصورة.",
+        notesTitle: "يُقرأ مع هذه الأرقام",
+        notes: {
+          surfaces: "هذه مساحات، وليست عددًا للأنوية.",
+          touching: "لا تُفصل الأنوية المتلاصقة.",
+          training: "دُرِّب النموذج على صور H&E بتكبير 40×.",
+          tiles: "قُسِّمت الصورة إلى مربعات عددها {count}، كل منها 256 × 256 بكسل.",
+          tilesOne: "حُلِّلت الصورة في مربع واحد 256 × 256 بكسل.",
+        },
+        performanceTitle: "أداء النموذج",
+        performancePending: "لم يُقَس الأداء بعد على مجموعة اختبار مستقلة.",
+        performanceCaption: "Dice حسب النوع على مجموعة اختبار PanNuke",
+        dice: "Dice",
+      },
+    },
   },
   decision: {
     title: "قراركم",
@@ -432,6 +606,8 @@ export const aiAnalysesAr = {
       AI_RUN_NOT_DECIDABLE: "لا يمكن اتخاذ قرار بشأن هذا التحليل.",
       AI_CORRECTION_MATCHES_MODEL: "يجب أن تختلف الفئة المصحَّحة عن الفئة التي اقترحها النموذج.",
       AI_CORRECTED_LABEL_UNEXPECTED: "لا تُرفق الفئة المصحَّحة إلا بالتصحيح.",
+      AI_CORRECTED_LABEL_INVALID: "هذه الفئة لا تنتمي إلى سلسلة التحليل هذه.",
+      AI_CORRECTION_NOT_APPLICABLE: "خريطة الأنوية يُصادق عليها أو تُرفض؛ ولا تُصحَّح.",
       unknown: "تعذر تسجيل القرار. أعيدوا المحاولة.",
     },
     statuses: {
@@ -462,10 +638,20 @@ export const aiAnalysesAr = {
       CORRECTED: "صحّح الطبيب النتيجة: سُجِّلت الفئة المعتمدة في ملف المريض.",
       REJECTED: "رفض الطبيب التحليل: يبقى مدرجًا في الملف دون فئة معتمدة.",
     },
+    nucleiOptions: {
+      VALIDATED: "المصادقة على الخريطة",
+      REJECTED: "رفض الخريطة",
+    },
+    nucleiOptionHints: {
+      VALIDATED: "تُعدّ خريطة الأنوية صالحة للاستعمال وتُسجَّل في ملف المريض. لا تُصحَّح.",
+      REJECTED: "لا تُعتمد الخريطة؛ يبقى التحليل مدرجًا في الملف مع علامة «مرفوض».",
+    },
+    mapAccepted: "خريطة الأنوية مصادق عليها",
   },
   record: {
     title: "تحاليل الذكاء الاصطناعي",
     newAnalysis: "تحليل جديد بالذكاء الاصطناعي",
+    newAnalysisChoose: "اختيار سلسلة التحليل",
     loading: "جاري تحميل تحاليل الذكاء الاصطناعي…",
     error: "تعذر تحميل تحاليل الذكاء الاصطناعي لهذا المريض.",
     empty: "لا يوجد أي تحليل بالذكاء الاصطناعي لهذا المريض.",
@@ -475,7 +661,7 @@ export const aiAnalysesAr = {
     columns: {
       date: "التاريخ",
       pipeline: "سلسلة التحليل",
-      topClass: "الفئة الرئيسية (النموذج)",
+      modelResult: "نتيجة النموذج",
       mask: "القناع",
       decision: "القرار",
       result: "النتيجة",
@@ -498,6 +684,8 @@ export const aiAnalysesAr = {
       CORRECTED: "صحّحه {doctor} · تحليل بتاريخ {date}",
       open: "عرض التحليل",
     },
+    nucleiMap: "خريطة الأنوية",
+    score: "الدرجة {value}",
   },
   report: {
     title: "التقرير",
@@ -539,6 +727,10 @@ export const aiAnalysesAr = {
       label: "مرشحات قائمة العمل",
       decision: "القرار",
       status: "حالة التحليل",
+      pipeline: "السلسلة",
+      pipelines: {
+        all: "كل السلاسل",
+      },
       from: "من",
       to: "إلى",
       mine: "طلباتي فقط",
@@ -564,7 +756,8 @@ export const aiAnalysesAr = {
       columns: {
         date: "التاريخ",
         patient: "المريض",
-        modelClass: "فئة النموذج",
+        pipeline: "السلسلة",
+        modelClass: "نتيجة النموذج",
         uncertain: "غير مؤكد",
         mask: "القناع",
         decision: "القرار",
@@ -624,6 +817,9 @@ export const aiAnalysesAr = {
       notEnough: "عدد غير كافٍ",
       belowShare: "التحاليل دون العتبة: {percent} ({count} من {total})",
       belowShareCounts: "التحاليل دون العتبة: {count} من {total}",
+      brainOnly: "الرنين المغناطيسي للدماغ فقط",
+      brainOnlyNote:
+        "نسبة التوافق والمصفوفة والتوافق حسب الاحتمال تخص تحليل الدماغ فقط: لا تُحتسب فيها سلاسل علم الأمراض.",
     },
     hub: {
       pendingOne: "تحليل واحد في انتظار قراركم",
@@ -659,5 +855,7 @@ export const aiAnalysesAr = {
     dicomUnavailable: "المعاينة غير متاحة في هذه المرحلة لملف DICOM.",
     dimensions: "{width} × {height} بكسل",
     dimensionsUnknown: "— × — بكسل",
+    showMap: "إظهار الخريطة",
+    mapOpacity: "شفافية الخريطة",
   },
 } as const;

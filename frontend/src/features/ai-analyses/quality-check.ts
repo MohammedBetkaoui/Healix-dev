@@ -4,9 +4,11 @@
 
 import { type PatientDocument } from "@/types/patient";
 
+import { type AiInputConstraints } from "./ai-analyses.types";
+
 /**
- * Generic floor, not a model specification (the registry gives no input size
- * yet): below it the image is a thumbnail rather than an exam.
+ * Generic floor, for a model whose registry entry gives no input size: below
+ * it the image is a thumbnail rather than an exam.
  */
 export const MIN_IMAGE_SIDE_PX = 128;
 
@@ -20,7 +22,9 @@ export type ImageProbe =
   /** DICOM: not decoded in the browser at this step. */
   | { state: "dicom" };
 
-export const qualityCheckKeys = ["format", "decodable", "dimensions"] as const;
+// dimensions: the generic floor; minSide and maxSide: the model's own sizes
+// (AiModel.inputConstraints), checked instead of it when it gives them.
+export const qualityCheckKeys = ["format", "decodable", "dimensions", "minSide", "maxSide"] as const;
 export type QualityCheckKey = (typeof qualityCheckKeys)[number];
 
 // not_provided: the registry gives no value to check against (shown, never
@@ -100,34 +104,56 @@ function checkDecodable(probe: ImageProbe): QualityCheck {
   }
 }
 
-function checkDimensions(probe: ImageProbe): QualityCheck {
-  const detail = { min: MIN_IMAGE_SIDE_PX };
-
+// One size check: `fits` tells whether the decoded sides pass it.
+function checkSize(
+  key: "dimensions" | "minSide" | "maxSide",
+  probe: ImageProbe,
+  detail: Record<string, number>,
+  fits: (width: number, height: number) => boolean,
+): QualityCheck {
   switch (probe.state) {
     case "pending":
-      return { key: "dimensions", status: "pending", detail };
+      return { key, status: "pending", detail };
     case "decoded":
       return {
-        key: "dimensions",
-        status:
-          probe.width >= MIN_IMAGE_SIDE_PX && probe.height >= MIN_IMAGE_SIDE_PX ? "pass" : "fail",
+        key,
+        status: fits(probe.width, probe.height) ? "pass" : "fail",
         detail: { ...detail, height: probe.height, width: probe.width },
       };
     default:
       // Unknown without a decoded image; the decoding check carries the failure.
-      return { key: "dimensions", status: "not_applicable", detail };
+      return { key, status: "not_applicable", detail };
   }
+}
+
+function checkDimensions(probe: ImageProbe, constraints: AiInputConstraints | null): QualityCheck[] {
+  if (constraints === null) {
+    return [
+      checkSize("dimensions", probe, { min: MIN_IMAGE_SIDE_PX }, (width, height) =>
+        width >= MIN_IMAGE_SIDE_PX && height >= MIN_IMAGE_SIDE_PX,
+      ),
+    ];
+  }
+
+  // As the service enforces them: each side at least minSide, at most maxSide.
+  const { maxSide, minSide } = constraints;
+  return [
+    checkSize("minSide", probe, { min: minSide }, (width, height) => width >= minSide && height >= minSide),
+    checkSize("maxSide", probe, { max: maxSide }, (width, height) => width <= maxSide && height <= maxSide),
+  ];
 }
 
 export function evaluateQualityChecks(input: {
   acceptedFormats: readonly string[] | null;
+  /** The model's sizes; null for the generic floor only. */
+  inputConstraints: AiInputConstraints | null;
   fileName: string;
   probe: ImageProbe;
 }): QualityCheckReport {
   const checks = [
     checkFormat(input.acceptedFormats, input.fileName),
     checkDecodable(input.probe),
-    checkDimensions(input.probe),
+    ...checkDimensions(input.probe, input.inputConstraints),
   ];
 
   return {

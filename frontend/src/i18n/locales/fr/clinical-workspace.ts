@@ -70,7 +70,7 @@ export const clinicalWorkspaceFr = {
   },
   recent: {
     title: "Dernières analyses IA", subtitle: "Les cinq plus récentes de votre espace",
-    columns: { date: "Date", patient: "Patient", modelClass: "Classe du modèle", decision: "Décision", result: "Résultat" },
+    columns: { date: "Date", patient: "Patient", pipeline: "Chaîne", modelClass: "Résultat du modèle", decision: "Décision", result: "Résultat" },
     open: "Voir", openFor: "Voir le résultat de l’analyse du {date}, patient {patient}",
     noClass: "—", empty: "Aucune analyse IA pour le moment.",
   },
@@ -80,7 +80,7 @@ export const clinicalWorkspaceFr = {
     pending: "En attente de décision",
     oldestHours: "La plus ancienne depuis {count} h", oldestDays: "La plus ancienne depuis {count} j",
     validated: "Validées", corrected: "Corrigées", rejected: "Rejetées",
-    uncertain: "Résultats incertains (probabilité sous {threshold})",
+    uncertain: "Résultats incertains, IRM cérébrale (probabilité sous {threshold})",
     uncertainValue: "{percent} · {count} sur {total}",
     uncertainNone: "Aucune analyse réussie sur la période",
     tracking: "Ouvrir le suivi des analyses",

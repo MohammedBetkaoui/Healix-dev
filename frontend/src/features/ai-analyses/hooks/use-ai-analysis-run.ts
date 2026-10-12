@@ -2,7 +2,7 @@
 
 import { useQuery } from "@tanstack/react-query";
 
-import { getAiAnalysisRun, getAiAnalysisRunMask } from "../ai-analysis-runs.api";
+import { getAiAnalysisRun, getAiAnalysisRunMask, getAiAnalysisRunOverlay } from "../ai-analysis-runs.api";
 
 const RUNNING_POLL_MS = 3_000;
 
@@ -24,6 +24,18 @@ export function useAiAnalysisRunMask(patientId: string, runId: string, options: 
     gcTime: 0,
     queryFn: () => getAiAnalysisRunMask(patientId, runId),
     queryKey: ["patients", "ai-analysis-run-mask", patientId, runId],
+    retry: false,
+    staleTime: Number.POSITIVE_INFINITY,
+  });
+}
+
+// The colour overlay of a nuclei map (PNG). Same lifetime as the mask.
+export function useAiAnalysisRunOverlay(patientId: string, runId: string, options: { enabled: boolean }) {
+  return useQuery({
+    enabled: options.enabled && Boolean(patientId) && Boolean(runId),
+    gcTime: 0,
+    queryFn: () => getAiAnalysisRunOverlay(patientId, runId),
+    queryKey: ["patients", "ai-analysis-run-overlay", patientId, runId],
     retry: false,
     staleTime: Number.POSITIVE_INFINITY,
   });

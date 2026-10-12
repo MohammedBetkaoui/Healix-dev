@@ -366,9 +366,9 @@
 .clinical-theme .ai-widget .clinical-section-heading { color: var(--ai); background: var(--ai-soft); }
 .clinical-theme .ai-widget .clinical-link { color: var(--ai); }
 .clinical-theme .ai-module { border-inline-start: 3px solid var(--ai-module-color); }
-.clinical-theme :is(.ai-module, .ai-viewer)[data-module="brain"] { --ai-module-color: var(--specialty-brain); }
-.clinical-theme :is(.ai-module, .ai-viewer)[data-module="cardiology"] { --ai-module-color: var(--specialty-cardiology); }
-.clinical-theme :is(.ai-module, .ai-viewer)[data-module="pathology"] { --ai-module-color: var(--specialty-pathology); }
+.clinical-theme :is(.ai-module, .ai-viewer, .ai-result)[data-module="brain"] { --ai-module-color: var(--specialty-brain); }
+.clinical-theme :is(.ai-module, .ai-viewer, .ai-result)[data-module="cardiology"] { --ai-module-color: var(--specialty-cardiology); }
+.clinical-theme :is(.ai-module, .ai-viewer, .ai-result)[data-module="pathology"] { --ai-module-color: var(--specialty-pathology); }
 .clinical-theme .ai-module-icon { color: var(--ai-module-color); }
 /* AI image viewer: always dark, whatever the theme (image reading). Its
    specialty accent uses the dark-theme value: the light cardiology red is
@@ -437,6 +437,8 @@
 .clinical-theme .ai-viewer-image { width: 100%; height: 100%; object-fit: contain; user-select: none; filter: drop-shadow(0 18px 38px rgb(0 0 0 / 40%)); }
 /* Same "contain" geometry as the image, so a mask of that image aligns. */
 .clinical-theme .ai-viewer-overlay { position: absolute; inset: 0; pointer-events: none; mask-mode: luminance; mask-size: contain; mask-repeat: no-repeat; mask-position: center; -webkit-mask-size: contain; -webkit-mask-repeat: no-repeat; -webkit-mask-position: center; }
+.clinical-theme .ai-viewer-overlay-image { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: contain; pointer-events: none; user-select: none; }
+.clinical-theme .ai-viewer-overlay-image[hidden] { display: none; }
 .clinical-theme .ai-viewer-focus-frame { position: absolute; z-index: 2; inset: 16px; pointer-events: none; background: linear-gradient(var(--viewer-line-strong), var(--viewer-line-strong)) left top / 22px 1px no-repeat, linear-gradient(var(--viewer-line-strong), var(--viewer-line-strong)) left top / 1px 22px no-repeat, linear-gradient(var(--viewer-line-strong), var(--viewer-line-strong)) right top / 22px 1px no-repeat, linear-gradient(var(--viewer-line-strong), var(--viewer-line-strong)) right top / 1px 22px no-repeat, linear-gradient(var(--viewer-line-strong), var(--viewer-line-strong)) left bottom / 22px 1px no-repeat, linear-gradient(var(--viewer-line-strong), var(--viewer-line-strong)) left bottom / 1px 22px no-repeat, linear-gradient(var(--viewer-line-strong), var(--viewer-line-strong)) right bottom / 22px 1px no-repeat, linear-gradient(var(--viewer-line-strong), var(--viewer-line-strong)) right bottom / 1px 22px no-repeat; opacity: .72; }
 .clinical-theme .ai-viewer-interaction-hint { position: absolute; z-index: 3; inset-inline-start: 50%; bottom: 14px; display: inline-flex; max-width: calc(100% - 32px); align-items: center; gap: 7px; padding: 6px 10px; border: 1px solid var(--viewer-line); border-radius: 999px; background: rgb(7 13 22 / 82%); color: var(--viewer-ink-soft); font-size: .65rem; pointer-events: none; transform: translateX(-50%); backdrop-filter: blur(8px); white-space: nowrap; }
 .clinical-theme .ai-viewer-placeholder { position: absolute; z-index: 3; inset: 0; display: grid; place-items: center; padding: 24px; text-align: center; font-size: .85rem; color: var(--viewer-ink-soft); }

@@ -3,11 +3,14 @@ import { AxiosError, AxiosHeaders, type AxiosResponse } from "axios";
 import { type AiAnalysisRun } from "./ai-analyses.types";
 import {
   aiDecisionLabels,
+  correctionLabels,
   decisionTones,
   getCorrectionOptions,
   getDecisionAgreement,
   getDecisionErrorKey,
+  getDecisionOptions,
   getDisplayedLabel,
+  getModelLabel,
   getLatestRetainedRun,
   toDecisionPayload,
   validateDecisionDraft,
@@ -22,14 +25,28 @@ const predictions = [
   { label: "notumor", probability: 0.03 },
 ];
 
-const run = (overrides: Partial<AiAnalysisRun> = {}): Pick<AiAnalysisRun, "createdAt" | "decisionLabel" | "decisionStatus" | "id" | "predictions"> => ({
+type RunFields = Pick<
+  AiAnalysisRun,
+  "createdAt" | "decisionLabel" | "decisionStatus" | "id" | "modelDecision" | "modelLabel" | "pipeline" | "predictions"
+>;
+
+// A brain run; modelLabel left null so the fallback on the predictions is exercised.
+const run = (overrides: Partial<AiAnalysisRun> = {}): RunFields => ({
   createdAt: "2026-10-07T10:00:00.000Z",
   decisionLabel: null,
   decisionStatus: null,
   id: "run-1",
+  modelDecision: null,
+  modelLabel: null,
+  pipeline: "brain",
   predictions,
   ...overrides,
 });
+
+const breastRun = (overrides: Partial<AiAnalysisRun> = {}) =>
+  run({ modelDecision: "malignant", modelLabel: "malignant", pipeline: "pathology-breast", predictions: null, ...overrides });
+const nucleiRun = (overrides: Partial<AiAnalysisRun> = {}) =>
+  run({ pipeline: "pathology-nuclei", predictions: null, ...overrides });
 
 const axiosError = (status: number, data: unknown) => {
   const config = { headers: new AxiosHeaders() };
@@ -54,6 +71,22 @@ describe("physician / model agreement", () => {
   it("is neither for a rejected analysis", () => {
     expect(getDecisionAgreement(run({ decisionStatus: "REJECTED" }))).toBe("rejected");
   });
+
+  it("compares with the BreakHis result, and has nothing to compare for a nuclei map", () => {
+    expect(getDecisionAgreement(breastRun({ decisionLabel: "malignant", decisionStatus: "VALIDATED" }))).toBe("agrees");
+    expect(getDecisionAgreement(breastRun({ decisionLabel: "benign", decisionStatus: "CORRECTED" }))).toBe("disagrees");
+    expect(getDecisionAgreement(nucleiRun({ decisionStatus: "VALIDATED" }))).toBe("notApplicable");
+    expect(getDecisionAgreement(nucleiRun({ decisionStatus: "REJECTED" }))).toBe("rejected");
+  });
+});
+
+describe("model's answer", () => {
+  it("is the backend's modelLabel, else the brain top class or the BreakHis result", () => {
+    expect(getModelLabel(run())).toBe("meningioma");
+    expect(getModelLabel(run({ modelLabel: "glioma" }))).toBe("glioma");
+    expect(getModelLabel(breastRun({ modelLabel: null }))).toBe("malignant");
+    expect(getModelLabel(nucleiRun())).toBeNull();
+  });
 });
 
 describe("label displayed according to the decision", () => {
@@ -75,6 +108,8 @@ describe("label displayed according to the decision", () => {
   it("shows no class for a rejected analysis, nor without predictions", () => {
     expect(getDisplayedLabel(run({ decisionStatus: "REJECTED" }))).toEqual({ label: null, source: "none" });
     expect(getDisplayedLabel(run({ predictions: null }))).toEqual({ label: null, source: "none" });
+    expect(getDisplayedLabel(nucleiRun())).toEqual({ label: null, source: "none" });
+    expect(getDisplayedLabel(breastRun())).toEqual({ label: "malignant", source: "model" });
   });
 
   it("uses the decision tones, one per decision", () => {
@@ -108,18 +143,45 @@ describe("decision draft", () => {
     ...overrides,
   });
 
-  it("offers every class but the model's for a correction", () => {
-    expect(getCorrectionOptions("meningioma")).toEqual(["glioma", "notumor", "pituitary", "other"]);
-    expect(getCorrectionOptions(null)).toEqual([...aiDecisionLabels]);
+  it("offers every class of the chain but the model's for a correction", () => {
+    expect(getCorrectionOptions("brain", "meningioma")).toEqual(["glioma", "notumor", "pituitary", "other"]);
+    expect(getCorrectionOptions("brain", null)).toEqual([...correctionLabels.brain]);
+    expect(getCorrectionOptions("pathology-breast", "malignant")).toEqual(["benign", "other"]);
+    expect(getCorrectionOptions("pathology-nuclei", null)).toEqual([]);
+  });
+
+  it("knows every class a decision may retain, once", () => {
+    expect([...aiDecisionLabels].sort()).toEqual(
+      ["benign", "glioma", "malignant", "meningioma", "notumor", "other", "pituitary"].sort(),
+    );
+  });
+
+  it("offers no correction for a nuclei map", () => {
+    expect(getDecisionOptions("brain")).toEqual(["VALIDATED", "CORRECTED", "REJECTED"]);
+    expect(getDecisionOptions("pathology-breast")).toEqual(["VALIDATED", "CORRECTED", "REJECTED"]);
+    expect(getDecisionOptions("pathology-nuclei")).toEqual(["VALIDATED", "REJECTED"]);
+    expect(validateDecisionDraft(draft({ correctedLabel: "other", reason: "Carte floue.", status: "CORRECTED" }), null, "pathology-nuclei")).toEqual({
+      status: "required",
+    });
+    expect(validateDecisionDraft(draft({ status: "VALIDATED" }), null, "pathology-nuclei")).toEqual({});
+  });
+
+  it("takes a breast correction among the breast classes only", () => {
+    const reason = "Atypies marquées.";
+
+    expect(validateDecisionDraft(draft({ correctedLabel: "glioma", reason, status: "CORRECTED" }), "benign", "pathology-breast")).toEqual({
+      correctedLabel: "required",
+    });
+    expect(validateDecisionDraft(draft({ correctedLabel: "malignant", reason, status: "CORRECTED" }), "benign", "pathology-breast")).toEqual({});
   });
 
   it("needs a choice, then nothing more to validate", () => {
-    expect(validateDecisionDraft(draft({}), "meningioma")).toEqual({ status: "required" });
-    expect(validateDecisionDraft(draft({ status: "VALIDATED" }), "meningioma")).toEqual({});
+    expect(validateDecisionDraft(draft({}), "meningioma", "brain")).toEqual({ status: "required" });
+    expect(validateDecisionDraft(draft({ status: "VALIDATED" }), "meningioma", "brain")).toEqual({});
   });
 
   it("requires a reason of 5 to 500 characters, as stored", () => {
-    const rejected = (reason: string) => validateDecisionDraft(draft({ reason, status: "REJECTED" }), "meningioma");
+    const rejected = (reason: string) => validateDecisionDraft(draft({ reason, status: "REJECTED" }), "meningioma", "brain");
 
     expect(rejected("   ")).toEqual({ reason: "required" });
     expect(rejected("a \n\n b")).toEqual({ reason: "tooShort" });
@@ -130,13 +192,13 @@ describe("decision draft", () => {
   it("requires a corrected class different from the model's", () => {
     const reason = "Prise de contraste en anneau.";
 
-    expect(validateDecisionDraft(draft({ reason, status: "CORRECTED" }), "meningioma")).toEqual({
+    expect(validateDecisionDraft(draft({ reason, status: "CORRECTED" }), "meningioma", "brain")).toEqual({
       correctedLabel: "required",
     });
-    expect(validateDecisionDraft(draft({ correctedLabel: "meningioma", reason, status: "CORRECTED" }), "meningioma")).toEqual({
+    expect(validateDecisionDraft(draft({ correctedLabel: "meningioma", reason, status: "CORRECTED" }), "meningioma", "brain")).toEqual({
       correctedLabel: "matchesModel",
     });
-    expect(validateDecisionDraft(draft({ correctedLabel: "other", reason, status: "CORRECTED" }), "meningioma")).toEqual({});
+    expect(validateDecisionDraft(draft({ correctedLabel: "other", reason, status: "CORRECTED" }), "meningioma", "brain")).toEqual({});
   });
 
   it("sends only what each decision carries", () => {
@@ -159,6 +221,8 @@ describe("decision errors", () => {
   it("explains the backend codes, and nothing else", () => {
     expect(getDecisionErrorKey(axiosError(409, { code: "AI_RUN_ALREADY_DECIDED" }))).toBe("AI_RUN_ALREADY_DECIDED");
     expect(getDecisionErrorKey(axiosError(400, { code: "AI_CORRECTION_MATCHES_MODEL" }))).toBe("AI_CORRECTION_MATCHES_MODEL");
+    expect(getDecisionErrorKey(axiosError(400, { code: "AI_CORRECTED_LABEL_INVALID" }))).toBe("AI_CORRECTED_LABEL_INVALID");
+    expect(getDecisionErrorKey(axiosError(400, { code: "AI_CORRECTION_NOT_APPLICABLE" }))).toBe("AI_CORRECTION_NOT_APPLICABLE");
     expect(getDecisionErrorKey(axiosError(500, { code: "SOMETHING" }))).toBe("unknown");
     expect(getDecisionErrorKey(new Error("network"))).toBe("unknown");
   });

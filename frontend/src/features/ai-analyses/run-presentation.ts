@@ -1,4 +1,4 @@
-// Pure presentation rules of the brain analysis (launch button, result page).
+// Pure presentation rules of an analysis (launch button, result page).
 
 import { isAxiosError } from "axios";
 
@@ -21,12 +21,12 @@ export type LaunchState =
   | "service_not_configured"
   | "service_unauthorized"
   | "service_error"
-  | "classifier_not_loaded";
+  | "model_not_loaded";
 
-/** "ready" only when the service answers and has the classifier loaded. */
+/** "ready" only when the service answers and has the chain's entry model loaded. */
 export function getLaunchState(
   query: { data: AiServiceStatus | undefined; isError: boolean; isLoading: boolean },
-  classifierId: string,
+  entryModelId: string,
 ): LaunchState {
   if (query.isLoading) return "loading";
   if (query.isError || !query.data) return "status_error";
@@ -41,9 +41,9 @@ export function getLaunchState(
     case "error":
       return "service_error";
     case "available":
-      return query.data.models.some((model) => model.modelId === classifierId && model.loaded)
+      return query.data.models.some((model) => model.modelId === entryModelId && model.loaded)
         ? "ready"
-        : "classifier_not_loaded";
+        : "model_not_loaded";
   }
 }
 
@@ -63,6 +63,8 @@ export const knownRunErrorCodes = [
   "RUN_INTERRUPTED",
   "INVALID_IMAGE",
   "IMAGE_TOO_LARGE",
+  "IMAGE_TOO_SMALL",
+  "IMAGE_DIMENSIONS_TOO_LARGE",
 ] as const;
 const KNOWN_RUN_ERRORS = new Set<string>(knownRunErrorCodes);
 
@@ -79,4 +81,19 @@ export function getFailedRunId(error: unknown): string | null {
   if (!isAxiosError(error)) return null;
   const runId = (error.response?.data as { runId?: unknown } | undefined)?.runId;
   return typeof runId === "string" && runId !== "" ? runId : null;
+}
+
+/** 400 codes of POST .../ai-analysis-runs the wizard explains (aiAnalyses.wizard.reading.launchErrors.<code>). */
+export const knownLaunchErrorCodes = [
+  "AI_MAGNIFICATION_REQUIRED",
+  "AI_MAGNIFICATION_NOT_SUPPORTED",
+  "AI_MAGNIFICATION_UNEXPECTED",
+] as const;
+const KNOWN_LAUNCH_ERRORS = new Set<string>(knownLaunchErrorCodes);
+
+/** Key under aiAnalyses.wizard.reading.launchErrors, or null for the generic message. */
+export function getLaunchErrorKey(error: unknown): string | null {
+  if (!isAxiosError(error)) return null;
+  const code = (error.response?.data as { code?: unknown } | undefined)?.code;
+  return typeof code === "string" && KNOWN_LAUNCH_ERRORS.has(code) ? code : null;
 }

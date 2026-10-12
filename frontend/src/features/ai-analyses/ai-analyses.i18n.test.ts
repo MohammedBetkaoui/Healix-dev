@@ -4,12 +4,12 @@ import { join } from "node:path";
 import { dictionaries, locales } from "@/i18n";
 import { translate } from "@/lib/i18n";
 
-import { aiModelStatuses, aiModelTasks, aiModules, aiRunDecisions } from "./ai-analyses.types";
-import { aiModels, aiPipelines } from "./ai-models.registry";
-import { aiDecisionLabels, knownDecisionErrorCodes } from "./run-decision";
-import { knownRunErrorCodes } from "./run-presentation";
+import { aiModelStatuses, aiModelTasks, aiModules, aiRunDecisions, nucleusTypes } from "./ai-analyses.types";
+import { aiModels, aiPipelines, pipelineSteps } from "./ai-models.registry";
+import { aiDecisionLabels, getDecisionOptions, knownDecisionErrorCodes } from "./run-decision";
+import { knownLaunchErrorCodes, knownRunErrorCodes } from "./run-presentation";
 import { knownReportErrorKeys } from "./run-report";
-import { TRACKING_DECISIONS, TRACKING_PERIODS, TRACKING_STATUSES, TRACKING_TABS } from "./runs-tracking";
+import { TRACKING_DECISIONS, TRACKING_PERIODS, TRACKING_PIPELINES, TRACKING_STATUSES, TRACKING_TABS } from "./runs-tracking";
 import { qualityCheckKeys, qualityCheckStatuses } from "./quality-check";
 
 // Mirrors the steps of components/ai-analyses/wizard/AiAnalysisWizardPage.
@@ -45,12 +45,27 @@ function registryKeys() {
     keys.add(`aiAnalyses.pipelines.${pipeline.id}.name`);
     keys.add(`aiAnalyses.pipelines.${pipeline.id}.description`);
     keys.add(`aiAnalyses.pipelines.${pipeline.id}.launch`);
-    keys.add(`aiAnalyses.pipelines.${pipeline.id}.steps.classify`);
-    keys.add(`aiAnalyses.pipelines.${pipeline.id}.steps.segmentMeningioma`);
-    keys.add(`aiAnalyses.pipelines.${pipeline.id}.steps.segmentPituitary`);
+    for (const step of pipelineSteps[pipeline.id]) keys.add(`aiAnalyses.pipelines.${pipeline.id}.steps.${step}`);
+    keys.add(`aiAnalyses.wizard.reading.impressionHints.${pipeline.id}`);
+    // Decision options of the chain: a nuclei map has its own wording.
+    for (const decision of getDecisionOptions(pipeline.id)) {
+      const family = pipeline.id === "pathology-nuclei" ? "nuclei" : "";
+      keys.add(`aiAnalyses.decision.${family ? `${family}Options` : "options"}.${decision}`);
+      keys.add(`aiAnalyses.decision.${family ? `${family}OptionHints` : "optionHints"}.${decision}`);
+    }
   }
-  for (const state of ["loading", "status_error", "service_unavailable", "service_not_configured", "service_unauthorized", "service_error", "classifier_not_loaded"]) {
+  for (const state of ["loading", "status_error", "service_unavailable", "service_not_configured", "service_unauthorized", "service_error", "model_not_loaded"]) {
     keys.add(`aiAnalyses.wizard.reading.launchStates.${state}`);
+  }
+  for (const code of knownLaunchErrorCodes) keys.add(`aiAnalyses.wizard.reading.launchErrors.${code}`);
+  // Built by the breast and nuclei results from their views, warnings and types.
+  for (const view of ["original", "flipHorizontal", "flipVertical", "flipBoth"]) {
+    keys.add(`aiAnalyses.run.pathology.breast.views.${view}`);
+  }
+  for (const kind of ["falsePositive", "falseNegative"]) keys.add(`aiAnalyses.run.pathology.breast.warnings.${kind}`);
+  for (const type of nucleusTypes) keys.add(`aiAnalyses.classes.${type}`);
+  for (const cell of ["trueNegative", "falsePositive", "falseNegative", "truePositive"]) {
+    keys.add(`aiAnalyses.sheet.matrixCells.${cell}`);
   }
   for (const code of [...knownRunErrorCodes, "unknown"]) {
     keys.add(`aiAnalyses.run.errors.${code}`);
@@ -63,8 +78,11 @@ function registryKeys() {
   for (const decision of TRACKING_DECISIONS) keys.add(`aiAnalyses.tracking.filters.decisions.${decision}`);
   for (const status of TRACKING_STATUSES) keys.add(`aiAnalyses.tracking.filters.statuses.${status}`);
   for (const period of TRACKING_PERIODS) keys.add(`aiAnalyses.tracking.agreement.periods.${period}`);
-  for (const column of ["date", "patient", "modelClass", "uncertain", "mask", "decision", "result"]) {
+  for (const column of ["date", "patient", "pipeline", "modelClass", "uncertain", "mask", "decision", "result"]) {
     keys.add(`aiAnalyses.tracking.worklist.columns.${column}`);
+  }
+  for (const pipeline of TRACKING_PIPELINES) {
+    keys.add(pipeline === "all" ? "aiAnalyses.tracking.filters.pipelines.all" : `aiAnalyses.pipelines.${pipeline}.name`);
   }
   // Picked from the report's availability and download error.
   for (const blocker of ["notSucceeded", "notDecided", "rejected"]) keys.add(`aiAnalyses.report.blockers.${blocker}`);

@@ -11,12 +11,20 @@ import {
   findPipeline,
   getPipelineRole,
   pipelineForLegacyModel,
+  pipelineSteps,
 } from "./ai-models.registry";
 import {
   brainClassificationEvaluation,
   brainEvaluationSource,
   brainSegmentationEvaluation,
 } from "./brain-evaluation";
+import {
+  breakhisEvaluation,
+  pannukeEvaluation,
+  pannukeEvaluationSource,
+  pannukeNotebookValidation,
+  pathologyEvaluationSource,
+} from "./pathology-evaluation";
 
 // Through the declared type: the tests check data, not the literal types
 // "as const" gives each entry.
@@ -42,6 +50,17 @@ const notebookMetrics = [
     unit: "score",
     approximate: false,
     dataset: "gliomaValidation",
+    ci95: null,
+    source: "notebook",
+  },
+  {
+    // Fold 2 is the validation fold the checkpoint was selected on: optimistic.
+    modelId: "pathology-unet-pannuke-segmentation",
+    key: "validationNucleiDice",
+    value: pannukeNotebookValidation.nucleiMeanDice,
+    unit: "score",
+    approximate: false,
+    dataset: "pannukeValidationFold2",
     ci95: null,
     source: "notebook",
   },
@@ -83,6 +102,32 @@ const evaluationMetrics = [
   },
   ...segmentationMetrics("brain-unet-meningioma-segmentation", "meningioma", "meningiomaTest"),
   ...segmentationMetrics("brain-unet-pituitary-segmentation", "pituitary", "pituitaryTest"),
+  // BreakHis: exactly those of pathology-evaluation.ts (checked against its report).
+  ...(["accuracy", "sensitivity", "specificity", "precision", "aucRoc"] as const).map((name) => ({
+    modelId: "pathology-breakhis-classification",
+    key: `breakhis${name[0].toUpperCase()}${name.slice(1)}`,
+    value: breakhisEvaluation[name].value,
+    ci95: breakhisEvaluation[name].ci95,
+    unit: name === "aucRoc" ? "score" : "percent",
+    approximate: false,
+    dataset: "breakhisTest",
+    source: "evaluation",
+  })),
+  // PanNuke: its test measure, once a report has one.
+  ...(pannukeEvaluation === null
+    ? []
+    : [
+        {
+          modelId: "pathology-unet-pannuke-segmentation",
+          key: "testNucleiDice",
+          value: pannukeEvaluation.nucleiMeanDice,
+          ci95: null,
+          unit: "score",
+          approximate: false,
+          dataset: "pannukeTest",
+          source: "evaluation",
+        },
+      ]),
 ];
 
 describe("aiModels registry", () => {
@@ -130,9 +175,29 @@ describe("aiModels registry", () => {
       ["brain-efficientnetb4-tumor-classification", "testAccuracy", "evaluation"],
       ["brain-unet-meningioma-segmentation", "testDice", "evaluation"],
       ["brain-unet-pituitary-segmentation", "testDice", "evaluation"],
+      ["pathology-breakhis-classification", "breakhisAccuracy", "evaluation"],
+      ...(pannukeEvaluation === null ? [] : [["pathology-unet-pannuke-segmentation", "testNucleiDice", "evaluation"]]),
     ]);
     for (const model of aiModels.filter((entry) => entry.evaluation !== null)) {
-      expect(model.evaluation).toEqual({ date: brainEvaluationSource.date, report: brainEvaluationSource.report });
+      const source =
+        model.id === "pathology-unet-pannuke-segmentation"
+          ? pannukeEvaluationSource
+          : model.module === "pathology"
+            ? pathologyEvaluationSource
+            : brainEvaluationSource;
+      expect(model.evaluation).toEqual({ date: source.date, report: source.report });
+    }
+  });
+
+  it("says PanNuke's test performance is pending exactly while it is not measured", () => {
+    const pannuke = aiModels.find((model) => model.id === "pathology-unet-pannuke-segmentation");
+
+    if (pannukeEvaluation === null) {
+      expect(pannuke?.evaluation).toBeNull();
+      expect(pannuke?.knownLimitations).toContain("testEvaluationPending");
+    } else {
+      expect(pannuke?.evaluation).toEqual({ date: pannukeEvaluationSource.date, report: pannukeEvaluationSource.report });
+      expect(pannuke?.knownLimitations).not.toContain("testEvaluationPending");
     }
   });
 
@@ -154,9 +219,45 @@ describe("aiModels registry", () => {
       "cardiology-densenet121-chest-xray": "available",
       "cardiology-acdc-segmentation": "in_design",
       "cardiology-ct-heart-segmentation": "in_design",
-      "pathology-hovernet-nuclei-segmentation": "exploring",
-      "pathology-breakhis-classification": "exploring",
+      "pathology-breakhis-classification": "available",
+      "pathology-unet-pannuke-segmentation": "available",
     });
+  });
+
+  it("gives the pathology models their facts and input sizes", () => {
+    const breakhis = aiModels.find((model) => model.id === "pathology-breakhis-classification");
+    const pannuke = aiModels.find((model) => model.id === "pathology-unet-pannuke-segmentation");
+
+    expect(breakhis).toMatchObject({
+      acceptedFormats: ["png", "jpeg"],
+      architecture: "EfficientNetB0",
+      inputConstraints: null,
+      inputModality: "breastHistopathologyHe",
+      outputClasses: ["benign", "malignant"],
+    });
+    expect(breakhis?.knownLimitations).toEqual([
+      "notCertified",
+      "internalValidation",
+      "fewTestPatients",
+      "uncalibratedScore",
+      "breastHeOnly",
+      "magnificationDependent",
+    ]);
+    expect(breakhis?.confusionMatrix).toEqual({ labels: ["benign", "malignant"], matrix: breakhisEvaluation.confusionMatrix });
+    expect(pannuke).toMatchObject({
+      acceptedFormats: ["png", "jpeg"],
+      architecture: "U-Net (encodeur EfficientNetB0)",
+      inputConstraints: { maxSide: 4096, minSide: 256 },
+      inputModality: "histopathologyHe40x",
+      outputClasses: ["neoplastic", "inflammatory", "connective", "dead", "epithelial"],
+    });
+    expect(pannuke?.knownLimitations).toEqual([
+      "notCertified",
+      "semanticNotInstances",
+      "deadUnreliable",
+      "he40xOnly",
+      ...(pannukeEvaluation === null ? ["testEvaluationPending"] : []),
+    ]);
   });
 
   it("only lets an available model start a new analysis", () => {
@@ -164,21 +265,34 @@ describe("aiModels registry", () => {
     expect(findLaunchableModel("brain-unet-meningioma-segmentation")).toBeUndefined();
     expect(findLaunchableModel("brain-unet-pituitary-segmentation")).toBeUndefined();
     expect(findLaunchableModel("cardiology-acdc-segmentation")).toBeUndefined();
-    expect(findLaunchableModel("pathology-breakhis-classification")).toBeUndefined();
+    expect(findLaunchableModel("pathology-breakhis-classification")?.status).toBe("available");
+    expect(findLaunchableModel("pathology-unet-pannuke-segmentation")?.status).toBe("available");
     expect(findLaunchableModel("unknown-model")).toBeUndefined();
     expect(findLaunchableModel(undefined)).toBeUndefined();
   });
 
-  it("launches one brain pipeline and maps every legacy component to it", () => {
-    expect(aiPipelines).toHaveLength(1);
-    expect(findPipeline("brain")?.classifierId).toBe("brain-efficientnetb4-tumor-classification");
+  it("launches three chains, each from its entry model, and maps every legacy component to its chain", () => {
+    expect(aiPipelines.map((pipeline) => [pipeline.id, pipeline.kind, pipeline.entryModelId])).toEqual([
+      ["brain", "routed", "brain-efficientnetb4-tumor-classification"],
+      ["pathology-breast", "single", "pathology-breakhis-classification"],
+      ["pathology-nuclei", "single", "pathology-unet-pannuke-segmentation"],
+    ]);
+    expect(findPipeline("brain")?.entryModelId).toBe("brain-efficientnetb4-tumor-classification");
     expect(findPipeline("unknown")).toBeUndefined();
-    expect(getPipelineRole("brain-efficientnetb4-tumor-classification")?.role).toBe("classifier");
+    expect(getPipelineRole("brain-efficientnetb4-tumor-classification")?.role).toBe("entry");
+    expect(getPipelineRole("pathology-breakhis-classification")).toMatchObject({ role: "entry", pipeline: { id: "pathology-breast" } });
+    expect(getPipelineRole("pathology-unet-pannuke-segmentation")).toMatchObject({ role: "entry", pipeline: { id: "pathology-nuclei" } });
+    expect(getPipelineRole("cardiology-densenet121-chest-xray")).toBeNull();
     expect(getPipelineRole("brain-unet-meningioma-segmentation")?.role).toBe("segmenter");
     expect(getPipelineRole("brain-unet-pituitary-segmentation")?.role).toBe("segmenter");
     expect(pipelineForLegacyModel("brain-unet-meningioma-segmentation")?.id).toBe("brain");
     expect(pipelineForLegacyModel("brain-unet-pituitary-segmentation")?.id).toBe("brain");
     expect(pipelineForLegacyModel("brain-unet-glioma-segmentation")).toBeUndefined();
+    expect(pipelineForLegacyModel("pathology-breakhis-classification")?.id).toBe("pathology-breast");
+  });
+
+  it("lists the hub steps of every chain", () => {
+    expect(Object.keys(pipelineSteps).sort()).toEqual(aiPipelines.map((pipeline) => pipeline.id).sort());
   });
 
   it("takes the classifier per-class metrics and confusion matrix from the evaluation", () => {

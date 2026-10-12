@@ -6,21 +6,34 @@ import { isAxiosError } from "axios";
 import { type DashboardStatusTone } from "@/types/dashboard";
 
 import {
+  aiRunDecisions,
   type AiAnalysisRun,
   type AiOutputClassKey,
+  type AiPipelineId,
   type AiRunDecision,
 } from "./ai-analyses.types";
 import { type DecideAiAnalysisRunPayload } from "./ai-analysis-runs.api";
 import { getTopLabel } from "./run-presentation";
 
-/** Classes a correction may name: the classifier's four, or one it does not know. */
-export const aiDecisionLabels = [
-  "glioma",
-  "meningioma",
-  "notumor",
-  "pituitary",
-  "other",
-] as const satisfies readonly AiOutputClassKey[];
+/**
+ * Classes a correction may name, per chain (backend CORRECTION_LABELS): the
+ * model's own, or one it does not know. A nuclei map is never corrected.
+ */
+export const correctionLabels = {
+  brain: ["glioma", "meningioma", "notumor", "pituitary", "other"],
+  "pathology-breast": ["benign", "malignant", "other"],
+  "pathology-nuclei": [],
+} as const satisfies Record<AiPipelineId, readonly AiOutputClassKey[]>;
+
+/** Every class a decision may retain, whatever the chain. */
+export const aiDecisionLabels: readonly AiOutputClassKey[] = [
+  ...new Set<AiOutputClassKey>(Object.values(correctionLabels).flat()),
+];
+
+/** The decisions a chain offers: a nuclei map is validated or rejected, never corrected. */
+export function getDecisionOptions(pipeline: AiPipelineId): readonly AiRunDecision[] {
+  return pipeline === "pathology-nuclei" ? ["VALIDATED", "REJECTED"] : aiRunDecisions;
+}
 
 export const DECISION_REASON_MIN_LENGTH = 5;
 export const DECISION_REASON_MAX_LENGTH = 500;
@@ -32,15 +45,34 @@ export const decisionTones: Record<AiRunDecision, DashboardStatusTone> = {
   REJECTED: "danger",
 };
 
-type DecisionFields = Pick<AiAnalysisRun, "decisionLabel" | "decisionStatus" | "predictions">;
+type ModelAnswerFields = Pick<AiAnalysisRun, "modelDecision" | "modelLabel" | "pipeline" | "predictions">;
+type DecisionFields = ModelAnswerFields & Pick<AiAnalysisRun, "decisionLabel" | "decisionStatus">;
 
-export type DecisionAgreement = "pending" | "agrees" | "disagrees" | "rejected";
+/**
+ * The model's answer the physician decides on (backend getModelLabel): the
+ * brain classifier's top class, the BreakHis result; none for a nuclei map.
+ */
+export function getModelLabel(run: ModelAnswerFields): string | null {
+  if (run.modelLabel) return run.modelLabel;
+  switch (run.pipeline) {
+    case "brain":
+      return getTopLabel(run.predictions);
+    case "pathology-breast":
+      return run.modelDecision;
+    default:
+      return null;
+  }
+}
 
-/** Whether the physician retained the model's top class. */
+/** notApplicable: a nuclei map, which has no class to agree with. */
+export type DecisionAgreement = "pending" | "agrees" | "disagrees" | "rejected" | "notApplicable";
+
+/** Whether the physician retained the model's answer. */
 export function getDecisionAgreement(run: DecisionFields): DecisionAgreement {
   if (run.decisionStatus === null) return "pending";
   if (run.decisionStatus === "REJECTED") return "rejected";
-  const modelLabel = getTopLabel(run.predictions);
+  const modelLabel = getModelLabel(run);
+  if (modelLabel === null) return "notApplicable";
   return run.decisionLabel !== null && run.decisionLabel === modelLabel ? "agrees" : "disagrees";
 }
 
@@ -58,7 +90,7 @@ export function getDisplayedLabel(run: DecisionFields): DisplayedLabel {
   if (run.decisionStatus !== null) {
     return run.decisionLabel ? { label: run.decisionLabel, source: "physician" } : { label: null, source: "none" };
   }
-  const modelLabel = getTopLabel(run.predictions);
+  const modelLabel = getModelLabel(run);
   return modelLabel ? { label: modelLabel, source: "model" } : { label: null, source: "none" };
 }
 
@@ -74,9 +106,9 @@ export function getLatestRetainedRun<T extends Pick<AiAnalysisRun, "createdAt" |
   return latest;
 }
 
-/** Corrections offered: every decision label except the model's top class. */
-export function getCorrectionOptions(modelLabel: string | null): string[] {
-  return aiDecisionLabels.filter((label) => label !== modelLabel);
+/** Corrections offered: the chain's labels except the model's answer. */
+export function getCorrectionOptions(pipeline: AiPipelineId, modelLabel: string | null): AiOutputClassKey[] {
+  return correctionLabels[pipeline].filter((label) => label !== modelLabel);
 }
 
 /** As the backend stores it: trimmed, inner whitespace collapsed. */
@@ -97,13 +129,17 @@ export type DecisionDraftErrors = {
 };
 
 /** Same rules as the backend; an empty object means the draft can be sent. */
-export function validateDecisionDraft(draft: DecisionDraft, modelLabel: string | null): DecisionDraftErrors {
-  if (draft.status === null) return { status: "required" };
+export function validateDecisionDraft(
+  draft: DecisionDraft,
+  modelLabel: string | null,
+  pipeline: AiPipelineId,
+): DecisionDraftErrors {
+  if (draft.status === null || !getDecisionOptions(pipeline).includes(draft.status)) return { status: "required" };
   if (draft.status === "VALIDATED") return {};
 
   const errors: DecisionDraftErrors = {};
   if (draft.status === "CORRECTED") {
-    if (!(aiDecisionLabels as readonly string[]).includes(draft.correctedLabel)) errors.correctedLabel = "required";
+    if (!(correctionLabels[pipeline] as readonly string[]).includes(draft.correctedLabel)) errors.correctedLabel = "required";
     else if (draft.correctedLabel === modelLabel) errors.correctedLabel = "matchesModel";
   }
 
@@ -133,6 +169,8 @@ export const knownDecisionErrorCodes = [
   "AI_RUN_NOT_DECIDABLE",
   "AI_CORRECTION_MATCHES_MODEL",
   "AI_CORRECTED_LABEL_UNEXPECTED",
+  "AI_CORRECTED_LABEL_INVALID",
+  "AI_CORRECTION_NOT_APPLICABLE",
 ] as const;
 const KNOWN_DECISION_ERRORS = new Set<string>(knownDecisionErrorCodes);
 

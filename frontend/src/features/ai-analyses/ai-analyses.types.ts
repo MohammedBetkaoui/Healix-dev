@@ -69,6 +69,12 @@ export type AiConfusionMatrix = {
   matrix: readonly (readonly number[])[];
 };
 
+/**
+ * Image sizes a model accepts, in pixels per side, as its service enforces
+ * them (ai-service: 422 image_too_small / image_dimensions_too_large).
+ */
+export type AiInputConstraints = { minSide: number; maxSide: number };
+
 /** The service evaluation report a model's metrics come from. */
 export type AiModelEvaluation = {
   /** File name in ai-service/evaluation/. */
@@ -97,6 +103,8 @@ export type AiModel = {
   acceptedFormats: readonly string[] | null;
   /** Classification classes, or the structures a segmentation delimits; empty when not provided. */
   outputClasses: readonly AiOutputClassKey[];
+  /** Sizes checked before launching; null when the model gives none. */
+  inputConstraints: AiInputConstraints | null;
   /** Internal evaluation metrics, the first one being the main one; null when none was provided. */
   metrics: readonly AiModelMetric[] | null;
   /** Classifiers only; null when not provided. */
@@ -118,19 +126,37 @@ export type AiModel = {
 // Pipelines
 // ---------------------------------------------------------------------------
 
-export const aiPipelineIds = ["brain"] as const;
+export const aiPipelineIds = ["brain", "pathology-breast", "pathology-nuclei"] as const;
 export type AiPipelineId = (typeof aiPipelineIds)[number];
 
 /**
- * A launchable chain of registry models: the classifier always runs, then the
- * segmenter routed by the predicted class, if any. Segmenters are never
- * launched on their own (evaluated only on images with their tumour type).
+ * A launchable chain of registry models, never run one after another:
+ * - "routed": the entry model (a classifier) always runs, then the segmenter
+ *   routed by its predicted class, if any. Segmenters are never launched on
+ *   their own (evaluated only on images with their tumour type).
+ * - "single": the entry model alone.
  */
 export type AiPipeline = {
   id: AiPipelineId;
   module: AiModule;
-  classifierId: string;
+  kind: "routed" | "single";
+  entryModelId: string;
   segmenterByClass: Partial<Record<AiOutputClassKey, string>>;
+};
+
+/** Microscope magnification of a histopathology slide. */
+export const aiMagnifications = [40, 100, 200, 400] as const;
+export type AiMagnification = (typeof aiMagnifications)[number];
+
+/** The nuclei segmentation's types, in its output order (background excluded). */
+export const nucleusTypes = ["neoplastic", "inflammatory", "connective", "dead", "epithelial"] as const;
+export type NucleusType = (typeof nucleusTypes)[number];
+
+export type AiNucleiFractions = {
+  /** Share of all the pixels, 0 to 1. */
+  background: number;
+  /** Share of the nucleus pixels per type, 0 to 1; every type null without any nucleus. */
+  nucleusTypes: Record<NucleusType, number | null>;
 };
 
 // ---------------------------------------------------------------------------
@@ -159,8 +185,26 @@ export type AiAnalysisRun = {
   status: AiAnalysisRunStatus;
   classificationModelId: string | null;
   classificationWeightsSha256: string | null;
-  /** Descending, as returned by the service; null unless SUCCEEDED. */
+  /** Brain only: descending, as returned by the service; null unless SUCCEEDED. */
   predictions: AiRunPrediction[] | null;
+  /** The model's answer the physician decides on: the brain top class, the BreakHis result; null for a nuclei map. */
+  modelLabel: string | null;
+  /** Pathology: slide magnification (40 for the nuclei segmentation). */
+  magnification: number | null;
+  /** BreakHis: mean of the 4 view scores, 0 to 1. A score, never a probability. */
+  malignancyScore: number | null;
+  /** BreakHis: the threshold the score was compared with. */
+  decisionThreshold: number | null;
+  /** BreakHis: original, left-right flip, up-down flip, both. */
+  ttaScores: number[] | null;
+  /** BreakHis result: "benign" or "malignant". */
+  modelDecision: string | null;
+  /** PanNuke: pixel shares. */
+  nucleiFractions: AiNucleiFractions | null;
+  /** PanNuke: tiles of 256 x 256 the image was cut into. */
+  tileCount: number | null;
+  /** PanNuke: a colour overlay is served by GET .../overlay. */
+  hasOverlay: boolean;
   segmentationModelId: string | null;
   segmentationWeightsSha256: string | null;
   hasMask: boolean;
@@ -175,7 +219,7 @@ export type AiAnalysisRun = {
   requestedById: string;
   /** null until the physician decides; final once set. */
   decisionStatus: AiRunDecision | null;
-  /** The class the physician retained: the model's top class (VALIDATED), the corrected one (CORRECTED), null (REJECTED). */
+  /** The label the physician retained: the model's answer (VALIDATED), the corrected one (CORRECTED); null when REJECTED, and for a validated nuclei map. */
   decisionLabel: string | null;
   decisionReason: string | null;
   decidedById: string | null;
@@ -231,7 +275,7 @@ export type AiRunsSummary = {
   minimumDecisions: number;
   /** Fewer validated + corrected runs than minimumDecisions: no rate is shown. */
   insufficientData: boolean;
-  /** VALIDATED / (VALIDATED + CORRECTED). */
+  /** Brain runs only: VALIDATED / (VALIDATED + CORRECTED). */
   agreement: AiRunsRate;
   /** Model's top class (rows) x class kept by the physician (columns). */
   matrix: { modelLabels: string[]; retainedLabels: string[]; counts: number[][] };

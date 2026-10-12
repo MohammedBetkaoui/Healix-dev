@@ -23,6 +23,7 @@ import {
   aiModels,
   aiPipelines,
   getPipelineRole,
+  pipelineSteps,
   type AiModelId,
 } from "@/features/ai-analyses/ai-models.registry";
 import { isolate } from "@/features/ai-analyses/evaluation-presentation";
@@ -121,12 +122,8 @@ export function AiAnalysesHubPage({ accountType }: AiAnalysesHubPageProps) {
         {aiModules.map((module) => {
           const Icon = moduleIcons[module];
           const headingId = `ai-module-${module}`;
-          const pipeline = aiPipelines.find((candidate) => candidate.module === module);
-          const pipelineModels = pipeline
-            ? [pipeline.classifierId, ...Object.values(pipeline.segmenterByClass)]
-                .map((id) => aiModels.find((model) => model.id === id))
-                .filter((model) => model !== undefined)
-            : [];
+          // Each launchable chain of the module has its own card and button.
+          const pipelines = aiPipelines.filter((candidate) => candidate.module === module);
 
           return (
             // The specialty color is only an accent (rule + icon): the heading
@@ -143,55 +140,68 @@ export function AiAnalysesHubPage({ accountType }: AiAnalysesHubPageProps) {
                   </div>
                 </div>
               </div>
-              {pipeline ? (
-                <div className="px-5 pb-5">
-                  <article className="rounded-[var(--radius-md)] border border-[var(--border-strong)] bg-[var(--medical-soft)] p-5">
-                    <div className="flex flex-wrap items-start justify-between gap-4">
-                      <div className="min-w-0 max-w-3xl">
-                        <p className="text-xs font-semibold text-[var(--medical)]">{t("aiAnalyses.pipelines.eyebrow")}</p>
-                        <h3 className="mt-1 text-lg font-semibold text-[var(--text-primary)]">
-                          {t(`aiAnalyses.pipelines.${pipeline.id}.name`)}
-                        </h3>
-                        <p className="mt-2 text-sm leading-6 text-[var(--text-secondary)]">
-                          {t(`aiAnalyses.pipelines.${pipeline.id}.description`)}
-                        </p>
-                      </div>
-                      <Link
-                        href={`${roleBase}/ai-analyses/new?pipeline=${encodeURIComponent(pipeline.id)}`}
-                        className="clinical-button clinical-button-primary shrink-0"
-                      >
-                        <ScanLine size={16} strokeWidth={1.8} aria-hidden="true" />
-                        {t(`aiAnalyses.pipelines.${pipeline.id}.launch`)}
-                        <ArrowRight size={16} strokeWidth={1.8} aria-hidden="true" className="clinical-directional" />
-                      </Link>
-                    </div>
-                    <div className="mt-4 grid gap-4 border-t border-[var(--border)] pt-4 lg:grid-cols-2">
-                      <div>
-                        <p className="text-xs font-semibold text-[var(--text-secondary)]">{t("aiAnalyses.pipelines.components")}</p>
-                        <ul className="mt-2 flex flex-wrap gap-2">
-                          {pipelineModels.map((model) => (
-                            <li key={model.id} className="rounded-full border border-[var(--border)] bg-[var(--surface)] px-2.5 py-1 text-xs text-[var(--text-primary)]">
-                              {t(`aiAnalyses.models.${model.id}.name`)}
-                            </li>
-                          ))}
-                        </ul>
-                      </div>
-                      <ol className="space-y-1.5 text-xs text-[var(--text-secondary)]">
-                        <li>1. {t(`aiAnalyses.pipelines.${pipeline.id}.steps.classify`)}</li>
-                        <li>2. {t(`aiAnalyses.pipelines.${pipeline.id}.steps.segmentMeningioma`)}</li>
-                        <li>3. {t(`aiAnalyses.pipelines.${pipeline.id}.steps.segmentPituitary`)}</li>
-                      </ol>
-                    </div>
-                  </article>
-                </div>
+              {pipelines.length > 0 ? (
+                <ul className="grid gap-4 px-5 pb-5">
+                  {pipelines.map((pipeline) => {
+                    const pipelineModels = [pipeline.entryModelId, ...Object.values(pipeline.segmenterByClass)]
+                      .map((id) => aiModels.find((model) => model.id === id))
+                      .filter((model) => model !== undefined);
+                    const nameId = `ai-pipeline-${pipeline.id}`;
+
+                    return (
+                      <li key={pipeline.id}>
+                        <article aria-labelledby={nameId} className="rounded-[var(--radius-md)] border border-[var(--border-strong)] bg-[var(--medical-soft)] p-5">
+                          <div className="flex flex-wrap items-start justify-between gap-4">
+                            <div className="min-w-0 max-w-3xl">
+                              <p className="text-xs font-semibold text-[var(--medical)]">{t("aiAnalyses.pipelines.eyebrow")}</p>
+                              <h3 id={nameId} className="mt-1 text-lg font-semibold text-[var(--text-primary)]">
+                                {t(`aiAnalyses.pipelines.${pipeline.id}.name`)}
+                              </h3>
+                              <p className="mt-2 text-sm leading-6 text-[var(--text-secondary)]">
+                                {t(`aiAnalyses.pipelines.${pipeline.id}.description`)}
+                              </p>
+                            </div>
+                            <Link
+                              href={`${roleBase}/ai-analyses/new?pipeline=${encodeURIComponent(pipeline.id)}`}
+                              className="clinical-button clinical-button-primary shrink-0"
+                            >
+                              <ScanLine size={16} strokeWidth={1.8} aria-hidden="true" />
+                              {t(`aiAnalyses.pipelines.${pipeline.id}.launch`)}
+                              <ArrowRight size={16} strokeWidth={1.8} aria-hidden="true" className="clinical-directional" />
+                            </Link>
+                          </div>
+                          <div className="mt-4 grid gap-4 border-t border-[var(--border)] pt-4 lg:grid-cols-2">
+                            <div>
+                              <p className="text-xs font-semibold text-[var(--text-secondary)]">{t("aiAnalyses.pipelines.components")}</p>
+                              <ul className="mt-2 flex flex-wrap gap-2">
+                                {pipelineModels.map((model) => (
+                                  <li key={model.id} className="rounded-full border border-[var(--border)] bg-[var(--surface)] px-2.5 py-1 text-xs text-[var(--text-primary)]">
+                                    {t(`aiAnalyses.models.${model.id}.name`)}
+                                  </li>
+                                ))}
+                              </ul>
+                            </div>
+                            <ol className="list-decimal space-y-1.5 ps-5 text-xs text-[var(--text-secondary)]">
+                              {pipelineSteps[pipeline.id].map((step) => (
+                                <li key={step}>{t(`aiAnalyses.pipelines.${pipeline.id}.steps.${step}`)}</li>
+                              ))}
+                            </ol>
+                          </div>
+                        </article>
+                      </li>
+                    );
+                  })}
+                </ul>
               ) : null}
               <ul className="grid gap-4 px-5 pb-5 md:grid-cols-2 xl:grid-cols-3">
                 {aiModels
                   .filter((model) => model.module === module)
                   .map((model) => {
                     const role = getPipelineRole(model.id);
-                    const pipelineRole = role?.role === "classifier"
-                      ? t("aiAnalyses.card.pipelineRole.classifier")
+                    const pipelineRole = role?.role === "entry"
+                      ? role.pipeline.kind === "routed"
+                        ? t("aiAnalyses.card.pipelineRole.entry")
+                        : t("aiAnalyses.card.pipelineRole.single", { pipeline: t(`aiAnalyses.pipelines.${role.pipeline.id}.name`) })
                       : role?.role === "segmenter"
                         ? t("aiAnalyses.card.pipelineRole.segmenter", { class: t(`aiAnalyses.classes.${role.classKey}`) })
                         : undefined;

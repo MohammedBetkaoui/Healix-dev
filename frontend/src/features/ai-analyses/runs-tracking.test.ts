@@ -21,17 +21,27 @@ describe("URL filters", () => {
   });
 
   it("writes only what differs from the defaults, and reads it back", () => {
-    const filtered = state({ decision: "CORRECTED", from: "2026-10-01", mine: true, page: 3, status: "SUCCEEDED", to: "2026-10-09" });
+    const filtered = state({
+      decision: "CORRECTED",
+      from: "2026-10-01",
+      mine: true,
+      page: 3,
+      pipeline: "pathology-breast",
+      status: "SUCCEEDED",
+      to: "2026-10-09",
+    });
     const search = buildTrackingSearch(filtered);
 
-    expect(search).toBe("?decision=CORRECTED&status=SUCCEEDED&from=2026-10-01&to=2026-10-09&mine=1&page=3");
+    expect(search).toBe("?decision=CORRECTED&status=SUCCEEDED&pipeline=pathology-breast&from=2026-10-01&to=2026-10-09&mine=1&page=3");
     expect(parseTrackingState(new URLSearchParams(search))).toEqual(filtered);
     expect(buildTrackingSearch(state({ period: "all", tab: "agreement" }))).toBe("?tab=agreement&period=all");
   });
 
   it("ignores values it does not know", () => {
     expect(
-      parseTrackingState(new URLSearchParams("tab=x&decision=APPROVED&status=DONE&from=hier&to=2026-13&page=-2&mine=yes&period=7d")),
+      parseTrackingState(
+        new URLSearchParams("tab=x&decision=APPROVED&status=DONE&pipeline=cardiology&from=hier&to=2026-13&page=-2&mine=yes&period=7d"),
+      ),
     ).toEqual(DEFAULT_TRACKING_STATE);
   });
 
@@ -41,10 +51,12 @@ describe("URL filters", () => {
       from: undefined,
       limit: 20,
       page: 1,
+      pipeline: undefined,
       requestedBy: undefined,
       status: undefined,
       to: undefined,
     });
+    expect(worklistParams(state({ pipeline: "pathology-nuclei" })).pipeline).toBe("pathology-nuclei");
 
     const params = worklistParams(state({ decision: "all", from: "2026-10-01", mine: true, page: 2, status: "FAILED", to: "2026-10-09" }));
     expect(params).toEqual(expect.objectContaining({ decision: undefined, page: 2, requestedBy: "me", status: "FAILED" }));

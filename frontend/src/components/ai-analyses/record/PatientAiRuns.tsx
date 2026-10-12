@@ -1,15 +1,16 @@
 "use client";
 
-import { BrainCircuit, Clock3, FileDown, Plus } from "lucide-react";
+import { BrainCircuit, ChevronDown, Clock3, FileDown, Plus } from "lucide-react";
 import Link from "next/link";
+import { type ReactNode } from "react";
 
 import { StatusBadge } from "@/components/dashboard/shared/StatusBadge";
 import { VerificationRequiredNotice } from "@/components/shared/VerificationRequiredNotice";
-import { type AiAnalysisRun } from "@/features/ai-analyses/ai-analyses.types";
+import { type AiAnalysisRun, type AiPipelineId } from "@/features/ai-analyses/ai-analyses.types";
+import { aiPipelines } from "@/features/ai-analyses/ai-models.registry";
 import { useAiAnalysisRuns } from "@/features/ai-analyses/hooks/use-ai-analysis-runs";
 import { useDownloadAiReport } from "@/features/ai-analyses/hooks/use-download-ai-report";
 import { decisionTones, getDisplayedLabel, getLatestRetainedRun } from "@/features/ai-analyses/run-decision";
-import { sortPredictions } from "@/features/ai-analyses/run-presentation";
 import { getReportBlocker, getReportErrorKey } from "@/features/ai-analyses/run-report";
 import { formatPatientDateTime } from "@/features/patients/patient-registry";
 import { type Locale } from "@/i18n";
@@ -19,12 +20,56 @@ import { type TranslationFunction } from "@/lib/i18n";
 import { cn } from "@/lib/utils";
 import { type DashboardStatusTone } from "@/types/dashboard";
 
+import { AiRunModelResult } from "../AiRunModelResult";
+
 type AccountType = "DOCTOR" | "ESTABLISHMENT";
 
 const roleBaseOf = (accountType: AccountType) => (accountType === "ESTABLISHMENT" ? "/establishment" : "/doctor");
 
-export function getNewAiAnalysisHref(accountType: AccountType, patientId: string) {
-  return `${roleBaseOf(accountType)}/ai-analyses/new?pipeline=brain&patient=${encodeURIComponent(patientId)}`;
+export function getNewAiAnalysisHref(accountType: AccountType, patientId: string, pipeline: AiPipelineId) {
+  return `${roleBaseOf(accountType)}/ai-analyses/new?pipeline=${encodeURIComponent(pipeline)}&patient=${encodeURIComponent(patientId)}`;
+}
+
+/**
+ * "Nouvelle analyse IA" for a patient: a disclosure (native <details>, keyboard
+ * and screen-reader ready) listing the launchable chains.
+ */
+export function NewAiAnalysisMenu({
+  accountType,
+  children,
+  className,
+  patientId,
+  t,
+}: {
+  accountType: AccountType;
+  children: ReactNode;
+  className: string;
+  patientId: string;
+  t: TranslationFunction;
+}) {
+  return (
+    <details className="relative">
+      <summary className={cn(className, "cursor-pointer list-none [&::-webkit-details-marker]:hidden")}>
+        {children}
+        <ChevronDown size={15} strokeWidth={1.8} aria-hidden="true" />
+      </summary>
+      <div className="absolute end-0 z-20 mt-2 w-72 max-w-[calc(100vw-2rem)] rounded-[var(--radius-md)] border border-[var(--border)] bg-[var(--surface)] p-2 shadow-[var(--shadow-raised)]">
+        <p className="px-2 pb-1.5 pt-1 text-xs font-medium text-[var(--text-secondary)]">{t("aiAnalyses.record.newAnalysisChoose")}</p>
+        <ul>
+          {aiPipelines.map((pipeline) => (
+            <li key={pipeline.id}>
+              <Link
+                href={getNewAiAnalysisHref(accountType, patientId, pipeline.id)}
+                className="block rounded-[var(--radius-sm)] px-2 py-2 text-sm text-[var(--text-primary)] hover:bg-[var(--surface-muted)]"
+              >
+                {t(`aiAnalyses.pipelines.${pipeline.id}.name`)}
+              </Link>
+            </li>
+          ))}
+        </ul>
+      </div>
+    </details>
+  );
 }
 
 function getRunHref(accountType: AccountType, patientId: string, runId: string) {
@@ -84,7 +129,6 @@ type PatientAiRunsSectionProps = {
 export function PatientAiRunsSection({ accountType, hasSignedAiConsent, locale, patientId, t, title }: PatientAiRunsSectionProps) {
   const runsQuery = useAiAnalysisRuns(patientId);
   const runs = runsQuery.data ?? [];
-  const percent = new Intl.NumberFormat(locale === "ar" ? "ar-DZ" : "fr-DZ", { maximumFractionDigits: 1, style: "percent" });
 
   return (
     <section aria-labelledby="patient-ai-runs" className="rounded-xl border border-[var(--line)] bg-[var(--panel)] p-5">
@@ -93,10 +137,10 @@ export function PatientAiRunsSection({ accountType, hasSignedAiConsent, locale, 
           <BrainCircuit className="h-5 w-5 text-[var(--accent-dark)]" strokeWidth={1.7} aria-hidden="true" />
           <h2 id="patient-ai-runs" className="font-[var(--font-auth-display)] text-xl font-medium text-[var(--ink)]">{title}</h2>
         </div>
-        <Link href={getNewAiAnalysisHref(accountType, patientId)} className="clinical-button clinical-button-primary">
+        <NewAiAnalysisMenu accountType={accountType} className="clinical-button clinical-button-primary" patientId={patientId} t={t}>
           <Plus size={16} strokeWidth={1.8} aria-hidden="true" />
           {t("aiAnalyses.record.newAnalysis")}
-        </Link>
+        </NewAiAnalysisMenu>
       </div>
 
       {hasSignedAiConsent ? null : (
@@ -119,7 +163,7 @@ export function PatientAiRunsSection({ accountType, hasSignedAiConsent, locale, 
               <tr className="border-b border-[var(--line)] text-start font-[var(--font-auth-mono)] text-[0.6rem] uppercase tracking-[0.1em] text-[var(--ink-faint)]">
                 <th scope="col" className="py-2 pe-3 text-start font-medium">{t("aiAnalyses.record.columns.date")}</th>
                 <th scope="col" className="py-2 pe-3 text-start font-medium">{t("aiAnalyses.record.columns.pipeline")}</th>
-                <th scope="col" className="py-2 pe-3 text-start font-medium">{t("aiAnalyses.record.columns.topClass")}</th>
+                <th scope="col" className="py-2 pe-3 text-start font-medium">{t("aiAnalyses.record.columns.modelResult")}</th>
                 <th scope="col" className="py-2 pe-3 text-start font-medium">{t("aiAnalyses.record.columns.mask")}</th>
                 <th scope="col" className="py-2 pe-3 text-start font-medium">{t("aiAnalyses.record.columns.decision")}</th>
                 <th scope="col" className="py-2 text-end font-medium">{t("aiAnalyses.record.columns.result")}</th>
@@ -127,7 +171,6 @@ export function PatientAiRunsSection({ accountType, hasSignedAiConsent, locale, 
             </thead>
             <tbody className="divide-y divide-[var(--line)]">
               {runs.map((run) => {
-                const top = sortPredictions(run.predictions ?? [])[0];
                 const decision = getDecisionState(run, t);
                 const displayed = getDisplayedLabel(run);
                 const isRejected = run.decisionStatus === "REJECTED";
@@ -142,12 +185,7 @@ export function PatientAiRunsSection({ accountType, hasSignedAiConsent, locale, 
                     </td>
                     <td className={cn("py-3 pe-3 text-[var(--ink)]", struck)}>{t(`aiAnalyses.pipelines.${run.pipeline}.name`)}</td>
                     <td className={cn("py-3 pe-3 text-[var(--ink)]", struck)}>
-                      {top ? (
-                        <>
-                          {t(`aiAnalyses.classes.${top.label}`)}{" "}
-                          <bdi dir="ltr" className="font-[var(--font-auth-mono)] tabular-nums text-[var(--ink-soft)]">{percent.format(top.probability)}</bdi>
-                        </>
-                      ) : t("aiAnalyses.record.noClass")}
+                      <AiRunModelResult empty={t("aiAnalyses.record.noClass")} figureClassName="text-[var(--ink-soft)]" locale={locale} run={run} t={t} />
                     </td>
                     <td className={cn("py-3 pe-3 text-[var(--ink-soft)]", struck)}>
                       {run.hasMask ? t("aiAnalyses.record.maskYes") : t("aiAnalyses.record.maskNo")}
@@ -209,14 +247,16 @@ export function LatestRetainedAiRun({ accountType, locale, patientId, t }: Lates
   }
 
   const displayed = latest ? getDisplayedLabel(latest) : null;
-  if (!latest || latest.decisionStatus === null || latest.decisionStatus === "REJECTED" || displayed?.source !== "physician") {
+  // A validated nuclei map retains no class: the map itself is what was kept.
+  const isMap = latest?.pipeline === "pathology-nuclei" && latest.decisionStatus === "VALIDATED";
+  if (!latest || latest.decisionStatus === null || latest.decisionStatus === "REJECTED" || (displayed?.source !== "physician" && !isMap)) {
     return <p className="mt-1 text-sm font-medium text-[var(--ink)]">{t("aiAnalyses.record.latest.none")}</p>;
   }
 
   return (
     <div className="mt-1 space-y-1">
       <p className="flex flex-wrap items-center gap-2 text-sm font-medium text-[var(--ink)]">
-        {t(`aiAnalyses.classes.${displayed.label}`)}
+        {displayed?.source === "physician" ? t(`aiAnalyses.classes.${displayed.label}`) : t("aiAnalyses.decision.mapAccepted")}
         <StatusBadge label={t(`aiAnalyses.decision.statuses.${latest.decisionStatus}`)} tone={decisionTones[latest.decisionStatus]} />
       </p>
       <p className="text-xs text-[var(--ink-faint)]">

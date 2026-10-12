@@ -4,6 +4,7 @@ import { apiClient } from "@/lib/api/http-client";
 
 import {
   type AiAnalysisRun,
+  type AiMagnification,
   type AiPipelineId,
   type AiRunDecision,
   type AiRunDecisionFilter,
@@ -22,12 +23,15 @@ export type CreateAiAnalysisRunPayload = {
   pipeline: AiPipelineId;
   sourceDocumentId: string;
   clinicianImpression?: string;
+  /** Pathology only: the slide magnification (40 for the nuclei map); never sent for brain. */
+  magnification?: AiMagnification;
 };
 
 /** GET /ai-analysis-runs: the runs of every patient in scope. */
 export type AiRunsListParams = {
   decision?: AiRunDecisionFilter;
   status?: AiAnalysisRun["status"];
+  pipeline?: AiPipelineId;
   /** ISO instants, both included. */
   from?: string;
   to?: string;
@@ -124,6 +128,14 @@ export async function getAiAnalysisReport(patientId: string, runId: string): Pro
 
 export async function getAiAnalysisRunMask(patientId: string, runId: string): Promise<Blob> {
   const response = await apiClient.get<Blob>(`/patients/${patientId}/ai-analysis-runs/${runId}/mask`, {
+    responseType: "blob",
+  });
+  return response.data;
+}
+
+/** The colour overlay of a nuclei map (PNG, background transparent). */
+export async function getAiAnalysisRunOverlay(patientId: string, runId: string): Promise<Blob> {
+  const response = await apiClient.get<Blob>(`/patients/${patientId}/ai-analysis-runs/${runId}/overlay`, {
     responseType: "blob",
   });
   return response.data;

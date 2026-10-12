@@ -3,6 +3,7 @@ import { AxiosError, AxiosHeaders, type AxiosResponse } from "axios";
 import { type AiServiceStatus } from "./ai-analyses.types";
 import {
   getFailedRunId,
+  getLaunchErrorKey,
   getLaunchState,
   getRunErrorKey,
   getTopLabel,
@@ -51,10 +52,24 @@ describe("launch state", () => {
     isLoading: flags.isLoading ?? false,
   });
 
-  it("is ready only when the service answers with the classifier loaded", () => {
+  it("is ready only when the service answers with the chain's entry model loaded", () => {
     expect(getLaunchState(query(status("available")), CLASSIFIER)).toBe("ready");
-    expect(getLaunchState(query(status("available", false)), CLASSIFIER)).toBe("classifier_not_loaded");
-    expect(getLaunchState(query({ models: [], service: "available" }), CLASSIFIER)).toBe("classifier_not_loaded");
+    expect(getLaunchState(query(status("available", false)), CLASSIFIER)).toBe("model_not_loaded");
+    expect(getLaunchState(query({ models: [], service: "available" }), CLASSIFIER)).toBe("model_not_loaded");
+  });
+
+  it("follows the entry model of the chain launched", () => {
+    const pathology: AiServiceStatus = {
+      models: [
+        { error: null, loaded: true, modelId: "pathology-breakhis-classification", weightsSha256: "b".repeat(64) },
+        { error: "load failed", loaded: false, modelId: "pathology-unet-pannuke-segmentation", weightsSha256: null },
+      ],
+      service: "available",
+    };
+
+    expect(getLaunchState(query(pathology), "pathology-breakhis-classification")).toBe("ready");
+    expect(getLaunchState(query(pathology), "pathology-unet-pannuke-segmentation")).toBe("model_not_loaded");
+    expect(getLaunchState(query(pathology), CLASSIFIER)).toBe("model_not_loaded");
   });
 
   it("gives the real reason otherwise", () => {
@@ -77,6 +92,8 @@ describe("run helpers", () => {
     expect(getRunErrorKey("SERVICE_TIMEOUT")).toBe("SERVICE_TIMEOUT");
     // Set by the backend on a run left RUNNING after a restart.
     expect(getRunErrorKey("RUN_INTERRUPTED")).toBe("RUN_INTERRUPTED");
+    expect(getRunErrorKey("IMAGE_TOO_SMALL")).toBe("IMAGE_TOO_SMALL");
+    expect(getRunErrorKey("IMAGE_DIMENSIONS_TOO_LARGE")).toBe("IMAGE_DIMENSIONS_TOO_LARGE");
     expect(getRunErrorKey("SOMETHING_NEW")).toBe("unknown");
     expect(getRunErrorKey(null)).toBe("unknown");
   });
@@ -87,5 +104,13 @@ describe("run helpers", () => {
     // Refused before any run (consent, document): no id.
     expect(getFailedRunId(axiosError(403, { message: "Consentement requis" }))).toBeNull();
     expect(getFailedRunId(new Error("network"))).toBeNull();
+  });
+
+  it("explains the magnification refusals of a launch, and nothing else", () => {
+    for (const code of ["AI_MAGNIFICATION_REQUIRED", "AI_MAGNIFICATION_NOT_SUPPORTED", "AI_MAGNIFICATION_UNEXPECTED"]) {
+      expect(getLaunchErrorKey(axiosError(400, { code }))).toBe(code);
+    }
+    expect(getLaunchErrorKey(axiosError(400, { code: "VALIDATION_ERROR" }))).toBeNull();
+    expect(getLaunchErrorKey(new Error("network"))).toBeNull();
   });
 });

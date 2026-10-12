@@ -5,12 +5,12 @@ import { type DashboardOverview, type DashboardRecentAnalysis } from "@/features
 
 const TIME_ZONE = "Africa/Algiers";
 
-const recentRows: Array<[string, string, string, string, DashboardRecentAnalysis["status"], string | null, DashboardRecentAnalysis["decision"], string | null]> = [
-  ["Nadia", "Mansouri", "نادية", "منصوري", "SUCCEEDED", "glioma", null, null],
-  ["Karim", "Belkacem", "كريم", "بلقاسم", "SUCCEEDED", "meningioma", "VALIDATED", "meningioma"],
-  ["Lina", "Boudiaf", "لينا", "بوضياف", "SUCCEEDED", "notumor", "CORRECTED", "pituitary"],
-  ["Yacine", "Ferhat", "ياسين", "فرحات", "FAILED", null, null, null],
-  ["Sofia", "Haddad", "صوفيا", "حداد", "SUCCEEDED", "pituitary", "REJECTED", null],
+const recentRows: Array<[string, string, string, string, DashboardRecentAnalysis["pipeline"], DashboardRecentAnalysis["status"], string | null, DashboardRecentAnalysis["decision"], string | null]> = [
+  ["Nadia", "Mansouri", "نادية", "منصوري", "brain", "SUCCEEDED", "glioma", null, null],
+  ["Karim", "Belkacem", "كريم", "بلقاسم", "pathology-breast", "SUCCEEDED", "malignant", "VALIDATED", "malignant"],
+  ["Lina", "Boudiaf", "لينا", "بوضياف", "brain", "SUCCEEDED", "notumor", "CORRECTED", "pituitary"],
+  ["Yacine", "Ferhat", "ياسين", "فرحات", "pathology-nuclei", "FAILED", null, null, null],
+  ["Sofia", "Haddad", "صوفيا", "حداد", "pathology-breast", "SUCCEEDED", "benign", "REJECTED", null],
 ];
 
 // Today's date in Algiers, then the previous days by calendar arithmetic.
@@ -51,13 +51,14 @@ export function previewDashboardOverview(days: number, withDoctors: boolean, now
         oldestAgeHours: pending > 0 ? 30 : null,
         oldestCreatedAt: pending > 0 ? new Date(now.getTime() - 30 * hour).toISOString() : null,
       },
-      recent: recentRows.map(([firstName, lastName, firstNameAr, lastNameAr, status, modelLabel, decision, decisionLabel], index) => ({
+      recent: recentRows.map(([firstName, lastName, firstNameAr, lastNameAr, pipeline, status, modelLabel, decision, decisionLabel], index) => ({
         createdAt: new Date(now.getTime() - (index * 5 + 1) * hour).toISOString(),
         decision,
         decisionLabel,
         id: `preview-run-${index}`,
         modelLabel,
         patient: { firstName, firstNameAr, id: `preview-patient-${index}`, lastName, lastNameAr },
+        pipeline,
         status,
       })),
       rejected,

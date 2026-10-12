@@ -12,14 +12,14 @@ import {
 } from "@/components/dashboard/layout/navigation";
 import { UploadPatientDocumentModal } from "@/components/patients/UploadPatientDocumentModal";
 import { VerificationRequiredNotice } from "@/components/shared/VerificationRequiredNotice";
-import { type AiPipelineId } from "@/features/ai-analyses/ai-analyses.types";
+import { type AiMagnification, type AiPipelineId } from "@/features/ai-analyses/ai-analyses.types";
 import { findModel, findPipeline } from "@/features/ai-analyses/ai-models.registry";
 import { useCreateAiAnalysisRun } from "@/features/ai-analyses/hooks/use-create-ai-analysis-run";
 import { useDebouncedValue } from "@/features/ai-analyses/hooks/use-debounced-value";
 import { useAiModelsStatus } from "@/features/ai-analyses/hooks/use-ai-models-status";
 import { useImageProbe } from "@/features/ai-analyses/hooks/use-image-probe";
 import { evaluateQualityChecks, isDicomDocument } from "@/features/ai-analyses/quality-check";
-import { getFailedRunId, getLaunchState } from "@/features/ai-analyses/run-presentation";
+import { getFailedRunId, getLaunchErrorKey, getLaunchState } from "@/features/ai-analyses/run-presentation";
 import { useCurrentUser } from "@/features/auth/hooks/use-current-user";
 import { usePatient } from "@/features/patients/hooks/use-patient";
 import { usePatientConsents } from "@/features/patients/hooks/use-patient-consents";
@@ -40,6 +40,8 @@ import { WizardStepper } from "./WizardStepper";
 
 const steps = ["patient", "image", "quality", "reading"] as const;
 const imageDocumentTypes: readonly PatientDocumentType[] = ["MEDICAL_IMAGE", "DICOM"];
+// The nuclei map takes H&E images at 40x only (the backend refuses any other).
+const NUCLEI_MAGNIFICATION = 40;
 
 type AiAnalysisWizardPageProps = {
   accountType: "DOCTOR" | "ESTABLISHMENT";
@@ -59,7 +61,7 @@ export function AiAnalysisWizardPage({ accountType, initialPatientId, pipelineId
   const prefill = useEstablishmentVerificationPrefill({ enabled: accountType === "ESTABLISHMENT" });
   const initials = getAccountInitials(currentUser.data?.fullName);
   const pipeline = findPipeline(pipelineId);
-  const model = findModel(pipeline?.classifierId);
+  const model = findModel(pipeline?.entryModelId);
   const roleBase = accountType === "ESTABLISHMENT" ? "/establishment" : "/doctor";
 
   const [stepIndex, setStepIndex] = useState(0);
@@ -67,6 +69,10 @@ export function AiAnalysisWizardPage({ accountType, initialPatientId, pipelineId
   const [chosenPatient, setChosenPatient] = useState<Patient | null>(null);
   const [documentId, setDocumentId] = useState<string | null>(null);
   const [impression, setImpression] = useState("");
+  // Pathology: the image's magnification (breast), or the 40x H&E confirmation
+  // (nuclei); no default, the physician states it for each image.
+  const [magnification, setMagnification] = useState<AiMagnification | null>(null);
+  const [he40xConfirmed, setHe40xConfirmed] = useState(false);
   const [isUploadOpen, setUploadOpen] = useState(false);
   const [notice, setNotice] = useState("");
   const headingRef = useRef<HTMLHeadingElement>(null);
@@ -106,6 +112,7 @@ export function AiAnalysisWizardPage({ accountType, initialPatientId, pipelineId
   const report = evaluateQualityChecks({
     acceptedFormats: model?.acceptedFormats ?? null,
     fileName: selectedDocument?.fileName ?? "",
+    inputConstraints: model?.inputConstraints ?? null,
     probe,
   });
 
@@ -137,6 +144,8 @@ export function AiAnalysisWizardPage({ accountType, initialPatientId, pipelineId
       setChosenPatient(patient);
       setDocumentId(null);
       setImpression("");
+      setMagnification(null);
+      setHe40xConfirmed(false);
     }
   };
 
@@ -145,6 +154,8 @@ export function AiAnalysisWizardPage({ accountType, initialPatientId, pipelineId
       createRunMutation.reset();
       setDocumentId(id);
       setImpression("");
+      setMagnification(null);
+      setHe40xConfirmed(false);
     }
   };
 
@@ -190,10 +201,21 @@ export function AiAnalysisWizardPage({ accountType, initialPatientId, pipelineId
   const pipelineName = t(`aiAnalyses.pipelines.${pipeline.id}.name`);
   const step = steps[stepIndex];
   const blockedId = "ai-wizard-blocked";
-  const launchState = getLaunchState(modelsStatusQuery, pipeline.classifierId);
+  const launchState = getLaunchState(modelsStatusQuery, pipeline.entryModelId);
+  // The magnification the chain sends: none for brain, the chosen one for a
+  // breast slide, 40 once the nuclei image is confirmed as H&E at 40x.
+  const sentMagnification: AiMagnification | null | undefined =
+    pipeline.id === "pathology-breast"
+      ? magnification
+      : pipeline.id === "pathology-nuclei"
+        ? he40xConfirmed
+          ? NUCLEI_MAGNIFICATION
+          : null
+        : undefined;
+  const choiceMissing = sentMagnification === null;
 
   const launchAnalysis = () => {
-    if (!selectedDocument || !patientId || launchState !== "ready") {
+    if (!selectedDocument || !patientId || launchState !== "ready" || choiceMissing) {
       return;
     }
 
@@ -206,6 +228,7 @@ export function AiAnalysisWizardPage({ accountType, initialPatientId, pipelineId
         pipeline: pipeline.id,
         sourceDocumentId: selectedDocument.id,
         ...(trimmedImpression ? { clinicianImpression: trimmedImpression } : {}),
+        ...(sentMagnification ? { magnification: sentMagnification } : {}),
       },
       {
         onError: (error) => {
@@ -305,15 +328,30 @@ export function AiAnalysisWizardPage({ accountType, initialPatientId, pipelineId
                 <ReadingStep
                   blob={documentView.data ?? null}
                   fileName={selectedDocument.fileName}
+                  he40xConfirmed={he40xConfirmed}
                   impression={impression}
                   isDicom={isDicom}
                   isError={documentView.isError}
                   isLaunching={createRunMutation.isPending}
-                  launchError={createRunMutation.isError && !getFailedRunId(createRunMutation.error)}
+                  launchError={
+                    createRunMutation.isError && !getFailedRunId(createRunMutation.error)
+                      ? { key: getLaunchErrorKey(createRunMutation.error) }
+                      : null
+                  }
                   launchState={launchState}
+                  magnification={magnification}
                   module={model.module}
+                  onHe40xChange={(confirmed) => {
+                    createRunMutation.reset();
+                    setHe40xConfirmed(confirmed);
+                  }}
                   onImpressionChange={setImpression}
                   onLaunch={launchAnalysis}
+                  onMagnificationChange={(value) => {
+                    createRunMutation.reset();
+                    setMagnification(value);
+                  }}
+                  pipelineId={pipeline.id}
                   t={t}
                 />
               ) : null}

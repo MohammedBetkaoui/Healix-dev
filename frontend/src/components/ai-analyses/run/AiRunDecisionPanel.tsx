@@ -5,8 +5,8 @@ import { useEffect, useId, useRef, useState, type FormEvent } from "react";
 
 import { StatusBadge } from "@/components/dashboard/shared/StatusBadge";
 import {
-  aiRunDecisions,
   type AiAnalysisRun,
+  type AiPipelineId,
   type AiRunDecision,
 } from "@/features/ai-analyses/ai-analyses.types";
 import { useDecideAiAnalysisRun } from "@/features/ai-analyses/hooks/use-decide-ai-analysis-run";
@@ -17,12 +17,13 @@ import {
   getCorrectionOptions,
   getDecisionAgreement,
   getDecisionErrorKey,
+  getDecisionOptions,
+  getModelLabel,
   normalizeDecisionReason,
   toDecisionPayload,
   validateDecisionDraft,
   type DecisionDraft,
 } from "@/features/ai-analyses/run-decision";
-import { getTopLabel } from "@/features/ai-analyses/run-presentation";
 import { formatPatientDateTime } from "@/features/patients/patient-registry";
 import { type Locale } from "@/i18n";
 import { getVerificationRequiredMessage } from "@/lib/api/get-mutation-error-message";
@@ -34,6 +35,19 @@ const decisionIcons = {
   REJECTED: XCircle,
   VALIDATED: CheckCircle2,
 } as const;
+
+// A nuclei map is validated or rejected as a map: its options have their own words.
+const optionKey = (pipeline: AiPipelineId, status: AiRunDecision) =>
+  pipeline === "pathology-nuclei" ? `aiAnalyses.decision.nucleiOptions.${status}` : `aiAnalyses.decision.options.${status}`;
+const optionHintKey = (pipeline: AiPipelineId, status: AiRunDecision) =>
+  pipeline === "pathology-nuclei" ? `aiAnalyses.decision.nucleiOptionHints.${status}` : `aiAnalyses.decision.optionHints.${status}`;
+
+// What the decision retains: a class, the validated map, or nothing.
+function retainedText(pipeline: AiPipelineId, status: AiRunDecision, label: string | null, t: TranslationFunction) {
+  if (label) return t(`aiAnalyses.classes.${label}`);
+  if (pipeline === "pathology-nuclei" && status === "VALIDATED") return t("aiAnalyses.decision.mapAccepted");
+  return t("aiAnalyses.decision.noRetainedLabel");
+}
 
 // Space-separated ids, empty ones dropped (not cn: ids are not classes).
 const describedBy = (...ids: (string | false | null | undefined)[]) => ids.filter(Boolean).join(" ") || undefined;
@@ -138,7 +152,7 @@ function DecisionHeading({ focusOnMount, id, title }: { focusOnMount: boolean; i
 function DecisionRecord({ locale, run, t }: { locale: Locale; run: AiAnalysisRun; t: TranslationFunction }) {
   const status = run.decisionStatus as AiRunDecision;
   const Icon = decisionIcons[status];
-  const modelLabel = getTopLabel(run.predictions);
+  const modelLabel = getModelLabel(run);
   const agreement = getDecisionAgreement(run);
 
   return (
@@ -148,18 +162,23 @@ function DecisionRecord({ locale, run, t }: { locale: Locale; run: AiAnalysisRun
         <dd className="flex flex-wrap items-center gap-2">
           <Icon size={16} strokeWidth={1.8} aria-hidden="true" className="text-[var(--text-secondary)]" />
           <StatusBadge label={t(`aiAnalyses.decision.statuses.${status}`)} tone={decisionTones[status]} />
-          <span className="text-[var(--text-primary)]">{t(`aiAnalyses.decision.options.${status}`)}</span>
+          <span className="text-[var(--text-primary)]">{t(optionKey(run.pipeline, status))}</span>
         </dd>
         <dt className="text-[var(--text-secondary)]">{t("aiAnalyses.decision.fields.retainedLabel")}</dt>
         <dd className="font-semibold text-[var(--text-primary)]">
-          {run.decisionLabel ? t(`aiAnalyses.classes.${run.decisionLabel}`) : t("aiAnalyses.decision.noRetainedLabel")}
+          {retainedText(run.pipeline, status, run.decisionLabel, t)}
         </dd>
-        <dt className="text-[var(--text-secondary)]">{t("aiAnalyses.decision.fields.agreement")}</dt>
-        <dd className="text-[var(--text-primary)]">
-          {modelLabel && agreement !== "pending"
-            ? t(`aiAnalyses.decision.agreement.${agreement}`, { class: t(`aiAnalyses.classes.${modelLabel}`) })
-            : t("aiAnalyses.run.none")}
-        </dd>
+        {/* A nuclei map has no proposed class to agree with. */}
+        {agreement !== "notApplicable" ? (
+          <>
+            <dt className="text-[var(--text-secondary)]">{t("aiAnalyses.decision.fields.agreement")}</dt>
+            <dd className="text-[var(--text-primary)]">
+              {modelLabel && agreement !== "pending"
+                ? t(`aiAnalyses.decision.agreement.${agreement}`, { class: t(`aiAnalyses.classes.${modelLabel}`) })
+                : t("aiAnalyses.run.none")}
+            </dd>
+          </>
+        ) : null}
         <dt className="text-[var(--text-secondary)]">{t("aiAnalyses.decision.fields.reason")}</dt>
         <dd className="whitespace-pre-wrap break-words text-[var(--text-primary)]">
           {run.decisionReason || t("aiAnalyses.decision.noReason")}
@@ -195,9 +214,9 @@ function DecisionForm({ mutation, run, t }: { mutation: DecisionMutation; run: A
   const [isConfirming, setConfirming] = useState(false);
   const submitRef = useRef<HTMLButtonElement>(null);
 
-  const modelLabel = getTopLabel(run.predictions);
+  const modelLabel = getModelLabel(run);
   const modelClass = modelLabel ? t(`aiAnalyses.classes.${modelLabel}`) : "";
-  const errors = validateDecisionDraft(draft, modelLabel);
+  const errors = validateDecisionDraft(draft, modelLabel, run.pipeline);
   const visible = showErrors ? errors : {};
   const needsReason = draft.status === "CORRECTED" || draft.status === "REJECTED";
   const reasonLength = normalizeDecisionReason(draft.reason).length;
@@ -238,7 +257,7 @@ function DecisionForm({ mutation, run, t }: { mutation: DecisionMutation; run: A
         <legend className="text-sm font-semibold text-[var(--text-primary)]">{t("aiAnalyses.decision.choicesLabel")}</legend>
         <p className="mt-1 text-xs text-[var(--text-secondary)]">{t("aiAnalyses.decision.pendingHint")}</p>
         <div className="mt-3 grid gap-2">
-          {aiRunDecisions.map((status) => {
+          {getDecisionOptions(run.pipeline).map((status) => {
             const isSelected = draft.status === status;
             const Icon = decisionIcons[status];
 
@@ -265,9 +284,9 @@ function DecisionForm({ mutation, run, t }: { mutation: DecisionMutation; run: A
                 />
                 <Icon size={17} strokeWidth={1.8} aria-hidden="true" className="mt-0.5 shrink-0 text-[var(--text-secondary)]" />
                 <span className="min-w-0">
-                  <span className="block text-sm font-medium text-[var(--text-primary)]">{t(`aiAnalyses.decision.options.${status}`)}</span>
+                  <span className="block text-sm font-medium text-[var(--text-primary)]">{t(optionKey(run.pipeline, status))}</span>
                   <span id={ids.optionHint(status)} className="mt-0.5 block text-xs leading-5 text-[var(--text-secondary)]">
-                    {t(`aiAnalyses.decision.optionHints.${status}`, { class: modelClass })}
+                    {t(optionHintKey(run.pipeline, status), { class: modelClass })}
                   </span>
                 </span>
               </label>
@@ -296,7 +315,7 @@ function DecisionForm({ mutation, run, t }: { mutation: DecisionMutation; run: A
             onChange={(event) => setDraft((current) => ({ ...current, correctedLabel: event.target.value }))}
           >
             <option value="">{t("aiAnalyses.decision.correctedLabelPlaceholder")}</option>
-            {getCorrectionOptions(modelLabel).map((label) => (
+            {getCorrectionOptions(run.pipeline, modelLabel).map((label) => (
               <option key={label} value={label}>{t(`aiAnalyses.classes.${label}`)}</option>
             ))}
           </select>
@@ -344,6 +363,7 @@ function DecisionForm({ mutation, run, t }: { mutation: DecisionMutation; run: A
           draft={{ ...draft, status: draft.status }}
           modelLabel={modelLabel}
           mutation={mutation}
+          pipeline={run.pipeline}
           t={t}
           onClosed={() => {
             setConfirming(false);
@@ -360,12 +380,13 @@ type ConfirmDecisionDialogProps = {
   modelLabel: string | null;
   mutation: DecisionMutation;
   onClosed: () => void;
+  pipeline: AiPipelineId;
   t: TranslationFunction;
 };
 
 // Native modal <dialog>: focus kept inside, Escape closes (unless sending),
 // the page behind is inert.
-function ConfirmDecisionDialog({ draft, modelLabel, mutation, onClosed, t }: ConfirmDecisionDialogProps) {
+function ConfirmDecisionDialog({ draft, modelLabel, mutation, onClosed, pipeline, t }: ConfirmDecisionDialogProps) {
   const id = useId();
   const ref = useRef<HTMLDialogElement>(null);
   const payload = toDecisionPayload(draft);
@@ -404,12 +425,10 @@ function ConfirmDecisionDialog({ draft, modelLabel, mutation, onClosed, t }: Con
           <dt className="text-[var(--text-secondary)]">{t("aiAnalyses.decision.confirm.decision")}</dt>
           <dd className="flex flex-wrap items-center gap-2">
             <StatusBadge label={t(`aiAnalyses.decision.statuses.${draft.status}`)} tone={decisionTones[draft.status]} />
-            {t(`aiAnalyses.decision.options.${draft.status}`)}
+            {t(optionKey(pipeline, draft.status))}
           </dd>
           <dt className="text-[var(--text-secondary)]">{t("aiAnalyses.decision.confirm.retainedLabel")}</dt>
-          <dd className="font-semibold">
-            {retainedLabel ? t(`aiAnalyses.classes.${retainedLabel}`) : t("aiAnalyses.decision.noRetainedLabel")}
-          </dd>
+          <dd className="font-semibold">{retainedText(pipeline, draft.status, retainedLabel, t)}</dd>
           {payload.reason ? (
             <>
               <dt className="text-[var(--text-secondary)]">{t("aiAnalyses.decision.confirm.reason")}</dt>

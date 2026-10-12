@@ -3,7 +3,8 @@ import { type Locale } from "@/i18n";
 import { type AiDatasetKey, type AiLimitationKey, type AiModelMetric } from "./ai-analyses.types";
 import { datasetSizes } from "./ai-models.registry";
 import { brainClassificationEvaluation } from "./brain-evaluation";
-import { formatInterval, formatPercent } from "./evaluation-presentation";
+import { formatInterval, formatPercent, isolate } from "./evaluation-presentation";
+import { breakhisEvaluation } from "./pathology-evaluation";
 
 const intlLocale = (locale: Locale) => (locale === "ar" ? "ar-DZ" : "fr-DZ");
 
@@ -29,9 +30,23 @@ export function datasetLabelParams(dataset: AiDatasetKey, locale: Locale): { cou
   return size === undefined ? undefined : { count: new Intl.NumberFormat(intlLocale(locale)).format(size) };
 }
 
+/** The BreakHis test patients, as aiAnalyses.sheet.testPatients and the limitation quote them. */
+export function testPatientsParams(locale: Locale): { benign: string; patients: string } {
+  const integer = new Intl.NumberFormat(intlLocale(locale));
+  return {
+    benign: isolate(integer.format(breakhisEvaluation.benignPatients)),
+    patients: isolate(integer.format(breakhisEvaluation.testPatients)),
+  };
+}
+
 /** Parameters of aiAnalyses.limitations.<key> that quote a measured figure. */
 export function limitationParams(limitation: AiLimitationKey, locale: Locale): Record<string, string> | undefined {
-  return limitation === "lowerGliomaRecall"
-    ? { recall: formatPercent(brainClassificationEvaluation.perClass.glioma.recall, locale) }
-    : undefined;
+  switch (limitation) {
+    case "lowerGliomaRecall":
+      return { recall: formatPercent(brainClassificationEvaluation.perClass.glioma.recall, locale) };
+    case "fewTestPatients":
+      return testPatientsParams(locale);
+    default:
+      return undefined;
+  }
 }

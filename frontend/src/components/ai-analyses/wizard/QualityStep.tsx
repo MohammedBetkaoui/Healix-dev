@@ -47,6 +47,7 @@ function checkDetail(check: QualityCheck, t: TranslationFunction): string | null
     return null;
   }
 
+  // dimensions, minSide, maxSide: the decoded size, whichever limit is checked.
   if (check.status === "pass" || check.status === "fail") {
     return t("aiAnalyses.wizard.quality.details.dimensions", { height: detail.height, width: detail.width });
   }
@@ -79,7 +80,10 @@ export function QualityStep({ onChooseAnother, report, t }: QualityStepProps) {
               <div className="min-w-0 flex-1">
                 <p className="flex flex-wrap items-baseline justify-between gap-x-3 gap-y-1 text-sm">
                   <span className="font-medium text-[var(--text-primary)]">
-                    {t(`aiAnalyses.wizard.quality.checks.${check.key}`, { min: check.detail?.min ?? "" })}
+                    {t(`aiAnalyses.wizard.quality.checks.${check.key}`, {
+                      max: check.detail?.max ?? "",
+                      min: check.detail?.min ?? "",
+                    })}
                   </span>
                   <span className={cn("text-xs font-semibold", className)}>
                     {t(`aiAnalyses.wizard.quality.statuses.${check.status}`)}
