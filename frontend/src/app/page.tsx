@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import { headers } from "next/headers";
+import Script from "next/script";
 
 import { AiSection } from "@/components/landing/AiSection";
 import { AlgeriaSection } from "@/components/landing/AlgeriaSection";
@@ -16,8 +17,9 @@ import { LocaleDocumentSync } from "@/components/landing/LocaleDocumentSync";
 import { PatientJourneySection } from "@/components/landing/PatientJourneySection";
 import { PatientRecordSection } from "@/components/landing/PatientRecordSection";
 import { PlansSection } from "@/components/landing/PlansSection";
-import { ProductShowcase } from "@/components/landing/ProductShowcase";
+import { ProductTour } from "@/components/landing/ProductTour";
 import { SecuritySection } from "@/components/landing/SecuritySection";
+import { TrustBar } from "@/components/landing/TrustBar";
 import { VerificationSection } from "@/components/landing/VerificationSection";
 import styles from "@/components/landing/landing.module.css";
 import { isLocale, type Locale } from "@/i18n";
@@ -64,30 +66,39 @@ export default async function Home({ searchParams }: HomeProps) {
   return (
     <div className={styles.landingRoot} lang={locale} dir={direction}>
       <LocaleDocumentSync locale={locale} />
-      <script
+      {/* next/script (not raw <script>): raw scripts in the RSC payload are
+          mounted — never executed — on client-side navigation, which React
+          reports as an error. next/script injects them via the DOM API. */}
+      <Script
+        id="healixdz-locale"
+        strategy="afterInteractive"
         nonce={nonce}
         dangerouslySetInnerHTML={{
           __html: `document.documentElement.lang=${JSON.stringify(locale)};document.documentElement.dir=${JSON.stringify(direction)};`,
         }}
       />
-      <script
+      <Script
+        id="healixdz-jsonld"
+        strategy="afterInteractive"
         type="application/ld+json"
+        nonce={nonce}
         dangerouslySetInnerHTML={{ __html: JSON.stringify(structuredData) }}
       />
       <LandingHeader locale={locale} nav={content.nav} />
       <main>
-        <HeroSection hero={content.hero} />
+        <HeroSection hero={content.hero} showcase={content.showcase} />
+        <TrustBar trust={content.trustBar} />
         <ContextSection context={content.context} />
-        <EcosystemSection ecosystem={content.ecosystem} />
         <FeaturesSection features={content.features} />
-        <AudienceSection audience={content.audience} />
+        <EcosystemSection ecosystem={content.ecosystem} />
         <PatientJourneySection journey={content.journey} />
+        <ProductTour showcase={content.showcase} />
+        <AudienceSection audience={content.audience} screenUi={content.showcase.ui} />
         <PatientRecordSection record={content.patientRecord} />
         <AiSection ai={content.ai} />
         <VerificationSection verification={content.verification} />
         <SecuritySection security={content.security} />
         <AlgeriaSection algeria={content.algeria} />
-        <ProductShowcase showcase={content.showcase} />
         <PlansSection locale={locale} plans={content.plans} />
         <FaqSection faq={content.faq} />
         <FinalCta cta={content.finalCta} />

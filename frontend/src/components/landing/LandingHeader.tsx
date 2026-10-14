@@ -1,14 +1,24 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import Image from "next/image";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { Menu, X } from "lucide-react";
+import {
+  motion,
+  useMotionTemplate,
+  useMotionValueEvent,
+  useReducedMotion,
+  useScroll,
+  useTransform,
+} from "framer-motion";
 
-import { HealixLogo } from "@/components/shared/HealixLogo";
+import { HEALIX_LOGO_FULL_SRC } from "@/components/shared/HealixLogo";
 import { LanguageSwitcher } from "@/components/shared/LanguageSwitcher";
 import type { Locale } from "@/i18n";
 
+import { useIsMobile, useScrollDirection } from "./landing-motion";
 import styles from "./landing.module.css";
 import type { LandingContent } from "./types";
 
@@ -19,24 +29,35 @@ type LandingHeaderProps = {
 
 const navLinks = [
   ["platform", "#plateforme"],
+  ["solutions", "#solutions"],
   ["establishments", "#etablissements"],
   ["doctors", "#medecins"],
-  ["trust", "#confiance"],
   ["ai", "#healix-ai"],
+  ["security", "#securite"],
   ["plans", "#offres"],
 ] as const;
+
+const OPEN_BACKGROUND = "rgb(245 241 232 / 92%)";
+const OPEN_BORDER = "rgb(16 47 43 / 12%)";
 
 export function LandingHeader({ locale, nav }: LandingHeaderProps) {
   const router = useRouter();
   const [isScrolled, setIsScrolled] = useState(false);
   const [isOpen, setIsOpen] = useState(false);
+  const reduceMotion = useReducedMotion();
+  const isMobile = useIsMobile();
+  const direction = useScrollDirection();
+  const { scrollY } = useScroll();
 
-  useEffect(() => {
-    const updateScrolled = () => setIsScrolled(window.scrollY > 24);
-    updateScrolled();
-    window.addEventListener("scroll", updateScrolled, { passive: true });
-    return () => window.removeEventListener("scroll", updateScrolled);
-  }, []);
+  /* Binary state kept only for the shadow; visuals are scroll-driven. */
+  useMotionValueEvent(scrollY, "change", (latest) => {
+    setIsScrolled((current) => {
+      const next = latest > 24;
+      return current === next ? current : next;
+    });
+    /* Scrolling down dismisses the open mobile menu. */
+    if (latest > 140 && direction === "down") setIsOpen((open) => (open ? false : open));
+  });
 
   useEffect(() => {
     const closeOnWideScreen = () => {
@@ -45,6 +66,17 @@ export function LandingHeader({ locale, nav }: LandingHeaderProps) {
     window.addEventListener("resize", closeOnWideScreen);
     return () => window.removeEventListener("resize", closeOnWideScreen);
   }, []);
+
+  /* Progressive header: 88px → 72px handled by CSS class (240 ms ease);
+     background / border / blur interpolate continuously with scroll. */
+  const calm = reduceMotion || isMobile;
+  const range: [number, number] = [0, 120];
+  const backgroundAlpha = useTransform(scrollY, range, [0, calm ? 0.92 : 0.92]);
+  const backgroundColor = useMotionTemplate`rgb(245 241 232 / ${backgroundAlpha})`;
+  const borderAlpha = useTransform(scrollY, [8, 120], [0, 0.12]);
+  const borderBottomColor = useMotionTemplate`rgb(16 47 43 / ${borderAlpha})`;
+  const blur = useTransform(scrollY, range, [0, 18]);
+  const backdropFilter = useMotionTemplate`blur(${blur}px)`;
 
   const switchLocale = (nextLocale: Locale) => {
     window.localStorage.setItem("healixdz.locale", nextLocale);
@@ -57,7 +89,7 @@ export function LandingHeader({ locale, nav }: LandingHeaderProps) {
 
   const languageT = (key: string) => {
     if (key.endsWith(".label")) {
-      return locale === "ar" ? "تغيير اللغة" : "Changer la langue";
+      return nav.languageLabel;
     }
     if (key.endsWith(".fr")) return "FR";
     if (key.endsWith(".ar")) return "العربية";
@@ -65,16 +97,33 @@ export function LandingHeader({ locale, nav }: LandingHeaderProps) {
   };
 
   return (
-    <header
+    <motion.header
       className={`${styles.header} ${isScrolled ? styles.headerScrolled : ""}`}
       data-open={isOpen}
+      style={
+        reduceMotion
+          ? undefined
+          : {
+              backgroundColor: isOpen ? OPEN_BACKGROUND : backgroundColor,
+              borderBottomColor: isOpen ? OPEN_BORDER : borderBottomColor,
+              backdropFilter: isOpen ? "blur(18px)" : backdropFilter,
+            }
+      }
     >
       <div className={styles.headerInner}>
         <Link href={locale === "ar" ? "/?lang=ar" : "/"} className={styles.logoLink} aria-label="HealixDz">
-          <HealixLogo priority className={styles.logo} />
+          <Image
+            src={HEALIX_LOGO_FULL_SRC}
+            alt="HealixDz"
+            width={150}
+            height={80}
+            loading="eager"
+            fetchPriority="high"
+            className={styles.logo}
+          />
         </Link>
 
-        <nav className={styles.desktopNav} aria-label={locale === "ar" ? "التنقل الرئيسي" : "Navigation principale"}>
+        <nav className={styles.desktopNav} aria-label={nav.primaryLabel}>
           {navLinks.map(([key, href]) => (
             <a key={key} href={href}>
               {nav[key]}
@@ -111,7 +160,7 @@ export function LandingHeader({ locale, nav }: LandingHeaderProps) {
       </div>
 
       <div id="landing-mobile-menu" className={styles.mobileMenu}>
-        <nav aria-label={locale === "ar" ? "التنقل على الهاتف" : "Navigation mobile"}>
+        <nav aria-label={nav.mobileLabel}>
           {navLinks.map(([key, href]) => (
             <a key={key} href={href} onClick={() => setIsOpen(false)}>
               {nav[key]}
@@ -129,7 +178,6 @@ export function LandingHeader({ locale, nav }: LandingHeaderProps) {
           <Link href="/register">{nav.register}</Link>
         </div>
       </div>
-    </header>
+    </motion.header>
   );
 }
-
