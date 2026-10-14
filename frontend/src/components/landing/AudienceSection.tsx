@@ -4,13 +4,19 @@ import { useState } from "react";
 import { Building2, Check, Stethoscope } from "lucide-react";
 import { AnimatePresence, motion, useReducedMotion } from "framer-motion";
 
+import { ScreenMask, productScreenTransition, productScreenVariants } from "./landing-motion";
 import { ProductMockup } from "./ProductMockup";
 import styles from "./landing.module.css";
 import type { LandingContent } from "./types";
 
-export function AudienceSection({ audience }: { audience: LandingContent["audience"] }) {
+type AudienceSectionProps = {
+  audience: LandingContent["audience"];
+  screenUi: LandingContent["showcase"]["ui"];
+};
+
+export function AudienceSection({ audience, screenUi }: AudienceSectionProps) {
   const [profile, setProfile] = useState<"establishment" | "doctor">("establishment");
-  const reduceMotion = useReducedMotion();
+  const reduceMotion = useReducedMotion() ?? false;
   const active = audience[profile];
 
   return (
@@ -30,14 +36,14 @@ export function AudienceSection({ audience }: { audience: LandingContent["audien
         </div>
       </div>
 
-      <AnimatePresence mode="wait" initial={false}>
+      <AnimatePresence mode="popLayout" initial={false}>
         <motion.div
           key={profile}
           className={styles.audiencePanel}
-          initial={{ opacity: 0, y: reduceMotion ? 0 : 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          exit={{ opacity: 0, y: reduceMotion ? 0 : -12 }}
-          transition={{ duration: reduceMotion ? 0.15 : 0.4 }}
+          initial={reduceMotion ? { opacity: 0 } : productScreenVariants.initial}
+          animate={reduceMotion ? { opacity: 1 } : productScreenVariants.animate}
+          exit={reduceMotion ? { opacity: 0 } : productScreenVariants.exit}
+          transition={reduceMotion ? { duration: 0.2 } : productScreenTransition}
         >
           <div className={styles.audienceCopy}>
             <span className={styles.profileIcon}>{profile === "establishment" ? <Building2 aria-hidden="true" /> : <Stethoscope aria-hidden="true" />}</span>
@@ -47,10 +53,18 @@ export function AudienceSection({ audience }: { audience: LandingContent["audien
               {active.points.map((point) => <li key={point}><Check aria-hidden="true" />{point}</li>)}
             </ul>
           </div>
-          <ProductMockup points={active.points} title={active.tab} variant={profile} />
+          <ScreenMask>
+            <ProductMockup
+              description={active.screenAnnotation}
+              points={active.points}
+              stat={active.screenStat}
+              title={active.tab}
+              ui={screenUi}
+              variant={profile}
+            />
+          </ScreenMask>
         </motion.div>
       </AnimatePresence>
     </section>
   );
 }
-
