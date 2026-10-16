@@ -1,8 +1,9 @@
 import { Module } from '@nestjs/common';
 import { ConfigModule } from '@nestjs/config';
 import { APP_GUARD } from '@nestjs/core';
+import { JwtModule } from '@nestjs/jwt';
 import { ScheduleModule } from '@nestjs/schedule';
-import { ThrottlerGuard, ThrottlerModule } from '@nestjs/throttler';
+import { ThrottlerModule } from '@nestjs/throttler';
 
 import { AppController } from './app.controller';
 import { AppService } from './app.service';
@@ -11,6 +12,10 @@ import { AdminModule } from './admin/admin.module';
 import { AiAnalysisRunsModule } from './ai-analysis-runs/ai-analysis-runs.module';
 import { AppointmentsModule } from './appointments/appointments.module';
 import { AuthModule } from './auth/auth.module';
+import {
+  AppThrottlerGuard,
+  DEFAULT_THROTTLE_ANON_LIMIT,
+} from './common/guards/app-throttler.guard';
 import { DashboardModule } from './dashboard/dashboard.module';
 import { PatientsModule } from './patients/patients.module';
 import { PaymentsModule } from './payments/payments.module';
@@ -22,10 +27,14 @@ import { WorkspaceModule } from './workspaces/workspace.module';
   imports: [
     ConfigModule.forRoot({ isGlobal: true }),
     ScheduleModule.forRoot(),
+    // For AppThrottlerGuard, which passes the secret of each token it checks.
+    JwtModule.register({}),
     ThrottlerModule.forRoot([
       {
         ttl: 60_000,
-        limit: 20,
+        // Replaced by AppThrottlerGuard: THROTTLE_USER_LIMIT for a caller
+        // with a valid access token, THROTTLE_ANON_LIMIT for the others.
+        limit: DEFAULT_THROTTLE_ANON_LIMIT,
       },
     ]),
     AdminAuthModule,
@@ -45,7 +54,7 @@ import { WorkspaceModule } from './workspaces/workspace.module';
     AppService,
     {
       provide: APP_GUARD,
-      useClass: ThrottlerGuard,
+      useClass: AppThrottlerGuard,
     },
   ],
 })

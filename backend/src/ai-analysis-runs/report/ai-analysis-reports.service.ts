@@ -19,6 +19,7 @@ import { resolve } from 'node:path';
 
 import { type AuthenticatedUserPayload } from '../../auth/types/authenticated-request.type';
 import { createSha256Checksum } from '../../common/utils/checksum.util';
+import { isPhysicianRole } from '../../common/utils/physician-name';
 import { PatientFileStorageService } from '../../patients/documents/patient-file-storage.service';
 import { PatientAuditService } from '../../patients/patient-audit.service';
 import { PatientsService } from '../../patients/patients.service';
@@ -148,13 +149,11 @@ export function nextReportNumber(year: string, last: string | null): string {
 }
 
 function toPerson(user: RunForReport['requestedBy']): ReportPerson {
-  const role =
-    user.role === UserRole.INDEPENDENT_DOCTOR ||
-    user.role === UserRole.AFFILIATED_DOCTOR
-      ? 'physician'
-      : user.role === UserRole.ESTABLISHMENT_ADMIN
-        ? 'establishmentAdmin'
-        : 'other';
+  const role = isPhysicianRole(user.role)
+    ? 'physician'
+    : user.role === UserRole.ESTABLISHMENT_ADMIN
+      ? 'establishmentAdmin'
+      : 'other';
   return {
     fullName: user.fullName,
     role,

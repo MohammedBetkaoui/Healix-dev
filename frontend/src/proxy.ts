@@ -13,6 +13,11 @@ import {
   isAllowedRole,
   isAuthPagePath,
 } from "@/lib/auth/auth-routes";
+import {
+  isSignedOutStatus,
+  SESSION_CHECK_HEADER,
+  SESSION_CHECK_UNAVAILABLE,
+} from "@/lib/auth/current-user";
 
 type ProxyUser = {
   role: string;
@@ -21,6 +26,9 @@ type ProxyUser = {
 type SessionCheck = {
   shouldClearCookies: boolean;
   setCookieHeaders: string[];
+  // The API could not say (429, 5xx, no answer): not a sign-out. The page
+  // checks again and shows the error page if it still cannot.
+  unavailable: boolean;
   user: ProxyUser | null;
 };
 
@@ -128,8 +136,18 @@ function mergeCookieHeader(
 const noSession: SessionCheck = {
   shouldClearCookies: false,
   setCookieHeaders: [],
+  unavailable: false,
   user: null,
 };
+
+const unavailableSession: SessionCheck = { ...noSession, unavailable: true };
+
+// 401 or 403: signed out, the cookies are cleared. Anything else: unknown.
+function failedSession(status: number): SessionCheck {
+  return isSignedOutStatus(status)
+    ? { ...noSession, shouldClearCookies: true }
+    : unavailableSession;
+}
 
 type ContentSecurity = {
   nonce: string;
@@ -163,6 +181,11 @@ function createNextResponse(
   // Set, never appended: a client cannot choose its own nonce.
   requestHeaders.set("content-security-policy", contentSecurity.policy);
   requestHeaders.set("x-nonce", contentSecurity.nonce);
+  // Likewise never taken from the client.
+  requestHeaders.delete(SESSION_CHECK_HEADER);
+  if (session.unavailable) {
+    requestHeaders.set(SESSION_CHECK_HEADER, SESSION_CHECK_UNAVAILABLE);
+  }
 
   if (session.setCookieHeaders.length > 0) {
     requestHeaders.set(
@@ -197,26 +220,22 @@ async function refreshSession(request: NextRequest): Promise<SessionCheck> {
     });
 
     if (!response.ok) {
-      return {
-        shouldClearCookies: response.status === 401 || response.status === 403,
-        setCookieHeaders: [],
-        user: null,
-      };
+      return failedSession(response.status);
     }
 
     return {
-      shouldClearCookies: false,
+      ...noSession,
       setCookieHeaders: getSetCookieHeaders(response),
       user: extractProxyUser(await response.json()),
     };
   } catch {
-    return { shouldClearCookies: false, setCookieHeaders: [], user: null };
+    return unavailableSession;
   }
 }
 
 async function checkSession(request: NextRequest): Promise<SessionCheck> {
   if (!hasAuthCookie(request)) {
-    return { shouldClearCookies: false, setCookieHeaders: [], user: null };
+    return noSession;
   }
 
   try {
@@ -233,20 +252,12 @@ async function checkSession(request: NextRequest): Promise<SessionCheck> {
         return refreshSession(request);
       }
 
-      return {
-        shouldClearCookies: response.status === 401 || response.status === 403,
-        setCookieHeaders: [],
-        user: null,
-      };
+      return failedSession(response.status);
     }
 
-    return {
-      shouldClearCookies: false,
-      setCookieHeaders: [],
-      user: extractProxyUser(await response.json()),
-    };
+    return { ...noSession, user: extractProxyUser(await response.json()) };
   } catch {
-    return { shouldClearCookies: false, setCookieHeaders: [], user: null };
+    return unavailableSession;
   }
 }
 
@@ -287,7 +298,9 @@ export async function proxy(request: NextRequest) {
 
   if (requiredRoles) {
     if (!session.user) {
-      return redirectToLogin(request, session.shouldClearCookies);
+      return session.unavailable
+        ? createNextResponse(request, session, contentSecurity)
+        : redirectToLogin(request, session.shouldClearCookies);
     }
 
     if (!isAllowedRole(session.user.role, requiredRoles)) {

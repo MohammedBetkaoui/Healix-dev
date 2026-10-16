@@ -286,7 +286,7 @@ export const aiAnalysesAr = {
     interval: "فاصل الثقة 95٪: {range}",
     source: "تقييم بتاريخ {date}، التقرير {report}: تمريرة واحدة، دون TTA.",
     sourcePathology: "تقييم بتاريخ {date}، التقرير {report}: 4 مناظر لكل صورة، عند عتبة قرار الخدمة.",
-    sourcePannuke: "تقييم بتاريخ {date}، التقرير {report}: بكسلات مجمّعة على كامل الطية، تمريرة واحدة لكل صورة 256 × 256 بكسل.",
+    sourcePannuke: "تقييم بتاريخ {date}، التقرير {report}: بكسلات مجمّعة على كامل الطية 3، تمريرة واحدة لكل صورة 256 × 256 بكسل.",
   },
   wizard: {
     breadcrumb: "تحليل جديد",

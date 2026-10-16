@@ -8,12 +8,12 @@ import {
   Req,
   UseGuards,
 } from '@nestjs/common';
-import { Throttle } from '@nestjs/throttler';
 
 import { AdminJwtGuard } from '../../admin-auth/guards/admin-jwt.guard';
 import { type AdminAuthenticatedRequest } from '../../admin-auth/types/admin-authenticated-request.type';
 import { Roles } from '../../common/decorators/roles.decorator';
 import { UserRole } from '../../common/enums/user-role.enum';
+import { ThrottlePerIp } from '../../common/guards/app-throttler.guard';
 import { RolesGuard } from '../../common/guards/roles.guard';
 import { getRequestContext } from '../../common/utils/request-context';
 import { ListUsersQueryDto } from './dto/list-users-query.dto';
@@ -44,7 +44,7 @@ export class AdminUsersController {
   }
 
   @Patch(':id/suspend')
-  @Throttle({ default: { limit: 20, ttl: 60_000 } })
+  @ThrottlePerIp({ limit: 20, ttl: 60_000 })
   suspendUser(
     @Param('id') id: string,
     @Body() dto: SuspendUserDto,
@@ -59,7 +59,7 @@ export class AdminUsersController {
   }
 
   @Patch(':id/reactivate')
-  @Throttle({ default: { limit: 20, ttl: 60_000 } })
+  @ThrottlePerIp({ limit: 20, ttl: 60_000 })
   reactivateUser(
     @Param('id') id: string,
     @Req() request: AdminAuthenticatedRequest,

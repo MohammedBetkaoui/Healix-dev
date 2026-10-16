@@ -369,16 +369,26 @@ describe('histopathology report: breast classification', () => {
   });
 
   it('prints no figure and no warning for weights no evaluation measured', () => {
-    for (const input of [
-      pathologyInput('pathology-breast', {
-        classificationWeightsSha256: 'a'.repeat(64),
-      }),
-      pathologyInput('pathology-breast', {}, { breakhisEvaluation: null }),
-    ]) {
+    for (const [input, notice] of [
+      [
+        pathologyInput('pathology-breast', {
+          classificationWeightsSha256: 'a'.repeat(64),
+        }),
+        'Performances non mesurées pour ces poids (empreinte aaaaaaaa).',
+      ],
+      [
+        pathologyInput('pathology-breast', {}, { breakhisEvaluation: null }),
+        'Performances non mesurées pour ces poids (empreinte c8cbd905).',
+      ],
+      [
+        pathologyInput('pathology-breast', {
+          classificationWeightsSha256: null,
+        }),
+        'Performances non mesurées pour ces poids.',
+      ],
+    ] as const) {
       const html = buildReportDocument(input).html;
-      expect(html).toContain(
-        'Performance non mesurée sur un jeu de test indépendant.',
-      );
+      expect(html).toContain(notice);
       expect(html).not.toContain('Sensibilité globale');
       expect(html).not.toContain('Confusions observées');
       expect(html).not.toContain('jeu de test : 13 patients');
@@ -476,7 +486,9 @@ describe('histopathology report: nuclei segmentation', () => {
   it('prints the PanNuke performance only when measured on these weights', () => {
     expect(
       buildReportDocument(pathologyInput('pathology-nuclei')).html,
-    ).toContain('Performance non mesurée sur un jeu de test indépendant.');
+    ).toContain(
+      'Performances non mesurées pour ces poids (empreinte 02b26d77).',
+    );
 
     const measured = buildReportDocument(
       pathologyInput('pathology-nuclei', {}, { pannukeEvaluation: PANNUKE }),
@@ -492,7 +504,7 @@ describe('histopathology report: nuclei segmentation', () => {
       ),
     ).html;
     expect(otherWeights).toContain(
-      'Performance non mesurée sur un jeu de test indépendant.',
+      'Performances non mesurées pour ces poids (empreinte bbbbbbbb).',
     );
   });
 

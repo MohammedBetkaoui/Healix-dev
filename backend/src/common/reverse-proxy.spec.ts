@@ -1,10 +1,13 @@
 import { Controller, Get, type INestApplication } from '@nestjs/common';
+import { ConfigService } from '@nestjs/config';
 import { APP_GUARD } from '@nestjs/core';
+import { JwtModule } from '@nestjs/jwt';
 import { type NestExpressApplication } from '@nestjs/platform-express';
 import { Test } from '@nestjs/testing';
-import { ThrottlerGuard, ThrottlerModule } from '@nestjs/throttler';
+import { ThrottlerModule } from '@nestjs/throttler';
 import request from 'supertest';
 
+import { AppThrottlerGuard } from './guards/app-throttler.guard';
 import { readCorsOptions } from './utils/cors';
 
 @Controller('ping')
@@ -15,16 +18,29 @@ class PingController {
   }
 }
 
-// The same pieces as main.ts and app.module.ts: the global ThrottlerGuard,
-// "trust proxy" from TRUST_PROXY, CORS from readCorsOptions.
+// The same pieces as main.ts and app.module.ts: the global AppThrottlerGuard
+// (anonymous callers counted per IP), "trust proxy" from TRUST_PROXY, CORS
+// from readCorsOptions.
 async function createApp(
   trustProxy: string,
   env: Record<string, string> = {},
 ): Promise<INestApplication> {
   const moduleRef = await Test.createTestingModule({
     controllers: [PingController],
-    imports: [ThrottlerModule.forRoot([{ limit: 2, ttl: 60_000 }])],
-    providers: [{ provide: APP_GUARD, useClass: ThrottlerGuard }],
+    imports: [
+      JwtModule.register({}),
+      ThrottlerModule.forRoot([{ limit: 2, ttl: 60_000 }]),
+    ],
+    providers: [
+      { provide: APP_GUARD, useClass: AppThrottlerGuard },
+      {
+        provide: ConfigService,
+        useValue: {
+          get: (key: string) =>
+            key === 'THROTTLE_ANON_LIMIT' ? '2' : undefined,
+        },
+      },
+    ],
   }).compile();
   const app = moduleRef.createNestApplication<NestExpressApplication>();
   app.set('trust proxy', trustProxy);
@@ -111,6 +127,16 @@ describe('CORS', () => {
       'http://localhost:3000',
     );
     expect(preflight.headers['access-control-allow-credentials']).toBe('true');
+
+    // The frontend reads how long a 429 lasts.
+    const response = await request(
+      app.getHttpServer() as Parameters<typeof request>[0],
+    )
+      .get('/ping')
+      .set('Origin', 'http://localhost:3000');
+    expect(response.headers['access-control-expose-headers']).toBe(
+      'Retry-After',
+    );
   });
 });
 
@@ -123,6 +149,7 @@ describe('readCorsOptions', () => {
   it('keeps the previous default when nothing is set', () => {
     expect(readCorsOptions({})).toEqual({
       credentials: true,
+      exposedHeaders: ['Retry-After'],
       origin: 'http://localhost:3000',
     });
   });

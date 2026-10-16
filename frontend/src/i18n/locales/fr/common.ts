@@ -18,4 +18,11 @@ export const commonFr = {
       "Les fonctionnalités médicales (dossiers patients, rendez-vous) sont réservées aux comptes dont la vérification professionnelle est validée. Complétez ou suivez votre vérification pour y accéder.",
     action: "Accéder à la vérification",
   },
+  serviceUnavailable: {
+    title: "Service momentanément indisponible, réessayez",
+    description:
+      "Le serveur n’a pas pu répondre. Votre session reste ouverte : réessayez dans quelques instants.",
+    retry: "Réessayer",
+  },
+  rateLimited: "Trop de requêtes, nouvel essai dans {seconds} s",
 } as const;

@@ -286,7 +286,7 @@ export const aiAnalysesFr = {
     interval: "IC 95 % : {range}",
     source: "Évaluation du {date}, rapport {report} : une passe, sans TTA.",
     sourcePathology: "Évaluation du {date}, rapport {report} : 4 vues par image, au seuil de décision du service.",
-    sourcePannuke: "Évaluation du {date}, rapport {report} : pixels mis en commun sur tout le pli, une passe par image de 256 × 256 px.",
+    sourcePannuke: "Évaluation du {date}, rapport {report} : pixels mis en commun sur tout le Fold 3, une passe par image de 256 × 256 px.",
   },
   wizard: {
     breadcrumb: "Nouvelle analyse",

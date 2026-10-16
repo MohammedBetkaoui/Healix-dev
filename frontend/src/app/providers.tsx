@@ -5,6 +5,8 @@ import { ThemeProvider } from "next-themes";
 import { type ReactNode, useState } from "react";
 import { z } from "zod";
 
+import { RateLimitToast } from "@/components/shared/RateLimitToast";
+
 // The Content-Security-Policy forbids eval: zod must not even probe it (its
 // `new Function` test is reported as a violation although it is caught).
 z.config({ jitless: true });
@@ -42,7 +44,10 @@ export function Providers({ children, nonce }: ProvidersProps) {
       disableTransitionOnChange
       nonce={nonce}
     >
-      <QueryClientProvider client={queryClient}>{children}</QueryClientProvider>
+      <QueryClientProvider client={queryClient}>
+        {children}
+        <RateLimitToast />
+      </QueryClientProvider>
     </ThemeProvider>
   );
 }

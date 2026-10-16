@@ -293,6 +293,39 @@ describe('buildReportDocument', () => {
     expect(html).toContain('Dr Yacine Mebarki');
   });
 
+  it('never prints "Dr Dr" for a name typed with its title', () => {
+    const document = buildReportDocument(
+      reportInput({
+        decidedBy: {
+          fullName: 'Dr Amel Benaïssa',
+          role: 'physician',
+          speciality: null,
+        },
+        requestedBy: {
+          fullName: 'Docteur Yacine Mebarki',
+          role: 'physician',
+          speciality: null,
+        },
+        structure: {
+          address: '3 rue Didouche',
+          doctorName: 'Dr. Samir Kaci',
+          kind: 'practice',
+          speciality: 'Neurochirurgie',
+          wilaya: 'Oran',
+        },
+      }),
+    );
+
+    for (const part of [document.html, document.headerTemplate]) {
+      expect(part).not.toContain('Dr Dr');
+      expect(part).not.toContain('Dr Docteur');
+      expect(part).not.toContain('Dr Dr.');
+    }
+    expect(document.html).toContain('Dr Amel Benaïssa');
+    expect(document.html).toContain('Dr Yacine Mebarki');
+    expect(document.headerTemplate).toContain('Dr Samir Kaci');
+  });
+
   it('heads every page with the structure, the number and the date, and numbers the pages', () => {
     const document = buildReportDocument(reportInput());
 

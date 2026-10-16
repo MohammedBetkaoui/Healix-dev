@@ -8,9 +8,9 @@ import {
   UseGuards,
 } from '@nestjs/common';
 import { AuthGuard } from '@nestjs/passport';
-import { Throttle } from '@nestjs/throttler';
 import { type Request, type Response } from 'express';
 
+import { ThrottlePerIp } from '../common/guards/app-throttler.guard';
 import { getRequestContext } from '../common/utils/request-context';
 import { AdminAuthService } from './admin-auth.service';
 import { AdminLoginDto } from './dto/admin-login.dto';
@@ -22,7 +22,7 @@ export class AdminAuthController {
   constructor(private readonly adminAuthService: AdminAuthService) {}
 
   @Post('login')
-  @Throttle({ default: { limit: 5, ttl: 60_000 } })
+  @ThrottlePerIp({ limit: 5, ttl: 60_000 })
   login(
     @Body() dto: AdminLoginDto,
     @Req() request: Request,
