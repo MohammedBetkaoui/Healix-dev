@@ -332,7 +332,8 @@ export class MessagesService {
   }
 
   // The badge of the menu: lastSeq - lastReadSeq summed in SQL over the
-  // caller's conversations, muted ones aside.
+  // caller's conversations, muted ones aside, and the groups of a workspace
+  // the caller is no longer an ACTIVE member of (as groupWorkspaceMemberWhere).
   async unreadCount(actor: AuthenticatedUserPayload): Promise<UnreadCount> {
     const [row] = await this.prisma.$queryRaw<
       { total: unknown; conversations: unknown }[]
@@ -345,7 +346,12 @@ export class MessagesService {
         AND p.status IN ('ACTIVE', 'PENDING')
         AND c.type IN ('DIRECT', 'GROUP')
         AND c.last_seq > p.last_read_seq
-        AND (p.muted_until IS NULL OR p.muted_until <= UTC_TIMESTAMP(3))`;
+        AND (p.muted_until IS NULL OR p.muted_until <= UTC_TIMESTAMP(3))
+        AND (c.type <> 'GROUP' OR EXISTS (
+          SELECT 1 FROM workspace_memberships m
+          WHERE m.workspace_id = c.workspace_id
+            AND m.user_id = p.user_id
+            AND m.status = 'ACTIVE'))`;
 
     return {
       conversations: Number(row?.conversations ?? 0),

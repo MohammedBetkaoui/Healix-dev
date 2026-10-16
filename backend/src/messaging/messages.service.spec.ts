@@ -636,6 +636,9 @@ describe('MessagesService read positions', () => {
     expect(sql).toContain('SUM(c.last_seq - p.last_read_seq)');
     expect(sql).toContain("p.status IN ('ACTIVE', 'PENDING')");
     expect(sql).toContain('p.muted_until <= UTC_TIMESTAMP(3)');
+    // A group counts only for an ACTIVE member of its workspace.
+    expect(sql).toContain("c.type <> 'GROUP' OR EXISTS");
+    expect(sql).toContain("m.status = 'ACTIVE'");
   });
 });
 

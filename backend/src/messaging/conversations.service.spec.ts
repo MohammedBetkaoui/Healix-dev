@@ -11,6 +11,7 @@ import { type WorkspaceContextService } from '../workspaces/workspace-context.se
 import {
   type ConversationWithParticipants,
   ConversationsService,
+  groupWorkspaceMemberWhere,
 } from './conversations.service';
 import { MessageCrypto } from './message-crypto';
 import { decodeCursor } from './messaging-rules';
@@ -498,15 +499,27 @@ describe('ConversationsService', () => {
       expect(error.getStatus()).toBe(404);
     });
 
-    it('never lists the conversation types of later lots', async () => {
+    it('never opens the conversation types of later lots, nor a group outside its workspace', async () => {
       const { prisma, service } = setup();
       prisma.conversation.findFirst.mockResolvedValue(null);
-      await errorOf(service.getOne(actor, 'conversation-1'));
+      const error = await errorOf(service.getOne(actor, 'conversation-1'));
+      expect(error.getStatus()).toBe(404);
       expect(
         argOf<{ where: unknown }>(prisma.conversation.findFirst).where,
       ).toEqual({
-        id: 'conversation-1',
-        type: { in: ['DIRECT', 'GROUP'] },
+        AND: [
+          { id: 'conversation-1', type: { in: ['DIRECT', 'GROUP'] } },
+          {
+            OR: [
+              { type: { not: 'GROUP' } },
+              {
+                workspace: {
+                  memberships: { some: { status: 'ACTIVE', userId: ME } },
+                },
+              },
+            ],
+          },
+        ],
       });
     });
   });
@@ -622,7 +635,8 @@ describe('ConversationsService', () => {
         archivedAt: null,
         participants: { some: { status: 'ACTIVE', userId: ME } },
       });
-      expect(next.AND[2]).toEqual({
+      expect(next.AND[2]).toEqual(groupWorkspaceMemberWhere(ME));
+      expect(next.AND[3]).toEqual({
         OR: [
           { lastMessageAt: { lt: at } },
           { id: { lt: 'c2' }, lastMessageAt: at },

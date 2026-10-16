@@ -133,6 +133,26 @@ function cursorWhere(
   };
 }
 
+// A group belongs to its workspace: a participant whose membership of that
+// workspace is no longer ACTIVE (removed, suspended) loses it, in reading as
+// in writing.
+export function groupWorkspaceMemberWhere(
+  userId: string,
+): Prisma.ConversationWhereInput {
+  return {
+    OR: [
+      { type: { not: ConversationType.GROUP } },
+      {
+        workspace: {
+          memberships: {
+            some: { status: WorkspaceMembershipStatus.ACTIVE, userId },
+          },
+        },
+      },
+    ],
+  };
+}
+
 function listStatusWhere(
   userId: string,
   status: ConversationListStatus,
@@ -169,8 +189,10 @@ export class ConversationsService {
     const conversation = await this.prisma.conversation.findFirst({
       include: participantsInclude,
       where: {
-        id: conversationId,
-        type: { in: AVAILABLE_CONVERSATION_TYPES },
+        AND: [
+          { id: conversationId, type: { in: AVAILABLE_CONVERSATION_TYPES } },
+          groupWorkspaceMemberWhere(userId),
+        ],
       },
     });
     const participant = conversation?.participants.find(
@@ -204,6 +226,7 @@ export class ConversationsService {
         AND: [
           { type: query.type ?? { in: AVAILABLE_CONVERSATION_TYPES } },
           listStatusWhere(actor.sub, query.status ?? 'active'),
+          groupWorkspaceMemberWhere(actor.sub),
           cursor ? cursorWhere(cursor) : {},
         ],
       },
