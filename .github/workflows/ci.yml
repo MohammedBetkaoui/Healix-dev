@@ -43,7 +43,7 @@ jobs:
       DATABASE_URL: mysql://root:ci-root-password@127.0.0.1:3306/healixdz_ci
       SHADOW_DATABASE_URL: mysql://root:ci-root-password@127.0.0.1:3306/healixdz_shadow
       # A migrated database for the integration tests (dashboard aggregates
-      # in SQL); its name must end in _test.
+      # in SQL, messaging); its name must end in _test.
       TEST_DATABASE_URL: mysql://root:ci-root-password@127.0.0.1:3306/healixdz_dashboard_test?allowPublicKeyRetrieval=true
     steps:
       - uses: actions/checkout@v4
