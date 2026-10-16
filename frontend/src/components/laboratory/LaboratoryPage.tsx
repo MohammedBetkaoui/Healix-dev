@@ -15,6 +15,7 @@ import { useState } from "react";
 
 import { DashboardShell } from "@/components/dashboard/layout/DashboardShell";
 import { establishmentNavSections } from "@/components/dashboard/layout/navigation";
+import { DemoModuleBanner } from "@/components/dashboard/shared/DemoModule";
 import { LabRequestDrawer, type LabDrawerAction } from "@/components/laboratory/LabRequestDrawer";
 import { LabRequestRegistry } from "@/components/laboratory/LabRequestRegistry";
 import { NewLabRequestModal } from "@/components/laboratory/NewLabRequestModal";
@@ -192,6 +193,7 @@ export function LaboratoryPage() {
   return (
     <DashboardShell {...shellProps} activeKey="lab">
       <div className="space-y-6">
+        <DemoModuleBanner t={t} />
         {notice ? <div className="surface-raised fixed end-6 top-24 z-[110] flex items-center gap-2.5 border-[var(--success-line)] px-4 py-3 text-sm font-medium text-[var(--ink)]" role="status"><CheckCircle2 className="h-4 w-4 text-[var(--success-ink)]" strokeWidth={1.8} aria-hidden="true" />{notice}</div> : null}
 
         <section className="surface-section surface-raised relative overflow-hidden border-t-2 border-t-[var(--medical)]">

@@ -9,13 +9,13 @@ import {
   Res,
   UseGuards,
 } from '@nestjs/common';
-import { Throttle } from '@nestjs/throttler';
 import { type Response } from 'express';
 
 import { AdminJwtGuard } from '../../admin-auth/guards/admin-jwt.guard';
 import { type AdminAuthenticatedRequest } from '../../admin-auth/types/admin-authenticated-request.type';
 import { Roles } from '../../common/decorators/roles.decorator';
 import { UserRole } from '../../common/enums/user-role.enum';
+import { ThrottlePerIp } from '../../common/guards/app-throttler.guard';
 import { RolesGuard } from '../../common/guards/roles.guard';
 import { getRequestContext } from '../../common/utils/request-context';
 import { AdminVerificationsService } from './admin-verifications.service';
@@ -49,7 +49,7 @@ export class AdminVerificationsController {
   }
 
   @Patch(':id/approve')
-  @Throttle({ default: { limit: 20, ttl: 60_000 } })
+  @ThrottlePerIp({ limit: 20, ttl: 60_000 })
   approveVerification(
     @Param('id') id: string,
     @Body() dto: ApproveVerificationDto,
@@ -64,7 +64,7 @@ export class AdminVerificationsController {
   }
 
   @Patch(':id/reject')
-  @Throttle({ default: { limit: 20, ttl: 60_000 } })
+  @ThrottlePerIp({ limit: 20, ttl: 60_000 })
   rejectVerification(
     @Param('id') id: string,
     @Body() dto: RejectVerificationDto,

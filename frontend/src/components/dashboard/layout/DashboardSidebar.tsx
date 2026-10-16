@@ -4,6 +4,7 @@ import { useEffect, useRef } from "react";
 import { PanelLeftClose, PanelLeftOpen, X } from "lucide-react";
 import { WorkspaceLink as Link } from "./WorkspaceLink";
 
+import { DemoBadge } from "@/components/dashboard/shared/DemoModule";
 import { HealixLogo } from "@/components/shared/HealixLogo";
 
 import { useLogout } from "@/features/auth/hooks/use-logout";
@@ -28,11 +29,15 @@ function NavRow({ item, active, collapsed, onNavigate, t }: {
 }) {
   const Icon = item.icon;
   const label = t(item.labelKey);
+  const demo = item.demo ? t("dashboard.clinical.demo.badge") : null;
+  // The badge is part of the name: it stays announced when the row is collapsed.
+  const name = demo ? `${label} (${demo})` : label;
   return (
     <Link href={item.href} className={cn("clinical-nav-row", collapsed && "lg:justify-center lg:px-0")}
-      title={label} aria-label={label} aria-current={active ? "page" : undefined} onClick={onNavigate}>
+      title={name} aria-label={name} aria-current={active ? "page" : undefined} onClick={onNavigate}>
       <Icon size={17} strokeWidth={1.8} aria-hidden="true" className="shrink-0" />
       <span className={cn("min-w-0 flex-1 truncate", collapsed && "lg:hidden")}>{label}</span>
+      {demo ? <DemoBadge className={cn(collapsed && "lg:hidden")} label={demo} /> : null}
     </Link>
   );
 }

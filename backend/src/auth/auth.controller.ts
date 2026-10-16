@@ -9,10 +9,10 @@ import {
   Res,
   UseGuards,
 } from '@nestjs/common';
-import { Throttle } from '@nestjs/throttler';
 import { type Request, type Response } from 'express';
 import { AuthGuard } from '@nestjs/passport';
 
+import { ThrottlePerIp } from '../common/guards/app-throttler.guard';
 import { getRequestContext } from '../common/utils/request-context';
 import { AuthService } from './auth.service';
 import { LoginDto } from './dto/login.dto';
@@ -34,7 +34,7 @@ export class AuthController {
   ) {}
 
   @Post('login')
-  @Throttle({ default: { limit: 5, ttl: 60_000 } })
+  @ThrottlePerIp({ limit: 5, ttl: 60_000 })
   login(
     @Body() dto: LoginDto,
     @Req() request: Request,
@@ -68,7 +68,7 @@ export class AuthController {
   // Same answer whether the address belongs to an account or not.
   @Post('forgot-password')
   @HttpCode(HttpStatus.OK)
-  @Throttle({ default: { limit: 3, ttl: 15 * 60_000 } })
+  @ThrottlePerIp({ limit: 3, ttl: 15 * 60_000 })
   forgotPassword(@Body() dto: ForgotPasswordDto, @Req() request: Request) {
     return this.passwordResetService.requestReset(
       dto.email,
@@ -78,7 +78,7 @@ export class AuthController {
 
   @Post('reset-password')
   @HttpCode(HttpStatus.OK)
-  @Throttle({ default: { limit: 5, ttl: 15 * 60_000 } })
+  @ThrottlePerIp({ limit: 5, ttl: 15 * 60_000 })
   resetPassword(@Body() dto: ResetPasswordDto, @Req() request: Request) {
     return this.passwordResetService.resetPassword(
       { password: dto.password, token: dto.token },

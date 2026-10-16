@@ -1,8 +1,9 @@
 "use client";
 
-import { useCallback, useRef, useState, type ReactNode } from "react";
+import { useCallback, useMemo, useRef, useState, type ReactNode } from "react";
 import { X } from "lucide-react";
 
+import { withDemoModules } from "@/config/demo-modules";
 import { type AccountType } from "@/types/auth";
 import {
   type DashboardNavSection,
@@ -36,6 +37,8 @@ export function DashboardShell({
   user,
 }: DashboardShellProps) {
   const [isSidebarOpen, setSidebarOpen] = useState(false);
+  // The sidebar and the search list the same entries: demo modules only when enabled.
+  const sections = useMemo(() => withDemoModules(navSections), [navSections]);
   const [unavailableModule, setUnavailableModule] = useState("");
   const moduleDialog = useRef<HTMLDialogElement>(null);
   const moduleTrigger = useRef<HTMLElement | null>(null);
@@ -73,7 +76,7 @@ export function DashboardShell({
             direction={direction}
             isCollapsed={isSidebarCollapsed}
             isOpen={isSidebarOpen}
-            navSections={navSections}
+            navSections={sections}
             onClose={closeSidebar}
             onToggleCollapse={toggleSidebarCollapsed}
             t={t}
@@ -87,7 +90,7 @@ export function DashboardShell({
               onLocaleChange={setLocale}
               onMenuOpen={() => setSidebarOpen(true)}
               isMenuOpen={isSidebarOpen}
-              navSections={navSections}
+              navSections={sections}
               t={t}
               title={t(titleKey)}
               user={{ ...user, accountType }}

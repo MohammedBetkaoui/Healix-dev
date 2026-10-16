@@ -63,7 +63,6 @@ export function NucleiResult({ imageBlob, imageError, imageName, locale, overlay
   const percent = new Intl.NumberFormat(intlLocale, { maximumFractionDigits: 1, minimumFractionDigits: 1, style: "percent" });
   const decimal = new Intl.NumberFormat(intlLocale, { maximumFractionDigits: 2, minimumFractionDigits: 2 });
   const integer = new Intl.NumberFormat(intlLocale);
-  // Kept in a local so the narrowing below survives into callbacks.
   const evaluation = pannukeEvaluation;
   const performanceApplies = pannukeEvaluationApplies(run.segmentationWeightsSha256);
 
@@ -218,13 +217,7 @@ export function NucleiResult({ imageBlob, imageError, imageName, locale, overlay
         <h2 id="ai-run-performance" className="text-base font-semibold text-[var(--text-primary)]">
           {t("aiAnalyses.run.pathology.nuclei.performanceTitle")}
         </h2>
-        {evaluation === null ? (
-          // No test measure: no figure at all, not even the notebook's.
-          <p className="mt-3 flex items-start gap-2 text-sm text-[var(--text-primary)]">
-            <Info size={17} className="mt-0.5 shrink-0 text-[var(--text-secondary)]" aria-hidden="true" />
-            {t("aiAnalyses.run.pathology.nuclei.performancePending")}
-          </p>
-        ) : !performanceApplies ? (
+        {!performanceApplies ? (
           <p className="mt-3 flex items-start gap-2 text-sm text-[var(--text-primary)]">
             <Info size={17} className="mt-0.5 shrink-0 text-[var(--text-secondary)]" aria-hidden="true" />
             {t("aiAnalyses.run.evaluationMismatch", { report: isolate(pannukeEvaluationSource.report) })}

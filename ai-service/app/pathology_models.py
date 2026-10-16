@@ -33,8 +33,9 @@ NUCLEI_SEGMENTER_ID = "pathology-unet-pannuke-segmentation"
 NUCLEI_CLASSES = ("background", "neoplastic", "inflammatory", "connective", "dead", "epithelial")
 
 # breakhis_inference_config.json (inference_config.json of the BreakHis
-# notebook, renamed): the threshold is read from it, and must be the one
-# calibrated on validation for "Phase 2 + TTA".
+# notebook, notebooks/breakhis-classification-efficientnetb0.ipynb, renamed):
+# the threshold is read from it, and must be the one calibrated on validation
+# for "Phase 2 + TTA".
 BREAKHIS_CONFIG_FILE = "breakhis_inference_config.json"
 BREAKHIS_EXPECTED_THRESHOLD = 0.13
 BREAKHIS_POSITIVE_CLASS = "malignant"

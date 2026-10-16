@@ -22,10 +22,13 @@ const PALETTE_FILE = join(
   __dirname,
   '../../../../ai-service/app/nuclei_palette.json',
 );
-// Weights measured by pathology-2026-10-11-183500-c8cbd905-8d05b1f0.json.
+// The deployed weights, measured by pathology-2026-10-12-184302-c8cbd905-02b26d77.json.
 const BREAKHIS_SHA =
   'c8cbd905cc039ed4775c98043e04d357bcfcaf971c4b9cc592a3600f97348e6b';
 const PANNUKE_SHA =
+  '02b26d77988f7aa38a15f39e7ba9a7a8946380563e26d1ca705c805d688bbf3c';
+// The discarded PanNuke file (the wrong model); its reports stay as history.
+const DISCARDED_PANNUKE_SHA =
   '8d05b1f068d4fa9f25ed3ed9f05027d7fd68ef74af0bab15e798e6f324a5a248';
 
 describe('findPathologyEvaluation, on the reports of the repository', () => {
@@ -55,10 +58,33 @@ describe('findPathologyEvaluation, on the reports of the repository', () => {
     ]);
   });
 
-  it('finds no PanNuke evaluation while no report has pannuke.status "ok"', async () => {
-    await expect(
-      findPathologyEvaluation(EVALUATION_DIR, 'pannuke', PANNUKE_SHA),
-    ).resolves.toBeNull();
+  it('finds the PanNuke evaluation of the deployed weights 02b26d77', async () => {
+    const evaluation = await findPathologyEvaluation(
+      EVALUATION_DIR,
+      'pannuke',
+      PANNUKE_SHA,
+    );
+
+    expect(evaluation?.file).toBe(
+      'pathology-2026-10-12-184302-c8cbd905-02b26d77.json',
+    );
+    expect(evaluation?.weightsSha256).toBe(PANNUKE_SHA);
+    expect(evaluation?.nucleiMeanDice).toBeCloseTo(0.5613, 4);
+  });
+
+  it('gives the discarded weights 8d05b1f0 their own 0.012 report, never the one of 02b26d77', async () => {
+    const evaluation = await findPathologyEvaluation(
+      EVALUATION_DIR,
+      'pannuke',
+      DISCARDED_PANNUKE_SHA,
+    );
+
+    expect(evaluation?.file).toBe(
+      'pathology-2026-10-12-132137-c8cbd905-8d05b1f0.json',
+    );
+    expect(evaluation?.weightsSha256).toBe(DISCARDED_PANNUKE_SHA);
+    expect(evaluation?.nucleiMeanDice).toBeCloseTo(0.012, 3);
+    expect(evaluation?.file).not.toContain('02b26d77');
   });
 
   it('finds nothing for other weights, or without weights', async () => {
@@ -343,16 +369,26 @@ describe('histopathology report: breast classification', () => {
   });
 
   it('prints no figure and no warning for weights no evaluation measured', () => {
-    for (const input of [
-      pathologyInput('pathology-breast', {
-        classificationWeightsSha256: 'a'.repeat(64),
-      }),
-      pathologyInput('pathology-breast', {}, { breakhisEvaluation: null }),
-    ]) {
+    for (const [input, notice] of [
+      [
+        pathologyInput('pathology-breast', {
+          classificationWeightsSha256: 'a'.repeat(64),
+        }),
+        'Performances non mesurées pour ces poids (empreinte aaaaaaaa).',
+      ],
+      [
+        pathologyInput('pathology-breast', {}, { breakhisEvaluation: null }),
+        'Performances non mesurées pour ces poids (empreinte c8cbd905).',
+      ],
+      [
+        pathologyInput('pathology-breast', {
+          classificationWeightsSha256: null,
+        }),
+        'Performances non mesurées pour ces poids.',
+      ],
+    ] as const) {
       const html = buildReportDocument(input).html;
-      expect(html).toContain(
-        'Performance non mesurée sur un jeu de test indépendant.',
-      );
+      expect(html).toContain(notice);
       expect(html).not.toContain('Sensibilité globale');
       expect(html).not.toContain('Confusions observées');
       expect(html).not.toContain('jeu de test : 13 patients');
@@ -450,7 +486,9 @@ describe('histopathology report: nuclei segmentation', () => {
   it('prints the PanNuke performance only when measured on these weights', () => {
     expect(
       buildReportDocument(pathologyInput('pathology-nuclei')).html,
-    ).toContain('Performance non mesurée sur un jeu de test indépendant.');
+    ).toContain(
+      'Performances non mesurées pour ces poids (empreinte 02b26d77).',
+    );
 
     const measured = buildReportDocument(
       pathologyInput('pathology-nuclei', {}, { pannukeEvaluation: PANNUKE }),
@@ -466,7 +504,7 @@ describe('histopathology report: nuclei segmentation', () => {
       ),
     ).html;
     expect(otherWeights).toContain(
-      'Performance non mesurée sur un jeu de test indépendant.',
+      'Performances non mesurées pour ces poids (empreinte bbbbbbbb).',
     );
   });
 

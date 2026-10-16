@@ -19,6 +19,7 @@ import { useMemo, useState, type FormEvent } from "react";
 
 import { DashboardShell } from "@/components/dashboard/layout/DashboardShell";
 import { establishmentNavSections } from "@/components/dashboard/layout/navigation";
+import { DemoModuleBanner } from "@/components/dashboard/shared/DemoModule";
 import { StatusBadge } from "@/components/dashboard/shared/StatusBadge";
 import { Button } from "@/components/ui/button";
 import { MedicalRecordDetail } from "@/components/medical-records/MedicalRecordDetail";
@@ -341,6 +342,7 @@ export function MedicalRecordsPage() {
   return (
     <DashboardShell {...shellProps} activeKey="records">
       <div className="space-y-6">
+        <DemoModuleBanner t={t} />
         {notice ? (
           <div className="surface-raised fixed end-6 top-24 z-40 flex items-center gap-2.5 border-[var(--success-line)] px-4 py-3 text-sm font-medium text-[var(--ink)]" role="status">
             <CheckCircle2 className="h-4 w-4 text-[var(--success-ink)]" strokeWidth={1.8} aria-hidden="true" />

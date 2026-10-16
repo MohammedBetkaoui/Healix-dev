@@ -17,6 +17,10 @@ export const clinicalWorkspaceFr = {
   skip: "Aller au contenu",
   comingSoon: "Module à venir",
   moduleNotice: "Cet espace n’est pas encore disponible. Aucun dossier ni aucune demande n’a été créé.",
+  demo: {
+    badge: "Démo",
+    banner: "Module en démonstration — données fictives, rien n’est enregistré ni transmis",
+  },
   userMenu: "Menu du compte",
   notifications: "Notifications",
   notificationsNotice: "Le centre de notifications sera disponible prochainement. Aucune notification en temps réel n’est affichée ici.",

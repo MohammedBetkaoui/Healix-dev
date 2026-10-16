@@ -90,7 +90,10 @@ describe('AiAnalysisRunsService.decide (POST .../ai-analysis-runs/:runId/decisio
   const decidedRun = (data: Record<string, unknown>) =>
     succeededRun({
       ...data,
-      decidedBy: { fullName: 'Dr Amel Benaïssa' },
+      decidedBy: {
+        fullName: 'Amel Benaïssa',
+        role: UserRole.INDEPENDENT_DOCTOR,
+      },
     });
 
   beforeEach(() => {
@@ -156,6 +159,29 @@ describe('AiAnalysisRunsService.decide (POST .../ai-analysis-runs/:runId/decisio
         decisionStatus: 'VALIDATED',
       }),
     );
+  });
+
+  it('names a physician "Dr <name>" once, anyone else as typed', () => {
+    const deciderName = (decidedBy: unknown) =>
+      service.toRunResponse(
+        succeededRun({ decidedBy }) as unknown as Parameters<
+          typeof service.toRunResponse
+        >[0],
+      ).decidedByName;
+
+    expect(
+      deciderName({
+        fullName: 'Dr Amel Benaïssa',
+        role: UserRole.AFFILIATED_DOCTOR,
+      }),
+    ).toBe('Dr Amel Benaïssa');
+    expect(
+      deciderName({
+        fullName: 'Nadia Admin',
+        role: UserRole.ESTABLISHMENT_ADMIN,
+      }),
+    ).toBe('Nadia Admin');
+    expect(deciderName(null)).toBeNull();
   });
 
   it('CORRECTED keeps the physician label and reason, audited without the reason', async () => {

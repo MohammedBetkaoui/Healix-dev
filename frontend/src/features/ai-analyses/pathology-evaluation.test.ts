@@ -3,6 +3,8 @@ import { join } from "node:path";
 
 import {
   breakhisEvaluation,
+  nucleiDiceRangeByTissue,
+  pannukeByTissue,
   pannukeEvaluation,
   pannukeEvaluationSource,
   pathologyEvaluationSource,
@@ -103,18 +105,9 @@ describe("pathology-evaluation.ts, copied from ai-service/evaluation/pathology-*
     ).toEqual([]);
   });
 
-  it("copies the PanNuke figures as soon as a report has measured them", () => {
+  it("copies the PanNuke figures of the most recent report that measured them", () => {
     const report = latestWith("pannuke");
-    if (!report) {
-      // Not measured yet: nothing may be shown.
-      expect(pannukeEvaluation).toBeNull();
-      return;
-    }
-    if (pannukeEvaluation === null) {
-      throw new Error(
-        `Le rapport ${report.file} mesure PanNuke (pannuke.status « ok ») : copiez les chiffres PanNuke dans pathology-evaluation.ts.`,
-      );
-    }
+    if (!report) throw new Error(`Aucun rapport pathology-*.json avec pannuke.status « ok » dans ${EVALUATION_DIR}.`);
     const pannuke = report.pannuke!;
     expect(pannukeEvaluationSource.report).toBe(report.file);
     expect(pannukeEvaluationSource.generatedAt).toBe(report.generatedAt);
@@ -132,6 +125,43 @@ describe("pathology-evaluation.ts, copied from ai-service/evaluation/pathology-*
         nucleiMeanDice: pannuke.nucleiMeanDice,
       }),
     ).toEqual([]);
+    expect(
+      differences(
+        pannukeByTissue,
+        Object.fromEntries(
+          Object.entries(pannuke.byTissue as Record<string, { images: number; nucleiMeanDice: number }>).map(([tissue, metrics]) => [
+            tissue,
+            { images: metrics.images, nucleiMeanDice: metrics.nucleiMeanDice },
+          ]),
+        ),
+      ),
+    ).toEqual([]);
+  });
+
+  it("never shows the discarded PanNuke weights 8d05b1f0", () => {
+    const discarded = "8d05b1f068d4fa9f25ed3ed9f05027d7fd68ef74af0bab15e798e6f324a5a248";
+
+    expect(pannukeEvaluationSource.weightsSha256).not.toBe(discarded);
+    expect(pathologyEvaluationSource.weightsSha256["pathology-unet-pannuke-segmentation"]).not.toBe(discarded);
+  });
+
+  it("reads the spread of PanNuke across organs from byTissue", () => {
+    const byTissue = latestWith("pannuke")!.pannuke!.byTissue as Record<string, { nucleiMeanDice: number }>;
+    const ranked = Object.entries(byTissue).sort(([, a], [, b]) => a.nucleiMeanDice - b.nucleiMeanDice);
+
+    expect(nucleiDiceRangeByTissue()).toEqual({
+      max: ranked[ranked.length - 1][1].nucleiMeanDice,
+      min: ranked[0][1].nucleiMeanDice,
+    });
+    expect(
+      nucleiDiceRangeByTissue({
+        Colon: { images: 3, nucleiMeanDice: 0.7 },
+        Lung: { images: 1, nucleiMeanDice: 0.2 },
+        Skin: { images: 2, nucleiMeanDice: 0.5 },
+      }),
+    ).toEqual({ max: 0.7, min: 0.2 });
+    expect(nucleiDiceRangeByTissue({ Skin: { images: 2, nucleiMeanDice: 0.5 } })).toEqual({ max: 0.5, min: 0.5 });
+    expect(() => nucleiDiceRangeByTissue({})).toThrow();
   });
 
   it("would catch a value changed by hand", () => {

@@ -509,7 +509,7 @@ describe('AiAnalysisReportsService (GET .../ai-analysis-runs/:runId/report)', ()
       await service.getReport(doctor, 'patient-a', 'run-1');
 
       expect(renderedHtml().html).toContain(
-        'Performance non mesurée sur un jeu de test indépendant.',
+        'Performances non mesurées pour ces poids (empreinte aaaaaaaa).',
       );
     });
 
@@ -555,7 +555,7 @@ describe('AiAnalysisReportsService (GET .../ai-analysis-runs/:runId/report)', ()
       expect(html).toContain('Carte de segmentation relue et acceptée');
       expect(html).toContain(Buffer.from('overlay-rgba').toString('base64'));
       expect(html).toContain(
-        'Performance non mesurée sur un jeu de test indépendant.',
+        'Performances non mesurées pour ces poids (empreinte bbbbbbbb).',
       );
       expect(readStoredFile).toHaveBeenCalledWith(overlayPath);
     });

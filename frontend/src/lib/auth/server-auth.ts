@@ -1,6 +1,6 @@
 import "server-only";
 
-import { cookies } from "next/headers";
+import { cookies, headers } from "next/headers";
 import { redirect } from "next/navigation";
 
 import { type LoginUser } from "@/features/auth/types/login.types";
@@ -13,10 +13,12 @@ import {
   isAllowedRole,
   type AuthenticatedRole,
 } from "./auth-routes";
-
-type CurrentUserResponse = {
-  user: LoginUser;
-};
+import {
+  fetchCurrentUser,
+  SESSION_CHECK_HEADER,
+  SESSION_CHECK_UNAVAILABLE,
+  SessionCheckUnavailableError,
+} from "./current-user";
 
 async function getAuthCookieHeader() {
   const cookieStore = await cookies();
@@ -30,6 +32,9 @@ async function getAuthCookieHeader() {
     .join("; ");
 }
 
+// null only when the API says signed out (401, 403). When it cannot say (a
+// 429, a 5xx, no answer), SessionCheckUnavailableError: the page shows
+// app/error.tsx ("Service momentanément indisponible"), never the login page.
 export async function getServerCurrentUser(): Promise<LoginUser | null> {
   const cookieHeader = await getAuthCookieHeader();
 
@@ -37,24 +42,17 @@ export async function getServerCurrentUser(): Promise<LoginUser | null> {
     return null;
   }
 
-  try {
-    const response = await fetch(`${getServerApiUrl()}/auth/me`, {
-      cache: "no-store",
-      headers: {
-        Accept: "application/json",
-        Cookie: cookieHeader,
-      },
-    });
+  const user = await fetchCurrentUser(
+    `${getServerApiUrl()}/auth/me`,
+    cookieHeader,
+  );
+  const proxyCheck = (await headers()).get(SESSION_CHECK_HEADER);
 
-    if (!response.ok) {
-      return null;
-    }
-
-    const data = (await response.json()) as CurrentUserResponse;
-    return data.user;
-  } catch {
-    return null;
+  if (!user && proxyCheck === SESSION_CHECK_UNAVAILABLE) {
+    throw new SessionCheckUnavailableError();
   }
+
+  return user;
 }
 
 export async function requireAuthenticatedPage(
@@ -74,8 +72,17 @@ export async function requireAuthenticatedPage(
   return user;
 }
 
+// The login and sign-up forms stay usable when the session cannot be checked.
 export async function redirectAuthenticatedUserFromAuthPage() {
-  const user = await getServerCurrentUser();
+  let user: LoginUser | null = null;
+
+  try {
+    user = await getServerCurrentUser();
+  } catch (error) {
+    if (!(error instanceof SessionCheckUnavailableError)) {
+      throw error;
+    }
+  }
 
   if (user) {
     redirect(getDefaultProtectedPathForRole(user.role));

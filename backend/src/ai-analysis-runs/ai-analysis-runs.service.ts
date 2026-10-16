@@ -17,6 +17,10 @@ import {
 } from '@prisma/client';
 
 import { type AuthenticatedUserPayload } from '../auth/types/authenticated-request.type';
+import {
+  formatPhysicianName,
+  isPhysicianRole,
+} from '../common/utils/physician-name';
 import { sanitizeTextInput } from '../common/utils/sanitize';
 import { PatientFileStorageService } from '../patients/documents/patient-file-storage.service';
 import { PatientAuditService } from '../patients/patient-audit.service';
@@ -52,17 +56,21 @@ type RunErrorCode =
   | 'MASK_STORAGE_FAILED'
   | 'RUN_INTERRUPTED';
 
-// The decision's author, by name only (never other user fields).
+// The decision's author, by name only (never other user fields): the role
+// only tells whether the name is a physician's, given as "Dr <name>".
 export const decidedByInclude = {
-  decidedBy: { select: { fullName: true } },
+  decidedBy: { select: { fullName: true, role: true } },
   // The number of its PDF report, once generated.
   report: { select: { reportNumber: true } },
 } as const;
 
 export type RunWithDecider = AiAnalysisRun & {
-  decidedBy?: { fullName: string } | null;
+  decidedBy?: { fullName: string; role: string } | null;
   report?: { reportNumber: string } | null;
 };
+
+const deciderName = ({ fullName, role }: { fullName: string; role: string }) =>
+  isPhysicianRole(role) ? formatPhysicianName(fullName) : fullName;
 
 const alreadyDecided = () =>
   new ConflictException({
@@ -765,7 +773,7 @@ export class AiAnalysisRunsService {
       decisionLabel: run.decisionLabel,
       decisionReason: run.decisionReason,
       decidedById: run.decidedById,
-      decidedByName: run.decidedBy?.fullName ?? null,
+      decidedByName: run.decidedBy ? deciderName(run.decidedBy) : null,
       decidedAt: run.decidedAt,
       reportNumber: run.report?.reportNumber ?? null,
       createdAt: run.createdAt,

@@ -84,10 +84,19 @@ Les fichiers lus par le service :
 | `healixdz_seg_pituitary_v5_best.pth` | `cfd8fc4e55e6a4d7ca97e9613a95451d9680426bdd714f818786ab0e9983dd89` |
 | `EfficientNetB0_BreakHis_phase2.keras` | `c8cbd905cc039ed4775c98043e04d357bcfcaf971c4b9cc592a3600f97348e6b` |
 | `breakhis_inference_config.json` | `ea0646849ab49e9ce148f902895693f6a304f2e329d9cb2e591fe07c8025f552` |
-| `pannuke_unet_efficientnetb0_phase2_best.keras` | `8d05b1f068d4fa9f25ed3ed9f05027d7fd68ef74af0bab15e798e6f324a5a248` |
+| `pannuke_unet_efficientnetb0_phase2_best.keras` | `02b26d77988f7aa38a15f39e7ba9a7a8946380563e26d1ca705c805d688bbf3c` |
 
 `breakhis_inference_config.json` est le fichier `inference_config.json` du
-notebook BreakHis, renommé.
+notebook BreakHis (`notebooks/breakhis-classification-efficientnetb0.ipynb`),
+renommé.
+
+**Ancien fichier PanNuke écarté.** Un fichier
+`pannuke_unet_efficientnetb0_phase2_best.keras` d'empreinte
+`8d05b1f068d4fa9f25ed3ed9f05027d7fd68ef74af0bab15e798e6f324a5a248` a circulé :
+c'était un mauvais modèle (Dice moyen des noyaux de 0,012 sur le test). Ne le
+déployez pas ; si `models/` le contient encore, remplacez-le par le fichier
+d'empreinte `02b26d77…` ci-dessus. Le service ne le refuse pas au chargement
+(mêmes formes d'entrée et de sortie) : seule l'empreinte le distingue.
 
 Vérification des empreintes :
 
@@ -270,6 +279,26 @@ restriction facultative de l'administration.
   client, et non celle de Caddy. Caddy ignore le `X-Forwarded-For` envoyé par
   le client, retire `True-Client-IP` et `CF-Connecting-IP`, et pose
   `X-Real-IP` : un client ne peut pas choisir l'adresse enregistrée.
+- **Limites de débit**, par minute et par route
+  ([`backend/src/common/guards/app-throttler.guard.ts`](backend/src/common/guards/app-throttler.guard.ts)) :
+  - un utilisateur connecté (jeton d'accès valide, vérifié par le backend) a
+    son propre compteur : `THROTTLE_USER_LIMIT`, 600 par défaut. Plusieurs
+    utilisateurs derrière une même adresse (un cabinet, ou le conteneur
+    frontend qui vérifie les sessions) ne se gênent donc pas ;
+  - sans jeton valide (absent, expiré ou falsifié), le compteur est celui de
+    l'adresse IP : `THROTTLE_ANON_LIMIT`, 120 par défaut ;
+  - la connexion (5 par minute, application et administration), la demande
+    de réinitialisation du mot de passe (3 par 15 minutes), la
+    réinitialisation elle-même (5 par 15 minutes) et les actions de
+    l'administration (20 par minute) gardent leurs limites, toujours par IP,
+    même avec un jeton valide.
+
+  Au-delà, le backend répond 429 avec l'en-tête `Retry-After`. L'interface
+  ne le prend jamais pour une déconnexion : un message donne le délai et la
+  requête repart une fois ; une page qui ne peut pas vérifier la session
+  affiche « Service momentanément indisponible, réessayez ». Pour changer
+  les limites : `THROTTLE_USER_LIMIT` et `THROTTLE_ANON_LIMIT` dans `.env`,
+  puis `docker compose up -d backend`.
 - **CORS désactivé** (`CORS_ENABLED=false`) : pages et API partagent une
   seule origine, le navigateur n'a donc jamais d'appel inter-origines à
   faire, et aucun autre site ne reçoit d'en-tête `Access-Control-Allow-*`.
@@ -445,18 +474,21 @@ docker compose up -d
 nouvelles migrations à son démarrage. Avec la configuration de
 démonstration, ajoutez les deux `-f` (ou `COMPOSE_FILE`, voir plus haut).
 
-`PUBLIC_API_URL` (déduite de `APP_DOMAIN`) et `ADMIN_GATE_PATH` sont écrits
-dans le frontend au moment du build : après les avoir changés, lancez
-`docker compose build frontend`.
+`PUBLIC_API_URL` (déduite de `APP_DOMAIN`), `ADMIN_GATE_PATH` et
+`ENABLE_DEMO_MODULES` sont écrits dans le frontend au moment du build : après
+les avoir changés, lancez `docker compose build frontend`.
 
 ## 10. Points d'attention
 
-- **Limite de débit (comportement existant de l'application).** Le backend
-  limite à 20 requêtes par minute et par IP. Les vérifications de session
-  faites par le serveur Next.js arrivent toutes du conteneur frontend : avec
-  beaucoup d'utilisateurs simultanés, cette limite peut être atteinte, et
-  l'interface traite alors la réponse 429 comme une déconnexion. Le corriger
-  demande une modification du code, non faite ici.
+- **Limite de débit des sessions expirées.** Quand le jeton d'accès d'un
+  utilisateur a expiré, le serveur Next.js vérifie puis rafraîchit sa
+  session sans jeton valide : ces appels arrivent tous du conteneur frontend
+  et partagent le compteur anonyme de son adresse (`THROTTLE_ANON_LIMIT`,
+  120 par minute et par route). Chaque utilisateur actif n'en fait qu'à
+  l'expiration de son jeton (15 minutes) : la limite n'est atteinte qu'avec
+  beaucoup d'utilisateurs simultanés, et la page affiche alors « Service
+  momentanément indisponible, réessayez », sans déconnexion. Augmentez
+  `THROTTLE_ANON_LIMIT` si cela arrive.
 - **Docker Desktop.** Sous Windows et macOS, les connexions arrivent dans les
   conteneurs avec l'adresse de la passerelle Docker, et non celle du client :
   en démonstration locale, tous les navigateurs partagent donc la même

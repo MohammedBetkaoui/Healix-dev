@@ -65,6 +65,8 @@ services:
         # API on the same origin. Rebuild the image after changing it.
         NEXT_PUBLIC_API_URL: ${PUBLIC_API_URL:-https://${APP_DOMAIN}/api}
         NEXT_PUBLIC_ADMIN_GATE_PATH: ${ADMIN_GATE_PATH:-/hzdz-control-gate-2026}
+        # "true": shows the demo modules on mock data. Absent: hidden (404).
+        NEXT_PUBLIC_ENABLE_DEMO_MODULES: ${ENABLE_DEMO_MODULES:-}
     image: healixdz-frontend:latest
     restart: unless-stopped
     depends_on:
@@ -113,6 +115,10 @@ services:
       # Only Caddy's X-Forwarded-For is believed: rate limits and the audit
       # log see the client's address, not Caddy's.
       TRUST_PROXY: ${TRUST_PROXY:-${CADDY_IP:-172.30.0.10}}
+      # Requests per minute and per route: per signed-in user, per IP for the
+      # others (see .env.docker.example).
+      THROTTLE_USER_LIMIT: ${THROTTLE_USER_LIMIT:-600}
+      THROTTLE_ANON_LIMIT: ${THROTTLE_ANON_LIMIT:-120}
       BCRYPT_SALT_ROUNDS: ${BCRYPT_SALT_ROUNDS:-12}
       JWT_ACCESS_SECRET: ${JWT_ACCESS_SECRET:?JWT_ACCESS_SECRET manque dans .env}
       JWT_REFRESH_SECRET: ${JWT_REFRESH_SECRET:?JWT_REFRESH_SECRET manque dans .env}

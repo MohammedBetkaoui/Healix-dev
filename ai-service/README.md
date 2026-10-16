@@ -50,7 +50,20 @@ behind its own endpoint, independent of the brain pipeline.
 | Model id | File | Input | SHA-256 |
 | --- | --- | --- | --- |
 | pathology-breakhis-classification | `EfficientNetB0_BreakHis_phase2.keras` | 224×224 | `c8cbd905cc039ed4775c98043e04d357bcfcaf971c4b9cc592a3600f97348e6b` |
-| pathology-unet-pannuke-segmentation | `pannuke_unet_efficientnetb0_phase2_best.keras` | 256×256 | `8d05b1f068d4fa9f25ed3ed9f05027d7fd68ef74af0bab15e798e6f324a5a248` |
+| pathology-unet-pannuke-segmentation | `pannuke_unet_efficientnetb0_phase2_best.keras` | 256×256 | `02b26d77988f7aa38a15f39e7ba9a7a8946380563e26d1ca705c805d688bbf3c` |
+
+An earlier file under the same name, SHA-256
+`8d05b1f068d4fa9f25ed3ed9f05027d7fd68ef74af0bab15e798e6f324a5a248`, was the
+wrong model (mean nuclei Dice 0.012 on Fold 3) and is discarded: never deploy
+it. Its reports stay in `evaluation/` as history
+(`pathology-2026-10-11-183500-c8cbd905-8d05b1f0.json`,
+`pathology-2026-10-12-132137-c8cbd905-8d05b1f0.json`); the deployed file is
+measured by `pathology-2026-10-12-184302-c8cbd905-02b26d77.json`.
+
+Both models come from the training notebooks at the root of the repository:
+[`notebooks/breakhis-classification-efficientnetb0.ipynb`](../notebooks/breakhis-classification-efficientnetb0.ipynb)
+and [`notebooks/pannuke-segmentation.ipynb`](../notebooks/pannuke-segmentation.ipynb).
+"The notebook" below is one of them.
 
 The classifier's inference settings sit next to its weights:
 `breakhis_inference_config.json` (the BreakHis notebook's
@@ -466,7 +479,8 @@ was stopped (the other one is still evaluated). On a laptop CPU, count about
 
 ### What it measures
 
-**BreakHis**: the test split of the notebook, rebuilt exactly: every image
+**BreakHis**: the test split of the notebook
+(`notebooks/breakhis-classification-efficientnetb0.ipynb`), rebuilt exactly: every image
 below `BreaKHis_v1`, sorted; the class from its path (`…/benign/…` or
 `…/malignant/…`, checked against the `SOB_B` / `SOB_M` of its name), the
 patient and magnification from its name
@@ -489,7 +503,8 @@ it; the same metrics per magnification; per patient, the mean score and the
 majority decision of its images. Compared with the notebook (cell 20):
 accuracy 0.8819, ROC AUC 0.9392, matrix [[262, 85], [74, 925]].
 
-**PanNuke**: Fold 3, the notebook's test fold (2,722 patches; any other count
+**PanNuke**: Fold 3, the test fold of `notebooks/pannuke-segmentation.ipynb`
+(2,722 patches; any other count
 stops the part). Reference mask: channel c (0–4) > 0 → class c + 1; a pixel
 under several channels → 255, left out; any other → background. Dice and IoU
 per class from pixel counts pooled over the whole fold (not a mean per

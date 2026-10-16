@@ -223,6 +223,7 @@ export type AiAnalysisRun = {
   decisionLabel: string | null;
   decisionReason: string | null;
   decidedById: string | null;
+  /** As shown: "Dr <name>" for a physician (formatPhysicianName, backend), the name as typed for anyone else. */
   decidedByName: string | null;
   decidedAt: string | null;
   /** Number of its PDF report (CR-IA-<year>-<NNNNNN>), once generated. */

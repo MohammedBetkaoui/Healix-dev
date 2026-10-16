@@ -9,3 +9,7 @@
 
 # Backups of the Docker deployment (patient data): never committed.
 /backups/
+
+# Logs of local runs (ai-service/.runlogs, next dev...): never committed.
+.runlogs/
+*.log

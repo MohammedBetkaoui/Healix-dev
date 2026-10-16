@@ -8,6 +8,7 @@
 // figure is printed only from the evaluation of the analysis's own weights.
 
 import { createSha256Checksum } from '../../common/utils/checksum.util';
+import { formatPhysicianName } from '../../common/utils/physician-name';
 import { NUCLEUS_TYPES, type NucleusType } from '../ai-service.client';
 import {
   BRAIN_CLASS_LABELS,
@@ -61,7 +62,11 @@ const NUCLEUS_NAMES: Record<NucleusType, string> = {
 // Too rare in training and in test: its share is shown, flagged.
 const UNRELIABLE_NUCLEUS_TYPES: readonly NucleusType[] = ['dead'];
 
-const NOT_MEASURED = 'Performance non mesurée sur un jeu de test indépendant.';
+// No evaluation report measured the weights of the analysis.
+const notMeasured = (weightsSha256: string | null) =>
+  weightsSha256
+    ? `Performances non mesurées pour ces poids (empreinte ${escapeHtml(weightsSha256.slice(0, 8))}).`
+    : 'Performances non mesurées pour ces poids.';
 
 const ESTABLISHMENT_TYPES: Record<string, string> = {
   CLINIC: 'Clinique',
@@ -265,7 +270,7 @@ export function classLabel(label: string): string {
 
 /** "Dr <name>" for a physician only: no title is ever invented. */
 export function personName(person: ReportPerson): string {
-  if (person.role === 'physician') return `Dr ${person.fullName}`;
+  if (person.role === 'physician') return formatPhysicianName(person.fullName);
   if (person.role === 'establishmentAdmin') {
     return `${person.fullName} (administration de l'établissement)`;
   }
@@ -310,7 +315,7 @@ function structureLines(structure: ReportStructure): string[] {
       ];
     case 'practice':
       return [
-        `<strong>Dr ${escapeHtml(structure.doctorName)}</strong>`,
+        `<strong>${escapeHtml(formatPhysicianName(structure.doctorName))}</strong>`,
         escapeHtml(structure.speciality),
         escapeHtml(structure.address),
         `Wilaya : ${escapeHtml(structure.wilaya)}`,
@@ -773,7 +778,7 @@ function breastPerformances(input: ReportInput): string {
   if (!breakhisApplies(input) || !evaluation) {
     return `<section class="small">
   <h2>Performances de référence</h2>
-  <p>${NOT_MEASURED}</p>
+  <p>${notMeasured(input.run.classificationWeightsSha256)}</p>
 </section>`;
   }
   const magnification = input.run.magnification;
@@ -795,7 +800,7 @@ function nucleiPerformances(input: ReportInput): string {
   if (!pannukeApplies(input) || !evaluation) {
     return `<section class="small">
   <h2>Performances de référence</h2>
-  <p>${NOT_MEASURED}</p>
+  <p>${notMeasured(input.run.segmentationWeightsSha256)}</p>
 </section>`;
   }
   const dice = NUCLEUS_TYPES.map((type) => {

@@ -4,7 +4,7 @@ import { type AiDatasetKey, type AiLimitationKey, type AiModelMetric } from "./a
 import { datasetSizes } from "./ai-models.registry";
 import { brainClassificationEvaluation } from "./brain-evaluation";
 import { formatInterval, formatPercent, isolate } from "./evaluation-presentation";
-import { breakhisEvaluation } from "./pathology-evaluation";
+import { breakhisEvaluation, nucleiDiceRangeByTissue } from "./pathology-evaluation";
 
 const intlLocale = (locale: Locale) => (locale === "ar" ? "ar-DZ" : "fr-DZ");
 
@@ -46,6 +46,12 @@ export function limitationParams(limitation: AiLimitationKey, locale: Locale): R
       return { recall: formatPercent(brainClassificationEvaluation.perClass.glioma.recall, locale) };
     case "fewTestPatients":
       return testPatientsParams(locale);
+    case "tissueDependent": {
+      // Two decimals, as the Dice of the model sheet.
+      const { max, min } = nucleiDiceRangeByTissue();
+      const decimal = new Intl.NumberFormat(intlLocale(locale), { maximumFractionDigits: 2, minimumFractionDigits: 2 });
+      return { max: isolate(decimal.format(max)), min: isolate(decimal.format(min)) };
+    }
     default:
       return undefined;
   }

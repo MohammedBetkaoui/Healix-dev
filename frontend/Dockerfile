@@ -17,8 +17,12 @@ WORKDIR /app
 # image. They are public by nature (an URL, a path), never a secret.
 ARG NEXT_PUBLIC_API_URL=http://localhost:3001/api
 ARG NEXT_PUBLIC_ADMIN_GATE_PATH=/hzdz-control-gate-2026
+# "true" shows the demo modules on mock data (laboratory, medical records);
+# anything else hides them (src/config/demo-modules.ts).
+ARG NEXT_PUBLIC_ENABLE_DEMO_MODULES=
 ENV NEXT_PUBLIC_API_URL=${NEXT_PUBLIC_API_URL} \
     NEXT_PUBLIC_ADMIN_GATE_PATH=${NEXT_PUBLIC_ADMIN_GATE_PATH} \
+    NEXT_PUBLIC_ENABLE_DEMO_MODULES=${NEXT_PUBLIC_ENABLE_DEMO_MODULES} \
     NEXT_TELEMETRY_DISABLED=1
 COPY --from=deps /app/node_modules ./node_modules
 COPY . .

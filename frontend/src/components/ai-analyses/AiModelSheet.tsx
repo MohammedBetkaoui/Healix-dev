@@ -27,7 +27,6 @@ import {
 import {
   breakhisEvaluation,
   pannukeEvaluation,
-  pannukeNotebookValidation,
   type PannukeEvaluation,
 } from "@/features/ai-analyses/pathology-evaluation";
 import { type Locale } from "@/i18n";
@@ -250,31 +249,9 @@ function PannukeTable({
   );
 }
 
-// PanNuke: the test measure once there is one; until then, that it is
-// pending, then the notebook's figures, marked as an optimistic validation.
+// PanNuke: the test measure per type.
 function PannukeMetrics({ locale, t }: { locale: Locale; t: TranslationFunction }) {
-  if (pannukeEvaluation !== null) {
-    return <PannukeTable caption={t("aiAnalyses.sheet.testByType")} evaluation={pannukeEvaluation} locale={locale} t={t} />;
-  }
-
-  return (
-    <div className="space-y-3">
-      <div
-        role="note"
-        className="rounded-[var(--radius-sm)] border border-s-[3px] border-[var(--warning-line)] border-s-[color:var(--warning)] bg-[var(--warning-soft)] px-3 py-2.5"
-      >
-        <p className="text-sm font-semibold text-[var(--warning-ink)]">{t("aiAnalyses.sheet.testPending")}</p>
-        <p className="mt-0.5 text-xs leading-5 text-[var(--text-primary)]">{t("aiAnalyses.sheet.testPendingNote")}</p>
-      </div>
-      <PannukeTable
-        caption={t("aiAnalyses.sheet.notebookValidation")}
-        evaluation={pannukeNotebookValidation}
-        locale={locale}
-        t={t}
-      />
-      <p className="text-xs leading-5 text-[var(--text-secondary)]">{t("aiAnalyses.sheet.notebookValidationNote")}</p>
-    </div>
-  );
+  return <PannukeTable caption={t("aiAnalyses.sheet.testByType")} evaluation={pannukeEvaluation} locale={locale} t={t} />;
 }
 
 // Side panel over the hub: a native modal <dialog> (the page behind is inert,
