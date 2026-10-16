@@ -125,6 +125,9 @@ services:
       ADMIN_JWT_ACCESS_SECRET: ${ADMIN_JWT_ACCESS_SECRET:?ADMIN_JWT_ACCESS_SECRET manque dans .env}
       ADMIN_JWT_REFRESH_SECRET: ${ADMIN_JWT_REFRESH_SECRET:?ADMIN_JWT_REFRESH_SECRET manque dans .env}
       ADMIN_GATE_PATH: ${ADMIN_GATE_PATH:-/hzdz-control-gate-2026}
+      # Encryption of the message bodies; the backend refuses to start
+      # without it.
+      MESSAGING_KEYS: ${MESSAGING_KEYS:?MESSAGING_KEYS manque dans .env}
       AI_SERVICE_URL: http://ai-service:8001
       AI_SERVICE_TOKEN: ${AI_SERVICE_TOKEN:?AI_SERVICE_TOKEN manque dans .env}
       AI_EVALUATION_REPORT_PATH: /app/evaluation/brain-latest.json

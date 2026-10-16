@@ -17,6 +17,7 @@ import {
   DEFAULT_THROTTLE_ANON_LIMIT,
 } from './common/guards/app-throttler.guard';
 import { DashboardModule } from './dashboard/dashboard.module';
+import { MessagingModule } from './messaging/messaging.module';
 import { PatientsModule } from './patients/patients.module';
 import { PaymentsModule } from './payments/payments.module';
 import { SubscriptionsModule } from './subscriptions/subscriptions.module';
@@ -47,6 +48,7 @@ import { WorkspaceModule } from './workspaces/workspace.module';
     AiAnalysisRunsModule,
     AppointmentsModule,
     DashboardModule,
+    MessagingModule,
     WorkspaceModule,
   ],
   controllers: [AppController],

@@ -127,6 +127,7 @@ Chaque variable est commentée dans
   n'importe quelle adresse) ;
 - `MYSQL_PASSWORD` et `MYSQL_ROOT_PASSWORD` ;
 - les quatre secrets JWT et `AI_SERVICE_TOKEN` ;
+- `MESSAGING_KEYS`, la clé de chiffrement des messages (ci-dessous) ;
 - en production, `SMTP_HOST`, `MAIL_FROM` et les identifiants SMTP.
 
 Pour générer un secret (64 caractères hexadécimaux) :
@@ -138,6 +139,21 @@ $b = New-Object byte[] 32; [Security.Cryptography.RandomNumberGenerator]::Create
 ```bash
 openssl rand -hex 32   # Linux, Git Bash
 ```
+
+**Clé des messages (`MESSAGING_KEYS`).** Le texte des messages est chiffré
+dans la base (AES-256-GCM) ; sans cette variable, le backend ne démarre pas.
+Générez une clé de 32 octets :
+
+```bash
+openssl rand -base64 32   # Linux, Git Bash
+```
+
+```powershell
+$b = New-Object byte[] 32; [Security.Cryptography.RandomNumberGenerator]::Create().GetBytes($b); [Convert]::ToBase64String($b)   # PowerShell
+```
+
+puis écrivez-la précédée d'un identifiant : `MESSAGING_KEYS=k1:<clé>`.
+Sauvegardez-la **à part** des sauvegardes de la base (section 8).
 
 `.env` contient les secrets : ne le versionnez pas (Git l'ignore) et ne
 l'envoyez à personne.
@@ -406,6 +422,23 @@ copie en clair n'est jamais écrite sur le disque.
    les sauvegardes chiffrées sont **irrécupérables** ; volée avec elles, elle
    les rend lisibles.
 
+### Clé des messages (`MESSAGING_KEYS`)
+
+Les sauvegardes de la base contiennent les messages **chiffrés**. Pour les
+relire après une restauration, il faut la clé de `MESSAGING_KEYS` :
+
+- gardez-en une copie hors du serveur, **séparée** des sauvegardes de la base
+  et de la clé `age` (par exemple un autre coffre-fort) : volée avec une
+  sauvegarde, elle révèle les messages ; perdue, ils sont **illisibles** ;
+- rotation : ajoutez une nouvelle clé **à la fin**
+  (`MESSAGING_KEYS=k1:<ancienne>,k2:<nouvelle>`), puis
+  `docker compose up -d backend`. Les nouveaux messages sont chiffrés avec
+  `k2` ; les anciens restent lisibles grâce à `k1`, qu'il ne faut jamais
+  retirer tant qu'un message l'utilise (aucun rechiffrement automatique
+  n'existe encore) ;
+- une restauration se fait avec le même `MESSAGING_KEYS` que lors de la
+  sauvegarde (ou une liste qui contient toutes ses clés).
+
 ### Restauration sur une pile vide (procédure testée)
 
 Cas d'un nouveau serveur, ou d'une perte des volumes. Les sauvegardes sont
@@ -514,6 +547,8 @@ les avoir changés, lancez `docker compose build frontend`.
 - [ ] Tous les secrets sont générés au hasard (64 caractères) et différents
       les uns des autres : `MYSQL_PASSWORD`, `MYSQL_ROOT_PASSWORD`, les quatre
       secrets JWT, `AI_SERVICE_TOKEN`.
+- [ ] `MESSAGING_KEYS` est généré (`openssl rand -base64 32`), et une copie
+      est rangée hors du serveur, à part des sauvegardes (section 8).
 - [ ] `ADMIN_GATE_PATH` est changé pour un chemin difficile à deviner ; si
       possible, `ADMIN_ALLOWED_IPS` est renseigné (section 6).
 - [ ] Production réelle : `docker-compose.dev.yml` n'est **pas** utilisé (ni
