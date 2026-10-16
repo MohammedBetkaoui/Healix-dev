@@ -67,6 +67,16 @@ export const trackByIp = (req: Record<string, any>): string =>
 export const ThrottlePerIp = ({ limit, ttl }: { limit: number; ttl: number }) =>
   Throttle({ default: { getTracker: trackByIp, limit, ttl } });
 
+// A route's own limit, counted like the default one: per signed-in user
+// (user:<sub>), per IP for a request without a valid token.
+export const ThrottlePerUser = ({
+  limit,
+  ttl,
+}: {
+  limit: number;
+  ttl: number;
+}) => Throttle({ default: { limit, ttl } });
+
 const ADMIN_ROLES: readonly unknown[] = [
   UserRole.SUPER_ADMIN,
   UserRole.ADMIN_VERIFICATION,

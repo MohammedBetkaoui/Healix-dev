@@ -1,12 +1,19 @@
 import { Module } from '@nestjs/common';
 import { ConfigModule, ConfigService } from '@nestjs/config';
 
+import { AuditLogsModule } from '../audit-logs/audit-logs.module';
+import { PrismaModule } from '../prisma/prisma.module';
+import { WorkspaceModule } from '../workspaces/workspace.module';
+import { ConversationsController } from './conversations.controller';
+import { ConversationsService } from './conversations.service';
 import { MessageCrypto } from './message-crypto';
+import { MessagingUsersService } from './messaging-users.service';
 
 // Messaging (docs/messaging-design.md). The backend does not start without
 // valid MESSAGING_KEYS: a message is never stored in clear text.
 @Module({
-  imports: [ConfigModule],
+  imports: [ConfigModule, PrismaModule, AuditLogsModule, WorkspaceModule],
+  controllers: [ConversationsController],
   providers: [
     {
       provide: MessageCrypto,
@@ -14,6 +21,8 @@ import { MessageCrypto } from './message-crypto';
       useFactory: (config: ConfigService) =>
         MessageCrypto.fromEnv(config.get<string>('MESSAGING_KEYS')),
     },
+    ConversationsService,
+    MessagingUsersService,
   ],
   exports: [MessageCrypto],
 })

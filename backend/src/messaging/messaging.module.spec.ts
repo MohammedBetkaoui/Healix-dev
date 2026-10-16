@@ -3,11 +3,14 @@ import { randomBytes } from 'node:crypto';
 import { ConfigService } from '@nestjs/config';
 import { Test } from '@nestjs/testing';
 
+import { PrismaService } from '../prisma/prisma.service';
 import { MessageCrypto, MessagingKeysError } from './message-crypto';
 import { MessagingModule } from './messaging.module';
 
 function compileWith(messagingKeys: string | undefined) {
   return Test.createTestingModule({ imports: [MessagingModule] })
+    .overrideProvider(PrismaService)
+    .useValue({})
     .overrideProvider(ConfigService)
     .useValue({
       get: (name: string) =>
