@@ -287,37 +287,73 @@ enum WorkspaceMembershipStatus {
   SUSPENDED
 }
 
+// Messaging (docs/messaging-design.md). CASE, REFERRAL and SUPPORT are
+// declared for the later lots; the API refuses them for now.
+enum ConversationType {
+  DIRECT
+  GROUP
+  CASE
+  REFERRAL
+  SUPPORT
+}
+
+enum ParticipantStatus {
+  PENDING
+  ACTIVE
+  LEFT
+  BLOCKED
+}
+
+enum MessageKind {
+  TEXT
+  SYSTEM
+  ATTACHMENT
+}
+
+enum MessagePriority {
+  NORMAL
+  URGENT
+}
+
 model User {
-  id              String        @id @default(cuid())
-  fullName        String        @map("full_name") @db.VarChar(120)
-  email           String        @unique @db.VarChar(191)
-  phone           String        @unique @db.VarChar(32)
-  passwordHash    String        @map("password_hash") @db.VarChar(255)
-  role            UserRole
-  accountStatus   AccountStatus @map("account_status")
-  isEmailVerified Boolean       @default(false) @map("is_email_verified")
-  isPhoneVerified Boolean       @default(false) @map("is_phone_verified")
-  createdAt       DateTime      @default(now()) @map("created_at")
-  updatedAt       DateTime      @updatedAt @map("updated_at")
+  id                  String        @id @default(cuid())
+  fullName            String        @map("full_name") @db.VarChar(120)
+  email               String        @unique @db.VarChar(191)
+  phone               String        @unique @db.VarChar(32)
+  passwordHash        String        @map("password_hash") @db.VarChar(255)
+  role                UserRole
+  accountStatus       AccountStatus @map("account_status")
+  isEmailVerified     Boolean       @default(false) @map("is_email_verified")
+  isPhoneVerified     Boolean       @default(false) @map("is_phone_verified")
+  // Listed in the messaging directory and reachable by professionals of
+  // other workspaces.
+  discoverableByPeers Boolean       @default(true) @map("discoverable_by_peers")
+  createdAt           DateTime      @default(now()) @map("created_at")
+  updatedAt           DateTime      @updatedAt @map("updated_at")
 
   establishment                Establishment?
   doctorProfile                DoctorProfile?
   refreshTokens                RefreshToken[]
   passwordResetTokens          PasswordResetToken[]
   auditLogs                    AuditLog[]
-  verificationRequests         VerificationRequest[] @relation("VerificationRequestUser")
-  reviewedVerificationRequests VerificationRequest[] @relation("VerificationReviewedBy")
-  subscriptions                Subscription[]        @relation("SubscriptionUser")
-  payments                     Payment[]             @relation("PaymentUser")
-  reviewedPayments             Payment[]             @relation("PaymentReviewedBy")
+  verificationRequests         VerificationRequest[]     @relation("VerificationRequestUser")
+  reviewedVerificationRequests VerificationRequest[]     @relation("VerificationReviewedBy")
+  subscriptions                Subscription[]            @relation("SubscriptionUser")
+  payments                     Payment[]                 @relation("PaymentUser")
+  reviewedPayments             Payment[]                 @relation("PaymentReviewedBy")
   recordedPatientConsents      PatientConsent[]
   uploadedPatientDocuments     PatientDocument[]
   requestedPatientAiAnalyses   PatientAiAnalysis[]
-  requestedAiAnalysisRuns      AiAnalysisRun[]       @relation("AiAnalysisRunRequestedBy")
-  decidedAiAnalysisRuns        AiAnalysisRun[]       @relation("AiAnalysisRunDecidedBy")
-  generatedAiAnalysisReports   AiAnalysisReport[]    @relation("AiAnalysisReportGeneratedBy")
+  requestedAiAnalysisRuns      AiAnalysisRun[]           @relation("AiAnalysisRunRequestedBy")
+  decidedAiAnalysisRuns        AiAnalysisRun[]           @relation("AiAnalysisRunDecidedBy")
+  generatedAiAnalysisReports   AiAnalysisReport[]        @relation("AiAnalysisReportGeneratedBy")
   createdAppointments          Appointment[]
   workspaceMemberships         WorkspaceMembership[]
+  createdConversations         Conversation[]            @relation("ConversationCreatedBy")
+  conversationParticipations   ConversationParticipant[]
+  sentMessages                 Message[]                 @relation("MessageSender")
+  blocksMade                   UserBlock[]               @relation("UserBlocker")
+  blocksReceived               UserBlock[]               @relation("UserBlocked")
 
   @@map("users")
 }
@@ -418,6 +454,7 @@ model Patient {
   aiAnalyses     PatientAiAnalysis[]
   aiAnalysisRuns AiAnalysisRun[]
   appointments   Appointment[]
+  conversations  Conversation[]
 
   @@index([establishmentId])
   @@index([doctorProfileId])
@@ -438,6 +475,7 @@ model Workspace {
   ownerDoctorProfile DoctorProfile?        @relation("PrivatePracticeWorkspaceOwner", fields: [ownerDoctorProfileId], references: [id], onDelete: SetNull)
   memberships        WorkspaceMembership[]
   patients           Patient[]
+  conversations      Conversation[]
 
   @@index([type])
   @@index([establishmentId])
@@ -969,4 +1007,122 @@ model AiAnalysisReport {
 
   @@index([generatedById])
   @@map("ai_analysis_reports")
+}
+
+// --- Messaging (docs/messaging-design.md, section 4) -------------------------
+// Message bodies are encrypted by the application (AES-256-GCM,
+// src/messaging/message-crypto.ts): the database never holds their text.
+
+model Conversation {
+  id            String           @id @default(cuid())
+  type          ConversationType
+  // GROUP, CASE.
+  title         String?          @db.VarChar(120)
+  // GROUP, CASE.
+  workspaceId   String?          @map("workspace_id")
+  // CASE.
+  patientId     String?          @map("patient_id")
+  // DIRECT: the two user ids, sorted; one conversation per pair.
+  directKey     String?          @unique @map("direct_key") @db.VarChar(64)
+  createdById   String           @map("created_by_id")
+  // Sequence number of the last message, incremented in the sending
+  // transaction: messages are numbered 1, 2, 3... without gap.
+  lastSeq       Int              @default(0) @map("last_seq")
+  lastMessageAt DateTime?        @map("last_message_at")
+  archivedAt    DateTime?        @map("archived_at")
+  createdAt     DateTime         @default(now()) @map("created_at")
+  updatedAt     DateTime         @updatedAt @map("updated_at")
+
+  workspace    Workspace?                @relation(fields: [workspaceId], references: [id], onDelete: SetNull)
+  patient      Patient?                  @relation(fields: [patientId], references: [id], onDelete: SetNull)
+  createdBy    User                      @relation("ConversationCreatedBy", fields: [createdById], references: [id], onDelete: Restrict)
+  participants ConversationParticipant[]
+  messages     Message[]
+
+  @@index([workspaceId, lastMessageAt])
+  @@index([patientId])
+  @@index([createdById])
+  @@map("conversations")
+}
+
+model ConversationParticipant {
+  id             String            @id @default(cuid())
+  conversationId String            @map("conversation_id")
+  userId         String            @map("user_id")
+  // OWNER | MEMBER.
+  role           String            @db.VarChar(20)
+  status         ParticipantStatus @default(ACTIVE)
+  // Unread messages: conversation.lastSeq - lastReadSeq.
+  lastReadSeq    Int               @default(0) @map("last_read_seq")
+  mutedUntil     DateTime?         @map("muted_until")
+  joinedAt       DateTime          @default(now()) @map("joined_at")
+  leftAt         DateTime?         @map("left_at")
+
+  conversation Conversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+  user         User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([conversationId, userId])
+  @@index([userId, status])
+  @@map("conversation_participants")
+}
+
+model Message {
+  id              String          @id @default(cuid())
+  conversationId  String          @map("conversation_id")
+  seq             Int
+  // null: a system message.
+  senderId        String?         @map("sender_id")
+  // Chosen by the client (a UUID): sending again does not duplicate.
+  clientMessageId String?         @map("client_message_id") @db.VarChar(64)
+  kind            MessageKind     @default(TEXT)
+  // AES-256-GCM: iv (12 bytes) || tag (16 bytes) || ciphertext.
+  bodyCiphertext  Bytes?          @map("body_ciphertext")
+  keyId           String?         @map("key_id") @db.VarChar(16)
+  priority        MessagePriority @default(NORMAL)
+  requiresAck     Boolean         @default(false) @map("requires_ack")
+  replyToId       String?         @map("reply_to_id")
+  editedAt        DateTime?       @map("edited_at")
+  // Logical deletion: shown as deleted, kept encrypted for the audit.
+  deletedAt       DateTime?       @map("deleted_at")
+  createdAt       DateTime        @default(now()) @map("created_at")
+
+  conversation Conversation      @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+  sender       User?             @relation("MessageSender", fields: [senderId], references: [id], onDelete: Restrict)
+  replyTo      Message?          @relation("MessageReplies", fields: [replyToId], references: [id], onDelete: SetNull)
+  replies      Message[]         @relation("MessageReplies")
+  revisions    MessageRevision[]
+
+  @@unique([conversationId, seq])
+  @@unique([senderId, clientMessageId])
+  @@index([replyToId])
+  @@map("messages")
+}
+
+// The previous versions of an edited message (medico-legal record), never
+// shown by default.
+model MessageRevision {
+  id             String   @id @default(cuid())
+  messageId      String   @map("message_id")
+  bodyCiphertext Bytes    @map("body_ciphertext")
+  keyId          String   @map("key_id") @db.VarChar(16)
+  createdAt      DateTime @default(now()) @map("created_at")
+
+  message Message @relation(fields: [messageId], references: [id], onDelete: Cascade)
+
+  @@index([messageId])
+  @@map("message_revisions")
+}
+
+model UserBlock {
+  id        String   @id @default(cuid())
+  blockerId String   @map("blocker_id")
+  blockedId String   @map("blocked_id")
+  createdAt DateTime @default(now()) @map("created_at")
+
+  blocker User @relation("UserBlocker", fields: [blockerId], references: [id], onDelete: Cascade)
+  blocked User @relation("UserBlocked", fields: [blockedId], references: [id], onDelete: Cascade)
+
+  @@unique([blockerId, blockedId])
+  @@index([blockedId])
+  @@map("user_blocks")
 }
