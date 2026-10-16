@@ -7,6 +7,7 @@ import { Test, type TestingModule } from '@nestjs/testing';
 import { type AuthenticatedUserPayload } from '../auth/types/authenticated-request.type';
 import { PrismaService } from '../prisma/prisma.service';
 import { ConversationsService } from './conversations.service';
+import { DirectoryService } from './directory.service';
 import { MessagesService } from './messages.service';
 import { MessagingModule } from './messaging.module';
 
@@ -38,6 +39,7 @@ describeWithDatabase('messaging against a database', () => {
   let prisma: PrismaService;
   let conversations: ConversationsService;
   let messages: MessagesService;
+  let directory: DirectoryService;
   const suffix = `${Date.now().toString(36)}${Math.random().toString(36).slice(2, 6)}`;
   const created = { users: [] as string[], workspaces: [] as string[] };
   const actors = {} as Record<
@@ -64,7 +66,7 @@ describeWithDatabase('messaging against a database', () => {
         accountStatus: 'ACTIVE',
         discoverableByPeers: options.discoverable ?? true,
         email: `msg-${suffix}-${counter}@healix.test`,
-        fullName: `Messagerie ${counter}`,
+        fullName: `Messagerie ${suffix} ${counter}`,
         passwordHash: 'not-a-real-hash',
         phone: `msg-${suffix}-${counter}`,
         role: role as never,
@@ -152,6 +154,7 @@ describeWithDatabase('messaging against a database', () => {
     prisma = moduleRef.get(PrismaService);
     conversations = moduleRef.get(ConversationsService);
     messages = moduleRef.get(MessagesService);
+    directory = moduleRef.get(DirectoryService);
 
     // Workspace A: an establishment and two affiliated doctors.
     const adminA = await user('adminA', 'ESTABLISHMENT_ADMIN');
@@ -524,6 +527,124 @@ describeWithDatabase('messaging against a database', () => {
       expect((await messages.unreadCount(actors.doctorA2)).total).toBe(
         before.total,
       );
+    });
+  });
+
+  describe('directory and blocks', () => {
+    const listed = async (viewer: AuthenticatedUserPayload) =>
+      new Map(
+        (await directory.search(viewer, { search: suffix })).map((entry) => [
+          entry.id,
+          entry,
+        ]),
+      );
+
+    it('lists the verified, discoverable professionals, never an e-mail nor a phone', async () => {
+      const entries = await listed(actors.doctorA1);
+
+      expect(entries.has(actors.doctorA1.sub)).toBe(false);
+      expect(entries.has(actors.hiddenB.sub)).toBe(false);
+      expect(entries.has(actors.unverified.sub)).toBe(false);
+      expect(entries.get(actors.doctorA2.sub)?.sameWorkspace).toBe(true);
+      expect(entries.get(actors.doctorB1.sub)).toMatchObject({
+        establishmentName: expect.stringContaining('Clinique B') as string,
+        sameWorkspace: false,
+        speciality: 'Cardiologie',
+      });
+      expect(JSON.stringify([...entries.values()])).not.toMatch(
+        /@healix\.test|msg-/,
+      );
+      const byWilaya = await directory.search(actors.doctorA1, {
+        search: suffix,
+        wilaya: 'Oran',
+      });
+      expect(byWilaya.map(({ id }) => id)).toEqual([actors.independentC.sub]);
+    });
+
+    it('stops a blocked user from writing or opening a conversation, with a neutral 404', async () => {
+      // independentC and doctorB1 talk since the request was accepted.
+      const { conversation } = await conversations.create(
+        actors.independentC,
+        { participantId: actors.doctorB1.sub, type: 'DIRECT' },
+        context,
+      );
+      await directory.block(actors.doctorB1, actors.independentC.sub, context);
+
+      const send = await errorOf(
+        sendAs(actors.independentC, conversation.id, 'Encore moi'),
+      );
+      expect(send.getStatus()).toBe(404);
+      const open = await errorOf(
+        conversations.create(
+          actors.independentC,
+          { participantId: actors.doctorB1.sub, type: 'DIRECT' },
+          context,
+        ),
+      );
+      expect(open.getStatus()).toBe(404);
+      const blocker = await errorOf(
+        sendAs(actors.doctorB1, conversation.id, 'Réponse'),
+      );
+      expect(codeOf(blocker)).toBe('CONTACT_BLOCKED');
+      // The blocked user no longer finds the blocker in the directory.
+      expect((await listed(actors.independentC)).has(actors.doctorB1.sub)).toBe(
+        false,
+      );
+      expect(
+        (await directory.listBlocks(actors.doctorB1)).map(
+          ({ userId }) => userId,
+        ),
+      ).toEqual([actors.independentC.sub]);
+
+      await directory.unblock(
+        actors.doctorB1,
+        actors.independentC.sub,
+        context,
+      );
+      await expect(
+        sendAs(
+          actors.independentC,
+          conversation.id,
+          'Merci de m’avoir débloqué',
+        ),
+      ).resolves.toMatchObject({ created: true });
+    });
+
+    it('takes a pending request out of the list of the user who blocks its sender', async () => {
+      const { conversation } = await conversations.create(
+        actors.adminB,
+        { participantId: actors.adminA.sub, type: 'DIRECT' },
+        context,
+      );
+      expect(
+        (
+          await conversations.list(actors.adminA, { status: 'pending' })
+        ).items.map(({ id }) => id),
+      ).toContain(conversation.id);
+
+      await directory.block(actors.adminA, actors.adminB.sub, context);
+
+      expect(
+        (
+          await conversations.list(actors.adminA, { status: 'pending' })
+        ).items.map(({ id }) => id),
+      ).not.toContain(conversation.id);
+    });
+
+    it('lets a professional leave the directory', async () => {
+      await directory.updateSettings(actors.doctorA2, {
+        discoverableByPeers: false,
+      });
+      expect((await listed(actors.independentC)).has(actors.doctorA2.sub)).toBe(
+        false,
+      );
+      // Still reachable by a colleague of the same workspace.
+      const colleague = await conversations.create(
+        actors.adminA,
+        { participantId: actors.doctorA2.sub, type: 'DIRECT' },
+        context,
+      );
+      expect(colleague.conversation.id).toBeTruthy();
     });
   });
 });

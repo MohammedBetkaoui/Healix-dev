@@ -48,6 +48,12 @@ export const cannotMessageSelf = () =>
     message: 'Vous ne pouvez pas ouvrir une conversation avec vous-même.',
   });
 
+export const cannotBlockSelf = () =>
+  new BadRequestException({
+    code: 'CANNOT_BLOCK_SELF',
+    message: 'Vous ne pouvez pas vous bloquer vous-même.',
+  });
+
 export const invalidGroupMembers = () =>
   new BadRequestException({
     code: 'INVALID_GROUP_MEMBERS',
