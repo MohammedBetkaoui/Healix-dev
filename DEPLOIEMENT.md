@@ -84,10 +84,19 @@ Les fichiers lus par le service :
 | `healixdz_seg_pituitary_v5_best.pth` | `cfd8fc4e55e6a4d7ca97e9613a95451d9680426bdd714f818786ab0e9983dd89` |
 | `EfficientNetB0_BreakHis_phase2.keras` | `c8cbd905cc039ed4775c98043e04d357bcfcaf971c4b9cc592a3600f97348e6b` |
 | `breakhis_inference_config.json` | `ea0646849ab49e9ce148f902895693f6a304f2e329d9cb2e591fe07c8025f552` |
-| `pannuke_unet_efficientnetb0_phase2_best.keras` | `8d05b1f068d4fa9f25ed3ed9f05027d7fd68ef74af0bab15e798e6f324a5a248` |
+| `pannuke_unet_efficientnetb0_phase2_best.keras` | `02b26d77988f7aa38a15f39e7ba9a7a8946380563e26d1ca705c805d688bbf3c` |
 
 `breakhis_inference_config.json` est le fichier `inference_config.json` du
-notebook BreakHis, renommé.
+notebook BreakHis (`notebooks/breakhis-classification-efficientnetb0.ipynb`),
+renommé.
+
+**Ancien fichier PanNuke écarté.** Un fichier
+`pannuke_unet_efficientnetb0_phase2_best.keras` d'empreinte
+`8d05b1f068d4fa9f25ed3ed9f05027d7fd68ef74af0bab15e798e6f324a5a248` a circulé :
+c'était un mauvais modèle (Dice moyen des noyaux de 0,012 sur le test). Ne le
+déployez pas ; si `models/` le contient encore, remplacez-le par le fichier
+d'empreinte `02b26d77…` ci-dessus. Le service ne le refuse pas au chargement
+(mêmes formes d'entrée et de sortie) : seule l'empreinte le distingue.
 
 Vérification des empreintes :
 
@@ -445,9 +454,9 @@ docker compose up -d
 nouvelles migrations à son démarrage. Avec la configuration de
 démonstration, ajoutez les deux `-f` (ou `COMPOSE_FILE`, voir plus haut).
 
-`PUBLIC_API_URL` (déduite de `APP_DOMAIN`) et `ADMIN_GATE_PATH` sont écrits
-dans le frontend au moment du build : après les avoir changés, lancez
-`docker compose build frontend`.
+`PUBLIC_API_URL` (déduite de `APP_DOMAIN`), `ADMIN_GATE_PATH` et
+`ENABLE_DEMO_MODULES` sont écrits dans le frontend au moment du build : après
+les avoir changés, lancez `docker compose build frontend`.
 
 ## 10. Points d'attention
 

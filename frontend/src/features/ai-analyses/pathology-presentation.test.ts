@@ -81,6 +81,8 @@ describe("BreakHis evaluation applicability", () => {
     expect(pannukeEvaluationApplies(pannukeEvaluationSource.weightsSha256)).toBe(true);
     expect(pannukeEvaluationApplies("a".repeat(64))).toBe(false);
     expect(pannukeEvaluationApplies(null)).toBe(false);
+    // The discarded file: the figures shown describe other weights.
+    expect(pannukeEvaluationApplies("8d05b1f068d4fa9f25ed3ed9f05027d7fd68ef74af0bab15e798e6f324a5a248")).toBe(false);
   });
 
   it("reads the figures of a measured magnification only", () => {

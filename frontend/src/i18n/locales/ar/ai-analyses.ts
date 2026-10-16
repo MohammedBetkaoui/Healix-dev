@@ -125,7 +125,7 @@ export const aiAnalysesAr = {
     deadUnreliable: "نوع «ميت» غير موثوق: نادر في PanNuke وتجزئته ضعيفة.",
     he40xOnly:
       "دُرِّب على صور H&E بتكبير 40× (PanNuke): مع تكبير آخر أو صبغة أخرى تكون المساحات خاطئة.",
-    testEvaluationPending: "لم يُقَس الأداء بعد على مجموعة اختبار مستقلة.",
+    tissueDependent: "أداء متفاوت حسب العضو: معامل Dice للأنوية من {min} إلى {max} على مجموعة الاختبار.",
   },
   models: {
     "brain-efficientnetb4-tumor-classification": {
@@ -275,11 +275,6 @@ export const aiAnalysesAr = {
       truePositive: "خبيثة مُتعرَّف عليها",
     },
     testPatients: "عدد مرضى الاختبار: {patients}، منهم {benign} بأورام حميدة؛ تُحسب فواصل 95٪ حسب المريض.",
-    testPending: "أداء الاختبار قيد الانتظار",
-    testPendingNote: "لم يُقيَّم النموذج بعد على مجموعة اختبار PanNuke (الطية 3).",
-    notebookValidation: "أرقام دفتر التدريب: التحقق (الطية 2)، متفائلة",
-    notebookValidationNote:
-      "قيست على الطية التي استُعملت لاختيار النموذج: تبالغ في تقدير أدائه ولم يُتحقَّق منها على الأوزان المنشورة.",
     testByType: "Dice و IoU حسب النوع (اختبار PanNuke، الطية 3)",
     nucleusType: "النوع",
     background: "الخلفية",
@@ -549,7 +544,6 @@ export const aiAnalysesAr = {
           tilesOne: "حُلِّلت الصورة في مربع واحد 256 × 256 بكسل.",
         },
         performanceTitle: "أداء النموذج",
-        performancePending: "لم يُقَس الأداء بعد على مجموعة اختبار مستقلة.",
         performanceCaption: "Dice حسب النوع على مجموعة اختبار PanNuke",
         dice: "Dice",
       },

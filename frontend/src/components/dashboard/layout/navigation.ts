@@ -33,9 +33,9 @@ export const establishmentNavSections: DashboardNavSection[] = [
   {
     key: "care", titleKey: "dashboard.clinical.nav.care",
     items: [
-      { href: "/establishment/records", icon: FileText, key: "records", labelKey: "dashboard.clinical.nav.records" },
+      { demo: true, href: "/establishment/records", icon: FileText, key: "records", labelKey: "dashboard.clinical.nav.records" },
       { href: "#prescriptions", icon: Pill, key: "prescriptions", labelKey: "dashboard.sidebar.establishment.prescriptions" },
-      { href: "/establishment/lab", icon: FlaskConical, key: "lab", labelKey: "dashboard.clinical.nav.lab" },
+      { demo: true, href: "/establishment/lab", icon: FlaskConical, key: "lab", labelKey: "dashboard.clinical.nav.lab" },
     ],
   },
   {

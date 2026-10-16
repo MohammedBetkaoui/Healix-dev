@@ -17,6 +17,10 @@ export const clinicalWorkspaceAr = {
   skip: "الانتقال إلى المحتوى",
   comingSoon: "وحدة قادمة",
   moduleNotice: "هذا الفضاء غير متاح بعد. لم يتم إنشاء أي ملف أو طلب.",
+  demo: {
+    badge: "تجريبي",
+    banner: "وحدة تجريبية — بيانات وهمية، لا يُحفَظ أي شيء ولا يُرسَل",
+  },
   userMenu: "قائمة الحساب",
   notifications: "الإشعارات",
   notificationsNotice: "سيتوفر مركز الإشعارات لاحقًا. لا تُعرض هنا إشعارات آنية.",

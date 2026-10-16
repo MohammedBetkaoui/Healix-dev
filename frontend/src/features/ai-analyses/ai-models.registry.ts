@@ -300,22 +300,18 @@ export const aiModels = [
     outputClasses: ["neoplastic", "inflammatory", "connective", "dead", "epithelial"],
     // ai-service: 422 under 256 px on a side, over 4096 px (AI_NUCLEI_MAX_SIDE).
     inputConstraints: { minSide: 256, maxSide: 4096 },
-    // The test measure first, once there is one; the notebook's validation
-    // figure stays marked as such.
+    // The test measure first; the notebook's validation figure stays marked
+    // as such.
     metrics: [
-      ...(pannukeEvaluation === null
-        ? []
-        : [
-            {
-              key: "testNucleiDice",
-              value: pannukeEvaluation.nucleiMeanDice,
-              ci95: null,
-              unit: "score",
-              approximate: false,
-              dataset: "pannukeTest",
-              source: "evaluation",
-            } as const,
-          ]),
+      {
+        key: "testNucleiDice",
+        value: pannukeEvaluation.nucleiMeanDice,
+        ci95: null,
+        unit: "score",
+        approximate: false,
+        dataset: "pannukeTest",
+        source: "evaluation",
+      },
       {
         key: "validationNucleiDice",
         value: pannukeNotebookValidation.nucleiMeanDice,
@@ -329,15 +325,9 @@ export const aiModels = [
     classMetrics: null,
     classMetricsDataset: null,
     confusionMatrix: null,
-    evaluation: pannukeEvaluation === null ? null : pannukeServiceEvaluation,
+    evaluation: pannukeServiceEvaluation,
     trainingData: "PanNuke",
-    knownLimitations: [
-      "notCertified",
-      "semanticNotInstances",
-      "deadUnreliable",
-      "he40xOnly",
-      ...(pannukeEvaluation === null ? (["testEvaluationPending"] as const) : []),
-    ],
+    knownLimitations: ["notCertified", "semanticNotInstances", "deadUnreliable", "he40xOnly", "tissueDependent"],
     underrepresentedPopulations: null,
     status: "available",
   },

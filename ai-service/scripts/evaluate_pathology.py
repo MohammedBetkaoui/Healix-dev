@@ -7,10 +7,12 @@ analyze_breast and analyze_nuclei, from the image bytes), on CPU.
     .venv/Scripts/python -m scripts.evaluate_pathology \\
         --breakhis-root <folder holding BreaKHis_v1> --pannuke-root <folder holding fold_3>
 
-BreakHis: the patient-level test split of the BreakHis notebook, rebuilt and
+BreakHis: the patient-level test split of the BreakHis notebook
+(notebooks/breakhis-classification-efficientnetb0.ipynb), rebuilt and
 checked (13 patients, 1,346 images) before any inference. PanNuke: Fold 3
-(the notebook's test fold), with Dice and IoU from pixel counts pooled over
-the fold, and a check of the tiled path on 2 x 2 mosaics of its patches.
+(the test fold of notebooks/pannuke-segmentation.ipynb), with Dice and IoU
+from pixel counts pooled over the fold, and a check of the tiled path on
+2 x 2 mosaics of its patches.
 
 Writes evaluation/pathology-<date>-<HHMMSS>-<sha256[:8] of each model>.json
 and prints a summary. No image is written.
@@ -104,7 +106,7 @@ PANNUKE_FILES = ("images.npy", "masks.npy", "types.npy")
 PANNUKE_IGNORE = 255
 NUCLEUS_TYPES = NUCLEI_CLASSES[1:]
 
-# Reported by the notebooks, for comparison only.
+# Reported by the notebooks (notebooks/ at the repository root), for comparison only.
 NOTEBOOK_REPORTED = {
     "breakhis": {
         "accuracy": 0.8819,

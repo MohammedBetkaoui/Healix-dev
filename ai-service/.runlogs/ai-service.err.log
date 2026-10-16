@@ -1,7 +1,0 @@
-INFO:     Started server process [12992]
-INFO:     Waiting for application startup.
-2026-10-08 10:20:43,429 INFO app.models: Model brain-efficientnetb4-tumor-classification loaded (sha256 311d2cbb171266721871f46f7f841b1dffef0c0fec40853745f55be9939ae654).
-2026-10-08 10:20:43,886 INFO app.models: Model brain-unet-meningioma-segmentation loaded (sha256 95c94047da1daaf71744e6076c5f01401c0af09d5f87335477359681ba7c939d).
-2026-10-08 10:20:44,415 INFO app.models: Model brain-unet-pituitary-segmentation loaded (sha256 cfd8fc4e55e6a4d7ca97e9613a95451d9680426bdd714f818786ab0e9983dd89).
-INFO:     Application startup complete.
-INFO:     Uvicorn running on http://127.0.0.1:8001 (Press CTRL+C to quit)

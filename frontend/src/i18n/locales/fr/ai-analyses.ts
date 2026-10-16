@@ -125,7 +125,7 @@ export const aiAnalysesFr = {
     deadUnreliable: "Type « mort » non fiable : rare dans PanNuke et mal segmenté.",
     he40xOnly:
       "Entraîné sur des images H&E à 40× (PanNuke) : à un autre grossissement ou avec une autre coloration, les surfaces sont faussées.",
-    testEvaluationPending: "Performance non encore mesurée sur un jeu de test indépendant.",
+    tissueDependent: "Performance variable selon l’organe : Dice des noyaux de {min} à {max} sur le test.",
   },
   models: {
     "brain-efficientnetb4-tumor-classification": {
@@ -275,11 +275,6 @@ export const aiAnalysesFr = {
       truePositive: "Malins reconnus",
     },
     testPatients: "{patients} patients de test, dont {benign} bénins : les IC 95 % sont calculés par patient.",
-    testPending: "Performance de test en attente",
-    testPendingNote: "Le modèle n’a pas encore été évalué sur le jeu de test PanNuke (Fold 3).",
-    notebookValidation: "Chiffres du notebook : validation (Fold 2), optimiste",
-    notebookValidationNote:
-      "Mesurés sur le pli qui a servi à choisir le modèle : ils surestiment sa performance et n’ont pas été vérifiés sur les poids déployés.",
     testByType: "Dice et IoU par type (test PanNuke, Fold 3)",
     nucleusType: "Type",
     background: "Fond",
@@ -549,7 +544,6 @@ export const aiAnalysesFr = {
           tilesOne: "L’image a été analysée en une seule tuile de 256 × 256 px.",
         },
         performanceTitle: "Performance du modèle",
-        performancePending: "Performance non encore mesurée sur un jeu de test indépendant.",
         performanceCaption: "Dice par type sur le jeu de test PanNuke",
         dice: "Dice",
       },

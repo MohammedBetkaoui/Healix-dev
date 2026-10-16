@@ -5,20 +5,23 @@
 // pathology-evaluation.test.ts checks every value against that file. Figures
 // shown in the interface come from here, never typed elsewhere.
 //
-// Source report: pathology-2026-10-11-183500-c8cbd905-8d05b1f0.json (2026-10-11T17:22:58+00:00)
+// Source report: pathology-2026-10-12-184302-c8cbd905-02b26d77.json (2026-10-12T16:51:28+00:00)
 // To update: rerun the script, then copy the values of the new report here;
 // the test fails until they match.
+//
+// The PanNuke weights 8d05b1f0… were the wrong model (nuclei mean Dice 0.012):
+// their reports stay in ai-service/evaluation as history, never shown here.
 
 import { type AiMagnification, type NucleusType } from "./ai-analyses.types";
 
 export const pathologyEvaluationSource = {
-  report: "pathology-2026-10-11-183500-c8cbd905-8d05b1f0.json",
+  report: "pathology-2026-10-12-184302-c8cbd905-02b26d77.json",
   /** Local date of the run, from the report name. */
-  date: "2026-10-11",
-  generatedAt: "2026-10-11T17:22:58+00:00",
+  date: "2026-10-12",
+  generatedAt: "2026-10-12T16:51:28+00:00",
   weightsSha256: {
     "pathology-breakhis-classification": "c8cbd905cc039ed4775c98043e04d357bcfcaf971c4b9cc592a3600f97348e6b",
-    "pathology-unet-pannuke-segmentation": "8d05b1f068d4fa9f25ed3ed9f05027d7fd68ef74af0bab15e798e6f324a5a248",
+    "pathology-unet-pannuke-segmentation": "02b26d77988f7aa38a15f39e7ba9a7a8946380563e26d1ca705c805d688bbf3c",
   },
   /** breakhis_inference_config.json, which holds the decision threshold. */
   breakhisConfigSha256: "ea0646849ab49e9ce148f902895693f6a304f2e329d9cb2e591fe07c8025f552",
@@ -91,34 +94,71 @@ export type PannukeEvaluation = {
  * re-measure).
  */
 export const pannukeEvaluationSource = {
-  report: "pathology-2026-10-12-132137-c8cbd905-8d05b1f0.json",
+  report: "pathology-2026-10-12-184302-c8cbd905-02b26d77.json",
   /** Local date of the run, from the report name. */
   date: "2026-10-12",
-  generatedAt: "2026-10-12T11:31:16+00:00",
-  weightsSha256: "8d05b1f068d4fa9f25ed3ed9f05027d7fd68ef74af0bab15e798e6f324a5a248",
+  generatedAt: "2026-10-12T16:51:28+00:00",
+  weightsSha256: "02b26d77988f7aa38a15f39e7ba9a7a8946380563e26d1ca705c805d688bbf3c",
   /** PanNuke Fold 3 (the notebook's test fold). */
   images: 2722,
 } as const;
 
 /**
  * PanNuke Fold 3 (test), through the service: pixel counts pooled over the
- * whole fold. null until a report has pannuke.status "ok" (the test then
- * fails until its figures are copied here).
+ * whole fold.
  */
-export const pannukeEvaluation: PannukeEvaluation | null = {
+export const pannukeEvaluation: PannukeEvaluation = {
   perClass: {
-    background: { dice: 0.724785541070474, iou: 0.5683636473812353 },
-    neoplastic: { dice: 0.0003260775099373422, iou: 0.0001630653409388363 },
-    inflammatory: { dice: 0.05828895758691243, iou: 0.03001937791653749 },
-    connective: { dice: 0.0012590670753959783, iou: 0.0006299300998222327 },
-    dead: { dice: 0, iou: 0 },
-    epithelial: { dice: 7.468834903248621e-5, iou: 3.734556915569506e-5 },
+    background: { dice: 0.9600117123444347, iou: 0.9230985807624613 },
+    neoplastic: { dice: 0.7227128048868326, iou: 0.5658185626943519 },
+    inflammatory: { dice: 0.6133714159194066, iou: 0.4423473040735733 },
+    connective: { dice: 0.560473263166882, iou: 0.3893455042036199 },
+    dead: { dice: 0.27993363777527164, iou: 0.16274583581368707 },
+    epithelial: { dice: 0.6300699753692117, iou: 0.4599285832420694 },
   },
-  nucleiMeanDice: 0.011989758104255647,
+  nucleiMeanDice: 0.5613122194235209,
+};
+
+/** One organ of Fold 3 (pannuke.byTissue): its test patches and the mean Dice of the five nucleus types. */
+export type PannukeTissueMeasure = { images: number; nucleiMeanDice: number };
+
+/** PanNuke Fold 3 per organ, as named in types.npy. */
+export const pannukeByTissue: Readonly<Record<string, PannukeTissueMeasure>> = {
+  Adrenal_gland: { images: 155, nucleiMeanDice: 0.4146249861460688 },
+  "Bile-duct": { images: 158, nucleiMeanDice: 0.3972454178750193 },
+  Bladder: { images: 64, nucleiMeanDice: 0.3856296453674533 },
+  Breast: { images: 775, nucleiMeanDice: 0.4967650019964644 },
+  Cervix: { images: 86, nucleiMeanDice: 0.42087408471393717 },
+  Colon: { images: 494, nucleiMeanDice: 0.572432473460055 },
+  Esophagus: { images: 141, nucleiMeanDice: 0.4758134352571514 },
+  HeadNeck: { images: 145, nucleiMeanDice: 0.4104930152317583 },
+  Kidney: { images: 41, nucleiMeanDice: 0.37689442325348954 },
+  Liver: { images: 93, nucleiMeanDice: 0.4919077867658686 },
+  Lung: { images: 51, nucleiMeanDice: 0.3684674370851006 },
+  Ovarian: { images: 52, nucleiMeanDice: 0.503756652561546 },
+  Pancreatic: { images: 28, nucleiMeanDice: 0.4262234770018193 },
+  Prostate: { images: 68, nucleiMeanDice: 0.3461850998957473 },
+  Skin: { images: 41, nucleiMeanDice: 0.3896298240123516 },
+  Stomach: { images: 48, nucleiMeanDice: 0.4651515477878353 },
+  Testis: { images: 57, nucleiMeanDice: 0.5001160254854946 },
+  Thyroid: { images: 62, nucleiMeanDice: 0.42428603476796295 },
+  Uterus: { images: 163, nucleiMeanDice: 0.4089920858781794 },
 };
 
 /**
- * Read in the training notebook (pannuke-segmentation (3).ipynb, cell 10):
+ * The lowest and highest mean nuclei Dice among the organs of the test fold:
+ * the spread the "tissueDependent" limitation quotes.
+ */
+export function nucleiDiceRangeByTissue(
+  byTissue: Readonly<Record<string, PannukeTissueMeasure>> = pannukeByTissue,
+): { min: number; max: number } {
+  const values = Object.values(byTissue).map((tissue) => tissue.nucleiMeanDice);
+  if (values.length === 0) throw new Error("No organ in the PanNuke evaluation.");
+  return { max: Math.max(...values), min: Math.min(...values) };
+}
+
+/**
+ * Read in the training notebook (notebooks/pannuke-segmentation.ipynb, cell 10):
  * measured on Fold 2, the VALIDATION fold the checkpoint was selected on, so
  * optimistic, and not a test measure. Shown only as such.
  */

@@ -65,6 +65,8 @@ services:
         # API on the same origin. Rebuild the image after changing it.
         NEXT_PUBLIC_API_URL: ${PUBLIC_API_URL:-https://${APP_DOMAIN}/api}
         NEXT_PUBLIC_ADMIN_GATE_PATH: ${ADMIN_GATE_PATH:-/hzdz-control-gate-2026}
+        # "true": shows the demo modules on mock data. Absent: hidden (404).
+        NEXT_PUBLIC_ENABLE_DEMO_MODULES: ${ENABLE_DEMO_MODULES:-}
     image: healixdz-frontend:latest
     restart: unless-stopped
     depends_on:

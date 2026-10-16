@@ -4,6 +4,7 @@ import { useCallback, useEffect, useId, useRef, useState } from "react";
 import { ArrowUpRight, Search, X } from "lucide-react";
 import { WorkspaceLink as Link } from "./WorkspaceLink";
 
+import { DemoBadge } from "@/components/dashboard/shared/DemoModule";
 import type { TranslationFunction } from "@/lib/i18n";
 import type { DashboardNavSection } from "@/types/dashboard";
 
@@ -55,6 +56,7 @@ export function WorkspaceSearch({ sections, t }: { sections: DashboardNavSection
             <Link href={item.href} onClick={() => dialogRef.current?.close()} className="flex min-h-11 items-center gap-3 rounded-md px-2 text-sm hover:bg-[var(--surface-muted)]">
               <item.icon size={17} strokeWidth={1.8} aria-hidden="true" className="shrink-0 text-[var(--medical)]" />
               <span className="flex-1">{t(item.labelKey)}</span>
+              {item.demo ? <DemoBadge label={t("dashboard.clinical.demo.badge")} /> : null}
               {item.href.startsWith("#") ? <span className="clinical-caption">{t("dashboard.clinical.comingSoon")}</span> : <ArrowUpRight size={15} aria-hidden="true" className="clinical-directional" />}
             </Link>
           </li>)}

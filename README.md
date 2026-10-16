@@ -20,3 +20,10 @@ certifiés comme dispositifs médicaux.
 - **Déploiement Docker** : [`DEPLOIEMENT.md`](DEPLOIEMENT.md).
 - Les poids des modèles (environ 1 Go) ne sont jamais dans le dépôt : voir
   [`ai-service/README.md`](ai-service/README.md).
+- Les notebooks d'entraînement des modèles de pathologie sont dans
+  [`notebooks/`](notebooks/) : `breakhis-classification-efficientnetb0.ipynb`
+  (BreakHis) et `pannuke-segmentation.ipynb` (PanNuke).
+- Les pages Laboratoire et Dossiers médicaux tournent sur des données
+  fictives : un build de production ne les montre qu'avec
+  `NEXT_PUBLIC_ENABLE_DEMO_MODULES=true` (`ENABLE_DEMO_MODULES` en Docker,
+  voir [`.env.docker.example`](.env.docker.example)).

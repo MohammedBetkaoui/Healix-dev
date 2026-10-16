@@ -113,21 +113,17 @@ const evaluationMetrics = [
     dataset: "breakhisTest",
     source: "evaluation",
   })),
-  // PanNuke: its test measure, once a report has one.
-  ...(pannukeEvaluation === null
-    ? []
-    : [
-        {
-          modelId: "pathology-unet-pannuke-segmentation",
-          key: "testNucleiDice",
-          value: pannukeEvaluation.nucleiMeanDice,
-          ci95: null,
-          unit: "score",
-          approximate: false,
-          dataset: "pannukeTest",
-          source: "evaluation",
-        },
-      ]),
+  // PanNuke: its test measure (checked against its report).
+  {
+    modelId: "pathology-unet-pannuke-segmentation",
+    key: "testNucleiDice",
+    value: pannukeEvaluation.nucleiMeanDice,
+    ci95: null,
+    unit: "score",
+    approximate: false,
+    dataset: "pannukeTest",
+    source: "evaluation",
+  },
 ];
 
 describe("aiModels registry", () => {
@@ -176,7 +172,7 @@ describe("aiModels registry", () => {
       ["brain-unet-meningioma-segmentation", "testDice", "evaluation"],
       ["brain-unet-pituitary-segmentation", "testDice", "evaluation"],
       ["pathology-breakhis-classification", "breakhisAccuracy", "evaluation"],
-      ...(pannukeEvaluation === null ? [] : [["pathology-unet-pannuke-segmentation", "testNucleiDice", "evaluation"]]),
+      ["pathology-unet-pannuke-segmentation", "testNucleiDice", "evaluation"],
     ]);
     for (const model of aiModels.filter((entry) => entry.evaluation !== null)) {
       const source =
@@ -189,16 +185,11 @@ describe("aiModels registry", () => {
     }
   });
 
-  it("says PanNuke's test performance is pending exactly while it is not measured", () => {
+  it("gives PanNuke its test evaluation, and no limitation saying it is pending", () => {
     const pannuke = aiModels.find((model) => model.id === "pathology-unet-pannuke-segmentation");
 
-    if (pannukeEvaluation === null) {
-      expect(pannuke?.evaluation).toBeNull();
-      expect(pannuke?.knownLimitations).toContain("testEvaluationPending");
-    } else {
-      expect(pannuke?.evaluation).toEqual({ date: pannukeEvaluationSource.date, report: pannukeEvaluationSource.report });
-      expect(pannuke?.knownLimitations).not.toContain("testEvaluationPending");
-    }
+    expect(pannuke?.evaluation).toEqual({ date: pannukeEvaluationSource.date, report: pannukeEvaluationSource.report });
+    expect(pannuke?.knownLimitations).not.toContain("testEvaluationPending");
   });
 
   it("marks an unknown metric set as null, never as an empty list", () => {
@@ -256,7 +247,7 @@ describe("aiModels registry", () => {
       "semanticNotInstances",
       "deadUnreliable",
       "he40xOnly",
-      ...(pannukeEvaluation === null ? ["testEvaluationPending"] : []),
+      "tissueDependent",
     ]);
   });
 
