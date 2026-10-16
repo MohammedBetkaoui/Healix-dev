@@ -5,22 +5,19 @@ import Script from "next/script";
 import { AiSection } from "@/components/landing/AiSection";
 import { AlgeriaSection } from "@/components/landing/AlgeriaSection";
 import { AudienceSection } from "@/components/landing/AudienceSection";
-import { ContextSection } from "@/components/landing/ContextSection";
-import { EcosystemSection } from "@/components/landing/EcosystemSection";
+import { ClinicalWorkflow } from "@/components/landing/ClinicalWorkflow";
 import { FaqSection } from "@/components/landing/FaqSection";
-import { FeaturesSection } from "@/components/landing/FeaturesSection";
 import { FinalCta } from "@/components/landing/FinalCta";
 import { HeroSection } from "@/components/landing/HeroSection";
+import { InteroperabilitySection } from "@/components/landing/InteroperabilitySection";
 import { LandingFooter } from "@/components/landing/LandingFooter";
 import { LandingHeader } from "@/components/landing/LandingHeader";
 import { LocaleDocumentSync } from "@/components/landing/LocaleDocumentSync";
-import { PatientJourneySection } from "@/components/landing/PatientJourneySection";
-import { PatientRecordSection } from "@/components/landing/PatientRecordSection";
+import { PlatformBento } from "@/components/landing/PlatformBento";
 import { PlansSection } from "@/components/landing/PlansSection";
 import { ProductTour } from "@/components/landing/ProductTour";
-import { SecuritySection } from "@/components/landing/SecuritySection";
+import { SecurityArchitecture } from "@/components/landing/SecurityArchitecture";
 import { TrustBar } from "@/components/landing/TrustBar";
-import { VerificationSection } from "@/components/landing/VerificationSection";
 import styles from "@/components/landing/landing.module.css";
 import { isLocale, type Locale } from "@/i18n";
 import { landingAr } from "@/i18n/locales/ar/landing";
@@ -88,16 +85,18 @@ export default async function Home({ searchParams }: HomeProps) {
       <main>
         <HeroSection hero={content.hero} showcase={content.showcase} />
         <TrustBar trust={content.trustBar} />
-        <ContextSection context={content.context} />
-        <FeaturesSection features={content.features} />
-        <EcosystemSection ecosystem={content.ecosystem} />
-        <PatientJourneySection journey={content.journey} />
+        <PlatformBento
+          context={content.context}
+          features={content.features}
+          record={content.patientRecord}
+          screenUi={content.showcase.ui}
+        />
+        <ClinicalWorkflow journey={content.journey} />
         <ProductTour showcase={content.showcase} />
         <AudienceSection audience={content.audience} screenUi={content.showcase.ui} />
-        <PatientRecordSection record={content.patientRecord} />
         <AiSection ai={content.ai} />
-        <VerificationSection verification={content.verification} />
-        <SecuritySection security={content.security} />
+        <InteroperabilitySection interoperability={content.interoperability} />
+        <SecurityArchitecture verification={content.verification} security={content.security} />
         <AlgeriaSection algeria={content.algeria} />
         <PlansSection locale={locale} plans={content.plans} />
         <FaqSection faq={content.faq} />

@@ -29,7 +29,7 @@ type LandingHeaderProps = {
 
 const navLinks = [
   ["platform", "#plateforme"],
-  ["solutions", "#solutions"],
+  ["solutions", "#product"],
   ["establishments", "#etablissements"],
   ["doctors", "#medecins"],
   ["ai", "#healix-ai"],

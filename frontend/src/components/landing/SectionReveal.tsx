@@ -29,14 +29,14 @@ export function SectionReveal({
       className={`${styles.sectionReveal} ${className}`}
       initial={
         reduceMotion
-          ? { opacity: 0 }
+          ? false
           : { opacity: 0, y: 24, filter: "blur(4px)" }
       }
       whileInView={{ opacity: 1, y: 0, filter: "blur(0px)" }}
       viewport={{ amount: 0.16, once: false, margin: "-6% 0px -6% 0px" }}
       transition={{
         delay: reduceMotion ? 0 : delay,
-        duration: reduceMotion ? 0.25 : 0.65,
+        duration: reduceMotion ? 0 : 0.65,
         ease: premiumEase,
       }}
     >

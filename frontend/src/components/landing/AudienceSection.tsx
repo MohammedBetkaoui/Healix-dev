@@ -27,10 +27,10 @@ export function AudienceSection({ audience, screenUi }: AudienceSectionProps) {
           <h2 id="audience-title">{audience.title}</h2>
         </div>
         <div className={styles.profileTabs} role="tablist" aria-label={audience.title}>
-          <button type="button" role="tab" aria-selected={profile === "establishment"} onClick={() => setProfile("establishment")}>
+          <button id="profile-tab-establishment" type="button" role="tab" aria-controls="profile-panel" aria-selected={profile === "establishment"} onClick={() => setProfile("establishment")}>
             <Building2 aria-hidden="true" />{audience.establishment.tab}
           </button>
-          <button id="medecins" type="button" role="tab" aria-selected={profile === "doctor"} onClick={() => setProfile("doctor")}>
+          <button id="medecins" type="button" role="tab" aria-controls="profile-panel" aria-selected={profile === "doctor"} onClick={() => setProfile("doctor")}>
             <Stethoscope aria-hidden="true" />{audience.doctor.tab}
           </button>
         </div>
@@ -39,6 +39,9 @@ export function AudienceSection({ audience, screenUi }: AudienceSectionProps) {
       <AnimatePresence mode="popLayout" initial={false}>
         <motion.div
           key={profile}
+          id="profile-panel"
+          role="tabpanel"
+          aria-labelledby={profile === "establishment" ? "profile-tab-establishment" : "medecins"}
           className={styles.audiencePanel}
           initial={reduceMotion ? { opacity: 0 } : productScreenVariants.initial}
           animate={reduceMotion ? { opacity: 1 } : productScreenVariants.animate}

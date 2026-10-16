@@ -1,107 +1,65 @@
 "use client";
 
-import { useRef } from "react";
-import { ArrowRight, BrainCircuit, FileText, ListChecks, UserCheck, Scale } from "lucide-react";
-import { motion, useReducedMotion, useScroll, useSpring, useTransform, type MotionValue } from "framer-motion";
+import { ArrowRight, BrainCircuit, FileText, ListChecks, Scale, ShieldCheck, UserCheck } from "lucide-react";
+import { motion, useReducedMotion } from "framer-motion";
 
-import { TextReveal, smoothSpring, useIsMobile } from "./landing-motion";
 import { SectionReveal } from "./SectionReveal";
+import { premiumEase } from "./landing-motion";
 import styles from "./landing.module.css";
 import type { LandingContent } from "./types";
 
 const aiIcons = [FileText, BrainCircuit, ListChecks, UserCheck, Scale];
 
-function AiStep({
-  icon: Icon,
-  step,
-  index,
-  total,
-  isLast,
-  progress,
-  calm,
-}: {
-  icon: typeof FileText;
-  step: string;
-  index: number;
-  total: number;
-  isLast: boolean;
-  progress: MotionValue<number>;
-  calm: boolean;
-}) {
-  const start = (index / total) * 0.7;
-  const opacity = useTransform(progress, [start, start + 0.14], [0, 1]);
-  const y = useTransform(progress, [start, start + 0.14], [15, 0]);
-  const arrowOpacity = useTransform(progress, [start + 0.1, start + 0.18], [0, 1]);
-
-  if (calm) {
-    return (
-      <SectionReveal className={styles.aiFlowStep}>
-        <span><Icon aria-hidden="true" /></span>
-        <small>{String(index + 1).padStart(2, "0")}</small>
-        <strong>{step}</strong>
-        {!isLast ? <ArrowRight className={styles.aiArrow} aria-hidden="true" /> : null}
-      </SectionReveal>
-    );
-  }
-
-  return (
-    <motion.div className={styles.aiFlowStep} style={{ opacity, y }}>
-      <span><Icon aria-hidden="true" /></span>
-      <small>{String(index + 1).padStart(2, "0")}</small>
-      <strong>{step}</strong>
-      {!isLast ? (
-        <motion.span className={styles.aiArrow} style={{ opacity: arrowOpacity }} aria-hidden="true">
-          <ArrowRight aria-hidden="true" />
-        </motion.span>
-      ) : null}
-    </motion.div>
-  );
-}
-
 export function AiSection({ ai }: { ai: LandingContent["ai"] }) {
-  const sectionRef = useRef<HTMLElement>(null);
   const reduceMotion = useReducedMotion() ?? false;
-  const isMobile = useIsMobile();
-  const calm = reduceMotion || isMobile;
-
-  const { scrollYProgress } = useScroll({ target: sectionRef, offset: ["start 0.8", "end 0.45"] });
-  const progress = useSpring(scrollYProgress, smoothSpring);
-  const lineScale = useTransform(progress, [0.05, 0.85], [0, 1]);
 
   return (
-    <section ref={sectionRef} id="healix-ai" className={styles.aiSection} aria-labelledby="ai-title">
+    <section id="healix-ai" className={styles.aiSection} aria-labelledby="ai-title">
       <SectionReveal className={styles.aiHeader}>
-        <div className={styles.aiTitleBlock}>
+        <div>
           <p className={styles.aiEyebrow}>{ai.eyebrow}</p>
           <span className={styles.roadmapLabel}>{ai.label}</span>
-          <TextReveal text={ai.title} id="ai-title" />
+          <h2 id="ai-title">{ai.title}</h2>
         </div>
         <div className={styles.aiCopy}>
           <p>{ai.text}</p>
-          <strong>{ai.caution}</strong>
+          <strong><ShieldCheck aria-hidden="true" />{ai.caution}</strong>
         </div>
       </SectionReveal>
 
-      {!calm ? (
-        <div className={styles.aiProgress} aria-hidden="true">
-          <motion.i style={{ scaleX: lineScale }} />
+      <SectionReveal className={styles.aiWorkspace} delay={0.08}>
+        <div className={styles.aiDocument} aria-hidden="true">
+          <div className={styles.aiDocumentTop}><span /><span /><small>{ai.flow[0]}</small></div>
+          <div className={styles.aiDocumentBody}>
+            <i /><i /><i /><i />
+            <span><BrainCircuit /></span>
+          </div>
         </div>
-      ) : null}
+        <div className={styles.aiStructuredResult}>
+          <span><BrainCircuit aria-hidden="true" />Healix AI</span>
+          <h3>{ai.flow[2]}</h3>
+          <div aria-hidden="true"><i /><i /><i /><i /></div>
+          <strong><UserCheck aria-hidden="true" />{ai.flow[3]}</strong>
+        </div>
+      </SectionReveal>
 
       <div className={styles.aiFlow}>
         {ai.flow.map((step, index) => {
           const Icon = aiIcons[index] ?? FileText;
           return (
-            <AiStep
+            <motion.div
               key={step}
-              icon={Icon}
-              step={step}
-              index={index}
-              total={ai.flow.length}
-              isLast={index === ai.flow.length - 1}
-              progress={progress}
-              calm={calm}
-            />
+              className={styles.aiFlowStep}
+              initial={{ opacity: 0, y: reduceMotion ? 0 : 16 }}
+              whileInView={{ opacity: 1, y: 0 }}
+              viewport={{ once: true, amount: 0.45 }}
+              transition={{ duration: reduceMotion ? 0 : 0.5, delay: reduceMotion ? 0 : index * 0.055, ease: premiumEase }}
+            >
+              <span><Icon aria-hidden="true" /></span>
+              <small>{String(index + 1).padStart(2, "0")}</small>
+              <strong>{step}</strong>
+              {index < ai.flow.length - 1 ? <ArrowRight className={styles.aiArrow} aria-hidden="true" /> : null}
+            </motion.div>
           );
         })}
       </div>
