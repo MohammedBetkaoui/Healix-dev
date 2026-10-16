@@ -1,12 +1,11 @@
 "use client";
 
-import { useRef } from "react";
-import Image from "next/image";
 import Link from "next/link";
-import { ArrowDown, ArrowUpRight, CheckCircle2 } from "lucide-react";
-import { motion, useReducedMotion, useScroll, useTransform } from "framer-motion";
+import { ArrowDown, ArrowUpRight, Check } from "lucide-react";
+import { motion, useReducedMotion } from "framer-motion";
 
 import { premiumEase } from "./landing-motion";
+import { ProductShowcase } from "./ProductShowcase";
 import styles from "./landing.module.css";
 import type { LandingContent } from "./types";
 
@@ -15,113 +14,62 @@ type HeroSectionProps = {
   showcase: LandingContent["showcase"];
 };
 
-const lineInner = {
-  hidden: { y: "110%", opacity: 0 },
-  visible: { y: "0%", opacity: 1 },
-};
-
-const lineDelay = (index: number, reduceMotion: boolean) => (reduceMotion ? 0 : 0.14 + index * 0.09);
-
-export function HeroSection({ hero }: HeroSectionProps) {
+export function HeroSection({ hero, showcase }: HeroSectionProps) {
   const reduceMotion = useReducedMotion() ?? false;
-  const heroRef = useRef<HTMLElement>(null);
-  const { scrollYProgress } = useScroll({
-    target: heroRef,
-    offset: ["start start", "end start"],
-  });
-  const backgroundY = useTransform(scrollYProgress, [0, 1], [0, reduceMotion ? 0 : 18]);
-  const backgroundScale = useTransform(scrollYProgress, [0, 1], [1, reduceMotion ? 1 : 1.025]);
-  const copyY = useTransform(scrollYProgress, [0, 1], [0, reduceMotion ? 0 : -15]);
-
-  const item = {
+  const reveal = {
     hidden: { opacity: 0, y: reduceMotion ? 0 : 18 },
     visible: { opacity: 1, y: 0 },
   };
 
   return (
-    <section ref={heroRef} className={styles.hero} aria-labelledby="hero-title">
-      <motion.div
-        className={styles.heroBackground}
+    <section className={styles.hero} aria-labelledby="hero-title">
+      <video
+        className={styles.heroVideo}
+        autoPlay={!reduceMotion}
+        muted
+        loop
+        playsInline
+        preload={reduceMotion ? "metadata" : "auto"}
         aria-hidden="true"
-        style={{ y: backgroundY, scale: backgroundScale }}
+        tabIndex={-1}
       >
-        <Image
-          src="/landing/hero-background.png"
-          alt=""
-          fill
-          priority
-          quality={90}
-          sizes="100vw"
-          className={styles.heroBackgroundImage}
-        />
-      </motion.div>
-      <div className={styles.heroBackgroundOverlay} aria-hidden="true" />
+        <source src="/landing/49809-458438857.mp4" type="video/mp4" />
+      </video>
+      <div className={styles.heroBackdrop} aria-hidden="true" />
       <div className={styles.heroGrid}>
         <motion.div
           className={styles.heroCopy}
-          style={{ y: copyY }}
           initial="hidden"
           animate="visible"
-          transition={{ staggerChildren: reduceMotion ? 0 : 0.085, delayChildren: 0.08 }}
+          transition={{ staggerChildren: reduceMotion ? 0 : 0.08, delayChildren: 0.08 }}
         >
-          <motion.p className={styles.eyebrow} variants={item} transition={{ duration: 0.55, ease: premiumEase }}>
+          <motion.p className={styles.eyebrow} variants={reveal} transition={{ duration: 0.55, ease: premiumEase }}>
             {hero.eyebrow}
           </motion.p>
-          <h1 id="hero-title">
-            <span className={styles.heroLineMask}>
-              <motion.span
-                className={styles.heroLine}
-                initial={reduceMotion ? { opacity: 0 } : "hidden"}
-                animate="visible"
-                variants={lineInner}
-                transition={{ duration: 0.7, ease: premiumEase, delay: lineDelay(0, reduceMotion) }}
-              >
-                {hero.titleLine1}
-              </motion.span>
-            </span>
-            <span className={styles.heroLineMask}>
-              <motion.span
-                className={styles.heroLine}
-                initial={reduceMotion ? { opacity: 0 } : "hidden"}
-                animate="visible"
-                variants={lineInner}
-                transition={{ duration: 0.7, ease: premiumEase, delay: lineDelay(1, reduceMotion) }}
-              >
-                <em>{hero.titleAccent}</em> {hero.titleLine2}
-              </motion.span>
-            </span>
-            <span className={styles.heroLineMask}>
-              <motion.span
-                className={styles.heroLine}
-                initial={reduceMotion ? { opacity: 0 } : "hidden"}
-                animate="visible"
-                variants={lineInner}
-                transition={{ duration: 0.7, ease: premiumEase, delay: lineDelay(2, reduceMotion) }}
-              >
-                {hero.titleLine3}
-              </motion.span>
-            </span>
-          </h1>
-          <motion.p className={styles.heroLead} variants={item} transition={{ duration: 0.65, ease: premiumEase }}>
+          <motion.h1 id="hero-title" variants={reveal} transition={{ duration: 0.72, ease: premiumEase }}>
+            <span>{hero.titleLine1}</span>
+            <span><em>{hero.titleAccent}</em>{hero.titleLine2 ? ` ${hero.titleLine2}` : ""}</span>
+            <span>{hero.titleLine3}</span>
+          </motion.h1>
+          <motion.p className={styles.heroLead} variants={reveal} transition={{ duration: 0.62, ease: premiumEase }}>
             {hero.lead}
           </motion.p>
-          <motion.p className={styles.heroModules} variants={item} transition={{ duration: 0.65, ease: premiumEase }}>
-            {hero.modules.join(" · ")}
-          </motion.p>
-          <motion.div className={styles.heroCtas} variants={item} transition={{ duration: 0.65, ease: premiumEase }}>
-            <a href="#solutions" className={styles.primaryButton}>
-              {hero.primaryCta}
-              <ArrowDown aria-hidden="true" />
-            </a>
-            <Link href="/register" className={styles.secondaryButton}>
-              {hero.secondaryCta}
-              <ArrowUpRight aria-hidden="true" />
+          <motion.div className={styles.heroCtas} variants={reveal} transition={{ duration: 0.62, ease: premiumEase }}>
+            <Link href="/register" className={styles.primaryButton}>
+              {hero.primaryCta}<ArrowUpRight aria-hidden="true" />
             </Link>
+            <a href="#product" className={styles.secondaryButton}>
+              {hero.secondaryCta}<ArrowDown aria-hidden="true" />
+            </a>
           </motion.div>
-          <motion.p className={styles.heroTrust} variants={item} transition={{ duration: 0.65, ease: premiumEase }}>
-            <CheckCircle2 aria-hidden="true" />{hero.trust}
-          </motion.p>
+          <motion.ul className={styles.heroProofs} variants={reveal} transition={{ duration: 0.62, ease: premiumEase }}>
+            {hero.modules.map((item) => <li key={item}><Check aria-hidden="true" />{item}</li>)}
+          </motion.ul>
         </motion.div>
+
+        <div className={styles.heroVisual}>
+          <ProductShowcase hero={hero} showcase={showcase} />
+        </div>
       </div>
     </section>
   );

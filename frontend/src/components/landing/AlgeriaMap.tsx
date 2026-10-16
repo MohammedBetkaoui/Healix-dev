@@ -9,9 +9,9 @@ const WILAYA_IDS = Object.keys(WILAYA_PATHS).sort();
  * Non-interactive: Alger, Oran and Constantine are highlighted,
  * all styling stays in the HealixDz Design System.
  */
-export function AlgeriaMap() {
+export function AlgeriaMap({ label = "Carte de l’Algérie — 58 wilayas" }: { label?: string }) {
   return (
-    <svg viewBox="0 0 1000 1000" role="img" aria-label="Carte de l'Algérie — 58 wilayas">
+    <svg viewBox="0 0 1000 1000" role="img" aria-label={label}>
       {WILAYA_IDS.map((id) => (
         <path
           key={id}

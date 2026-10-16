@@ -1,9 +1,9 @@
 "use client";
 
-import { BadgeCheck } from "lucide-react";
-import { motion, useReducedMotion, useScroll, useSpring, useTransform } from "framer-motion";
+import { BadgeCheck, BrainCircuit, CalendarCheck, FolderHeart } from "lucide-react";
+import { motion, useReducedMotion } from "framer-motion";
 
-import { useIsMobile, premiumEase, smoothSpring } from "./landing-motion";
+import { premiumEase } from "./landing-motion";
 import { ProductScreen } from "./ProductScreen";
 import styles from "./landing.module.css";
 import type { LandingContent } from "./types";
@@ -13,25 +13,22 @@ type ProductShowcaseProps = {
   showcase: LandingContent["showcase"];
 };
 
+const panelIcons = [CalendarCheck, FolderHeart, BrainCircuit];
+
 export function ProductShowcase({ hero, showcase }: ProductShowcaseProps) {
   const reduceMotion = useReducedMotion() ?? false;
-  const isMobile = useIsMobile();
-  const calm = reduceMotion || isMobile;
-  const { scrollY } = useScroll();
-
-  /* Midground layer: drifts slightly more than the foreground visual. */
-  const rearY = useSpring(useTransform(scrollY, [0, 800], [0, calm ? 0 : 16]), smoothSpring);
 
   return (
     <motion.div
       className={styles.heroProduct}
-      initial={reduceMotion ? false : { opacity: 0, scale: 0.98, clipPath: "inset(8% 0 0 0 round 12px)" }}
-      animate={{ opacity: 1, scale: 1, clipPath: "inset(0% 0 0 0 round 12px)" }}
-      transition={{ delay: reduceMotion ? 0 : 0.35, duration: reduceMotion ? 0 : 0.8, ease: premiumEase }}
+      initial={reduceMotion ? false : { opacity: 0, y: 20, scale: 0.985 }}
+      animate={{ opacity: 1, y: 0, scale: 1 }}
+      transition={{ delay: reduceMotion ? 0 : 0.28, duration: reduceMotion ? 0 : 0.72, ease: premiumEase }}
     >
-      <motion.div className={styles.heroProductRear} aria-hidden="true" style={{ y: rearY }}>
-        <ProductScreen compact data={showcase.tabs[0]} ui={showcase.ui} />
-      </motion.div>
+      <div className={styles.heroProductChrome} aria-hidden="true">
+        <span /><span /><span />
+        <small>app.healixdz.com</small>
+      </div>
       <div className={styles.heroProductMain}>
         <ProductScreen data={showcase.preview} ui={showcase.ui} />
       </div>
@@ -39,8 +36,11 @@ export function ProductShowcase({ hero, showcase }: ProductShowcaseProps) {
         <span><BadgeCheck aria-hidden="true" /></span>
         <div><small>{hero.verifiedLabel}</small><strong>{hero.verified}</strong></div>
       </div>
-      <div className={styles.heroAnnotations} aria-hidden="true">
-        {hero.annotations.map((annotation) => <span key={annotation}>{annotation}</span>)}
+      <div className={styles.heroMicroPanels} aria-hidden="true">
+        {hero.annotations.slice(0, 3).map((annotation, index) => {
+          const Icon = panelIcons[index] ?? FolderHeart;
+          return <span key={annotation}><Icon />{annotation}</span>;
+        })}
       </div>
     </motion.div>
   );

@@ -9,14 +9,21 @@ export function LandingFooter({ footer }: { footer: LandingContent["footer"] }) 
   return (
     <footer className={styles.footer}>
       <div className={styles.footerTop}>
-        <div className={styles.footerBrand}><HealixLogo className={styles.footerLogo} /><p>{footer.description}</p></div>
-        <div><h2>{footer.platform}</h2><a href="#plateforme">{footer.ecosystem}</a><a href="#etablissements">{footer.establishments}</a><a href="#medecins">{footer.doctors}</a><a href="#healix-ai">{footer.ai}</a></div>
-        <div><h2>{footer.access}</h2><Link href="/register">{footer.register}</Link><Link href="/login">{footer.login}</Link></div>
-        <div><h2>{footer.trust}</h2><a href="#confiance">{footer.verification}</a><a href="#securite">{footer.privacy}</a><a href="#securite">{footer.security}</a></div>
+        <div className={styles.footerBrand}>
+          <HealixLogo className={styles.footerLogo} />
+          <p>{footer.description}</p>
+          <span>{footer.languages}</span>
+        </div>
+        <div><h2>{footer.platform}</h2><a href="#plateforme">{footer.ecosystem}</a><a href="#product">{footer.product}</a><a href="#healix-ai">{footer.ai}</a></div>
+        <div><h2>{footer.solutions}</h2><a href="#etablissements">{footer.establishments}</a><a href="#medecins">{footer.doctors}</a><a href="#offres">{footer.pricing}</a></div>
+        <div><h2>{footer.professionals}</h2><Link href="/register">{footer.register}</Link><Link href="/login">{footer.login}</Link></div>
+        <div><h2>{footer.trust}</h2><a href="#securite">{footer.verification}</a><a href="#securite">{footer.privacy}</a><a href="#securite">{footer.security}</a></div>
         <div><h2>{footer.legal}</h2><span title={footer.legalPending}>{footer.terms}</span><span title={footer.legalPending}>{footer.policy}</span></div>
       </div>
-      <div className={styles.footerBottom}><span>© {new Date().getFullYear()} {footer.rights}</span><span>{footer.languages}</span></div>
+      <div className={styles.footerBottom}>
+        <span>© {new Date().getFullYear()} {footer.rights}</span>
+        <a href="#product">{footer.backToProduct}</a>
+      </div>
     </footer>
   );
 }
-

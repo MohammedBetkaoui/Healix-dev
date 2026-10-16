@@ -1,10 +1,10 @@
-import { Fingerprint, History, Link2, ShieldCheck } from "lucide-react";
+import { Building2, FlaskConical, ScanLine, Stethoscope, UsersRound } from "lucide-react";
 
 import { SectionReveal } from "./SectionReveal";
 import styles from "./landing.module.css";
 import type { LandingContent } from "./types";
 
-const trustIcons = [ShieldCheck, History, Link2, Fingerprint];
+const trustIcons = [Building2, Stethoscope, UsersRound, ScanLine, FlaskConical];
 
 export function TrustBar({ trust }: { trust: LandingContent["trustBar"] }) {
   return (
