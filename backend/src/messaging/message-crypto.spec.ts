@@ -67,7 +67,9 @@ describe('MessageCrypto', () => {
     expect(encrypted.ciphertext.length).toBe(
       IV_LENGTH + TAG_LENGTH + Buffer.byteLength(text),
     );
-    expect(encrypted.ciphertext.toString('utf8')).not.toContain('IRM');
+    expect(Buffer.from(encrypted.ciphertext).toString('utf8')).not.toContain(
+      'IRM',
+    );
     expect(
       crypto.decrypt(encrypted.ciphertext, encrypted.keyId, CONVERSATION),
     ).toBe(text);

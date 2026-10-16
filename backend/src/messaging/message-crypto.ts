@@ -34,7 +34,8 @@ export class MessageDecryptionError extends Error {
 }
 
 export type EncryptedBody = {
-  ciphertext: Buffer;
+  // Its own ArrayBuffer, as Prisma's Bytes fields expect.
+  ciphertext: Uint8Array<ArrayBuffer>;
   keyId: string;
 };
 
@@ -118,7 +119,9 @@ export class MessageCrypto {
     ]);
 
     return {
-      ciphertext: Buffer.concat([iv, cipher.getAuthTag(), data]),
+      ciphertext: new Uint8Array(
+        Buffer.concat([iv, cipher.getAuthTag(), data]),
+      ),
       keyId,
     };
   }

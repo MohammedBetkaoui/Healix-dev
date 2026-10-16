@@ -1,4 +1,4 @@
-import { randomBytes } from 'node:crypto';
+import { randomBytes, randomUUID } from 'node:crypto';
 
 import { type HttpException } from '@nestjs/common';
 import { ConfigModule } from '@nestjs/config';
@@ -7,6 +7,7 @@ import { Test, type TestingModule } from '@nestjs/testing';
 import { type AuthenticatedUserPayload } from '../auth/types/authenticated-request.type';
 import { PrismaService } from '../prisma/prisma.service';
 import { ConversationsService } from './conversations.service';
+import { MessagesService } from './messages.service';
 import { MessagingModule } from './messaging.module';
 
 // Runs the messaging against a migrated test database: TEST_DATABASE_URL,
@@ -36,6 +37,7 @@ describeWithDatabase('messaging against a database', () => {
   let moduleRef: TestingModule;
   let prisma: PrismaService;
   let conversations: ConversationsService;
+  let messages: MessagesService;
   const suffix = `${Date.now().toString(36)}${Math.random().toString(36).slice(2, 6)}`;
   const created = { users: [] as string[], workspaces: [] as string[] };
   const actors = {} as Record<
@@ -149,6 +151,7 @@ describeWithDatabase('messaging against a database', () => {
     await moduleRef.init();
     prisma = moduleRef.get(PrismaService);
     conversations = moduleRef.get(ConversationsService);
+    messages = moduleRef.get(MessagesService);
 
     // Workspace A: an establishment and two affiliated doctors.
     const adminA = await user('adminA', 'ESTABLISHMENT_ADMIN');
@@ -325,6 +328,202 @@ describeWithDatabase('messaging against a database', () => {
         context,
       );
       expect(colleague.created).toBe(true);
+    });
+  });
+
+  // A group of workspace A: three senders.
+  async function teamA(title: string) {
+    const { conversation } = await conversations.create(
+      actors.adminA,
+      {
+        participantIds: [actors.doctorA1.sub, actors.doctorA2.sub],
+        title,
+        type: 'GROUP',
+      },
+      context,
+    );
+    return conversation.id;
+  }
+
+  const sendAs = (
+    actor: AuthenticatedUserPayload,
+    conversationId: string,
+    body: string,
+    clientMessageId: string = randomUUID(),
+  ) => messages.send(actor, conversationId, { body, clientMessageId });
+
+  describe('sequence numbers', () => {
+    it('numbers 20 concurrent messages 1 to 20, without gap nor duplicate', async () => {
+      const conversationId = await teamA('Concurrence');
+      const senders = [actors.adminA, actors.doctorA1, actors.doctorA2];
+
+      const results = await Promise.all(
+        Array.from({ length: 20 }, (_, index) =>
+          sendAs(senders[index % 3], conversationId, `Message ${index + 1}`),
+        ),
+      );
+
+      expect(results.every(({ created }) => created)).toBe(true);
+      expect(
+        results.map(({ message }) => message.seq).sort((a, b) => a - b),
+      ).toEqual(Array.from({ length: 20 }, (_, index) => index + 1));
+      const stored = await prisma.message.findMany({
+        orderBy: { seq: 'asc' },
+        select: { seq: true },
+        where: { conversationId },
+      });
+      expect(stored.map(({ seq }) => seq)).toEqual(
+        Array.from({ length: 20 }, (_, index) => index + 1),
+      );
+      const conversation = await prisma.conversation.findUniqueOrThrow({
+        where: { id: conversationId },
+      });
+      expect(conversation.lastSeq).toBe(20);
+
+      // The history reads them back, decrypted, in order.
+      const page = await messages.list(actors.doctorA1, conversationId, {
+        limit: 5,
+      });
+      expect(page.items.map(({ seq }) => seq)).toEqual([16, 17, 18, 19, 20]);
+      expect(page.hasMore).toBe(true);
+      const catchUp = await messages.list(actors.doctorA1, conversationId, {
+        afterSeq: 18,
+      });
+      expect(catchUp.items.map(({ seq }) => seq)).toEqual([19, 20]);
+      expect(
+        catchUp.items.every(({ body }) => body?.startsWith('Message')),
+      ).toBe(true);
+    }, 60_000);
+
+    it('stores the text encrypted, never in clear', async () => {
+      const conversationId = await teamA('Chiffrement');
+      await sendAs(actors.adminA, conversationId, 'Résultat confidentiel');
+
+      const [row] = await prisma.message.findMany({
+        where: { conversationId },
+      });
+
+      expect(row.keyId).toBe('k1');
+      expect(
+        Buffer.from(row.bodyCiphertext ?? []).toString('utf8'),
+      ).not.toContain('confidentiel');
+      const conversation = await prisma.conversation.findUniqueOrThrow({
+        where: { id: conversationId },
+      });
+      expect(conversation.lastMessageAt?.getTime()).toBe(
+        row.createdAt.getTime(),
+      );
+    });
+  });
+
+  describe('clientMessageId', () => {
+    it('sends a message once, however often and however fast it is sent again', async () => {
+      const conversationId = await teamA('Idempotence');
+      const clientMessageId = randomUUID();
+
+      const first = await sendAs(
+        actors.doctorA1,
+        conversationId,
+        'Une seule fois',
+        clientMessageId,
+      );
+      const again = await sendAs(
+        actors.doctorA1,
+        conversationId,
+        'Une seule fois',
+        clientMessageId,
+      );
+      expect(first.created).toBe(true);
+      expect(again).toMatchObject({
+        created: false,
+        message: { id: first.message.id, seq: 1 },
+      });
+
+      // Five copies at the same moment: one message, no number lost.
+      const burstId = randomUUID();
+      const burst = await Promise.all(
+        Array.from({ length: 5 }, () =>
+          sendAs(actors.doctorA2, conversationId, 'Rafale', burstId),
+        ),
+      );
+      expect(burst.filter(({ created }) => created)).toHaveLength(1);
+      expect(new Set(burst.map(({ message }) => message.id)).size).toBe(1);
+      const count = await prisma.message.count({ where: { conversationId } });
+      expect(count).toBe(2);
+      const conversation = await prisma.conversation.findUniqueOrThrow({
+        where: { id: conversationId },
+      });
+      expect(conversation.lastSeq).toBe(2);
+    }, 60_000);
+  });
+
+  describe('contact requests', () => {
+    it('carry a single message until the recipient accepts', async () => {
+      const { conversation } = await conversations.create(
+        actors.independentC,
+        { participantId: actors.doctorB1.sub, type: 'DIRECT' },
+        context,
+      );
+      await sendAs(actors.independentC, conversation.id, 'Demande d’avis');
+      const second = await errorOf(
+        sendAs(actors.independentC, conversation.id, 'Relance'),
+      );
+      expect(codeOf(second)).toBe('CONVERSATION_PENDING');
+
+      // The recipient reads the request, accepts, then both write.
+      const request = await messages.list(actors.doctorB1, conversation.id, {});
+      expect(request.items.map(({ body }) => body)).toEqual(['Demande d’avis']);
+      const early = await errorOf(
+        sendAs(actors.doctorB1, conversation.id, 'Réponse'),
+      );
+      expect(codeOf(early)).toBe('CONVERSATION_PENDING');
+      await conversations.accept(actors.doctorB1, conversation.id);
+      await sendAs(actors.doctorB1, conversation.id, 'Réponse');
+      await sendAs(actors.independentC, conversation.id, 'Merci');
+    });
+  });
+
+  describe('unread messages', () => {
+    it('counts lastSeq - lastReadSeq, never moves back, and leaves muted conversations out of the badge', async () => {
+      const conversationId = await teamA('Non-lus');
+      const before = await messages.unreadCount(actors.doctorA2);
+      for (const index of [1, 2, 3, 4]) {
+        await sendAs(actors.doctorA1, conversationId, `Point ${index}`);
+      }
+
+      const view = await conversations.getOne(actors.doctorA2, conversationId);
+      expect(view.unreadCount).toBe(4);
+      // The sender has read their own messages.
+      const senderView = await conversations.getOne(
+        actors.doctorA1,
+        conversationId,
+      );
+      expect(senderView.unreadCount).toBe(0);
+      expect((await messages.unreadCount(actors.doctorA2)).total).toBe(
+        before.total + 4,
+      );
+
+      await expect(
+        messages.markRead(actors.doctorA2, conversationId, 3),
+      ).resolves.toEqual({ conversationId, lastReadSeq: 3, unreadCount: 1 });
+      // Backwards: ignored. Beyond the last message: stops at it.
+      await expect(
+        messages.markRead(actors.doctorA2, conversationId, 1),
+      ).resolves.toMatchObject({ lastReadSeq: 3 });
+      await expect(
+        messages.markRead(actors.doctorA2, conversationId, 99),
+      ).resolves.toEqual({ conversationId, lastReadSeq: 4, unreadCount: 0 });
+
+      await sendAs(actors.doctorA1, conversationId, 'Encore un');
+      expect((await messages.unreadCount(actors.doctorA2)).total).toBe(
+        before.total + 1,
+      );
+      await conversations.update(actors.doctorA2, conversationId, {
+        mutedUntil: new Date(Date.now() + 3_600_000).toISOString(),
+      });
+      expect((await messages.unreadCount(actors.doctorA2)).total).toBe(
+        before.total,
+      );
     });
   });
 });

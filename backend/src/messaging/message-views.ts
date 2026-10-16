@@ -70,3 +70,58 @@ export function toLastMessageView(
     seq: message.seq,
   };
 }
+
+export type MessageView = {
+  id: string;
+  conversationId: string;
+  seq: number;
+  senderId: string | null;
+  // The sender's own id for the message, so that a client matches its
+  // optimistic copy; null for the other participants.
+  clientMessageId: string | null;
+  kind: Message['kind'];
+  // null once deleted (deleted: true) or when it cannot be decrypted
+  // (bodyUnavailable: true).
+  body: string | null;
+  deleted: boolean;
+  bodyUnavailable: boolean;
+  priority: Message['priority'];
+  requiresAck: boolean;
+  replyToId: string | null;
+  editedAt: Date | null;
+  createdAt: Date;
+};
+
+// The text is decrypted only when the message is not deleted: a deleted
+// message stays encrypted in the database, for the audit, and is never sent.
+export function toMessageView(
+  crypto: MessageCrypto,
+  message: Message,
+  viewerId: string,
+  knownBody?: string,
+): MessageView {
+  const deleted = message.deletedAt !== null;
+  const body = deleted
+    ? { text: null, unavailable: false }
+    : knownBody !== undefined
+      ? { text: knownBody, unavailable: false }
+      : readBody(crypto, message);
+
+  return {
+    body: body.text,
+    bodyUnavailable: body.unavailable,
+    clientMessageId:
+      message.senderId === viewerId ? message.clientMessageId : null,
+    conversationId: message.conversationId,
+    createdAt: message.createdAt,
+    deleted,
+    editedAt: message.editedAt,
+    id: message.id,
+    kind: message.kind,
+    priority: message.priority,
+    replyToId: message.replyToId,
+    requiresAck: message.requiresAck,
+    senderId: message.senderId,
+    seq: message.seq,
+  };
+}

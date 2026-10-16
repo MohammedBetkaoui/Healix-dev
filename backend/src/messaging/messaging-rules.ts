@@ -4,6 +4,7 @@
 import { BadRequestException } from '@nestjs/common';
 
 import { UserRole } from '../common/enums/user-role.enum';
+import { sanitizeTextInput } from '../common/utils/sanitize';
 
 // The professionals who use the messaging (the controllers' @Roles).
 export const MESSAGING_ROLES = [
@@ -23,6 +24,10 @@ export const CONVERSATION_PAGE_LIMIT_DEFAULT = 20;
 export const CONVERSATION_PAGE_LIMIT_MAX = 50;
 export const GROUP_MEMBERS_MAX = 100;
 export const PREVIEW_MAX_LENGTH = 120;
+export const MESSAGE_BODY_MAX_LENGTH = 4_000;
+export const MESSAGE_PAGE_LIMIT_DEFAULT = 30;
+export const MESSAGE_PAGE_LIMIT_MAX = 50;
+export const EDIT_WINDOW_MS = 15 * 60_000;
 
 // A DIRECT conversation is unique per pair, whoever started it.
 export function directKeyFor(firstUserId: string, secondUserId: string) {
@@ -81,4 +86,38 @@ export function previewOf(text: string): string {
   return characters.length <= PREVIEW_MAX_LENGTH
     ? line
     : `${characters.slice(0, PREVIEW_MAX_LENGTH - 1).join('')}…`;
+}
+
+// Plain text: each line normalized by sanitizeTextInput (trimmed, inner
+// whitespace collapsed), the line breaks kept (Shift+Enter in the composer),
+// at most one empty line in a row.
+export function sanitizeMessageBody(value: unknown): string {
+  if (typeof value !== 'string') {
+    return '';
+  }
+
+  return value
+    .split(/\r\n|\r|\n/)
+    .map(sanitizeTextInput)
+    .join('\n')
+    .replace(/\n{3,}/g, '\n\n')
+    .trim();
+}
+
+// In characters as the user sees them: an emoji counts as one.
+export function bodyLength(body: string): number {
+  return Array.from(body).length;
+}
+
+export function isWithinEditWindow(createdAt: Date, now: Date): boolean {
+  return now.getTime() - createdAt.getTime() <= EDIT_WINDOW_MS;
+}
+
+// The read position only moves forward, and never past the last message.
+export function nextReadSeq(
+  current: number,
+  requested: number,
+  lastSeq: number,
+): number {
+  return Math.max(current, Math.min(requested, lastSeq));
 }

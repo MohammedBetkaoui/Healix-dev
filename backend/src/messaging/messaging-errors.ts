@@ -106,3 +106,54 @@ export const notPending = () =>
     code: 'CONVERSATION_NOT_PENDING',
     message: "Cette conversation n'est pas une demande en attente.",
   });
+
+export const invalidBody = () =>
+  new BadRequestException({
+    code: 'INVALID_MESSAGE_BODY',
+    message: 'Le message doit contenir de 1 à 4 000 caractères.',
+  });
+
+// Lot 4 (urgent messages with acknowledgement).
+export const ackNotAvailable = () =>
+  new BadRequestException({
+    code: 'ACK_NOT_AVAILABLE',
+    message: "L'accusé de lecture n'est pas encore disponible.",
+  });
+
+export const invalidReply = () =>
+  new BadRequestException({
+    code: 'INVALID_REPLY',
+    message: "Le message cité n'appartient pas à cette conversation.",
+  });
+
+export const invalidHistoryQuery = () =>
+  new BadRequestException({
+    code: 'INVALID_HISTORY_QUERY',
+    message: 'Indiquez beforeSeq ou afterSeq, pas les deux.',
+  });
+
+// The same clientMessageId already sent a message to another conversation.
+export const clientMessageIdConflict = () =>
+  new ConflictException({
+    code: 'CLIENT_MESSAGE_ID_CONFLICT',
+    message: 'Cet identifiant de message est déjà utilisé.',
+  });
+
+export const notMessageAuthor = () =>
+  new ForbiddenException({
+    code: 'NOT_MESSAGE_AUTHOR',
+    message: "Seul l'auteur d'un message peut le modifier ou le supprimer.",
+  });
+
+export const messageNotEditable = () =>
+  new ConflictException({
+    code: 'MESSAGE_NOT_EDITABLE',
+    message: 'Ce message ne peut plus être modifié.',
+  });
+
+export const editWindowClosed = () =>
+  new ConflictException({
+    code: 'EDIT_WINDOW_CLOSED',
+    message:
+      'Un message ne peut être modifié que dans les 15 minutes après son envoi.',
+  });
