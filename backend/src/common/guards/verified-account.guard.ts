@@ -34,6 +34,41 @@ function getVerificationProfileRelation(
   return null;
 }
 
+// The account behind a token, read again: its professional profile is
+// VERIFIED and it is neither suspended nor rejected. The JWT is not checked
+// against the database: a suspended account keeps a valid access token until
+// it expires, so its status is re-read here. Roles without a professional
+// profile (SUPER_ADMIN, ADMIN_VERIFICATION) are not gated: RolesGuard scopes
+// them. Also applied to the real-time connections (RealtimeAuthenticator).
+export async function isVerifiedAccount(
+  prisma: PrismaService,
+  user: { sub: string; role: string },
+): Promise<boolean> {
+  const profileRelation = getVerificationProfileRelation(user.role);
+
+  if (!profileRelation) {
+    return true;
+  }
+
+  const account = await prisma.user.findUnique({
+    select: {
+      accountStatus: true,
+      doctorProfile: { select: { verificationStatus: true } },
+      establishment: { select: { verificationStatus: true } },
+    },
+    where: { id: user.sub },
+  });
+
+  const isVerified =
+    account?.[profileRelation]?.verificationStatus ===
+    VerificationStatus.VERIFIED;
+  const isBlocked =
+    account?.accountStatus === AccountStatus.SUSPENDED ||
+    account?.accountStatus === AccountStatus.REJECTED;
+
+  return Boolean(account) && isVerified && !isBlocked;
+}
+
 // Real medical features (patients, appointments, affiliated doctors) require a
 // professionally VERIFIED account; no subscription is required. Must run after
 // JwtAuthGuard, which sets request.user.
@@ -44,37 +79,7 @@ export class VerifiedAccountGuard implements CanActivate {
   async canActivate(context: ExecutionContext): Promise<boolean> {
     const { user } = context.switchToHttp().getRequest<AuthenticatedRequest>();
 
-    if (!user) {
-      throw this.verificationRequired();
-    }
-
-    const profileRelation = getVerificationProfileRelation(user.role);
-
-    // Roles without a professional profile (SUPER_ADMIN, ADMIN_VERIFICATION)
-    // are not gated here: RolesGuard already scopes these controllers.
-    if (!profileRelation) {
-      return true;
-    }
-
-    const account = await this.prisma.user.findUnique({
-      select: {
-        accountStatus: true,
-        doctorProfile: { select: { verificationStatus: true } },
-        establishment: { select: { verificationStatus: true } },
-      },
-      where: { id: user.sub },
-    });
-
-    const isVerified =
-      account?.[profileRelation]?.verificationStatus ===
-      VerificationStatus.VERIFIED;
-    // The JWT is not checked against the database: a suspended account keeps
-    // a valid access token until it expires, so its status is re-read here.
-    const isBlocked =
-      account?.accountStatus === AccountStatus.SUSPENDED ||
-      account?.accountStatus === AccountStatus.REJECTED;
-
-    if (!account || !isVerified || isBlocked) {
+    if (!user || !(await isVerifiedAccount(this.prisma, user))) {
       throw this.verificationRequired();
     }
 

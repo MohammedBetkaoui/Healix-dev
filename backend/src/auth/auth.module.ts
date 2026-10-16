@@ -8,6 +8,7 @@ import { DoctorsModule } from '../doctors/doctors.module';
 import { EstablishmentsModule } from '../establishments/establishments.module';
 import { MailModule } from '../mail/mail.module';
 import { PrismaModule } from '../prisma/prisma.module';
+import { RealtimeModule } from '../realtime/realtime.module';
 import { UsersModule } from '../users/users.module';
 import { WorkspaceModule } from '../workspaces/workspace.module';
 import { AuthController } from './auth.controller';
@@ -37,6 +38,7 @@ import { RefreshTokenStrategy } from './strategies/refresh-token.strategy';
     AuditLogsModule,
     WorkspaceModule,
     MailModule,
+    RealtimeModule,
   ],
   controllers: [AuthController],
   providers: [

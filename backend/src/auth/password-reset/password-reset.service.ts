@@ -11,6 +11,7 @@ import {
   passwordResetRequestEmail,
 } from '../../mail/templates/password-reset.templates';
 import { PrismaService } from '../../prisma/prisma.service';
+import { RealtimeService } from '../../realtime/realtime.service';
 import { AuthService } from '../auth.service';
 
 export const RESET_TOKEN_TTL_MINUTES = 30;
@@ -98,6 +99,7 @@ export class PasswordResetService {
     private readonly authService: AuthService,
     private readonly auditLogsService: AuditLogsService,
     private readonly mailService: MailService,
+    private readonly realtime: RealtimeService,
   ) {}
 
   // Always the same answer, after at least the same time, whether the
@@ -192,6 +194,8 @@ export class PasswordResetService {
         transaction,
       );
     });
+
+    await this.realtime.disconnectUser(userId);
 
     try {
       await this.mailService.send({

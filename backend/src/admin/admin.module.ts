@@ -3,6 +3,7 @@ import { ConfigModule } from '@nestjs/config';
 
 import { AuditLogsModule } from '../audit-logs/audit-logs.module';
 import { PrismaModule } from '../prisma/prisma.module';
+import { RealtimeModule } from '../realtime/realtime.module';
 import { AdminAuditLogsController } from './audit/admin-audit-logs.controller';
 import { AdminAuditLogsService } from './audit/admin-audit-logs.service';
 import { AdminDashboardController } from './dashboard/admin-dashboard.controller';
@@ -15,7 +16,7 @@ import { AdminVerificationsController } from './verifications/admin-verification
 import { AdminVerificationsService } from './verifications/admin-verifications.service';
 
 @Module({
-  imports: [ConfigModule, PrismaModule, AuditLogsModule],
+  imports: [ConfigModule, PrismaModule, AuditLogsModule, RealtimeModule],
   controllers: [
     AdminAuditLogsController,
     AdminDashboardController,
