@@ -83,7 +83,7 @@ export default async function Home({ searchParams }: HomeProps) {
       />
       <LandingHeader locale={locale} nav={content.nav} />
       <main>
-        <HeroSection hero={content.hero} showcase={content.showcase} />
+        <HeroSection hero={content.hero} />
         <TrustBar trust={content.trustBar} />
         <PlatformBento
           context={content.context}
