@@ -177,19 +177,62 @@ export function canDeleteMessage(message: MessageView, myUserId: string, now = D
   );
 }
 
-// "Sent", then "read" once another participant's read position reached it
-// (read.updated). In a group, how many have read it.
-export function readReceipt(
+// --- Read receipts ------------------------------------------------------------------
+
+// How far a participant has read: the position kept by the server (the
+// conversation view, so it survives a reload), moved forward by the
+// read.updated events of the session. null when it is not shared, by them
+// or by me (reciprocal).
+export function readPositionOf(
+  participant: ConversationParticipant,
+  live: ReadonlyMap<string, number>,
+): number | null {
+  if (participant.lastReadSeq === null) return null;
+  return Math.max(participant.lastReadSeq, live.get(participant.userId) ?? 0);
+}
+
+export type Receipt =
+  | { kind: "sent" }
+  // A direct conversation: the other side saw it.
+  | { kind: "seen" }
+  // A group or a case discussion: how many of its recipients saw it.
+  | { kind: "seenBy"; seen: number; total: number };
+
+// The status under one of my messages. Its recipients: the ACTIVE
+// participants other than me who were there when it was sent.
+export function receiptOf(
   message: MessageView,
   conversation: Conversation,
   myUserId: string,
-  readPositions: ReadonlyMap<string, number>,
-): { state: "sent" } | { state: "read"; readers: number } {
-  const readers = conversation.participants.filter(
+  live: ReadonlyMap<string, number> = new Map(),
+): Receipt | null {
+  if (message.senderId !== myUserId || message.deleted) return null;
+  const sentAt = Date.parse(message.createdAt);
+  const recipients = conversation.participants.filter(
     (participant) =>
-      participant.userId !== myUserId && (readPositions.get(participant.userId) ?? 0) >= message.seq,
-  ).length;
-  return readers > 0 ? { readers, state: "read" } : { state: "sent" };
+      participant.userId !== myUserId && participant.status === "ACTIVE" && Date.parse(participant.joinedAt) <= sentAt,
+  );
+  const seen = recipients.filter((participant) => (readPositionOf(participant, live) ?? -1) >= message.seq).length;
+  if (seen === 0) return { kind: "sent" };
+  return conversation.type === "DIRECT" ? { kind: "seen" } : { kind: "seenBy", seen, total: recipients.length };
+}
+
+// The statuses shown without hovering or focusing a message: under my last
+// message, and under the last of my messages that was seen; "Vu" is not
+// repeated under every bubble.
+export function pinnedReceiptIds(
+  messages: MessageView[],
+  conversation: Conversation,
+  myUserId: string,
+  live: ReadonlyMap<string, number> = new Map(),
+): Set<string> {
+  const mine = messages.filter((message) => message.senderId === myUserId && !message.deleted);
+  const pinned = new Set<string>();
+  const last = mine.at(-1);
+  if (last) pinned.add(last.id);
+  const lastSeen = [...mine].reverse().find((message) => receiptOf(message, conversation, myUserId, live)?.kind !== "sent");
+  if (lastSeen) pinned.add(lastSeen.id);
+  return pinned;
 }
 
 // --- Text -------------------------------------------------------------------------

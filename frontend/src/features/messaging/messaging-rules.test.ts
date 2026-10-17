@@ -29,7 +29,9 @@ import {
   openDirectConversation,
   patientNameOf,
   type PendingMessage,
-  readReceipt,
+  pinnedReceiptIds,
+  readPositionOf,
+  receiptOf,
   shouldMarkRead,
   showsLengthCounter,
   tokenizeMessageText,
@@ -66,7 +68,18 @@ function message(seq: number, overrides: Partial<MessageView> = {}): MessageView
 }
 
 function participant(userId: string, overrides: Partial<ConversationParticipant> = {}): ConversationParticipant {
-  return { establishmentName: null, fullName: userId, role: "MEMBER", speciality: null, status: "ACTIVE", userId, ...overrides };
+  return {
+    establishmentName: null,
+    fullName: userId,
+    joinedAt: "2026-10-17T08:00:00.000Z",
+    lastReadAt: null,
+    lastReadSeq: 0,
+    role: "MEMBER",
+    speciality: null,
+    status: "ACTIVE",
+    userId,
+    ...overrides,
+  };
 }
 
 function conversation(overrides: Partial<Conversation> = {}, participants = [participant(ME), participant(OTHER)]): Conversation {
@@ -78,7 +91,7 @@ function conversation(overrides: Partial<Conversation> = {}, participants = [par
     lastMessage: null,
     lastMessageAt: null,
     lastSeq: 0,
-    me: { lastReadSeq: 0, mutedUntil: null, role: "MEMBER", status: "ACTIVE" },
+    me: { lastReadAt: null, lastReadSeq: 0, mutedUntil: null, role: "MEMBER", status: "ACTIVE" },
     participants,
     patient: null,
     title: null,
@@ -213,10 +226,51 @@ describe("editing and deleting", () => {
 });
 
 describe("read receipts", () => {
-  it("says read once another participant's position reached the message", () => {
-    const mine = message(4, { senderId: ME });
-    expect(readReceipt(mine, conversation(), ME, new Map([[OTHER, 3]]))).toEqual({ state: "sent" });
-    expect(readReceipt(mine, conversation(), ME, new Map([[OTHER, 4]]))).toEqual({ readers: 1, state: "read" });
+  const mine = (seq: number, overrides: Partial<MessageView> = {}) => message(seq, { senderId: ME, ...overrides });
+  const direct = (otherSeq: number | null) =>
+    conversation({}, [participant(ME, { lastReadSeq: 9 }), participant(OTHER, { lastReadSeq: otherSeq })]);
+
+  it("says seen from the position the server keeps, so a reload changes nothing", () => {
+    expect(receiptOf(mine(4), direct(3), ME)).toEqual({ kind: "sent" });
+    expect(receiptOf(mine(4), direct(4), ME)).toEqual({ kind: "seen" });
+  });
+
+  it("moves forward with the read.updated events of the session", () => {
+    expect(receiptOf(mine(4), direct(3), ME, new Map([[OTHER, 4]]))).toEqual({ kind: "seen" });
+    // An event never moves a position back.
+    expect(readPositionOf(participant(OTHER, { lastReadSeq: 6 }), new Map([[OTHER, 2]]))).toBe(6);
+  });
+
+  it("never says seen when the position is not shared, by them or by me", () => {
+    expect(receiptOf(mine(4), direct(null), ME, new Map([[OTHER, 9]]))).toEqual({ kind: "sent" });
+  });
+
+  it("counts, in a group, the recipients who saw it out of those there when it was sent", () => {
+    const group = conversation({ type: "GROUP" }, [
+      participant(ME),
+      participant("b", { lastReadSeq: 5 }),
+      participant("c", { lastReadSeq: 4 }),
+      participant("d", { lastReadSeq: 2 }),
+      participant("e", { lastReadSeq: null }),
+      // Joined afterwards, or gone: not a recipient.
+      participant("f", { joinedAt: "2026-10-17T10:00:00.000Z", lastReadSeq: 9 }),
+      participant("g", { lastReadSeq: 9, status: "LEFT" }),
+    ]);
+    expect(receiptOf(mine(4), group, ME)).toEqual({ kind: "seenBy", seen: 2, total: 4 });
+    expect(receiptOf(mine(8), group, ME)).toEqual({ kind: "sent" });
+  });
+
+  it("has none for the others' messages and the deleted ones", () => {
+    expect(receiptOf(message(4), direct(9), ME)).toBeNull();
+    expect(receiptOf(mine(4, { deleted: true }), direct(9), ME)).toBeNull();
+  });
+
+  it("shows the status under my last message and under the last of mine seen only", () => {
+    const history = [mine(1), mine(2), message(3), mine(4), mine(5)];
+    expect([...pinnedReceiptIds(history, direct(4), ME)].sort()).toEqual(["m-4", "m-5"]);
+    // Everything seen: one status, under the last.
+    expect([...pinnedReceiptIds(history, direct(5), ME)]).toEqual(["m-5"]);
+    expect([...pinnedReceiptIds([message(1)], direct(5), ME)]).toEqual([]);
   });
 });
 
@@ -240,7 +294,7 @@ describe("links in a message", () => {
 
 describe("the composer", () => {
   it("is closed to the recipient of a request until they accept", () => {
-    expect(composerAvailability(conversation({ me: { lastReadSeq: 0, mutedUntil: null, role: "MEMBER", status: "PENDING" } }), ME, new Set())).toEqual({
+    expect(composerAvailability(conversation({ me: { lastReadAt: null, lastReadSeq: 0, mutedUntil: null, role: "MEMBER", status: "PENDING" } }), ME, new Set())).toEqual({
       canWrite: false,
       reason: "requestReceived",
     });
@@ -347,7 +401,7 @@ describe("muting", () => {
     const now = Date.parse("2026-10-17T09:00:00.000Z");
     expect(mutedUntilFor("8h", now)).toBe("2026-10-17T17:00:00.000Z");
     expect(mutedUntilFor("forever", now)).toBe(MUTED_FOREVER);
-    expect(isMuted(conversation({ me: { lastReadSeq: 0, mutedUntil: "2026-10-17T10:00:00.000Z", role: "MEMBER", status: "ACTIVE" } }), now)).toBe(true);
+    expect(isMuted(conversation({ me: { lastReadAt: null, lastReadSeq: 0, mutedUntil: "2026-10-17T10:00:00.000Z", role: "MEMBER", status: "ACTIVE" } }), now)).toBe(true);
     expect(isMuted(conversation(), now)).toBe(false);
   });
 });

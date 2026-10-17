@@ -15,4 +15,7 @@ export const messagingKeys = {
   blocks: ["messaging", "blocks"] as const,
   settings: ["messaging", "settings"] as const,
   attachment: (attachmentId: string) => ["messaging", "attachment", attachmentId] as const,
+  // Every message's readers: read again on read.updated.
+  readersAll: ["messaging", "readers"] as const,
+  readers: (messageId: string) => ["messaging", "readers", messageId] as const,
 };

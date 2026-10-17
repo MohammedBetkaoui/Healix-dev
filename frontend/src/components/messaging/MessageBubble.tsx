@@ -20,13 +20,14 @@ import { type Locale } from "@/i18n";
 import { caseMessagingCopy } from "@/features/messaging/case-messaging.copy";
 import { type MessagingCopy } from "@/features/messaging/messaging.copy";
 import { formatDateTime, formatTime } from "@/features/messaging/messaging-format";
-import { type AckState, type PendingMessage } from "@/features/messaging/messaging-rules";
+import { type AckState, type PendingMessage, type Receipt } from "@/features/messaging/messaging-rules";
 import { type MessageView } from "@/features/messaging/messaging.types";
 import { cn } from "@/lib/utils";
 
 import { MessageAttachments } from "./attachments";
 import { AckStatus } from "./case-ui";
 import { MessageText } from "./messaging-ui";
+import { ReceiptStatus } from "./receipts";
 import styles from "./messaging.module.css";
 
 export type BubbleQuote = { authorName: string; text: string; messageId: string | null };
@@ -45,8 +46,10 @@ type MessageBubbleProps =
   | (Common & {
       kind: "message";
       message: MessageView;
-      // My own messages: "Envoyé", "Lu", "Lu par N".
-      receipt: string | null;
+      // My own messages: "Envoyé", "Vu", "Vu par 3 sur 5". Pinned: shown at
+      // all times (my last message, the last one seen); otherwise on hover
+      // or focus of the message only.
+      receipt: { receipt: Receipt; pinned: boolean } | null;
       canEdit: boolean;
       canDelete: boolean;
       onReply: () => void;
@@ -68,6 +71,8 @@ type MessageBubbleProps =
 export function MessageBubble(props: MessageBubbleProps) {
   const { copy, locale, mine } = props;
   const caseCopy = caseMessagingCopy[locale];
+  // Hover or focus: the message shows its own read status.
+  const [revealed, setRevealed] = useState(false);
   const isPending = props.kind === "pending";
   const createdAt = isPending ? props.pending.createdAt : props.message.createdAt;
   // A deleted message keeps its place only: no quote, no URGENT badge.
@@ -90,7 +95,15 @@ export function MessageBubble(props: MessageBubbleProps) {
   })();
 
   return (
-    <div className={cn("group flex items-end gap-1.5", mine ? "justify-end" : "justify-start")}>
+    <div
+      className={cn("group flex items-end gap-1.5", mine ? "justify-end" : "justify-start")}
+      onMouseEnter={() => setRevealed(true)}
+      onMouseLeave={() => setRevealed(false)}
+      onFocus={() => setRevealed(true)}
+      onBlur={(event) => {
+        if (!event.currentTarget.contains(event.relatedTarget as Node | null)) setRevealed(false);
+      }}
+    >
       {mine && props.kind === "message" ? <MessageActions {...props} /> : null}
       <div
         className={cn(
@@ -154,7 +167,9 @@ export function MessageBubble(props: MessageBubbleProps) {
           {props.kind === "message" && props.message.editedAt && !props.message.deleted ? (
             <span>· {copy.message.edited}</span>
           ) : null}
-          {props.kind === "message" && props.receipt ? <span>· {props.receipt}</span> : null}
+          {props.kind === "message" && props.receipt && (props.receipt.pinned || revealed) ? (
+            <ReceiptStatus receipt={props.receipt.receipt} messageId={props.message.id} copy={copy} locale={locale} />
+          ) : null}
           {isPending && !failed ? <span>· {copy.message.sending}</span> : null}
           {failed ? (
             <span className="font-medium text-[var(--danger-ink)]" role="alert">

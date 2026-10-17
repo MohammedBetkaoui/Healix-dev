@@ -33,7 +33,8 @@ import {
   messagesOfPages,
   newMessagesSeparatorSeq,
   otherParticipant,
-  readReceipt,
+  pinnedReceiptIds,
+  receiptOf,
   type TimelineEntry,
 } from "@/features/messaging/messaging-rules";
 import { type Conversation, type MessageView } from "@/features/messaging/messaging.types";
@@ -121,6 +122,12 @@ export function ConversationThread({
   const separatorSeq = useMemo(
     () => newMessagesSeparatorSeq(messages, openingReadSeq, myUserId, openingLastSeq ?? lastSeq),
     [lastSeq, messages, myUserId, openingLastSeq, openingReadSeq],
+  );
+  // Read statuses at all times under my last message and the last of mine
+  // seen only; the others on hover or focus.
+  const pinnedReceipts = useMemo(
+    () => pinnedReceiptIds(messages, conversation, myUserId, readPositions),
+    [conversation, messages, myUserId, readPositions],
   );
   const availability = composerAvailability(conversation, myUserId, blockedUserIds);
   const other = otherParticipant(conversation, myUserId);
@@ -211,7 +218,7 @@ export function ConversationThread({
 
     const { message } = entry;
     const mine = message.senderId === myUserId;
-    const receipt = mine ? readReceipt(message, conversation, myUserId, readPositions) : null;
+    const receipt = mine ? receiptOf(message, conversation, myUserId, readPositions) : null;
     return (
       <MessageBubble
         kind="message"
@@ -219,12 +226,7 @@ export function ConversationThread({
         mine={mine}
         authorName={(isGroup || isCase) && !mine ? authorName(message.senderId) : null}
         quote={quoteOf(message.replyToId)}
-        receipt={
-          !receipt ? null
-          : receipt.state === "sent" ? copy.message.sent
-          : isGroup ? copy.message.readBy(receipt.readers)
-          : copy.message.read
-        }
+        receipt={receipt ? { pinned: pinnedReceipts.has(message.id), receipt } : null}
         canEdit={canEditMessage(message, myUserId)}
         canDelete={canDeleteMessage(message, myUserId)}
         onReply={() => {

@@ -11,7 +11,7 @@ import { matchesConversationSearch } from "@/features/messaging/conversation-sea
 import { useUpdateMessagingSettings } from "@/features/messaging/messaging.mutations";
 import { useConversations, useMessagingSettings } from "@/features/messaging/messaging.queries";
 import { isMuted, otherParticipant, patientNameOf } from "@/features/messaging/messaging-rules";
-import { type Conversation, type ConversationFilter } from "@/features/messaging/messaging.types";
+import { type Conversation, type ConversationFilter, type MessagingSettings } from "@/features/messaging/messaging.types";
 import { cn } from "@/lib/utils";
 
 import { Avatar, ListSkeleton, UnreadCountBadge } from "./messaging-ui";
@@ -205,7 +205,7 @@ export function ConversationList({
         ) : null}
       </div>
 
-      <DiscoverableSetting copy={copy} />
+      <MessagingSettingsPanel copy={copy} />
     </section>
   );
 }
@@ -275,17 +275,27 @@ function ConversationRow({
   );
 }
 
-// "Reachable by professionals of other workspaces" (the directory).
-function DiscoverableSetting({ copy }: { copy: MessagingCopy }) {
+// The user's own messaging settings: reachable through the directory, and
+// read receipts (reciprocal).
+function MessagingSettingsPanel({ copy }: { copy: MessagingCopy }) {
+  return (
+    <div className={cn(styles.discoverable, "space-y-3")}>
+      <SettingSwitch setting="discoverableByPeers" label={copy.panel.discoverable} hint={copy.panel.discoverableHint} />
+      <SettingSwitch setting="shareReadReceipts" label={copy.panel.readReceipts} hint={copy.panel.readReceiptsHint} />
+    </div>
+  );
+}
+
+function SettingSwitch({ hint, label, setting }: { setting: keyof MessagingSettings; label: string; hint: string }) {
   const ids = { hint: useId(), label: useId() };
   const settings = useMessagingSettings();
   const update = useUpdateMessagingSettings();
-  const value = settings.data?.discoverableByPeers;
+  const value = settings.data?.[setting];
 
   return (
-    <div className={styles.discoverable}>
+    <div>
       <div className="flex items-center justify-between gap-3">
-        <span id={ids.label} className="text-xs font-medium text-[var(--text-primary)]">{copy.panel.discoverable}</span>
+        <span id={ids.label} className="text-xs font-medium text-[var(--text-primary)]">{label}</span>
         <button
           type="button"
           role="switch"
@@ -293,7 +303,7 @@ function DiscoverableSetting({ copy }: { copy: MessagingCopy }) {
           aria-labelledby={ids.label}
           aria-describedby={ids.hint}
           disabled={value === undefined || update.isPending}
-          onClick={() => value !== undefined && update.mutate({ discoverableByPeers: !value })}
+          onClick={() => value !== undefined && update.mutate({ [setting]: !value })}
           className={cn(
             "relative inline-flex h-6 w-11 shrink-0 items-center rounded-full border transition-colors disabled:opacity-50",
             value ? "border-[var(--medical)] bg-[var(--medical)]" : "border-[var(--border-strong)] bg-[var(--surface-muted)]",
@@ -302,7 +312,7 @@ function DiscoverableSetting({ copy }: { copy: MessagingCopy }) {
           <span className={cn("inline-block h-4 w-4 rounded-full bg-white shadow transition-transform", value ? "translate-x-6 rtl:-translate-x-6" : "translate-x-1 rtl:-translate-x-1")} />
         </button>
       </div>
-      <p id={ids.hint} className="clinical-caption mt-1">{copy.panel.discoverableHint}</p>
+      <p id={ids.hint} className="clinical-caption mt-1">{hint}</p>
     </div>
   );
 }

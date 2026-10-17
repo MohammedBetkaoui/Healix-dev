@@ -75,8 +75,18 @@ type MessagingCopy = {
     urgent: string;
     sending: string;
     sent: string;
+    // Read receipts: "Vu", "Vu à 14:32", "Vu par 3 sur 5".
     read: string;
-    readBy: (count: number) => string;
+    seenAt: (time: string) => string;
+    seenBy: (seen: number, total: number) => string;
+    readersTitle: string;
+    readersSeen: string;
+    readersNotSeen: string;
+    readersNotShared: string;
+    readersNotSharedHint: string;
+    readersLoading: string;
+    readersError: string;
+    readersClose: string;
     failed: string;
     retry: string;
     discard: string;
@@ -141,6 +151,8 @@ type MessagingCopy = {
     settings: string;
     discoverable: string;
     discoverableHint: string;
+    readReceipts: string;
+    readReceiptsHint: string;
   };
   newConversation: {
     title: string;
@@ -266,8 +278,17 @@ const fr: MessagingCopy = {
     failed: "Non envoyé",
     jumpTo: "Aller au message cité",
     quotedUnavailable: "Message cité",
-    read: "Lu",
-    readBy: (count) => `Lu par ${count}`,
+    read: "Vu",
+    readersClose: "Fermer",
+    readersError: "Impossible de savoir qui a vu ce message.",
+    readersLoading: "Chargement…",
+    readersNotSeen: "Pas encore vu",
+    readersNotShared: "Non communiqué",
+    readersNotSharedHint: "Accusés de lecture désactivés, de leur côté ou du vôtre.",
+    readersSeen: "Vu par",
+    readersTitle: "Lecture du message",
+    seenAt: (time) => `Vu à ${time}`,
+    seenBy: (seen, total) => `Vu par ${seen} sur ${total}`,
     reply: "Répondre",
     retry: "Réessayer",
     sending: "Envoi…",
@@ -315,6 +336,9 @@ const fr: MessagingCopy = {
     confirm: "Confirmer",
     discoverable: "Joignable par des confrères",
     discoverableHint: "Les professionnels vérifiés d’autres espaces peuvent vous trouver dans l’annuaire et vous écrire.",
+    readReceipts: "Accusés de lecture",
+    readReceiptsHint:
+      "Réciproques : désactivés, les autres ne voient plus quand vous lisez leurs messages, et vous ne voyez plus quand ils lisent les vôtres. Les accusés des messages urgents restent demandés.",
     leave: "Quitter le groupe",
     leaveConfirm: "Quitter ce groupe ? Vous n’aurez plus accès à ses messages.",
     members: "Membres",
@@ -458,8 +482,17 @@ const ar: MessagingCopy = {
     failed: "لم تُرسل",
     jumpTo: "الانتقال إلى الرسالة المقتبسة",
     quotedUnavailable: "رسالة مقتبسة",
-    read: "مقروءة",
-    readBy: (count) => `قرأها ${count}`,
+    read: "شوهدت",
+    readersClose: "إغلاق",
+    readersError: "تعذر معرفة من شاهد هذه الرسالة.",
+    readersLoading: "جارٍ التحميل…",
+    readersNotSeen: "لم يشاهدها بعد",
+    readersNotShared: "غير مُبلَّغ",
+    readersNotSharedHint: "إشعارات القراءة معطلة من جهتهم أو من جهتكم.",
+    readersSeen: "شاهدها",
+    readersTitle: "قراءة الرسالة",
+    seenAt: (time) => `شوهدت على الساعة ${time}`,
+    seenBy: (seen, total) => `شاهدها ${seen} من ${total}`,
     reply: "رد",
     retry: "إعادة المحاولة",
     sending: "جارٍ الإرسال…",
@@ -507,6 +540,9 @@ const ar: MessagingCopy = {
     confirm: "تأكيد",
     discoverable: "قابل للتواصل من الزملاء",
     discoverableHint: "يمكن للمهنيين الموثقين في فضاءات أخرى العثور عليكم في الدليل ومراسلتكم.",
+    readReceipts: "إشعارات القراءة",
+    readReceiptsHint:
+      "متبادلة: عند تعطيلها لا يرى الآخرون متى تقرؤون رسائلهم، ولا ترون متى يقرؤون رسائلكم. تبقى إشعارات استلام الرسائل العاجلة مطلوبة.",
     leave: "مغادرة المجموعة",
     leaveConfirm: "مغادرة هذه المجموعة؟ لن تتمكنوا من الاطلاع على رسائلها بعد الآن.",
     members: "الأعضاء",

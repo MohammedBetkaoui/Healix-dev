@@ -13,6 +13,11 @@ export type ConversationParticipant = {
   establishmentName: string | null;
   role: ParticipantRole;
   status: ParticipantStatus;
+  joinedAt: string;
+  // How far they read, and when; null when they or I do not share read
+  // receipts (always given for me).
+  lastReadSeq: number | null;
+  lastReadAt: string | null;
 };
 
 export type LastMessage = {
@@ -40,6 +45,7 @@ export type Conversation = {
     role: ParticipantRole;
     status: ParticipantStatus;
     lastReadSeq: number;
+    lastReadAt: string | null;
     mutedUntil: string | null;
   };
   unreadCount: number;
@@ -165,6 +171,16 @@ export type BlockedUser = {
 
 export type MessagingSettings = {
   discoverableByPeers: boolean;
+  // Reciprocal: off, the others do not see when I read, nor I when they do.
+  shareReadReceipts: boolean;
+};
+
+// GET /messaging/messages/:id/readers (the sender is not listed).
+export type MessageReaders = {
+  seen: { userId: string; fullName: string; seenAt: string | null }[];
+  notSeen: { userId: string; fullName: string }[];
+  // They, or I, do not share read receipts.
+  notShared: { userId: string; fullName: string }[];
 };
 
 export type UnreadCount = {

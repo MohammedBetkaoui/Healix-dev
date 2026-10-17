@@ -142,7 +142,8 @@ export function useBlockToggle() {
 export function useUpdateMessagingSettings() {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: (settings: MessagingSettings) => updateMessagingSettings(settings),
+    // One setting or both.
+    mutationFn: (settings: Partial<MessagingSettings>) => updateMessagingSettings(settings),
     onSuccess: (settings) => queryClient.setQueryData(messagingKeys.settings, settings),
   });
 }

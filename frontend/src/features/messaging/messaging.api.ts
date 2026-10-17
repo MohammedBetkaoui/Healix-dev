@@ -10,6 +10,7 @@ import {
   type DirectoryEntry,
   type DirectorySearch,
   type MessagePage,
+  type MessageReaders,
   type MessageView,
   type MessagingSettings,
   type ParticipationEnded,
@@ -169,6 +170,12 @@ export async function getUnreadCount(): Promise<UnreadCount> {
   return response.data;
 }
 
+// Who saw one of the conversation's messages, and when.
+export async function getMessageReaders(messageId: string): Promise<MessageReaders> {
+  const response = await apiClient.get<MessageReaders>(`/messaging/messages/${encodeURIComponent(messageId)}/readers`);
+  return response.data;
+}
+
 // The acknowledgement of an urgent message; again, nothing changes.
 export async function ackMessage(messageId: string): Promise<MessageView> {
   const response = await apiClient.post<MessageView>(`/messaging/messages/${encodeURIComponent(messageId)}/ack`);
@@ -263,7 +270,7 @@ export async function getMessagingSettings(): Promise<MessagingSettings> {
   return response.data;
 }
 
-export async function updateMessagingSettings(settings: MessagingSettings): Promise<MessagingSettings> {
+export async function updateMessagingSettings(settings: Partial<MessagingSettings>): Promise<MessagingSettings> {
   const response = await apiClient.patch<MessagingSettings>("/messaging/settings", settings);
   return response.data;
 }
