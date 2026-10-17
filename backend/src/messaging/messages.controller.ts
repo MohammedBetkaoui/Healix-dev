@@ -114,6 +114,16 @@ export class MessagesController {
     return this.messagesService.remove(user, id, getRequestContext(request));
   }
 
+  // Who saw a message, and when (reciprocal read receipts); the sender is
+  // not listed.
+  @Get('messages/:id/readers')
+  readers(
+    @CurrentUser() user: AuthenticatedUserPayload,
+    @Param('id') id: string,
+  ) {
+    return this.messagesService.readers(user, id);
+  }
+
   // The acknowledgement of an urgent message, by a recipient; idempotent.
   @Post('messages/:id/ack')
   @HttpCode(HttpStatus.OK)

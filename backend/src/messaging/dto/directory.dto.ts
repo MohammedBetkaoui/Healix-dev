@@ -29,9 +29,15 @@ export class WorkspaceMembersQueryDto {
   search?: string;
 }
 
-// PATCH /messaging/settings: listed in the directory and reachable by the
-// professionals of other workspaces, or not.
+// PATCH /messaging/settings, one setting or both: listed in the directory
+// and reachable by the professionals of other workspaces; read receipts
+// shared (reciprocal).
 export class UpdateMessagingSettingsDto {
+  @IsOptional()
   @IsBoolean()
-  discoverableByPeers!: boolean;
+  discoverableByPeers?: boolean;
+
+  @IsOptional()
+  @IsBoolean()
+  shareReadReceipts?: boolean;
 }

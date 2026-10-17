@@ -58,6 +58,7 @@ import {
   MESSAGE_BODY_MAX_LENGTH,
   MESSAGE_PAGE_LIMIT_DEFAULT,
   nextReadSeq,
+  readPositionVisible,
   sanitizeMessageBody,
 } from './messaging-rules';
 import { MessagingUsersService } from './messaging-users.service';
@@ -73,6 +74,13 @@ export type ReadState = {
   conversationId: string;
   lastReadSeq: number;
   unreadCount: number;
+};
+
+export type MessageReaders = {
+  seen: { userId: string; fullName: string; seenAt: Date | null }[];
+  notSeen: { userId: string; fullName: string }[];
+  // They, or the caller, do not share read receipts.
+  notShared: { userId: string; fullName: string }[];
 };
 
 export type UnreadCount = {
@@ -272,11 +280,26 @@ export class MessagesService {
           },
           where: { id: conversationId },
         });
-        // The sender has read up to their own message.
-        await transaction.conversationParticipant.updateMany({
-          data: { lastReadSeq: seq },
-          where: { id: participation.participant.id, lastReadSeq: { lt: seq } },
-        });
+        // The sender has read up to their own message: a read mark too, so
+        // that the messages before it count as seen at that moment.
+        const { count: advanced } =
+          await transaction.conversationParticipant.updateMany({
+            data: { lastReadAt: created.createdAt, lastReadSeq: seq },
+            where: {
+              id: participation.participant.id,
+              lastReadSeq: { lt: seq },
+            },
+          });
+        if (advanced > 0) {
+          await transaction.conversationReadMark.create({
+            data: {
+              conversationId,
+              readAt: created.createdAt,
+              seq,
+              userId: actor.sub,
+            },
+          });
+        }
         return created;
       });
       await this.events.messageCreated(conversationId, message.seq);
@@ -449,12 +472,22 @@ export class MessagesService {
       conversation.lastSeq,
     );
 
-    // Conditional: a concurrent, further read is never moved back.
-    const { count: moved } =
-      await this.prisma.conversationParticipant.updateMany({
-        data: { lastReadSeq: target },
+    // Conditional: a concurrent, further read is never moved back. Each
+    // advance leaves a read mark (when the messages up to it were seen); the
+    // route is called once per second at most.
+    const readAt = new Date();
+    const moved = await this.prisma.$transaction(async (transaction) => {
+      const { count } = await transaction.conversationParticipant.updateMany({
+        data: { lastReadAt: readAt, lastReadSeq: target },
         where: { id: participant.id, lastReadSeq: { lt: target } },
       });
+      if (count > 0) {
+        await transaction.conversationReadMark.create({
+          data: { conversationId, readAt, seq: target, userId: actor.sub },
+        });
+      }
+      return count > 0;
+    });
     const saved = await this.prisma.conversationParticipant.findUniqueOrThrow({
       select: {
         conversation: { select: { lastSeq: true } },
@@ -463,11 +496,12 @@ export class MessagesService {
       where: { id: participant.id },
     });
 
-    if (moved > 0) {
+    if (moved) {
       await this.events.readUpdated(
         conversationId,
         actor.sub,
         saved.lastReadSeq,
+        readAt,
       );
     }
 
@@ -476,6 +510,93 @@ export class MessagesService {
       lastReadSeq: saved.lastReadSeq,
       unreadCount: Math.max(0, saved.conversation.lastSeq - saved.lastReadSeq),
     };
+  }
+
+  // Who saw a message, and when: its ACTIVE recipients (the sender aside,
+  // and those who joined after it), each "seen" at the first read mark that
+  // reaches it, "not seen", or "not shared" when they or the caller do not
+  // share read receipts. A case discussion checks the patient's scope again
+  // (getParticipation).
+  async readers(
+    actor: AuthenticatedUserPayload,
+    messageId: string,
+  ): Promise<MessageReaders> {
+    const message = await this.prisma.message.findUnique({
+      select: {
+        conversationId: true,
+        createdAt: true,
+        id: true,
+        senderId: true,
+        seq: true,
+      },
+      where: { id: messageId },
+    });
+    if (!message) throw messageNotFound();
+
+    const { conversation, participant } = await this.participationOrNotFound(
+      actor,
+      message.conversationId,
+    );
+    const viewer = {
+      sharesReadReceipts: participant.user.shareReadReceipts,
+      userId: actor.sub,
+    };
+    const recipients = conversation.participants.filter(
+      (entry) =>
+        entry.status === ParticipantStatus.ACTIVE &&
+        entry.userId !== message.senderId &&
+        entry.joinedAt <= message.createdAt,
+    );
+
+    const result: MessageReaders = { notSeen: [], notShared: [], seen: [] };
+    const seenIds: string[] = [];
+    for (const entry of recipients) {
+      const person = { fullName: entry.user.fullName, userId: entry.userId };
+      if (
+        !readPositionVisible(viewer, {
+          sharesReadReceipts: entry.user.shareReadReceipts,
+          userId: entry.userId,
+        })
+      ) {
+        result.notShared.push(person);
+      } else if (entry.lastReadSeq >= message.seq) {
+        seenIds.push(entry.userId);
+      } else {
+        result.notSeen.push(person);
+      }
+    }
+
+    if (seenIds.length > 0) {
+      const marks = await this.prisma.conversationReadMark.findMany({
+        orderBy: [{ readAt: 'asc' }, { seq: 'asc' }],
+        select: { readAt: true, userId: true },
+        where: {
+          conversationId: message.conversationId,
+          seq: { gte: message.seq },
+          userId: { in: seenIds },
+        },
+      });
+      const firstMark = new Map<string, Date>();
+      for (const mark of marks) {
+        if (!firstMark.has(mark.userId))
+          firstMark.set(mark.userId, mark.readAt);
+      }
+      for (const entry of recipients) {
+        if (seenIds.includes(entry.userId)) {
+          result.seen.push({
+            fullName: entry.user.fullName,
+            // null: read before the marks existed (messaging_read_receipts).
+            seenAt: firstMark.get(entry.userId) ?? null,
+            userId: entry.userId,
+          });
+        }
+      }
+      result.seen.sort(
+        (a, b) => (a.seenAt?.getTime() ?? 0) - (b.seenAt?.getTime() ?? 0),
+      );
+    }
+
+    return result;
   }
 
   // "Is typing", for the other ACTIVE participants; the calls less than 3 s

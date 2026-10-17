@@ -52,6 +52,7 @@ function participantRow(
     conversationId: CONVERSATION,
     id: `participant-${userId}`,
     joinedAt: new Date('2026-10-01T08:00:00Z'),
+    lastReadAt: null,
     lastReadSeq: 2,
     leftAt: null,
     mutedUntil: null,
@@ -64,6 +65,7 @@ function participantRow(
       fullName: userId,
       id: userId,
       role: UserRole.AFFILIATED_DOCTOR,
+      shareReadReceipts: true,
     },
     userId,
   };
@@ -175,6 +177,10 @@ function setup() {
       update: jest.fn((args: CreateArgs) =>
         Promise.resolve(stored(args.data as Partial<MessageWithDetails>)),
       ),
+    },
+    conversationReadMark: {
+      create: jest.fn().mockResolvedValue({}),
+      findMany: jest.fn().mockResolvedValue([]),
     },
     messageAck: { createMany: jest.fn().mockResolvedValue({ count: 1 }) },
     messageAttachment: {
@@ -326,8 +332,17 @@ describe('MessagesService.send', () => {
       where: { id: CONVERSATION },
     });
     expect(prisma.conversationParticipant.updateMany).toHaveBeenCalledWith({
-      data: { lastReadSeq: 6 },
+      data: { lastReadAt: expect.any(Date) as Date, lastReadSeq: 6 },
       where: { id: `participant-${ME}`, lastReadSeq: { lt: 6 } },
+    });
+    // The sender has read up to their message: a read mark at its date.
+    expect(prisma.conversationReadMark.create).toHaveBeenCalledWith({
+      data: {
+        conversationId: CONVERSATION,
+        readAt: expect.any(Date) as Date,
+        seq: 6,
+        userId: ME,
+      },
     });
     expect(created).toBe(true);
     expect(message).toMatchObject({ body: text, deleted: false, seq: 6 });
@@ -662,8 +677,16 @@ describe('MessagesService read positions', () => {
     const state = await service.markRead(actor, CONVERSATION, 50);
 
     expect(prisma.conversationParticipant.updateMany).toHaveBeenCalledWith({
-      data: { lastReadSeq: 5 },
+      data: { lastReadAt: expect.any(Date) as Date, lastReadSeq: 5 },
       where: { id: `participant-${ME}`, lastReadSeq: { lt: 5 } },
+    });
+    expect(prisma.conversationReadMark.create).toHaveBeenCalledWith({
+      data: {
+        conversationId: CONVERSATION,
+        readAt: expect.any(Date) as Date,
+        seq: 5,
+        userId: ME,
+      },
     });
     expect(state).toEqual({
       conversationId: CONVERSATION,
@@ -675,7 +698,7 @@ describe('MessagesService read positions', () => {
     expect(
       argOf<{ data: unknown }>(prisma.conversationParticipant.updateMany, 1)
         .data,
-    ).toEqual({ lastReadSeq: 2 });
+    ).toEqual({ lastReadAt: expect.any(Date) as Date, lastReadSeq: 2 });
   });
 
   it('sums the unread messages in SQL, muted conversations aside', async () => {
@@ -779,11 +802,19 @@ describe('MessagesService real-time events', () => {
     });
 
     await service.markRead(actor, CONVERSATION, 4);
-    expect(events.readUpdated).toHaveBeenCalledWith(CONVERSATION, ME, 4);
+    expect(events.readUpdated).toHaveBeenCalledWith(
+      CONVERSATION,
+      ME,
+      4,
+      expect.any(Date),
+    );
 
+    // Not moved: no mark, no event.
     prisma.conversationParticipant.updateMany.mockResolvedValue({ count: 0 });
+    prisma.conversationReadMark.create.mockClear();
     await service.markRead(actor, CONVERSATION, 2);
     expect(events.readUpdated).toHaveBeenCalledTimes(1);
+    expect(prisma.conversationReadMark.create).not.toHaveBeenCalled();
   });
 
   it('sends typing for an ACTIVE participant, never between blocked professionals', async () => {
@@ -972,6 +1003,137 @@ describe('MessagesService case discussions', () => {
     expect(caseRecord.recordView).toHaveBeenCalledWith(
       actor,
       caseParticipation.conversation,
+    );
+  });
+});
+
+describe('MessagesService.readers', () => {
+  const THIRD = 'user-third';
+  const sentAt = new Date('2026-10-17T14:00:00Z');
+
+  function groupParticipation(overrides: {
+    shares?: Record<string, boolean>;
+    lastReadSeq?: Record<string, number>;
+    joinedAt?: Record<string, Date>;
+  }): Participation {
+    const base = participation({ type: ConversationType.GROUP });
+    const rows = [ME, OTHER, THIRD].map((userId) => {
+      const row = participantRow(userId);
+      return {
+        ...row,
+        joinedAt: overrides.joinedAt?.[userId] ?? row.joinedAt,
+        lastReadSeq: overrides.lastReadSeq?.[userId] ?? 0,
+        user: {
+          ...row.user,
+          shareReadReceipts: overrides.shares?.[userId] ?? true,
+        },
+      };
+    });
+    return {
+      conversation: { ...base.conversation, participants: rows },
+      participant: rows[0],
+    };
+  }
+
+  function setupReaders(group: Participation) {
+    const context = setup();
+    context.conversations.getParticipation.mockResolvedValue(group);
+    context.prisma.message.findUnique.mockResolvedValue({
+      conversationId: CONVERSATION,
+      createdAt: sentAt,
+      id: 'message-6',
+      senderId: ME,
+      seq: 6,
+    });
+    return context;
+  }
+
+  it('lists who saw a message and when (their first mark that reaches it), and who did not, never the sender', async () => {
+    const { prisma, service } = setupReaders(
+      groupParticipation({ lastReadSeq: { [ME]: 6, [OTHER]: 8, [THIRD]: 5 } }),
+    );
+    prisma.conversationReadMark.findMany.mockResolvedValue([
+      { readAt: new Date('2026-10-17T14:32:00Z'), userId: OTHER },
+      { readAt: new Date('2026-10-17T15:10:00Z'), userId: OTHER },
+    ]);
+
+    const readers = await service.readers(actor, 'message-6');
+
+    expect(prisma.conversationReadMark.findMany).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: {
+          conversationId: CONVERSATION,
+          seq: { gte: 6 },
+          userId: { in: [OTHER] },
+        },
+      }),
+    );
+    expect(readers).toEqual({
+      notSeen: [{ fullName: THIRD, userId: THIRD }],
+      notShared: [],
+      seen: [
+        {
+          fullName: OTHER,
+          seenAt: new Date('2026-10-17T14:32:00Z'),
+          userId: OTHER,
+        },
+      ],
+    });
+  });
+
+  it('says "not shared" for whoever does not share read receipts, and for everyone when the caller does not', async () => {
+    const theirs = setupReaders(
+      groupParticipation({
+        lastReadSeq: { [OTHER]: 8 },
+        shares: { [OTHER]: false },
+      }),
+    );
+    expect(await theirs.service.readers(actor, 'message-6')).toMatchObject({
+      notShared: [{ userId: OTHER }],
+      seen: [],
+    });
+
+    const mine = setupReaders(
+      groupParticipation({
+        lastReadSeq: { [OTHER]: 8 },
+        shares: { [ME]: false },
+      }),
+    );
+    expect(await mine.service.readers(actor, 'message-6')).toEqual({
+      notSeen: [],
+      notShared: [
+        { fullName: OTHER, userId: OTHER },
+        { fullName: THIRD, userId: THIRD },
+      ],
+      seen: [],
+    });
+  });
+
+  it('leaves out those who joined after the message', async () => {
+    const { service } = setupReaders(
+      groupParticipation({
+        joinedAt: { [THIRD]: new Date('2026-10-17T15:00:00Z') },
+        lastReadSeq: { [THIRD]: 9 },
+      }),
+    );
+    const readers = await service.readers(actor, 'message-6');
+    expect(
+      [...readers.seen, ...readers.notSeen].map(({ userId }) => userId),
+    ).toEqual([OTHER]);
+  });
+
+  it('answers 404 outside the conversation (a case outside the scope included)', async () => {
+    const { conversations, prisma, service } = setup();
+    prisma.message.findUnique.mockResolvedValue({
+      conversationId: CONVERSATION,
+      createdAt: sentAt,
+      id: 'message-6',
+      senderId: ME,
+      seq: 6,
+    });
+    conversations.getParticipation.mockRejectedValue(new NotFoundException());
+    expect(codeOf(await errorOf(service.readers(actor, 'message-6')))).toBe(
+      'MESSAGE_NOT_FOUND',
     );
   });
 });

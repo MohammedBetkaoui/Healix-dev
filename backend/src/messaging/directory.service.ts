@@ -12,7 +12,12 @@ import { sanitizeTextInput } from '../common/utils/sanitize';
 import { PrismaService } from '../prisma/prisma.service';
 import { WorkspaceContextService } from '../workspaces/workspace-context.service';
 import { type DirectoryQueryDto } from './dto/directory.dto';
-import { cannotBlockSelf, recipientNotFound } from './messaging-errors';
+import {
+  cannotBlockSelf,
+  nothingToUpdate,
+  recipientNotFound,
+} from './messaging-errors';
+import { MessagingEvents } from './messaging-events';
 import { directKeyFor, MESSAGING_ROLES } from './messaging-rules';
 import {
   MessagingUsersService,
@@ -39,7 +44,14 @@ export type BlockView = {
 
 export type MessagingSettings = {
   discoverableByPeers: boolean;
+  // Reciprocal: see readPositionVisible.
+  shareReadReceipts: boolean;
 };
+
+const settingsSelect = {
+  discoverableByPeers: true,
+  shareReadReceipts: true,
+} satisfies Prisma.UserSelect;
 
 const contains = (value: string) => ({ contains: value });
 
@@ -50,6 +62,7 @@ export class DirectoryService {
     private readonly users: MessagingUsersService,
     private readonly auditLogs: AuditLogsService,
     private readonly workspaceContext: WorkspaceContextService,
+    private readonly events: MessagingEvents,
   ) {}
 
   // The colleagues a group of the caller can hold: verified, usable
@@ -249,20 +262,39 @@ export class DirectoryService {
     actor: AuthenticatedUserPayload,
   ): Promise<MessagingSettings> {
     return this.prisma.user.findUniqueOrThrow({
-      select: { discoverableByPeers: true },
+      select: settingsSelect,
       where: { id: actor.sub },
     });
   }
 
+  // The caller's own settings, one or both. Turning read receipts on or off
+  // changes what the participants of the caller's conversations see: they
+  // read them again.
   async updateSettings(
     actor: AuthenticatedUserPayload,
-    settings: MessagingSettings,
+    settings: Partial<MessagingSettings>,
   ): Promise<MessagingSettings> {
-    return this.prisma.user.update({
-      data: { discoverableByPeers: settings.discoverableByPeers },
-      select: { discoverableByPeers: true },
+    if (
+      settings.discoverableByPeers === undefined &&
+      settings.shareReadReceipts === undefined
+    ) {
+      throw nothingToUpdate();
+    }
+
+    const before = await this.getSettings(actor);
+    const saved = await this.prisma.user.update({
+      data: {
+        discoverableByPeers: settings.discoverableByPeers,
+        shareReadReceipts: settings.shareReadReceipts,
+      },
+      select: settingsSelect,
       where: { id: actor.sub },
     });
+
+    if (saved.shareReadReceipts !== before.shareReadReceipts) {
+      await this.events.readReceiptsChanged(actor.sub);
+    }
+    return saved;
   }
 
   private audit(
