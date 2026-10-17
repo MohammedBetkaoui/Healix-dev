@@ -1,7 +1,12 @@
-import { Injectable } from '@nestjs/common';
+import {
+  ForbiddenException,
+  Injectable,
+  NotFoundException,
+} from '@nestjs/common';
 import {
   ConversationType,
   type Message,
+  type Patient,
   ParticipantStatus,
   Prisma,
   WorkspaceMembershipStatus,
@@ -11,8 +16,14 @@ import { AuditLogsService } from '../audit-logs/audit-logs.service';
 import { type AuthenticatedUserPayload } from '../auth/types/authenticated-request.type';
 import { type RequestContext } from '../common/utils/request-context';
 import { sanitizeTextInput } from '../common/utils/sanitize';
+import { PatientAuditService } from '../patients/patient-audit.service';
+import { PatientsService } from '../patients/patients.service';
 import { PrismaService } from '../prisma/prisma.service';
 import { WorkspaceContextService } from '../workspaces/workspace-context.service';
+import {
+  caseScopeWhere,
+  groupWorkspaceMemberWhere,
+} from './conversation-access';
 import {
   type ConversationListStatus,
   type CreateConversationDto,
@@ -24,19 +35,23 @@ import { MessagingEvents } from './messaging-events';
 import { type LastMessageView, toLastMessageView } from './message-views';
 import {
   cannotMessageSelf,
+  caseAlreadyOpen,
   contactBlocked,
   conversationNotFound,
   conversationTypeNotAvailable,
   groupOnly,
+  invalidCaseMembers,
   invalidGroupMembers,
   invalidTitle,
   notPending,
   nothingToUpdate,
   ownerOnly,
   participantNotFound,
+  patientNotFound,
   recipientNotFound,
 } from './messaging-errors';
 import {
+  caseTitleFor,
   CONVERSATION_PAGE_LIMIT_DEFAULT,
   CONVERSATION_TITLE_MAX_LENGTH,
   type ConversationCursor,
@@ -52,17 +67,35 @@ import {
   toPeerProfile,
 } from './messaging-users.service';
 
-// The types of lot 1; the others are refused, and never listed.
+export { groupWorkspaceMemberWhere } from './conversation-access';
+
+// REFERRAL and SUPPORT (later lots) are refused, and never listed.
 export const AVAILABLE_CONVERSATION_TYPES: ConversationType[] = [
   ConversationType.DIRECT,
   ConversationType.GROUP,
+  ConversationType.CASE,
 ];
+
+// The patient of a CASE discussion, as its participants see it.
+const casePatientSelect = {
+  birthDate: true,
+  firstName: true,
+  firstNameAr: true,
+  id: true,
+  lastName: true,
+  lastNameAr: true,
+} satisfies Prisma.PatientSelect;
+
+export type CasePatientView = Prisma.PatientGetPayload<{
+  select: typeof casePatientSelect;
+}>;
 
 export const participantsInclude = {
   participants: {
     include: { user: { select: peerProfileSelect } },
     orderBy: [{ joinedAt: 'asc' }, { id: 'asc' }],
   },
+  patient: { select: casePatientSelect },
 } satisfies Prisma.ConversationInclude;
 
 export type ConversationWithParticipants = Prisma.ConversationGetPayload<{
@@ -104,6 +137,8 @@ export type ConversationView = {
   unreadCount: number;
   lastMessage: LastMessageView | null;
   participants: ConversationParticipantView[];
+  // CASE: the patient discussed.
+  patient: CasePatientView | null;
 };
 
 export type ConversationPage = {
@@ -134,24 +169,24 @@ function cursorWhere(
   };
 }
 
-// A group belongs to its workspace: a participant whose membership of that
-// workspace is no longer ACTIVE (removed, suspended) loses it, in reading as
-// in writing.
-export function groupWorkspaceMemberWhere(
-  userId: string,
-): Prisma.ConversationWhereInput {
-  return {
-    OR: [
-      { type: { not: ConversationType.GROUP } },
-      {
-        workspace: {
-          memberships: {
-            some: { status: WorkspaceMembershipStatus.ACTIVE, userId },
-          },
-        },
-      },
-    ],
-  };
+// Whether another discussion of this patient is open (not archived), the
+// patient's row locked first: the creations and reopenings of one patient's
+// discussions queue on it, so that only one stays open.
+export async function otherOpenCaseExists(
+  client: Prisma.TransactionClient,
+  patientId: string,
+  conversationId: string | null,
+): Promise<boolean> {
+  await client.$queryRaw`SELECT id FROM patients WHERE id = ${patientId} FOR UPDATE`;
+  const open = await client.conversation.count({
+    where: {
+      archivedAt: null,
+      patientId,
+      type: ConversationType.CASE,
+      ...(conversationId ? { id: { not: conversationId } } : {}),
+    },
+  });
+  return open > 0;
 }
 
 function listStatusWhere(
@@ -179,12 +214,16 @@ export class ConversationsService {
     private readonly auditLogs: AuditLogsService,
     private readonly crypto: MessageCrypto,
     private readonly events: MessagingEvents,
+    private readonly patients: PatientsService,
+    private readonly patientAudit: PatientAuditService,
   ) {}
 
   // The caller's participation, in one of the given statuses; 404 for anyone
-  // else, so that the conversation's existence is not revealed.
+  // else, so that the conversation's existence is not revealed. A CASE
+  // discussion also needs its patient still in the caller's scope: a doctor
+  // who leaves the establishment loses it, in reading as in writing.
   async getParticipation(
-    userId: string,
+    actor: AuthenticatedUserPayload,
     conversationId: string,
     statuses: ParticipantStatus[] = [ParticipantStatus.ACTIVE],
   ): Promise<Participation> {
@@ -193,23 +232,38 @@ export class ConversationsService {
       where: {
         AND: [
           { id: conversationId, type: { in: AVAILABLE_CONVERSATION_TYPES } },
-          groupWorkspaceMemberWhere(userId),
+          groupWorkspaceMemberWhere(actor.sub),
         ],
       },
     });
     const participant = conversation?.participants.find(
-      (entry) => entry.userId === userId,
+      (entry) => entry.userId === actor.sub,
     );
 
     if (
       !conversation ||
       !participant ||
-      !statuses.includes(participant.status)
+      !statuses.includes(participant.status) ||
+      (conversation.type === ConversationType.CASE &&
+        !(await this.hasPatientInScope(actor, conversation.patientId)))
     ) {
       throw conversationNotFound();
     }
 
     return { conversation, participant };
+  }
+
+  // The workspace whose patients the caller sees (the scope of
+  // PatientsService), null without one: the CASE discussions they may read.
+  async caseScopeWorkspaceId(
+    actor: AuthenticatedUserPayload,
+  ): Promise<string | null> {
+    try {
+      return (await this.patients.getPatientScope(actor)).workspaceId;
+    } catch (error) {
+      if (error instanceof ForbiddenException) return null;
+      throw error;
+    }
   }
 
   async list(
@@ -218,6 +272,7 @@ export class ConversationsService {
   ): Promise<ConversationPage> {
     const limit = query.limit ?? CONVERSATION_PAGE_LIMIT_DEFAULT;
     const cursor = query.cursor ? decodeCursor(query.cursor) : null;
+    const scopeWorkspaceId = await this.caseScopeWorkspaceId(actor);
     const rows = await this.prisma.conversation.findMany({
       include: participantsInclude,
       // MySQL sorts NULL last in descending order: conversations without a
@@ -230,6 +285,7 @@ export class ConversationsService {
           listStatusWhere(actor.sub, query.status ?? 'active'),
           groupWorkspaceMemberWhere(actor.sub),
           cursor ? cursorWhere(cursor) : {},
+          caseScopeWhere(scopeWorkspaceId),
         ],
       },
     });
@@ -257,7 +313,7 @@ export class ConversationsService {
     conversationId: string,
   ): Promise<ConversationView> {
     const { conversation } = await this.getParticipation(
-      actor.sub,
+      actor,
       conversationId,
       OPEN_STATUSES,
     );
@@ -279,6 +335,13 @@ export class ConversationsService {
           dto.participantIds ?? [],
           context,
         );
+      case ConversationType.CASE:
+        return this.openCase(
+          actor,
+          dto.patientId ?? '',
+          dto.participantIds ?? [],
+          context,
+        );
       default:
         throw conversationTypeNotAvailable();
     }
@@ -290,7 +353,7 @@ export class ConversationsService {
     dto: UpdateConversationDto,
   ): Promise<ConversationView> {
     const { conversation, participant } = await this.getParticipation(
-      actor.sub,
+      actor,
       conversationId,
     );
 
@@ -313,14 +376,20 @@ export class ConversationsService {
     }
 
     // Archiving is the conversation's, shared by its participants: the
-    // OWNER's decision for a group, either side's for a DIRECT. A new
-    // message brings it back.
+    // OWNER's decision for a group, any participant's for a DIRECT or a CASE.
+    // A new message brings it back. A patient has one open discussion: an
+    // archived one comes back only if no other was opened meanwhile.
     if (dto.archived !== undefined) {
       if (isGroup && !isOwner) throw ownerOnly();
       changes.archivedAt = dto.archived
         ? (conversation.archivedAt ?? new Date())
         : null;
     }
+    const reopensCase =
+      conversation.type === ConversationType.CASE &&
+      dto.archived === false &&
+      conversation.archivedAt !== null &&
+      conversation.patientId !== null;
 
     // Muting is the caller's own; a date already past unmutes.
     const mutedUntil =
@@ -331,6 +400,16 @@ export class ConversationsService {
           : new Date(dto.mutedUntil);
 
     await this.prisma.$transaction(async (transaction) => {
+      if (
+        reopensCase &&
+        (await otherOpenCaseExists(
+          transaction,
+          conversation.patientId as string,
+          conversation.id,
+        ))
+      ) {
+        throw caseAlreadyOpen();
+      }
       if (Object.keys(changes).length > 0) {
         await transaction.conversation.update({
           data: changes,
@@ -361,63 +440,87 @@ export class ConversationsService {
     context: RequestContext,
   ): Promise<ConversationView> {
     const { conversation, participant } = await this.getParticipation(
-      actor.sub,
+      actor,
       conversationId,
     );
 
-    if (conversation.type !== ConversationType.GROUP) throw groupOnly();
-    if (participant.role !== PARTICIPANT_ROLE.OWNER) throw ownerOnly();
+    // A group's members are its OWNER's to manage; any participant of a case
+    // discussion brings in colleagues of the patient's workspace.
+    const isCase = conversation.type === ConversationType.CASE;
+    if (conversation.type !== ConversationType.GROUP && !isCase) {
+      throw groupOnly();
+    }
+    if (!isCase && participant.role !== PARTICIPANT_ROLE.OWNER) {
+      throw ownerOnly();
+    }
 
     const memberIds = [...new Set(userIds)].filter((id) => id !== actor.sub);
-    await this.assertGroupMembers(conversation.workspaceId, memberIds);
+    if (isCase) {
+      await this.assertCaseMembers(conversation.workspaceId, memberIds);
+    } else {
+      await this.assertGroupMembers(conversation.workspaceId, memberIds);
+    }
 
-    const current = new Map(
-      conversation.participants.map((entry) => [entry.userId, entry]),
+    await this.prisma.$transaction((transaction) =>
+      this.join(transaction, conversation, memberIds, actor, context),
     );
-    const added = memberIds.filter(
-      (userId) => current.get(userId)?.status !== ParticipantStatus.ACTIVE,
-    );
-
-    await this.prisma.$transaction(async (transaction) => {
-      for (const userId of added) {
-        // A member who joins reads the history, with nothing unread.
-        await transaction.conversationParticipant.upsert({
-          create: {
-            conversationId: conversation.id,
-            lastReadSeq: conversation.lastSeq,
-            role: PARTICIPANT_ROLE.MEMBER,
-            status: ParticipantStatus.ACTIVE,
-            userId,
-          },
-          update: {
-            joinedAt: new Date(),
-            lastReadSeq: conversation.lastSeq,
-            leftAt: null,
-            role: PARTICIPANT_ROLE.MEMBER,
-            status: ParticipantStatus.ACTIVE,
-          },
-          where: {
-            conversationId_userId: { conversationId: conversation.id, userId },
-          },
-        });
-        await this.audit(
-          'CONVERSATION_MEMBER_ADDED',
-          actor,
-          conversation.id,
-          { memberId: userId },
-          context,
-          transaction,
-        );
-      }
-    });
-
     await this.events.conversationUpdated(conversation.id);
 
     return this.getOne(actor, conversationId);
   }
 
-  // The OWNER removes a member; any member removes themselves (leaves). An
-  // OWNER who leaves hands the group to its longest-standing member.
+  // Makes these users ACTIVE members; returns those who were not. A member
+  // who joins reads the history, with nothing unread.
+  private async join(
+    transaction: Prisma.TransactionClient,
+    conversation: ConversationWithParticipants,
+    userIds: string[],
+    actor: AuthenticatedUserPayload,
+    context: RequestContext,
+  ): Promise<string[]> {
+    const current = new Map(
+      conversation.participants.map((entry) => [entry.userId, entry]),
+    );
+    const added = [...new Set(userIds)].filter(
+      (userId) => current.get(userId)?.status !== ParticipantStatus.ACTIVE,
+    );
+
+    for (const userId of added) {
+      await transaction.conversationParticipant.upsert({
+        create: {
+          conversationId: conversation.id,
+          lastReadSeq: conversation.lastSeq,
+          role: PARTICIPANT_ROLE.MEMBER,
+          status: ParticipantStatus.ACTIVE,
+          userId,
+        },
+        update: {
+          joinedAt: new Date(),
+          lastReadSeq: conversation.lastSeq,
+          leftAt: null,
+          role: PARTICIPANT_ROLE.MEMBER,
+          status: ParticipantStatus.ACTIVE,
+        },
+        where: {
+          conversationId_userId: { conversationId: conversation.id, userId },
+        },
+      });
+      await this.audit(
+        'CONVERSATION_MEMBER_ADDED',
+        actor,
+        conversation.id,
+        { memberId: userId },
+        context,
+        transaction,
+      );
+    }
+
+    return added;
+  }
+
+  // The OWNER removes a member of a group; any member removes themselves
+  // (leaves), of a group or of a case discussion. An OWNER who leaves hands
+  // it to its longest-standing member.
   async removeParticipant(
     actor: AuthenticatedUserPayload,
     conversationId: string,
@@ -425,15 +528,19 @@ export class ConversationsService {
     context: RequestContext,
   ): Promise<{ id: string; status: ParticipantStatus } | ConversationView> {
     const { conversation, participant } = await this.getParticipation(
-      actor.sub,
+      actor,
       conversationId,
     );
-
-    if (conversation.type !== ConversationType.GROUP) throw groupOnly();
 
     const leaving = userId === actor.sub;
     const isOwner = participant.role === PARTICIPANT_ROLE.OWNER;
 
+    if (
+      conversation.type !== ConversationType.GROUP &&
+      !(conversation.type === ConversationType.CASE && leaving)
+    ) {
+      throw groupOnly();
+    }
     if (!leaving && !isOwner) throw ownerOnly();
 
     const target = conversation.participants.find(
@@ -491,7 +598,7 @@ export class ConversationsService {
     conversationId: string,
   ): Promise<ConversationView> {
     const { participant } = await this.getParticipation(
-      actor.sub,
+      actor,
       conversationId,
       OPEN_STATUSES,
     );
@@ -513,7 +620,7 @@ export class ConversationsService {
     conversationId: string,
   ): Promise<{ id: string; status: ParticipantStatus }> {
     const { participant } = await this.getParticipation(
-      actor.sub,
+      actor,
       conversationId,
       OPEN_STATUSES,
     );
@@ -724,11 +831,163 @@ export class ConversationsService {
     };
   }
 
+  // The discussion of a patient the caller has in scope: one open (not
+  // archived) per patient. The first call creates it, titled after the
+  // patient, in the patient's workspace; the next ones reopen it, adding the
+  // caller (and the colleagues asked) if they were not in. Concurrent calls
+  // queue on the patient's row: never two open discussions.
+  private async openCase(
+    actor: AuthenticatedUserPayload,
+    patientId: string,
+    participantIds: string[],
+    context: RequestContext,
+  ) {
+    const patient = await this.patientInScope(actor, patientId);
+    const workspaceId = patient.workspaceId as string;
+    const memberIds = [...new Set(participantIds)].filter(
+      (id) => id !== actor.sub,
+    );
+    if (memberIds.length > 0) {
+      await this.assertCaseMembers(workspaceId, memberIds);
+    }
+
+    const opened = await this.prisma.$transaction(async (transaction) => {
+      await otherOpenCaseExists(transaction, patient.id, null);
+      const existing = await transaction.conversation.findFirst({
+        include: participantsInclude,
+        orderBy: [{ createdAt: 'asc' }, { id: 'asc' }],
+        where: {
+          archivedAt: null,
+          patientId: patient.id,
+          type: ConversationType.CASE,
+        },
+      });
+
+      if (existing) {
+        const joined = await this.join(
+          transaction,
+          existing,
+          [actor.sub, ...memberIds],
+          actor,
+          context,
+        );
+        return { created: false, id: existing.id, joined };
+      }
+
+      const created = await transaction.conversation.create({
+        data: {
+          createdById: actor.sub,
+          participants: {
+            create: [
+              {
+                role: PARTICIPANT_ROLE.OWNER,
+                status: ParticipantStatus.ACTIVE,
+                userId: actor.sub,
+              },
+              ...memberIds.map((userId) => ({
+                role: PARTICIPANT_ROLE.MEMBER,
+                status: ParticipantStatus.ACTIVE,
+                userId,
+              })),
+            ],
+          },
+          patientId: patient.id,
+          title: caseTitleFor(patient),
+          type: ConversationType.CASE,
+          workspaceId,
+        },
+      });
+      return { created: true, id: created.id, joined: memberIds };
+    });
+
+    if (opened.created) {
+      // In the patient's audit trail, never the text: who opened it, with
+      // whom.
+      await this.patientAudit.log(
+        actor,
+        'CASE_CONVERSATION_CREATED',
+        opened.id,
+        {
+          participantIds: memberIds,
+          patientId: patient.id,
+        },
+      );
+    }
+    if (opened.created || opened.joined.length > 0) {
+      await this.events.conversationUpdated(opened.id);
+    }
+
+    return {
+      conversation: await this.getOne(actor, opened.id),
+      created: opened.created,
+    };
+  }
+
+  // getPatientInScope's rule, answered with the messaging's 404.
+  private async patientInScope(
+    actor: AuthenticatedUserPayload,
+    patientId: string,
+  ): Promise<Patient> {
+    try {
+      const patient = await this.patients.getPatientInScope(actor, patientId);
+      if (!patient.workspaceId) throw patientNotFound();
+      return patient;
+    } catch (error) {
+      if (
+        error instanceof NotFoundException ||
+        error instanceof ForbiddenException
+      ) {
+        throw patientNotFound();
+      }
+      throw error;
+    }
+  }
+
+  private async hasPatientInScope(
+    actor: AuthenticatedUserPayload,
+    patientId: string | null,
+  ): Promise<boolean> {
+    if (!patientId) return false;
+    try {
+      await this.patientInScope(actor, patientId);
+      return true;
+    } catch (error) {
+      if (error instanceof NotFoundException) return false;
+      throw error;
+    }
+  }
+
   private async assertGroupMembers(
     workspaceId: string | null,
     memberIds: string[],
   ): Promise<void> {
-    if (!workspaceId || memberIds.length === 0) throw invalidGroupMembers();
+    if (
+      memberIds.length === 0 ||
+      !(await this.areWorkspaceMembers(workspaceId, memberIds))
+    ) {
+      throw invalidGroupMembers();
+    }
+  }
+
+  // The colleagues brought into a patient's discussion: verified
+  // professionals with an ACTIVE membership of the patient's workspace.
+  private async assertCaseMembers(
+    workspaceId: string | null,
+    memberIds: string[],
+  ): Promise<void> {
+    if (
+      memberIds.length === 0 ||
+      !(await this.areWorkspaceMembers(workspaceId, memberIds))
+    ) {
+      throw invalidCaseMembers();
+    }
+  }
+
+  private async areWorkspaceMembers(
+    workspaceId: string | null,
+    memberIds: string[],
+  ): Promise<boolean> {
+    if (!workspaceId) return false;
 
     const eligible = await this.prisma.user.count({
       where: {
@@ -744,7 +1003,7 @@ export class ConversationsService {
       },
     });
 
-    if (eligible !== memberIds.length) throw invalidGroupMembers();
+    return eligible === memberIds.length;
   }
 
   private readTitle(value: string): string {
@@ -837,6 +1096,10 @@ export class ConversationsService {
             userId: entry.userId,
           };
         }),
+      patient:
+        conversation.type === ConversationType.CASE
+          ? conversation.patient
+          : null,
       title: conversation.title,
       type: conversation.type,
       unreadCount: Math.max(0, conversation.lastSeq - me.lastReadSeq),

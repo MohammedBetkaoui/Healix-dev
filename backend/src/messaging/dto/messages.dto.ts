@@ -1,5 +1,8 @@
 import { Type } from 'class-transformer';
 import {
+  ArrayMaxSize,
+  ArrayUnique,
+  IsArray,
   IsBoolean,
   IsEnum,
   IsInt,
@@ -14,6 +17,7 @@ import {
 import { MessagePriority } from '@prisma/client';
 
 import {
+  ATTACHMENTS_PER_MESSAGE_MAX,
   MESSAGE_PAGE_LIMIT_DEFAULT,
   MESSAGE_PAGE_LIMIT_MAX,
 } from '../messaging-rules';
@@ -22,15 +26,15 @@ import {
 // this bound only stops oversized payloads early.
 const RAW_BODY_MAX_LENGTH = 20_000;
 
-// POST /messaging/conversations/:id/messages. No attachment in lot 1: any
-// other field, attachmentIds included, is refused by the ValidationPipe.
+// POST /messaging/conversations/:id/messages. Any other field is refused by
+// the ValidationPipe.
 export class SendMessageDto {
   // Chosen by the client: sending it again returns the same message.
   @IsUUID()
   clientMessageId!: string;
 
+  // Empty only with attachments (checked by the service).
   @IsString()
-  @IsNotEmpty()
   @MaxLength(RAW_BODY_MAX_LENGTH)
   body!: string;
 
@@ -38,10 +42,20 @@ export class SendMessageDto {
   @IsEnum(MessagePriority)
   priority?: MessagePriority;
 
-  // Refused with ACK_NOT_AVAILABLE until lot 4.
+  // With priority URGENT only (ACK_REQUIRES_URGENT otherwise).
   @IsOptional()
   @IsBoolean()
   requiresAck?: boolean;
+
+  // Files uploaded beforehand to this conversation by the sender.
+  @IsOptional()
+  @IsArray()
+  @ArrayMaxSize(ATTACHMENTS_PER_MESSAGE_MAX)
+  @ArrayUnique()
+  @IsString({ each: true })
+  @IsNotEmpty({ each: true })
+  @MaxLength(64, { each: true })
+  attachmentIds?: string[];
 
   @IsOptional()
   @IsString()
@@ -87,4 +101,13 @@ export class MarkReadDto {
   @IsInt()
   @Min(0)
   seq!: number;
+}
+
+// POST /messaging/messages/:id/file-to-record. The comment is checked again
+// after normalization (1,000 characters at most).
+export class FileToRecordDto {
+  @IsOptional()
+  @IsString()
+  @MaxLength(5_000)
+  comment?: string;
 }

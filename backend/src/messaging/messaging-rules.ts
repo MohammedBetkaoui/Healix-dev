@@ -4,6 +4,7 @@
 import { BadRequestException } from '@nestjs/common';
 
 import { UserRole } from '../common/enums/user-role.enum';
+import { sanitizeOriginalFileName } from '../common/utils/file-name.util';
 import { sanitizeTextInput } from '../common/utils/sanitize';
 
 // The professionals who use the messaging (the controllers' @Roles).
@@ -120,4 +121,104 @@ export function nextReadSeq(
   lastSeq: number,
 ): number {
   return Math.max(current, Math.min(requested, lastSeq));
+}
+
+// --- Case discussions --------------------------------------------------------
+
+export const MESSAGING_TIME_ZONE = 'Africa/Algiers';
+export const CLINICAL_NOTE_COMMENT_MAX_LENGTH = 1_000;
+
+// "Cas — BENALI Amina": the default title of a patient's discussion.
+export function caseTitleFor(patient: {
+  firstName: string;
+  lastName: string;
+}): string {
+  const title = `Cas — ${patient.lastName.toLocaleUpperCase('fr')} ${patient.firstName}`;
+  return Array.from(title).slice(0, CONVERSATION_TITLE_MAX_LENGTH).join('');
+}
+
+const dayFormat = new Intl.DateTimeFormat('en-CA', {
+  day: '2-digit',
+  month: '2-digit',
+  timeZone: MESSAGING_TIME_ZONE,
+  year: 'numeric',
+});
+
+// The day of an instant in Algiers (YYYY-MM-DD), as a DATE column takes it:
+// MESSAGES_VIEWED is written once per such day.
+export function viewDayOf(instant: Date): Date {
+  return new Date(`${dayFormat.format(instant)}T00:00:00.000Z`);
+}
+
+// What a message files to the patient record: its text, then one line per
+// attachment (the files themselves stay in the conversation).
+export function filedContentOf(
+  body: string | null,
+  attachmentNames: string[],
+): string {
+  return [
+    ...(body ? [body] : []),
+    ...attachmentNames.map((name) => `[Pièce jointe : ${name}]`),
+  ].join('\n');
+}
+
+// --- Attachments ---------------------------------------------------------------
+
+export const ATTACHMENT_MAX_BYTES = 10 * 1024 * 1024;
+export const ATTACHMENTS_PER_MESSAGE_MAX = 5;
+// An attachment never sent is deleted after this.
+export const UNSENT_ATTACHMENT_TTL_MS = 24 * 60 * 60_000;
+
+export type AttachmentMimeType = 'application/pdf' | 'image/jpeg' | 'image/png';
+
+export const ATTACHMENT_MIME_TYPES: readonly AttachmentMimeType[] = [
+  'application/pdf',
+  'image/jpeg',
+  'image/png',
+];
+
+const PNG_SIGNATURE = Buffer.from([
+  0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a,
+]);
+const JPEG_SIGNATURE = Buffer.from([0xff, 0xd8, 0xff]);
+const PDF_SIGNATURE = Buffer.from('%PDF-', 'latin1');
+
+// The type of a file read from its first bytes: neither its name nor the
+// type the browser declared count. null for anything else (an executable
+// named .png, an HTML page, an SVG...).
+export function detectAttachmentType(
+  content: Buffer,
+): AttachmentMimeType | null {
+  const startsWith = (signature: Buffer) =>
+    content.length >= signature.length &&
+    content.subarray(0, signature.length).equals(signature);
+
+  if (startsWith(PDF_SIGNATURE)) return 'application/pdf';
+  if (startsWith(PNG_SIGNATURE)) return 'image/png';
+  if (startsWith(JPEG_SIGNATURE)) return 'image/jpeg';
+  return null;
+}
+
+const EXTENSIONS: Record<AttachmentMimeType, string[]> = {
+  'application/pdf': ['.pdf'],
+  'image/jpeg': ['.jpg', '.jpeg'],
+  'image/png': ['.png'],
+};
+
+// The name shown and downloaded: cleaned of path characters, and ending
+// with the extension of the type found in the content ("scan.exe" holding a
+// PDF becomes "scan.pdf").
+export function attachmentNameOf(
+  originalName: string,
+  mimeType: AttachmentMimeType,
+): string {
+  const cleaned = sanitizeOriginalFileName(originalName);
+  const allowed = EXTENSIONS[mimeType];
+  // Letters and digits after the last dot only: "..-..-etc-passwd" has none.
+  const found = /\.[A-Za-z0-9]{1,10}$/.exec(cleaned)?.[0] ?? '';
+
+  if (allowed.includes(found.toLowerCase())) return cleaned;
+
+  const stem = found ? cleaned.slice(0, -found.length) : cleaned;
+  return `${stem || 'document'}${allowed[0]}`;
 }

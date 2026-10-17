@@ -70,6 +70,7 @@ describe('DashboardService.getOverview (queries)', () => {
       groupBy: jest.fn().mockResolvedValue([]),
     },
     doctorProfile: { count: jest.fn().mockResolvedValue(0) },
+    message: { count: jest.fn().mockResolvedValue(0) },
     patient: { count: jest.fn().mockResolvedValue(0) },
   } as unknown as PrismaService;
   const service = new DashboardService(

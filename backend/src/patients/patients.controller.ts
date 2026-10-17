@@ -198,6 +198,15 @@ export class PatientsController {
     return this.patientsService.createAiAnalysis(user, id, dto);
   }
 
+  // Opinions filed from the case discussions (messaging, lot 4).
+  @Get(':id/clinical-notes')
+  listClinicalNotes(
+    @CurrentUser() user: AuthenticatedUserPayload,
+    @Param('id') id: string,
+  ) {
+    return this.patientsService.listClinicalNotes(user, id);
+  }
+
   @Get(':id/audit-log')
   listAuditLog(
     @CurrentUser() user: AuthenticatedUserPayload,

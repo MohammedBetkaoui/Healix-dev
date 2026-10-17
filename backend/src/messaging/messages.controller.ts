@@ -23,8 +23,10 @@ import { ThrottlePerUser } from '../common/guards/app-throttler.guard';
 import { RolesGuard } from '../common/guards/roles.guard';
 import { VerifiedAccountGuard } from '../common/guards/verified-account.guard';
 import { getRequestContext } from '../common/utils/request-context';
+import { CaseRecordService } from './case-record.service';
 import {
   EditMessageDto,
+  FileToRecordDto,
   ListMessagesQueryDto,
   MarkReadDto,
   SendMessageDto,
@@ -38,7 +40,10 @@ import { MESSAGING_ROLES } from './messaging-rules';
 @UseGuards(JwtAuthGuard, RolesGuard, VerifiedAccountGuard)
 @Roles(...MESSAGING_ROLES)
 export class MessagesController {
-  constructor(private readonly messagesService: MessagesService) {}
+  constructor(
+    private readonly messagesService: MessagesService,
+    private readonly caseRecordService: CaseRecordService,
+  ) {}
 
   @Get('conversations/:id/messages')
   list(
@@ -107,5 +112,34 @@ export class MessagesController {
     @Req() request: Request,
   ) {
     return this.messagesService.remove(user, id, getRequestContext(request));
+  }
+
+  // The acknowledgement of an urgent message, by a recipient; idempotent.
+  @Post('messages/:id/ack')
+  @HttpCode(HttpStatus.OK)
+  ack(
+    @CurrentUser() user: AuthenticatedUserPayload,
+    @Param('id') id: string,
+    @Req() request: Request,
+  ) {
+    return this.messagesService.ack(user, id, getRequestContext(request));
+  }
+
+  // CASE: the message copied to the patient record. 201 with the new note,
+  // 200 with the one this message already gave.
+  @Post('messages/:id/file-to-record')
+  async fileToRecord(
+    @CurrentUser() user: AuthenticatedUserPayload,
+    @Param('id') id: string,
+    @Body() dto: FileToRecordDto,
+    @Res({ passthrough: true }) response: Response,
+  ) {
+    const { note, created } = await this.caseRecordService.fileToRecord(
+      user,
+      id,
+      dto.comment,
+    );
+    response.status(created ? HttpStatus.CREATED : HttpStatus.OK);
+    return note;
   }
 }

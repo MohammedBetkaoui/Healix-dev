@@ -1,6 +1,7 @@
 import { randomBytes } from 'node:crypto';
 
 import {
+  FILE_HEADER_LENGTH,
   IV_LENGTH,
   MessageCrypto,
   MessageDecryptionError,
@@ -142,6 +143,58 @@ describe('MessageCrypto', () => {
         'k1',
         CONVERSATION,
       ),
+    ).toThrow(MessageDecryptionError);
+  });
+});
+
+describe('MessageCrypto files', () => {
+  const crypto = MessageCrypto.fromEnv(
+    `k1:${randomBytes(32).toString('base64')}`,
+  );
+  const file = randomBytes(70_000);
+
+  function decrypt(stored: Buffer, keyId: string, context: string): Buffer {
+    const decipher = crypto.createFileDecipher(
+      stored.subarray(0, FILE_HEADER_LENGTH),
+      keyId,
+      context,
+    );
+    return Buffer.concat([
+      decipher.update(stored.subarray(FILE_HEADER_LENGTH)),
+      decipher.final(),
+    ]);
+  }
+
+  it('encrypts a file, never in clear, and decrypts it as a stream would', () => {
+    const { data, keyId } = crypto.encryptBytes(file, 'attachment-1');
+
+    expect(keyId).toBe('k1');
+    expect(data.length).toBe(FILE_HEADER_LENGTH + file.length);
+    expect(data.includes(file.subarray(0, 64))).toBe(false);
+    expect(decrypt(data, keyId, 'attachment-1').equals(file)).toBe(true);
+  });
+
+  it('refuses a file copied over another attachment, or altered', () => {
+    const { data, keyId } = crypto.encryptBytes(file, 'attachment-1');
+
+    expect(() => decrypt(data, keyId, 'attachment-2')).toThrow();
+
+    const altered = Buffer.from(data);
+    altered[FILE_HEADER_LENGTH + 10] ^= 0xff;
+    expect(() => decrypt(altered, keyId, 'attachment-1')).toThrow();
+  });
+
+  it('refuses an unknown key or a short header', () => {
+    const { data } = crypto.encryptBytes(file, 'attachment-1');
+    expect(() =>
+      crypto.createFileDecipher(
+        data.subarray(0, FILE_HEADER_LENGTH),
+        'k9',
+        'attachment-1',
+      ),
+    ).toThrow(MessageDecryptionError);
+    expect(() =>
+      crypto.createFileDecipher(data.subarray(0, 10), 'k1', 'attachment-1'),
     ).toThrow(MessageDecryptionError);
   });
 });

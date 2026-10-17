@@ -1,13 +1,20 @@
 import { randomBytes } from 'node:crypto';
 
-import { type HttpException } from '@nestjs/common';
+import {
+  ForbiddenException,
+  type HttpException,
+  NotFoundException,
+} from '@nestjs/common';
 import { ConversationType, ParticipantStatus, Prisma } from '@prisma/client';
 
 import { type AuditLogsService } from '../audit-logs/audit-logs.service';
+import { type PatientAuditService } from '../patients/patient-audit.service';
+import { type PatientsService } from '../patients/patients.service';
 import { type AuthenticatedUserPayload } from '../auth/types/authenticated-request.type';
 import { UserRole } from '../common/enums/user-role.enum';
 import { type PrismaService } from '../prisma/prisma.service';
 import { type WorkspaceContextService } from '../workspaces/workspace-context.service';
+import { caseScopeWhere } from './conversation-access';
 import {
   type ConversationWithParticipants,
   ConversationsService,
@@ -82,6 +89,7 @@ function conversation(
     lastMessageAt: null,
     lastSeq: 0,
     participants,
+    patient: null,
     patientId: null,
     title: null,
     type: ConversationType.DIRECT,
@@ -134,8 +142,11 @@ const codeOf = (error: HttpException) =>
 
 function setup() {
   const prisma = {
+    // The lock on a patient's row (case discussions).
+    $queryRaw: jest.fn().mockResolvedValue([]),
     $transaction: jest.fn(),
     conversation: {
+      count: jest.fn().mockResolvedValue(0),
       create: jest.fn(),
       findFirst: jest.fn(),
       findMany: jest.fn(),
@@ -182,6 +193,13 @@ function setup() {
     readUpdated: jest.fn().mockResolvedValue(undefined),
     typing: jest.fn().mockResolvedValue(true),
   };
+  const patients = {
+    getPatientInScope: jest.fn(),
+    getPatientScope: jest
+      .fn()
+      .mockResolvedValue({ where: {}, workspaceId: 'workspace-a' }),
+  };
+  const patientAudit = { log: jest.fn().mockResolvedValue(undefined) };
   const service = new ConversationsService(
     prisma as unknown as PrismaService,
     users as unknown as MessagingUsersService,
@@ -189,11 +207,15 @@ function setup() {
     auditLogs as unknown as AuditLogsService,
     crypto,
     events as unknown as MessagingEvents,
+    patients as unknown as PatientsService,
+    patientAudit as unknown as PatientAuditService,
   );
   return {
     auditLogs,
     crypto,
     events,
+    patientAudit,
+    patients,
     prisma,
     service,
     users,
@@ -385,17 +407,16 @@ describe('ConversationsService', () => {
     });
   });
 
-  it.each([
-    ConversationType.CASE,
-    ConversationType.REFERRAL,
-    ConversationType.SUPPORT,
-  ])('refuses %s conversations in lot 1', async (type) => {
-    const { prisma, service } = setup();
-    const error = await errorOf(service.create(actor, { type }, context));
-    expect(error.getStatus()).toBe(400);
-    expect(codeOf(error)).toBe('CONVERSATION_TYPE_NOT_AVAILABLE');
-    expect(prisma.conversation.create).not.toHaveBeenCalled();
-  });
+  it.each([ConversationType.REFERRAL, ConversationType.SUPPORT])(
+    'refuses %s conversations (later lots)',
+    async (type) => {
+      const { prisma, service } = setup();
+      const error = await errorOf(service.create(actor, { type }, context));
+      expect(error.getStatus()).toBe(400);
+      expect(codeOf(error)).toBe('CONVERSATION_TYPE_NOT_AVAILABLE');
+      expect(prisma.conversation.create).not.toHaveBeenCalled();
+    },
+  );
 
   describe('GROUP creation', () => {
     const groupDto = (title: string, participantIds = [OTHER, THIRD]) => ({
@@ -527,7 +548,10 @@ describe('ConversationsService', () => {
         argOf<{ where: unknown }>(prisma.conversation.findFirst).where,
       ).toEqual({
         AND: [
-          { id: 'conversation-1', type: { in: ['DIRECT', 'GROUP'] } },
+          {
+            id: 'conversation-1',
+            type: { in: ['DIRECT', 'GROUP', 'CASE'] },
+          },
           {
             OR: [
               { type: { not: 'GROUP' } },
@@ -931,6 +955,195 @@ describe('ConversationsService', () => {
       expect(events.conversationUpdated).toHaveBeenLastCalledWith(
         'conversation-1',
       );
+    });
+  });
+
+  describe('CASE discussions', () => {
+    const PATIENT = {
+      birthDate: new Date('1980-05-01T00:00:00Z'),
+      firstName: 'Amina',
+      firstNameAr: 'أمينة',
+      id: 'patient-1',
+      lastName: 'Benali',
+      lastNameAr: 'بن علي',
+      workspaceId: 'workspace-a',
+    };
+    const caseDto = (participantIds?: string[]) => ({
+      participantIds,
+      patientId: 'patient-1',
+      type: ConversationType.CASE,
+    });
+
+    function caseConversation(
+      participants: ParticipantRow[] = [
+        participant(ME, { role: 'OWNER' }),
+        participant(OTHER),
+      ],
+      overrides: Partial<ConversationWithParticipants> = {},
+    ) {
+      return conversation(
+        {
+          directKey: null,
+          patient: {
+            birthDate: PATIENT.birthDate,
+            firstName: PATIENT.firstName,
+            firstNameAr: PATIENT.firstNameAr,
+            id: PATIENT.id,
+            lastName: PATIENT.lastName,
+            lastNameAr: PATIENT.lastNameAr,
+          },
+          patientId: 'patient-1',
+          title: 'Cas — BENALI Amina',
+          type: ConversationType.CASE,
+          workspaceId: 'workspace-a',
+          ...overrides,
+        },
+        participants,
+      );
+    }
+
+    it('answers PATIENT_NOT_FOUND for a patient outside the caller scope', async () => {
+      const { patients, prisma, service } = setup();
+      patients.getPatientInScope.mockRejectedValue(
+        new NotFoundException('Patient introuvable.'),
+      );
+
+      const error = await errorOf(service.create(actor, caseDto(), context));
+
+      expect(error.getStatus()).toBe(404);
+      expect(codeOf(error)).toBe('PATIENT_NOT_FOUND');
+      expect(prisma.conversation.create).not.toHaveBeenCalled();
+    });
+
+    it('creates the patient discussion in its workspace, titled after the patient, traced in the patient audit', async () => {
+      const { patientAudit, patients, prisma, service } = setup();
+      patients.getPatientInScope.mockResolvedValue(PATIENT);
+      prisma.user.count.mockResolvedValue(1);
+      prisma.conversation.findFirst
+        .mockResolvedValueOnce(null)
+        .mockResolvedValue(caseConversation());
+      prisma.conversation.create.mockResolvedValue({ id: 'conversation-1' });
+
+      const { conversation: view, created } = await service.create(
+        actor,
+        caseDto([OTHER]),
+        context,
+      );
+
+      expect(created).toBe(true);
+      // The patient's row is locked before looking for an open discussion.
+      expect(prisma.$queryRaw).toHaveBeenCalled();
+      expect(argOf<CreateArgs>(prisma.conversation.create).data).toMatchObject({
+        participants: {
+          create: [
+            { role: 'OWNER', status: 'ACTIVE', userId: ME },
+            { role: 'MEMBER', status: 'ACTIVE', userId: OTHER },
+          ],
+        },
+        patientId: 'patient-1',
+        title: 'Cas — BENALI Amina',
+        type: 'CASE',
+        workspaceId: 'workspace-a',
+      });
+      expect(patientAudit.log).toHaveBeenCalledWith(
+        actor,
+        'CASE_CONVERSATION_CREATED',
+        'conversation-1',
+        { participantIds: [OTHER], patientId: 'patient-1' },
+      );
+      expect(view.patient).toMatchObject({
+        id: 'patient-1',
+        lastNameAr: 'بن علي',
+      });
+    });
+
+    it('reopens the open discussion of the patient rather than a second one, adding the caller', async () => {
+      const { patientAudit, patients, prisma, service } = setup();
+      patients.getPatientInScope.mockResolvedValue(PATIENT);
+      prisma.conversation.findFirst
+        .mockResolvedValueOnce(
+          caseConversation([participant(OTHER, { role: 'OWNER' })]),
+        )
+        .mockResolvedValue(caseConversation());
+
+      const { created } = await service.create(actor, caseDto(), context);
+
+      expect(created).toBe(false);
+      expect(prisma.conversation.create).not.toHaveBeenCalled();
+      expect(prisma.conversationParticipant.upsert).toHaveBeenCalledWith(
+        expect.objectContaining({
+          create: expect.objectContaining({
+            status: 'ACTIVE',
+            userId: ME,
+          }) as unknown,
+        }),
+      );
+      expect(patientAudit.log).not.toHaveBeenCalled();
+    });
+
+    it('refuses colleagues outside the patient workspace', async () => {
+      const { patients, prisma, service } = setup();
+      patients.getPatientInScope.mockResolvedValue(PATIENT);
+      prisma.user.count.mockResolvedValue(0);
+
+      const error = await errorOf(
+        service.create(actor, caseDto([THIRD]), context),
+      );
+
+      expect(codeOf(error)).toBe('INVALID_CASE_MEMBERS');
+      expect(prisma.conversation.create).not.toHaveBeenCalled();
+    });
+
+    it('is closed, in reading as in writing, to a participant who no longer has its patient in scope', async () => {
+      const { patients, prisma, service } = setup();
+      prisma.conversation.findFirst.mockResolvedValue(caseConversation());
+
+      patients.getPatientInScope.mockResolvedValue(PATIENT);
+      await expect(
+        service.getOne(actor, 'conversation-1'),
+      ).resolves.toMatchObject({ id: 'conversation-1' });
+
+      patients.getPatientInScope.mockRejectedValue(
+        new NotFoundException('Patient introuvable.'),
+      );
+      const error = await errorOf(service.getOne(actor, 'conversation-1'));
+      expect(codeOf(error)).toBe('CONVERSATION_NOT_FOUND');
+      const writing = await errorOf(
+        service.update(actor, 'conversation-1', { archived: true }),
+      );
+      expect(codeOf(writing)).toBe('CONVERSATION_NOT_FOUND');
+    });
+
+    it('lists the case discussions of the caller scope only, none without a workspace', async () => {
+      const { patients, prisma, service } = setup();
+      prisma.conversation.findMany.mockResolvedValue([]);
+
+      await service.list(actor, {});
+      expect(
+        argOf<FindManyArgs>(prisma.conversation.findMany).where.AND[4],
+      ).toEqual(caseScopeWhere('workspace-a'));
+
+      patients.getPatientScope.mockRejectedValue(new ForbiddenException());
+      await service.list(actor, {});
+      expect(
+        argOf<FindManyArgs>(prisma.conversation.findMany, 1).where.AND[4],
+      ).toEqual({ OR: [{ type: { not: 'CASE' } }] });
+    });
+
+    it('keeps one open discussion per patient: an archived one does not come back over another', async () => {
+      const { patients, prisma, service } = setup();
+      patients.getPatientInScope.mockResolvedValue(PATIENT);
+      prisma.conversation.findFirst.mockResolvedValue(
+        caseConversation(undefined, { archivedAt: new Date() }),
+      );
+      prisma.conversation.count.mockResolvedValue(1);
+
+      const error = await errorOf(
+        service.update(actor, 'conversation-1', { archived: false }),
+      );
+
+      expect(codeOf(error)).toBe('CASE_ALREADY_OPEN');
+      expect(prisma.conversation.update).not.toHaveBeenCalled();
     });
   });
 });

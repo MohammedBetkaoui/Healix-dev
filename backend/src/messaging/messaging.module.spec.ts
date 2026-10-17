@@ -1,14 +1,21 @@
 import { randomBytes } from 'node:crypto';
 
-import { ConfigService } from '@nestjs/config';
+import { ConfigModule, ConfigService } from '@nestjs/config';
 import { Test } from '@nestjs/testing';
 
 import { PrismaService } from '../prisma/prisma.service';
 import { MessageCrypto, MessagingKeysError } from './message-crypto';
 import { MessagingModule } from './messaging.module';
 
+// ConfigModule is global in the application (AppModule), as here: the
+// patients' services read it too.
 function compileWith(messagingKeys: string | undefined) {
-  return Test.createTestingModule({ imports: [MessagingModule] })
+  return Test.createTestingModule({
+    imports: [
+      ConfigModule.forRoot({ ignoreEnvFile: true, isGlobal: true }),
+      MessagingModule,
+    ],
+  })
     .overrideProvider(PrismaService)
     .useValue({})
     .overrideProvider(ConfigService)

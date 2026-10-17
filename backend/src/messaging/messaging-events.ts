@@ -30,7 +30,8 @@ type RecipientOptions = {
 // The real-time events of the messaging, sent once the write is committed,
 // to the participants of the conversation read again from the database:
 // ACTIVE ones, PENDING ones too (the recipient of a request), and for a group
-// only those still ACTIVE members of its workspace. The other sockets of the
+// or a case discussion only those still ACTIVE members of its workspace (the
+// patient's, for a case). The other sockets of the
 // author receive them too (another tab, another device), except typing.
 // Identifiers only, never a text. A failure is logged: it never undoes nor
 // fails the write.
@@ -146,7 +147,13 @@ export class MessagingEvents {
       where: {
         conversationId,
         OR: [
-          { conversation: { type: { not: ConversationType.GROUP } } },
+          {
+            conversation: {
+              type: {
+                notIn: [ConversationType.GROUP, ConversationType.CASE],
+              },
+            },
+          },
           {
             user: {
               workspaceMemberships: {

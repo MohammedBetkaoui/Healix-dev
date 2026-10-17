@@ -1,5 +1,5 @@
 import { Logger } from '@nestjs/common';
-import { type Message } from '@prisma/client';
+import { type Message, type Prisma } from '@prisma/client';
 
 import { MessageCrypto, MessageDecryptionError } from './message-crypto';
 import { previewOf } from './messaging-rules';
@@ -71,6 +71,44 @@ export function toLastMessageView(
   };
 }
 
+// What a message view needs besides the message: its files, its
+// acknowledgements, whether it was filed to the patient record.
+export const messageDetailsInclude = {
+  acks: {
+    include: { user: { select: { fullName: true } } },
+    orderBy: [{ ackedAt: 'asc' }, { id: 'asc' }],
+  },
+  attachments: {
+    orderBy: [{ createdAt: 'asc' }, { id: 'asc' }],
+    select: {
+      id: true,
+      mimeType: true,
+      originalName: true,
+      patientDocumentId: true,
+      sizeBytes: true,
+    },
+  },
+  clinicalNotes: { select: { id: true } },
+} satisfies Prisma.MessageInclude;
+
+export type MessageWithDetails = Prisma.MessageGetPayload<{
+  include: typeof messageDetailsInclude;
+}>;
+
+export type AttachmentView = {
+  id: string;
+  originalName: string;
+  mimeType: string;
+  sizeBytes: number;
+  // A document of the patient record, shared without copy (CASE).
+  fromRecord: boolean;
+};
+
+export type AckView = { userId: string; fullName: string; ackedAt: Date };
+
+// A participant of the conversation, for the acknowledgements still due.
+export type RecipientView = { userId: string; fullName: string };
+
 export type MessageView = {
   id: string;
   conversationId: string;
@@ -80,8 +118,8 @@ export type MessageView = {
   // optimistic copy; null for the other participants.
   clientMessageId: string | null;
   kind: Message['kind'];
-  // null once deleted (deleted: true) or when it cannot be decrypted
-  // (bodyUnavailable: true).
+  // null once deleted (deleted: true), when it cannot be decrypted
+  // (bodyUnavailable: true), or for files sent without text (ATTACHMENT).
   body: string | null;
   deleted: boolean;
   bodyUnavailable: boolean;
@@ -90,15 +128,32 @@ export type MessageView = {
   replyToId: string | null;
   editedAt: Date | null;
   createdAt: Date;
+  attachments: AttachmentView[];
+  // requiresAck: who acknowledged it, and the ACTIVE recipients who have not
+  // yet. Empty otherwise.
+  acks: AckView[];
+  ackedByMe: boolean;
+  pendingAck: RecipientView[];
+  // CASE: copied to the patient record ("verser au dossier").
+  filedToRecord: boolean;
+};
+
+export type MessageViewOptions = {
+  // The text just written, not decrypted again.
+  knownBody?: string;
+  // The ACTIVE participants of the conversation: the recipients of an
+  // acknowledgement are those of them other than the sender.
+  participants?: RecipientView[];
 };
 
 // The text is decrypted only when the message is not deleted: a deleted
-// message stays encrypted in the database, for the audit, and is never sent.
+// message stays encrypted in the database, for the audit, and is never sent,
+// nor are its files.
 export function toMessageView(
   crypto: MessageCrypto,
-  message: Message,
+  message: MessageWithDetails,
   viewerId: string,
-  knownBody?: string,
+  { knownBody, participants = [] }: MessageViewOptions = {},
 ): MessageView {
   const deleted = message.deletedAt !== null;
   const body = deleted
@@ -106,8 +161,28 @@ export function toMessageView(
     : knownBody !== undefined
       ? { text: knownBody, unavailable: false }
       : readBody(crypto, message);
+  const tracked = message.requiresAck && !deleted;
+  const acks = tracked
+    ? message.acks.map((ack) => ({
+        ackedAt: ack.ackedAt,
+        fullName: ack.user.fullName,
+        userId: ack.userId,
+      }))
+    : [];
+  const acked = new Set(acks.map(({ userId }) => userId));
 
   return {
+    ackedByMe: acked.has(viewerId),
+    acks,
+    attachments: deleted
+      ? []
+      : message.attachments.map((attachment) => ({
+          fromRecord: attachment.patientDocumentId !== null,
+          id: attachment.id,
+          mimeType: attachment.mimeType,
+          originalName: attachment.originalName,
+          sizeBytes: attachment.sizeBytes,
+        })),
     body: body.text,
     bodyUnavailable: body.unavailable,
     clientMessageId:
@@ -116,8 +191,14 @@ export function toMessageView(
     createdAt: message.createdAt,
     deleted,
     editedAt: message.editedAt,
+    filedToRecord: message.clinicalNotes.length > 0,
     id: message.id,
     kind: message.kind,
+    pendingAck: tracked
+      ? participants.filter(
+          ({ userId }) => userId !== message.senderId && !acked.has(userId),
+        )
+      : [],
     priority: message.priority,
     replyToId: message.replyToId,
     requiresAck: message.requiresAck,
