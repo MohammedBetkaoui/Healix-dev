@@ -257,15 +257,25 @@ describe("realtimeUrl", () => {
     env.NEXT_PUBLIC_API_URL = saved.api;
   });
 
-  it("is the same origin in production", () => {
+  it("is the API's origin in production too", () => {
     env.NODE_ENV = "production";
+    // Behind Caddy: the page's own origin.
     env.NEXT_PUBLIC_API_URL = "https://healix.example.dz/api";
-    expect(realtimeUrl()).toBeUndefined();
+    expect(realtimeUrl()).toBe("https://healix.example.dz");
+    // A build served on its own port, the API on another: not the page's.
+    env.NEXT_PUBLIC_API_URL = "http://localhost:3001/api";
+    expect(realtimeUrl()).toBe("http://localhost:3001");
   });
 
   it("is the API's origin in development", () => {
     env.NODE_ENV = "development";
     env.NEXT_PUBLIC_API_URL = "http://localhost:3001/api";
     expect(realtimeUrl()).toBe("http://localhost:3001");
+  });
+
+  it("is the page's origin for a relative API URL", () => {
+    env.NODE_ENV = "production";
+    env.NEXT_PUBLIC_API_URL = "/api";
+    expect(realtimeUrl()).toBeUndefined();
   });
 });
