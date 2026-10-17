@@ -19,6 +19,7 @@ import {
   type Participation,
 } from './conversations.service';
 import { MessageCrypto } from './message-crypto';
+import { type MessagingEvents } from './messaging-events';
 import { MessagesController } from './messages.controller';
 import { MessagesService } from './messages.service';
 import {
@@ -152,7 +153,7 @@ function setup() {
     conversation: { update: jest.fn() },
     conversationParticipant: {
       findUniqueOrThrow: jest.fn(),
-      updateMany: jest.fn(),
+      updateMany: jest.fn().mockResolvedValue({ count: 1 }),
     },
     message: {
       count: jest.fn().mockResolvedValue(1),
@@ -179,14 +180,33 @@ function setup() {
       .mockResolvedValue({ blockedByMe: false, blockedMe: false }),
   };
   const auditLogs = { createAuditLog: jest.fn() };
+  const events = {
+    conversationUpdated: jest.fn().mockResolvedValue(undefined),
+    conversationUpdatedFor: jest.fn(),
+    messageCreated: jest.fn().mockResolvedValue(undefined),
+    messageDeleted: jest.fn().mockResolvedValue(undefined),
+    messageUpdated: jest.fn().mockResolvedValue(undefined),
+    readUpdated: jest.fn().mockResolvedValue(undefined),
+    typing: jest.fn().mockResolvedValue(true),
+  };
   const service = new MessagesService(
     prisma as unknown as PrismaService,
     conversations as unknown as ConversationsService,
     users as unknown as MessagingUsersService,
     auditLogs as unknown as AuditLogsService,
     crypto,
+    events as unknown as MessagingEvents,
   );
-  return { auditLogs, conversations, crypto, prisma, service, stored, users };
+  return {
+    auditLogs,
+    conversations,
+    crypto,
+    events,
+    prisma,
+    service,
+    stored,
+    users,
+  };
 }
 
 const sendDto = (body = 'Bonjour, avis sur ce cas ?') => ({
@@ -636,6 +656,9 @@ describe('MessagesService read positions', () => {
     expect(sql).toContain('SUM(c.last_seq - p.last_read_seq)');
     expect(sql).toContain("p.status IN ('ACTIVE', 'PENDING')");
     expect(sql).toContain('p.muted_until <= UTC_TIMESTAMP(3)');
+    // A group counts only for an ACTIVE member of its workspace.
+    expect(sql).toContain("c.type <> 'GROUP' OR EXISTS");
+    expect(sql).toContain("m.status = 'ACTIVE'");
   });
 });
 
@@ -653,5 +676,116 @@ describe('MessagesController', () => {
     expect(Reflect.getMetadata(GUARDS_METADATA, MessagesController)).toContain(
       VerifiedAccountGuard,
     );
+  });
+
+  it('limits typing to 20 calls per minute, counted per user', () => {
+    const typing = Object.getOwnPropertyDescriptor(
+      MessagesController.prototype,
+      'typing',
+    )?.value as object;
+    expect(Reflect.getMetadata('THROTTLER:LIMITdefault', typing)).toBe(20);
+    expect(Reflect.getMetadata('THROTTLER:TTLdefault', typing)).toBe(60_000);
+    expect(
+      Reflect.getMetadata('THROTTLER:TRACKERdefault', typing),
+    ).toBeUndefined();
+  });
+});
+
+describe('MessagesService real-time events', () => {
+  it('announces a new message after its transaction, identifiers only', async () => {
+    const { events, prisma, service } = setup();
+
+    await service.send(actor, CONVERSATION, sendDto());
+
+    expect(events.messageCreated).toHaveBeenCalledWith(CONVERSATION, 6);
+    expect(prisma.$transaction.mock.invocationCallOrder[0]).toBeLessThan(
+      events.messageCreated.mock.invocationCallOrder[0],
+    );
+  });
+
+  it('announces nothing for a message sent again, nor for a refused one', async () => {
+    const { conversations, events, prisma, service, stored } = setup();
+    const dto = sendDto();
+    prisma.message.findUnique.mockResolvedValueOnce(
+      stored({ clientMessageId: dto.clientMessageId }),
+    );
+    await service.send(actor, CONVERSATION, dto);
+
+    conversations.getParticipation.mockResolvedValue(
+      participation({ mine: ParticipantStatus.PENDING }),
+    );
+    await errorOf(service.send(actor, CONVERSATION, sendDto()));
+
+    expect(events.messageCreated).not.toHaveBeenCalled();
+  });
+
+  it('announces an edit and a deletion, a second deletion no more', async () => {
+    const { events, prisma, service, stored } = setup();
+    prisma.message.findUnique.mockResolvedValue(stored());
+
+    await service.edit(actor, 'message-6', { body: 'Corrigé' }, context);
+    await service.remove(actor, 'message-6', context);
+    prisma.message.findUnique.mockResolvedValue(
+      stored({ deletedAt: new Date() }),
+    );
+    await service.remove(actor, 'message-6', context);
+
+    expect(events.messageUpdated).toHaveBeenCalledWith(
+      CONVERSATION,
+      'message-6',
+    );
+    expect(events.messageDeleted).toHaveBeenCalledTimes(1);
+  });
+
+  it('announces a read position only when it moved', async () => {
+    const { events, prisma, service } = setup();
+    prisma.conversationParticipant.findUniqueOrThrow.mockResolvedValue({
+      conversation: { lastSeq: 5 },
+      lastReadSeq: 4,
+    });
+
+    await service.markRead(actor, CONVERSATION, 4);
+    expect(events.readUpdated).toHaveBeenCalledWith(CONVERSATION, ME, 4);
+
+    prisma.conversationParticipant.updateMany.mockResolvedValue({ count: 0 });
+    await service.markRead(actor, CONVERSATION, 2);
+    expect(events.readUpdated).toHaveBeenCalledTimes(1);
+  });
+
+  it('sends typing for an ACTIVE participant, never between blocked professionals', async () => {
+    const { conversations, events, service, users } = setup();
+
+    await service.typing(actor, CONVERSATION);
+    expect(events.typing).toHaveBeenCalledWith(CONVERSATION, ME);
+    expect(conversations.getParticipation).toHaveBeenLastCalledWith(
+      ME,
+      CONVERSATION,
+    );
+
+    users.blockRelation.mockResolvedValue({
+      blockedByMe: false,
+      blockedMe: true,
+    });
+    await service.typing(actor, CONVERSATION);
+    expect(events.typing).toHaveBeenCalledTimes(1);
+
+    // A group has no block rule.
+    conversations.getParticipation.mockResolvedValue(
+      participation({ type: ConversationType.GROUP }),
+    );
+    await service.typing(actor, CONVERSATION);
+    expect(events.typing).toHaveBeenCalledTimes(2);
+  });
+
+  it('refuses typing to a non-participant (404)', async () => {
+    const { conversations, events, service } = setup();
+    conversations.getParticipation.mockRejectedValue(
+      Object.assign(new Error('not found'), { status: 404 }),
+    );
+
+    await expect(service.typing(actor, CONVERSATION)).rejects.toThrow(
+      'not found',
+    );
+    expect(events.typing).not.toHaveBeenCalled();
   });
 });

@@ -647,4 +647,96 @@ describeWithDatabase('messaging against a database', () => {
       expect(colleague.conversation.id).toBeTruthy();
     });
   });
+
+  describe('a group outside its workspace', () => {
+    it('is closed to a member suspended from, then removed from, the workspace', async () => {
+      const conversationId = await teamA('Équipe hors espace');
+      await sendAs(actors.doctorA1, conversationId, 'Réunion à 14 h');
+      const membership = await prisma.workspaceMembership.findFirstOrThrow({
+        where: { userId: actors.doctorA2.sub },
+      });
+
+      const closed = async () => {
+        expect(
+          (
+            await errorOf(conversations.getOne(actors.doctorA2, conversationId))
+          ).getStatus(),
+        ).toBe(404);
+        expect(
+          (
+            await errorOf(messages.list(actors.doctorA2, conversationId, {}))
+          ).getStatus(),
+        ).toBe(404);
+        expect(
+          (
+            await errorOf(
+              sendAs(actors.doctorA2, conversationId, 'Toujours là ?'),
+            )
+          ).getStatus(),
+        ).toBe(404);
+        expect(
+          (
+            await errorOf(messages.markRead(actors.doctorA2, conversationId, 1))
+          ).getStatus(),
+        ).toBe(404);
+        const listed = await conversations.list(actors.doctorA2, {});
+        expect(listed.items.map(({ id }) => id)).not.toContain(conversationId);
+      };
+
+      // Readable while a member.
+      await expect(
+        messages.list(actors.doctorA2, conversationId, {}),
+      ).resolves.toMatchObject({ items: [{ body: 'Réunion à 14 h' }] });
+      const unreadAsMember = await messages.unreadCount(actors.doctorA2);
+
+      await prisma.workspaceMembership.update({
+        data: { status: 'SUSPENDED' },
+        where: { id: membership.id },
+      });
+      await closed();
+      // The badge no longer counts the groups of workspace A, this one's
+      // unread message included; only DIRECT conversations remain.
+      const unreadSuspended = await messages.unreadCount(actors.doctorA2);
+      expect(unreadSuspended.total).toBeLessThanOrEqual(
+        unreadAsMember.total - 1,
+      );
+      const directUnread = await prisma.conversationParticipant.findMany({
+        select: {
+          conversation: { select: { lastSeq: true } },
+          lastReadSeq: true,
+        },
+        where: {
+          conversation: { type: 'DIRECT' },
+          OR: [{ mutedUntil: null }, { mutedUntil: { lte: new Date() } }],
+          status: { in: ['ACTIVE', 'PENDING'] },
+          userId: actors.doctorA2.sub,
+        },
+      });
+      expect(unreadSuspended.total).toBe(
+        directUnread.reduce(
+          (sum, entry) => sum + entry.conversation.lastSeq - entry.lastReadSeq,
+          0,
+        ),
+      );
+
+      await prisma.workspaceMembership.delete({ where: { id: membership.id } });
+      await closed();
+
+      // Back in the workspace: the group opens again.
+      await prisma.workspaceMembership.create({
+        data: {
+          role: membership.role,
+          userId: membership.userId,
+          workspaceId: membership.workspaceId,
+        },
+      });
+      await expect(
+        conversations.getOne(actors.doctorA2, conversationId),
+      ).resolves.toMatchObject({ id: conversationId });
+      // The members who stayed keep it.
+      await expect(
+        conversations.getOne(actors.doctorA1, conversationId),
+      ).resolves.toMatchObject({ id: conversationId });
+    });
+  });
 });

@@ -38,6 +38,7 @@ import {
 import { DoctorsService } from '../doctors/doctors.service';
 import { EstablishmentsService } from '../establishments/establishments.service';
 import { PrismaService } from '../prisma/prisma.service';
+import { RealtimeService } from '../realtime/realtime.service';
 import { UsersService } from '../users/users.service';
 import { WorkspaceService } from '../workspaces/workspace.service';
 import { LoginDto, type LoginAccountType } from './dto/login.dto';
@@ -169,6 +170,7 @@ export class AuthService {
     private readonly workspaceService: WorkspaceService,
     private readonly jwtService: JwtService,
     configService: ConfigService,
+    private readonly realtime: RealtimeService,
   ) {
     this.saltRounds = this.parseSaltRounds(
       configService.get<string>('BCRYPT_SALT_ROUNDS'),
@@ -398,6 +400,8 @@ export class AuthService {
     this.clearAuthCookies(response);
 
     if (userId) {
+      // Every socket of the user: a socket is not tied to one session.
+      await this.realtime.disconnectUser(userId);
       await this.auditLogsService.logLogout({
         userId,
         ipAddress: context.ipAddress,

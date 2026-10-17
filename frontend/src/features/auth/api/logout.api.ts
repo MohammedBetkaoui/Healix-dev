@@ -1,4 +1,5 @@
 import { apiClient } from "@/lib/api/http-client";
+import { stopRealtime } from "@/lib/realtime/realtime-client";
 
 import { type LogoutResponse } from "../types/login.types";
 
@@ -10,6 +11,9 @@ async function clearLocalAuthCookies() {
 }
 
 export async function logout(): Promise<LogoutResponse> {
+  // The server closes the sockets too; this stops any reconnection.
+  stopRealtime();
+
   try {
     const response = await apiClient.post<LogoutResponse>("/auth/logout");
     await clearLocalAuthCookies();

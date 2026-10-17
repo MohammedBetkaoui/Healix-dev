@@ -13,6 +13,7 @@ import {
   passwordResetRequestEmail,
 } from '../../mail/templates/password-reset.templates';
 import { type PrismaService } from '../../prisma/prisma.service';
+import { type RealtimeService } from '../../realtime/realtime.service';
 import { type AuthService } from '../auth.service';
 import { RegisterIndependentDoctorDto } from '../dto/register-independent-doctor.dto';
 import { PasswordResetCleanupScheduler } from './password-reset-cleanup.scheduler';
@@ -206,11 +207,13 @@ function setup(
     }),
   };
   const auth = { hashPassword: (password: string) => bcrypt.hash(password, 4) };
+  const realtime = { disconnectUser: jest.fn().mockResolvedValue(undefined) };
   const service = new ServiceClass(
     database.prisma as unknown as PrismaService,
     auth as unknown as AuthService,
     audit as unknown as AuditLogsService,
     mail as unknown as MailService,
+    realtime as unknown as RealtimeService,
   );
 
   const addUser = (user: Partial<UserRow> & { email: string; id: string }) => {
@@ -234,7 +237,16 @@ function setup(
     return match[1];
   };
 
-  return { ...database, addUser, audits, mail, sent, service, tokenFromMail };
+  return {
+    ...database,
+    addUser,
+    audits,
+    mail,
+    realtime,
+    sent,
+    service,
+    tokenFromMail,
+  };
 }
 
 const context = { ipAddress: '203.0.113.7', userAgent: 'jest' };
@@ -478,8 +490,16 @@ describe('POST /auth/reset-password', () => {
   }
 
   it('changes the password, hashed like at registration, and closes every session', async () => {
-    const { audits, refreshTokens, sent, service, token, tokens, user } =
-      await requested();
+    const {
+      audits,
+      realtime,
+      refreshTokens,
+      sent,
+      service,
+      token,
+      tokens,
+      user,
+    } = await requested();
 
     await expect(
       service.resetPassword({ password: NEW_PASSWORD, token }, context),
@@ -505,6 +525,8 @@ describe('POST /auth/reset-password', () => {
       userId: 'valid',
     });
     expect(JSON.stringify(completed)).not.toContain(token);
+    // Its real-time sockets too.
+    expect(realtime.disconnectUser).toHaveBeenCalledWith('valid');
     // Confirmation e-mail.
     expect(sent.at(-1)).toMatchObject({
       subject: 'Votre mot de passe HealixDz a été modifié',

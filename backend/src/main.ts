@@ -1,6 +1,7 @@
 import { ValidationPipe } from '@nestjs/common';
 import { NestFactory } from '@nestjs/core';
 import { type NestExpressApplication } from '@nestjs/platform-express';
+import { IoAdapter } from '@nestjs/platform-socket.io';
 import cookieParser from 'cookie-parser';
 import { AppModule } from './app.module';
 import { readCorsOptions } from './common/utils/cors';
@@ -17,6 +18,8 @@ async function bootstrap() {
   // Chromium there.
   app.enableShutdownHooks();
   app.setGlobalPrefix('api');
+  // Real-time notifications on the same HTTP server, at /api/realtime.
+  app.useWebSocketAdapter(new IoAdapter(app));
   app.set('trust proxy', trustProxy);
   if (cors) {
     app.enableCors(cors);

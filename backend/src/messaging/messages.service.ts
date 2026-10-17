@@ -22,6 +22,7 @@ import {
   type SendMessageDto,
 } from './dto/messages.dto';
 import { MessageCrypto } from './message-crypto';
+import { MessagingEvents } from './messaging-events';
 import { type MessageView, toMessageView } from './message-views';
 import {
   ackNotAvailable,
@@ -96,6 +97,7 @@ export class MessagesService {
     private readonly users: MessagingUsersService,
     private readonly auditLogs: AuditLogsService,
     private readonly crypto: MessageCrypto,
+    private readonly events: MessagingEvents,
   ) {}
 
   // A PENDING recipient reads the request before answering it.
@@ -208,6 +210,7 @@ export class MessagesService {
         });
         return created;
       });
+      await this.events.messageCreated(conversationId, message.seq);
 
       return {
         created: true,
@@ -265,6 +268,7 @@ export class MessagesService {
       await this.audit('MESSAGE_EDITED', actor, saved, context, transaction);
       return saved;
     });
+    await this.events.messageUpdated(updated.conversationId, updated.id);
 
     return toMessageView(this.crypto, updated, actor.sub, body);
   }
@@ -290,6 +294,7 @@ export class MessagesService {
       await this.audit('MESSAGE_DELETED', actor, saved, context, transaction);
       return saved;
     });
+    await this.events.messageDeleted(deleted.conversationId, deleted.id);
 
     return toMessageView(this.crypto, deleted, actor.sub);
   }
@@ -312,10 +317,11 @@ export class MessagesService {
     );
 
     // Conditional: a concurrent, further read is never moved back.
-    await this.prisma.conversationParticipant.updateMany({
-      data: { lastReadSeq: target },
-      where: { id: participant.id, lastReadSeq: { lt: target } },
-    });
+    const { count: moved } =
+      await this.prisma.conversationParticipant.updateMany({
+        data: { lastReadSeq: target },
+        where: { id: participant.id, lastReadSeq: { lt: target } },
+      });
     const saved = await this.prisma.conversationParticipant.findUniqueOrThrow({
       select: {
         conversation: { select: { lastSeq: true } },
@@ -324,6 +330,14 @@ export class MessagesService {
       where: { id: participant.id },
     });
 
+    if (moved > 0) {
+      await this.events.readUpdated(
+        conversationId,
+        actor.sub,
+        saved.lastReadSeq,
+      );
+    }
+
     return {
       conversationId,
       lastReadSeq: saved.lastReadSeq,
@@ -331,8 +345,36 @@ export class MessagesService {
     };
   }
 
+  // "Is typing", for the other ACTIVE participants; the calls less than 3 s
+  // apart are ignored (MessagingEvents). Nothing between two professionals
+  // of whom one blocked the other.
+  async typing(
+    actor: AuthenticatedUserPayload,
+    conversationId: string,
+  ): Promise<void> {
+    const { conversation } = await this.conversations.getParticipation(
+      actor.sub,
+      conversationId,
+    );
+
+    if (conversation.type === ConversationType.DIRECT) {
+      const other = conversation.participants.find(
+        (entry) => entry.userId !== actor.sub,
+      );
+      const blocks = other
+        ? await this.users.blockRelation(actor.sub, other.userId)
+        : null;
+      if (!blocks || blocks.blockedMe || blocks.blockedByMe) {
+        return;
+      }
+    }
+
+    await this.events.typing(conversationId, actor.sub);
+  }
+
   // The badge of the menu: lastSeq - lastReadSeq summed in SQL over the
-  // caller's conversations, muted ones aside.
+  // caller's conversations, muted ones aside, and the groups of a workspace
+  // the caller is no longer an ACTIVE member of (as groupWorkspaceMemberWhere).
   async unreadCount(actor: AuthenticatedUserPayload): Promise<UnreadCount> {
     const [row] = await this.prisma.$queryRaw<
       { total: unknown; conversations: unknown }[]
@@ -345,7 +387,12 @@ export class MessagesService {
         AND p.status IN ('ACTIVE', 'PENDING')
         AND c.type IN ('DIRECT', 'GROUP')
         AND c.last_seq > p.last_read_seq
-        AND (p.muted_until IS NULL OR p.muted_until <= UTC_TIMESTAMP(3))`;
+        AND (p.muted_until IS NULL OR p.muted_until <= UTC_TIMESTAMP(3))
+        AND (c.type <> 'GROUP' OR EXISTS (
+          SELECT 1 FROM workspace_memberships m
+          WHERE m.workspace_id = c.workspace_id
+            AND m.user_id = p.user_id
+            AND m.status = 'ACTIVE'))`;
 
     return {
       conversations: Number(row?.conversations ?? 0),

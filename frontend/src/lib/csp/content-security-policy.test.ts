@@ -2,6 +2,7 @@ import {
   buildContentSecurityPolicy,
   createNonce,
   originOf,
+  websocketOriginOf,
 } from "./content-security-policy";
 
 function directives(policy: string): Map<string, string[]> {
@@ -45,12 +46,47 @@ describe("buildContentSecurityPolicy", () => {
     expect(parsed.get("connect-src")).toEqual(["'self'"]);
   });
 
-  it("lets the browser reach an API served from another origin", () => {
+  it("lets the browser reach an API served from another origin, and its real-time socket", () => {
     const parsed = directives(
       buildContentSecurityPolicy({ ...production, apiOrigin: "http://localhost:3001" }),
     );
 
-    expect(parsed.get("connect-src")).toEqual(["'self'", "http://localhost:3001"]);
+    expect(parsed.get("connect-src")).toEqual([
+      "'self'",
+      "http://localhost:3001",
+      "ws://localhost:3001",
+    ]);
+  });
+
+  it("allows the real-time socket of the site over wss:// in production", () => {
+    const parsed = directives(
+      buildContentSecurityPolicy({ ...production, apiOrigin: "https://healix.example.dz" }),
+    );
+
+    expect(parsed.get("connect-src")).toEqual([
+      "'self'",
+      "https://healix.example.dz",
+      "wss://healix.example.dz",
+    ]);
+  });
+
+  it("adds ws://localhost:3001 with next dev, next to the hot-reload socket", () => {
+    const parsed = directives(
+      buildContentSecurityPolicy({
+        apiOrigin: "http://localhost:3001",
+        development: true,
+        nonce: "abc123==",
+        secure: false,
+      }),
+    );
+
+    expect(parsed.get("connect-src")).toEqual([
+      "'self'",
+      "http://localhost:3001",
+      "ws://localhost:3001",
+      "ws:",
+      "wss:",
+    ]);
   });
 
   it("upgrades insecure requests only when served over HTTPS", () => {
@@ -84,5 +120,13 @@ describe("originOf", () => {
     expect(originOf(undefined)).toBeNull();
     expect(originOf("/api")).toBeNull();
     expect(originOf("not a url")).toBeNull();
+  });
+});
+
+describe("websocketOriginOf", () => {
+  it("turns the API origin into the WebSocket one", () => {
+    expect(websocketOriginOf("https://healix.example.dz")).toBe("wss://healix.example.dz");
+    expect(websocketOriginOf("http://localhost:3001")).toBe("ws://localhost:3001");
+    expect(websocketOriginOf(null)).toBeNull();
   });
 });

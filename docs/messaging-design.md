@@ -229,6 +229,49 @@ INSERT INTO messages (..., seq) VALUES (..., last_seq);
 5. **Lot 5 — télé-expertise entre espaces** : demande d'avis, partage explicite d'un résumé et de documents choisis, consentement patient `TELEEXPERTISE`, accès limité dans le temps et révocable, compte rendu d'avis. Une analyse d'impact est à faire avant.
 6. **Plus tard** : Redis pour plusieurs instances du backend, e-mails récapitulatifs, recherche plein texte (index séparé), canal support.
 
+## 10. État des lots
+
+Mis à jour le 2026-10-17.
+
+**Lot 1 — socle backend : fait** (fusionné dans `main`).
+- Schéma et migration `messaging_core`, chiffrement AES-256-GCM
+  (`MESSAGING_KEYS`).
+- Conversations DIRECT et GROUP, demandes de contact.
+- Messages avec `seq` et `clientMessageId`, lecture et non-lus.
+- Annuaire, blocages, throttler, audit.
+
+Écarts et précisions par rapport aux sections 4 et 5 :
+- clés étrangères sur toutes les références ;
+- route `DELETE /conversations/:id/participants/:userId` ;
+- routes ajoutées : `GET /blocks`, `GET/PATCH /settings`
+  (`discoverableByPeers`) ;
+- un refus de demande passe le destinataire en `LEFT` ;
+- un blocage passe la demande en attente en `BLOCKED`.
+
+Ajouté après la revue du lot 1 : un GROUP n'est accessible qu'aux membres
+`ACTIVE` de son espace.
+
+**Lot 2 — temps réel : fait** (branche `feat/messaging-realtime`).
+- Passerelle Socket.IO `/api/realtime`, transport WebSocket seul.
+- Contrôles à la connexion, dans cet ordre : `Origin`, cookie, compte.
+- Fermetures : à l'expiration du jeton, déconnexion forcée
+  (`disconnectUser`), limite de 5 sockets par utilisateur.
+- Événements émis après la validation de la transaction ; `typing` limité à
+  un toutes les 3 s.
+- Côté navigateur : client avec refresh sur `token_expired`, invalidation
+  des requêtes TanStack Query, rattrapage `afterSeq`, CSP.
+
+Précisions :
+- l'auteur d'un événement le reçoit aussi sur ses autres onglets et
+  appareils, sauf `typing` ;
+- une mise en sourdine ne prévient que son auteur ;
+- `read.updated` est envoyé à tous les participants (les accusés de lecture
+  du lot 3 s'en servent) ;
+- le client n'est encore monté dans aucune page : l'interface Messages
+  (lot 3) appellera `useRealtimeEvents` et `registerOpenConversation`.
+
+**Lots 3 à 5 : à faire.**
+
 ## Sources
 
 - NHS England, *Instant messaging services a vital part of the NHS toolkit during a crisis* (2018) : https://www.england.nhs.uk/2018/11/instant-messaging-services-a-vital-part-of-the-nhs-toolkit-during-a-crisis/

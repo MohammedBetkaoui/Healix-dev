@@ -20,6 +20,7 @@ import {
   type UpdateConversationDto,
 } from './dto/conversations.dto';
 import { MessageCrypto } from './message-crypto';
+import { MessagingEvents } from './messaging-events';
 import { type LastMessageView, toLastMessageView } from './message-views';
 import {
   cannotMessageSelf,
@@ -133,6 +134,26 @@ function cursorWhere(
   };
 }
 
+// A group belongs to its workspace: a participant whose membership of that
+// workspace is no longer ACTIVE (removed, suspended) loses it, in reading as
+// in writing.
+export function groupWorkspaceMemberWhere(
+  userId: string,
+): Prisma.ConversationWhereInput {
+  return {
+    OR: [
+      { type: { not: ConversationType.GROUP } },
+      {
+        workspace: {
+          memberships: {
+            some: { status: WorkspaceMembershipStatus.ACTIVE, userId },
+          },
+        },
+      },
+    ],
+  };
+}
+
 function listStatusWhere(
   userId: string,
   status: ConversationListStatus,
@@ -157,6 +178,7 @@ export class ConversationsService {
     private readonly workspaceContext: WorkspaceContextService,
     private readonly auditLogs: AuditLogsService,
     private readonly crypto: MessageCrypto,
+    private readonly events: MessagingEvents,
   ) {}
 
   // The caller's participation, in one of the given statuses; 404 for anyone
@@ -169,8 +191,10 @@ export class ConversationsService {
     const conversation = await this.prisma.conversation.findFirst({
       include: participantsInclude,
       where: {
-        id: conversationId,
-        type: { in: AVAILABLE_CONVERSATION_TYPES },
+        AND: [
+          { id: conversationId, type: { in: AVAILABLE_CONVERSATION_TYPES } },
+          groupWorkspaceMemberWhere(userId),
+        ],
       },
     });
     const participant = conversation?.participants.find(
@@ -204,6 +228,7 @@ export class ConversationsService {
         AND: [
           { type: query.type ?? { in: AVAILABLE_CONVERSATION_TYPES } },
           listStatusWhere(actor.sub, query.status ?? 'active'),
+          groupWorkspaceMemberWhere(actor.sub),
           cursor ? cursorWhere(cursor) : {},
         ],
       },
@@ -320,6 +345,12 @@ export class ConversationsService {
       }
     });
 
+    if (Object.keys(changes).length > 0) {
+      await this.events.conversationUpdated(conversation.id);
+    } else {
+      this.events.conversationUpdatedFor([actor.sub], conversation.id);
+    }
+
     return this.getOne(actor, conversationId);
   }
 
@@ -379,6 +410,8 @@ export class ConversationsService {
         );
       }
     });
+
+    await this.events.conversationUpdated(conversation.id);
 
     return this.getOne(actor, conversationId);
   }
@@ -446,6 +479,8 @@ export class ConversationsService {
       );
     });
 
+    await this.events.conversationUpdated(conversation.id, { also: [userId] });
+
     return leaving
       ? { id: conversation.id, status: ParticipantStatus.LEFT }
       : this.getOne(actor, conversationId);
@@ -467,6 +502,7 @@ export class ConversationsService {
       data: { status: ParticipantStatus.ACTIVE },
       where: { id: participant.id },
     });
+    await this.events.conversationUpdated(conversationId);
     return this.getOne(actor, conversationId);
   }
 
@@ -487,6 +523,9 @@ export class ConversationsService {
     await this.prisma.conversationParticipant.update({
       data: { leftAt: new Date(), status: ParticipantStatus.LEFT },
       where: { id: participant.id },
+    });
+    await this.events.conversationUpdated(conversationId, {
+      also: [actor.sub],
     });
     return { id: conversationId, status: ParticipantStatus.LEFT };
   }
@@ -572,6 +611,7 @@ export class ConversationsService {
           return created;
         },
       );
+      await this.events.conversationUpdated(conversation.id);
       return {
         conversation: await this.view(conversation, actor.sub),
         created: true,
@@ -611,6 +651,7 @@ export class ConversationsService {
         data: { leftAt: null, status: ParticipantStatus.ACTIVE },
         where: { id: mine.id },
       });
+      await this.events.conversationUpdated(conversation.id);
       return this.getOne(actor, conversation.id);
     }
 
@@ -675,6 +716,7 @@ export class ConversationsService {
       );
       return created;
     });
+    await this.events.conversationUpdated(conversation.id);
 
     return {
       conversation: await this.view(conversation, actor.sub),

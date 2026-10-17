@@ -9,6 +9,7 @@ import { AuditLogsService } from '../../audit-logs/audit-logs.service';
 import { AccountStatus } from '../../common/enums/account-status.enum';
 import { VerificationStatus } from '../../common/enums/verification-status.enum';
 import { PrismaService } from '../../prisma/prisma.service';
+import { RealtimeService } from '../../realtime/realtime.service';
 import {
   createPaginationMeta,
   getPagination,
@@ -30,6 +31,7 @@ export class AdminUsersService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly auditLogsService: AuditLogsService,
+    private readonly realtime: RealtimeService,
   ) {}
 
   async listUsers(query: ListUsersQueryDto) {
@@ -180,6 +182,9 @@ export class AdminUsersService {
       );
     });
 
+    // A suspended account keeps no open socket.
+    await this.realtime.disconnectUser(id);
+
     return {
       message: 'Utilisateur suspendu avec succès.',
       status: AccountStatus.SUSPENDED,
@@ -216,6 +221,8 @@ export class AdminUsersService {
         transaction,
       );
     });
+
+    await this.realtime.disconnectUser(id);
 
     return {
       message: 'Utilisateur réactivé avec succès.',

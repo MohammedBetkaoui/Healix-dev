@@ -11,8 +11,10 @@ import { type WorkspaceContextService } from '../workspaces/workspace-context.se
 import {
   type ConversationWithParticipants,
   ConversationsService,
+  groupWorkspaceMemberWhere,
 } from './conversations.service';
 import { MessageCrypto } from './message-crypto';
+import { type MessagingEvents } from './messaging-events';
 import { decodeCursor } from './messaging-rules';
 import {
   type MessagingUsersService,
@@ -171,14 +173,32 @@ function setup() {
   const crypto = MessageCrypto.fromEnv(
     `k1:${randomBytes(32).toString('base64')}`,
   );
+  const events = {
+    conversationUpdated: jest.fn().mockResolvedValue(undefined),
+    conversationUpdatedFor: jest.fn(),
+    messageCreated: jest.fn().mockResolvedValue(undefined),
+    messageDeleted: jest.fn().mockResolvedValue(undefined),
+    messageUpdated: jest.fn().mockResolvedValue(undefined),
+    readUpdated: jest.fn().mockResolvedValue(undefined),
+    typing: jest.fn().mockResolvedValue(true),
+  };
   const service = new ConversationsService(
     prisma as unknown as PrismaService,
     users as unknown as MessagingUsersService,
     workspaceContext as unknown as WorkspaceContextService,
     auditLogs as unknown as AuditLogsService,
     crypto,
+    events as unknown as MessagingEvents,
   );
-  return { auditLogs, crypto, prisma, service, users, workspaceContext };
+  return {
+    auditLogs,
+    crypto,
+    events,
+    prisma,
+    service,
+    users,
+    workspaceContext,
+  };
 }
 
 describe('ConversationsService', () => {
@@ -498,15 +518,27 @@ describe('ConversationsService', () => {
       expect(error.getStatus()).toBe(404);
     });
 
-    it('never lists the conversation types of later lots', async () => {
+    it('never opens the conversation types of later lots, nor a group outside its workspace', async () => {
       const { prisma, service } = setup();
       prisma.conversation.findFirst.mockResolvedValue(null);
-      await errorOf(service.getOne(actor, 'conversation-1'));
+      const error = await errorOf(service.getOne(actor, 'conversation-1'));
+      expect(error.getStatus()).toBe(404);
       expect(
         argOf<{ where: unknown }>(prisma.conversation.findFirst).where,
       ).toEqual({
-        id: 'conversation-1',
-        type: { in: ['DIRECT', 'GROUP'] },
+        AND: [
+          { id: 'conversation-1', type: { in: ['DIRECT', 'GROUP'] } },
+          {
+            OR: [
+              { type: { not: 'GROUP' } },
+              {
+                workspace: {
+                  memberships: { some: { status: 'ACTIVE', userId: ME } },
+                },
+              },
+            ],
+          },
+        ],
       });
     });
   });
@@ -622,7 +654,8 @@ describe('ConversationsService', () => {
         archivedAt: null,
         participants: { some: { status: 'ACTIVE', userId: ME } },
       });
-      expect(next.AND[2]).toEqual({
+      expect(next.AND[2]).toEqual(groupWorkspaceMemberWhere(ME));
+      expect(next.AND[3]).toEqual({
         OR: [
           { lastMessageAt: { lt: at } },
           { id: { lt: 'c2' }, lastMessageAt: at },
@@ -825,6 +858,79 @@ describe('ConversationsService', () => {
       prisma.conversation.findFirst.mockResolvedValue(conversation());
       const error = await errorOf(service.accept(actor, 'conversation-1'));
       expect(codeOf(error)).toBe('CONVERSATION_NOT_PENDING');
+    });
+  });
+
+  describe('real-time events', () => {
+    it('announce a new conversation after its transaction, not an existing one', async () => {
+      const { events, prisma, service } = setup();
+      prisma.conversation.create.mockResolvedValue(conversation());
+
+      await service.create(
+        actor,
+        { participantId: OTHER, type: ConversationType.DIRECT },
+        context,
+      );
+      expect(events.conversationUpdated).toHaveBeenCalledWith('conversation-1');
+      expect(prisma.$transaction.mock.invocationCallOrder[0]).toBeLessThan(
+        events.conversationUpdated.mock.invocationCallOrder[0],
+      );
+
+      events.conversationUpdated.mockClear();
+      prisma.conversation.findUnique.mockResolvedValue(conversation());
+      await service.create(
+        actor,
+        { participantId: OTHER, type: ConversationType.DIRECT },
+        context,
+      );
+      expect(events.conversationUpdated).not.toHaveBeenCalled();
+    });
+
+    it('tell everyone about a title or an archive, only the caller about muting', async () => {
+      const { events, prisma, service } = setup();
+      prisma.conversation.findFirst.mockResolvedValue(conversation());
+
+      await service.update(actor, 'conversation-1', { archived: true });
+      expect(events.conversationUpdated).toHaveBeenCalledWith('conversation-1');
+
+      await service.update(actor, 'conversation-1', { mutedUntil: null });
+      expect(events.conversationUpdatedFor).toHaveBeenCalledWith(
+        [ME],
+        'conversation-1',
+      );
+      expect(events.conversationUpdated).toHaveBeenCalledTimes(1);
+    });
+
+    it('tell the members and the one who left or was removed', async () => {
+      const { events, prisma, service } = setup();
+      prisma.conversation.findFirst.mockResolvedValue(group());
+
+      await service.removeParticipant(actor, 'conversation-1', OTHER, context);
+
+      expect(events.conversationUpdated).toHaveBeenCalledWith(
+        'conversation-1',
+        { also: [OTHER] },
+      );
+    });
+
+    it('tell both sides when a request is accepted or declined', async () => {
+      const { events, prisma, service } = setup();
+      const pending = conversation({}, [
+        participant(ME, { status: ParticipantStatus.PENDING }),
+        participant(OTHER),
+      ]);
+      prisma.conversation.findFirst.mockResolvedValue(pending);
+
+      await service.decline(actor, 'conversation-1');
+      expect(events.conversationUpdated).toHaveBeenCalledWith(
+        'conversation-1',
+        { also: [ME] },
+      );
+
+      await service.accept(actor, 'conversation-1');
+      expect(events.conversationUpdated).toHaveBeenLastCalledWith(
+        'conversation-1',
+      );
     });
   });
 });
