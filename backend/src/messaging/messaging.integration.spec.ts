@@ -648,6 +648,27 @@ describeWithDatabase('messaging against a database', () => {
     });
   });
 
+  describe('workspace members', () => {
+    it('lists the colleagues of the caller workspace, listed in the directory or not', async () => {
+      // doctorA2 left the directory in the previous test.
+      const members = await directory.workspaceMembers(actors.adminA);
+      const ids = members.map(({ id }) => id);
+
+      expect(ids).toEqual(
+        expect.arrayContaining([actors.doctorA1.sub, actors.doctorA2.sub]),
+      );
+      expect(ids).not.toContain(actors.adminA.sub);
+      expect(ids).not.toContain(actors.doctorB1.sub);
+      expect(JSON.stringify(members)).not.toMatch(/@healix\.test|msg-/);
+
+      const searched = await directory.workspaceMembers(actors.adminA, '');
+      expect(searched.length).toBe(members.length);
+      await expect(
+        directory.workspaceMembers(actors.independentC),
+      ).resolves.toEqual([]);
+    });
+  });
+
   describe('a group outside its workspace', () => {
     it('is closed to a member suspended from, then removed from, the workspace', async () => {
       const conversationId = await teamA('Équipe hors espace');
