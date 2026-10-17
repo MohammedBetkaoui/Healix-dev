@@ -1,17 +1,25 @@
 import { type InfiniteData } from "@tanstack/react-query";
 
 import {
+  ackStateOf,
+  ageOf,
+  attachmentProblemOf,
   buildTimeline,
+  canAck,
   canDeleteMessage,
   canEditMessage,
+  canFileToRecord,
+  canSendWith,
   canSubmitMessage,
   composerAvailability,
   dayKeyOf,
   EDIT_WINDOW_MS,
+  filedContentOf,
   groupByDay,
   insertMessages,
   isMuted,
   isSendShortcut,
+  listParamsOfFilter,
   mergeMessages,
   messageLength,
   messagesOfPages,
@@ -19,11 +27,11 @@ import {
   mutedUntilFor,
   newMessagesSeparatorSeq,
   openDirectConversation,
+  patientNameOf,
   type PendingMessage,
   readReceipt,
   shouldMarkRead,
   showsLengthCounter,
-  statusOfFilter,
   tokenizeMessageText,
   unreadBadgeText,
 } from "./messaging-rules";
@@ -48,6 +56,11 @@ function message(seq: number, overrides: Partial<MessageView> = {}): MessageView
     requiresAck: false,
     senderId: OTHER,
     seq,
+    attachments: [],
+    acks: [],
+    ackedByMe: false,
+    pendingAck: [],
+    filedToRecord: false,
     ...overrides,
   };
 }
@@ -67,6 +80,7 @@ function conversation(overrides: Partial<Conversation> = {}, participants = [par
     lastSeq: 0,
     me: { lastReadSeq: 0, mutedUntil: null, role: "MEMBER", status: "ACTIVE" },
     participants,
+    patient: null,
     title: null,
     type: "DIRECT",
     unreadCount: 0,
@@ -115,7 +129,9 @@ describe("optimistic copies", () => {
     conversationId: "c-1",
     createdAt: "2026-10-17T09:10:00.000Z",
     priority: "NORMAL",
+    requiresAck: false,
     replyToId: null,
+    attachments: [],
     status: "sending",
   });
 
@@ -244,6 +260,12 @@ describe("the composer", () => {
     expect(composerAvailability(conversation(), ME, new Set())).toEqual({ canWrite: true, notice: null });
   });
 
+  it("is open in a case discussion or a group, even alone in it", () => {
+    const alone = [participant(ME)];
+    expect(composerAvailability(conversation({ type: "CASE" }, alone), ME, new Set())).toEqual({ canWrite: true, notice: null });
+    expect(composerAvailability(conversation({ type: "GROUP" }, alone), ME, new Set())).toEqual({ canWrite: true, notice: null });
+  });
+
   it("counts characters as the user sees them, shows the counter beyond 3,500, refuses beyond 4,000", () => {
     expect(messageLength("  🩺 ok  ")).toBe(4);
     expect(canSubmitMessage("   \n  ")).toBe(false);
@@ -291,12 +313,15 @@ describe("the list", () => {
     expect([0, -1, 1, 99, 100, 2_500].map(unreadBadgeText)).toEqual([null, null, "1", "99", "99+", "99+"]);
   });
 
-  it("asks the server for active, pending or archived conversations", () => {
-    expect(["all", "unread", "requests", "archived"].map((filter) => statusOfFilter(filter as never))).toEqual([
-      "active",
-      "active",
-      "pending",
-      "archived",
+  it("asks the server for active, pending or archived conversations, and the active case discussions", () => {
+    expect(
+      ["all", "unread", "cases", "requests", "archived"].map((filter) => listParamsOfFilter(filter as never)),
+    ).toEqual([
+      { status: "active" },
+      { status: "active" },
+      { status: "active", type: "CASE" },
+      { status: "pending" },
+      { status: "archived" },
     ]);
   });
 });
@@ -324,5 +349,108 @@ describe("muting", () => {
     expect(mutedUntilFor("forever", now)).toBe(MUTED_FOREVER);
     expect(isMuted(conversation({ me: { lastReadSeq: 0, mutedUntil: "2026-10-17T10:00:00.000Z", role: "MEMBER", status: "ACTIVE" } }), now)).toBe(true);
     expect(isMuted(conversation(), now)).toBe(false);
+  });
+});
+
+describe("case discussions", () => {
+  const caseConversation = { type: "CASE" as const };
+  const patient = {
+    birthDate: "1980-05-01T00:00:00.000Z",
+    firstName: "Amina",
+    firstNameAr: "أمينة",
+    id: "p-1",
+    lastName: "Benali",
+    lastNameAr: "بن علي",
+  };
+
+  it("names the patient in the interface's script", () => {
+    expect(patientNameOf(patient, "fr")).toBe("BENALI Amina");
+    expect(patientNameOf(patient, "ar")).toBe("بن علي أمينة");
+  });
+
+  it("counts the age in whole years, birthday included", () => {
+    expect(ageOf(patient.birthDate, new Date("2026-04-30T12:00:00Z"))).toBe(45);
+    expect(ageOf(patient.birthDate, new Date("2026-05-01T00:00:00Z"))).toBe(46);
+  });
+
+  it("offers to file a message of a case discussion only, once, with something to file", () => {
+    expect(canFileToRecord(message(1), caseConversation)).toBe(true);
+    expect(canFileToRecord(message(1), { type: "GROUP" })).toBe(false);
+    expect(canFileToRecord(message(1, { deleted: true }), caseConversation)).toBe(false);
+    expect(canFileToRecord(message(1, { filedToRecord: true }), caseConversation)).toBe(false);
+    expect(canFileToRecord(message(1, { body: null, bodyUnavailable: true }), caseConversation)).toBe(false);
+    const filesOnly = message(1, {
+      attachments: [{ fromRecord: false, id: "a-1", mimeType: "application/pdf", originalName: "ECG.pdf", sizeBytes: 1 }],
+      body: null,
+      kind: "ATTACHMENT",
+    });
+    expect(canFileToRecord(filesOnly, caseConversation)).toBe(true);
+  });
+
+  it("shows exactly what will be filed: the text, then one line per file", () => {
+    const filed = message(1, {
+      attachments: [{ fromRecord: true, id: "a-1", mimeType: "application/pdf", originalName: "Bilan.pdf", sizeBytes: 1 }],
+      body: "Avis : pas de contre-indication.",
+    });
+    expect(filedContentOf(filed, "Pièce jointe")).toBe("Avis : pas de contre-indication.\n[Pièce jointe : Bilan.pdf]");
+  });
+});
+
+describe("urgent messages with acknowledgement", () => {
+  const urgent = (overrides: Partial<MessageView> = {}) =>
+    message(1, { priority: "URGENT", requiresAck: true, senderId: ME, ...overrides });
+
+  it("says how many recipients are still expected", () => {
+    expect(ackStateOf(urgent({ pendingAck: [{ fullName: "Dr B", userId: "b" }, { fullName: "Dr C", userId: "c" }] }))).toEqual({
+      count: 2,
+      kind: "pending",
+      names: [],
+    });
+  });
+
+  it("says who acknowledged it, and when the last one did", () => {
+    expect(
+      ackStateOf(
+        urgent({
+          acks: [
+            { ackedAt: "2026-10-17T11:30:00.000Z", fullName: "Dr B", userId: "b" },
+            { ackedAt: "2026-10-17T11:41:00.000Z", fullName: "Dr C", userId: "c" },
+          ],
+        }),
+      ),
+    ).toEqual({ kind: "acked", lastAckedAt: "2026-10-17T11:41:00.000Z", names: ["Dr B", "Dr C"] });
+    expect(ackStateOf(message(1))).toEqual({ kind: "none" });
+    expect(ackStateOf(urgent({ deleted: true }))).toEqual({ kind: "none" });
+  });
+
+  it("asks the recipients only, until they acknowledge", () => {
+    expect(canAck(urgent({ senderId: OTHER }), ME)).toBe(true);
+    expect(canAck(urgent({ senderId: OTHER, ackedByMe: true }), ME)).toBe(false);
+    expect(canAck(urgent(), ME)).toBe(false);
+    expect(canAck(message(1), ME)).toBe(false);
+  });
+});
+
+describe("attachments in the composer", () => {
+  const file = (name: string, size: number, type: string) => ({ name, size, type });
+
+  it("accepts PDF, PNG and JPEG of 10 MB at most, 5 per message", () => {
+    expect(attachmentProblemOf(file("ECG.pdf", 1_000, "application/pdf"), 0)).toBeNull();
+    expect(attachmentProblemOf(file("IRM.jpeg", 1_000, "image/jpeg"), 4)).toBeNull();
+    // No type from the browser: the extension decides here, the server on the content.
+    expect(attachmentProblemOf(file("scan.png", 1_000, ""), 0)).toBeNull();
+    expect(attachmentProblemOf(file("big.pdf", 10 * 1024 * 1024 + 1, "application/pdf"), 0)).toBe("tooLarge");
+    expect(attachmentProblemOf(file("setup.exe", 1_000, "application/x-msdownload"), 0)).toBe("type");
+    expect(attachmentProblemOf(file("page.svg", 1_000, "image/svg+xml"), 0)).toBe("type");
+    expect(attachmentProblemOf(file("ECG.pdf", 1_000, "application/pdf"), 5)).toBe("tooMany");
+  });
+
+  it("sends text, files, or both; never while a file is still uploading or failed", () => {
+    expect(canSendWith("Bonjour", [])).toBe(true);
+    expect(canSendWith("", [{ status: "ready" }])).toBe(true);
+    expect(canSendWith("", [])).toBe(false);
+    expect(canSendWith("Voir pièce", [{ status: "uploading" }])).toBe(false);
+    expect(canSendWith("Voir pièce", [{ status: "failed" }])).toBe(false);
+    expect(canSendWith("x".repeat(4_001), [{ status: "ready" }])).toBe(false);
   });
 });

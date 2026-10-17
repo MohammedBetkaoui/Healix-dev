@@ -59,6 +59,7 @@ export const clinicalWorkspaceFr = {
       AI_PENDING_OVER_24H: "Analyses IA en attente de décision depuis plus de 24 h",
       APPOINTMENTS_UNCONFIRMED_TODAY: "Rendez-vous d’aujourd’hui non confirmés",
       AI_CONSENT_MISSING: "Patients ayant une analyse IA sans consentement IA signé",
+      URGENT_MESSAGES_UNACKED: "Messages urgents reçus en attente de votre accusé de réception",
     },
   },
   flow: {

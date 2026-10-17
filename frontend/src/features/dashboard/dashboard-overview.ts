@@ -32,9 +32,13 @@ const attentionDestinations: Record<DashboardAttentionKind, (roleBase: RoleBase)
   AI_PENDING_OVER_24H: (roleBase) => `${roleBase}/ai-analyses/tracking`,
   APPOINTMENTS_UNCONFIRMED_TODAY: (roleBase) => `${roleBase}/appointments`,
   AI_CONSENT_MISSING: (roleBase) => `${roleBase}/patients`,
+  URGENT_MESSAGES_UNACKED: (roleBase) => `${roleBase}/messages`,
 };
 
+// An urgent message awaiting its acknowledgement first: someone is waiting
+// for the answer.
 const attentionOrder: readonly DashboardAttentionKind[] = [
+  "URGENT_MESSAGES_UNACKED",
   "AI_PENDING_OVER_24H",
   "APPOINTMENTS_UNCONFIRMED_TODAY",
   "AI_CONSENT_MISSING",
@@ -49,7 +53,7 @@ export function attentionLinks(
   return attentionOrder.flatMap((kind) => {
     const count = items.find((item) => item.kind === kind)?.count ?? 0;
     if (count <= 0) return [];
-    return [{ count, href: attentionDestinations[kind](roleBase), kind, priority: kind === "AI_PENDING_OVER_24H" }];
+    return [{ count, href: attentionDestinations[kind](roleBase), kind, priority: kind === "AI_PENDING_OVER_24H" || kind === "URGENT_MESSAGES_UNACKED" }];
   });
 }
 

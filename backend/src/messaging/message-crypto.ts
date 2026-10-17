@@ -8,11 +8,18 @@
 // as long as a message uses them. A missing or invalid value stops the
 // backend at startup; no error message ever contains key material.
 
-import { createCipheriv, createDecipheriv, randomBytes } from 'node:crypto';
+import {
+  createCipheriv,
+  createDecipheriv,
+  type DecipherGCM,
+  randomBytes,
+} from 'node:crypto';
 
 const ALGORITHM = 'aes-256-gcm';
 export const IV_LENGTH = 12;
 export const TAG_LENGTH = 16;
+// The start of an encrypted file: iv || tag, the ciphertext after it.
+export const FILE_HEADER_LENGTH = IV_LENGTH + TAG_LENGTH;
 const KEY_LENGTH = 32;
 // Fits messages.key_id (VARCHAR(16)).
 const KEY_ID_PATTERN = /^[A-Za-z0-9_-]{1,16}$/;
@@ -106,6 +113,19 @@ export class MessageCrypto {
   // The context (the conversation id) is authenticated with the body: a
   // ciphertext copied into another conversation does not decrypt.
   encrypt(plaintext: string, context: string): EncryptedBody {
+    const { data, keyId } = this.encryptBytes(
+      Buffer.from(plaintext, 'utf8'),
+      context,
+    );
+    return { ciphertext: new Uint8Array(data), keyId };
+  }
+
+  // A file, in the same format (iv || tag || ciphertext); its context is the
+  // attachment's id, so that a file copied over another does not decrypt.
+  encryptBytes(
+    plaintext: Buffer,
+    context: string,
+  ): { data: Buffer; keyId: string } {
     const keyId = this.messagingKeys.currentKeyId;
     const key = this.messagingKeys.keys.get(keyId) as Buffer;
     const iv = randomBytes(IV_LENGTH);
@@ -113,17 +133,34 @@ export class MessageCrypto {
       authTagLength: TAG_LENGTH,
     });
     cipher.setAAD(Buffer.from(context, 'utf8'));
-    const data = Buffer.concat([
-      cipher.update(plaintext, 'utf8'),
-      cipher.final(),
-    ]);
+    const data = Buffer.concat([cipher.update(plaintext), cipher.final()]);
 
-    return {
-      ciphertext: new Uint8Array(
-        Buffer.concat([iv, cipher.getAuthTag(), data]),
-      ),
-      keyId,
-    };
+    return { data: Buffer.concat([iv, cipher.getAuthTag(), data]), keyId };
+  }
+
+  // Decrypts a file as it streams: the header (iv || tag) is read first, the
+  // ciphertext goes through the returned decipher, whose end fails when the
+  // file was altered, belongs to another attachment or the key is wrong.
+  createFileDecipher(
+    header: Buffer,
+    keyId: string,
+    context: string,
+  ): DecipherGCM {
+    const key = this.messagingKeys.keys.get(keyId);
+
+    if (!key || header.length !== FILE_HEADER_LENGTH) {
+      throw new MessageDecryptionError();
+    }
+
+    const decipher = createDecipheriv(
+      ALGORITHM,
+      key,
+      header.subarray(0, IV_LENGTH),
+      { authTagLength: TAG_LENGTH },
+    );
+    decipher.setAAD(Buffer.from(context, 'utf8'));
+    decipher.setAuthTag(header.subarray(IV_LENGTH, FILE_HEADER_LENGTH));
+    return decipher;
   }
 
   decrypt(ciphertext: Uint8Array, keyId: string, context: string): string {

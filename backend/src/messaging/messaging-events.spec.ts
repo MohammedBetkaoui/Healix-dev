@@ -40,13 +40,13 @@ describe('MessagingEvents', () => {
     });
   });
 
-  it('keeps, for a group, only the ACTIVE members of its workspace', async () => {
+  it('keeps, for a group or a case discussion, only the ACTIVE members of its workspace', async () => {
     const { events, query } = setup();
 
     await events.conversationUpdated('conversation-1');
 
     expect(query().where.OR).toEqual([
-      { conversation: { type: { not: 'GROUP' } } },
+      { conversation: { type: { notIn: ['GROUP', 'CASE'] } } },
       {
         user: {
           workspaceMemberships: {

@@ -287,8 +287,8 @@ enum WorkspaceMembershipStatus {
   SUSPENDED
 }
 
-// Messaging (docs/messaging-design.md). CASE, REFERRAL and SUPPORT are
-// declared for the later lots; the API refuses them for now.
+// Messaging (docs/messaging-design.md). REFERRAL and SUPPORT are declared
+// for the later lots; the API refuses them for now.
 enum ConversationType {
   DIRECT
   GROUP
@@ -313,6 +313,11 @@ enum MessageKind {
 enum MessagePriority {
   NORMAL
   URGENT
+}
+
+// Where a clinical note of the patient record comes from.
+enum ClinicalNoteSource {
+  MESSAGING
 }
 
 model User {
@@ -354,6 +359,10 @@ model User {
   sentMessages                 Message[]                 @relation("MessageSender")
   blocksMade                   UserBlock[]               @relation("UserBlocker")
   blocksReceived               UserBlock[]               @relation("UserBlocked")
+  uploadedMessageAttachments   MessageAttachment[]
+  messageAcks                  MessageAck[]
+  filedClinicalNotes           PatientClinicalNote[]
+  caseConversationViews        CaseConversationView[]
 
   @@map("users")
 }
@@ -455,6 +464,7 @@ model Patient {
   aiAnalysisRuns AiAnalysisRun[]
   appointments   Appointment[]
   conversations  Conversation[]
+  clinicalNotes  PatientClinicalNote[]
 
   @@index([establishmentId])
   @@index([doctorProfileId])
@@ -560,10 +570,11 @@ model PatientDocument {
   createdAt    DateTime            @default(now()) @map("created_at")
   updatedAt    DateTime            @updatedAt @map("updated_at")
 
-  patient        Patient             @relation(fields: [patientId], references: [id], onDelete: Cascade)
-  uploadedBy     User                @relation(fields: [uploadedById], references: [id], onDelete: Restrict)
-  aiAnalyses     PatientAiAnalysis[]
-  aiAnalysisRuns AiAnalysisRun[]
+  patient            Patient             @relation(fields: [patientId], references: [id], onDelete: Cascade)
+  uploadedBy         User                @relation(fields: [uploadedById], references: [id], onDelete: Restrict)
+  aiAnalyses         PatientAiAnalysis[]
+  aiAnalysisRuns     AiAnalysisRun[]
+  messageAttachments MessageAttachment[]
 
   @@index([patientId])
   @@map("patient_documents")
@@ -1033,11 +1044,14 @@ model Conversation {
   createdAt     DateTime         @default(now()) @map("created_at")
   updatedAt     DateTime         @updatedAt @map("updated_at")
 
-  workspace    Workspace?                @relation(fields: [workspaceId], references: [id], onDelete: SetNull)
-  patient      Patient?                  @relation(fields: [patientId], references: [id], onDelete: SetNull)
-  createdBy    User                      @relation("ConversationCreatedBy", fields: [createdById], references: [id], onDelete: Restrict)
-  participants ConversationParticipant[]
-  messages     Message[]
+  workspace     Workspace?                @relation(fields: [workspaceId], references: [id], onDelete: SetNull)
+  patient       Patient?                  @relation(fields: [patientId], references: [id], onDelete: SetNull)
+  createdBy     User                      @relation("ConversationCreatedBy", fields: [createdById], references: [id], onDelete: Restrict)
+  participants  ConversationParticipant[]
+  messages      Message[]
+  attachments   MessageAttachment[]
+  clinicalNotes PatientClinicalNote[]
+  views         CaseConversationView[]
 
   @@index([workspaceId, lastMessageAt])
   @@index([patientId])
@@ -1086,11 +1100,14 @@ model Message {
   deletedAt       DateTime?       @map("deleted_at")
   createdAt       DateTime        @default(now()) @map("created_at")
 
-  conversation Conversation      @relation(fields: [conversationId], references: [id], onDelete: Cascade)
-  sender       User?             @relation("MessageSender", fields: [senderId], references: [id], onDelete: Restrict)
-  replyTo      Message?          @relation("MessageReplies", fields: [replyToId], references: [id], onDelete: SetNull)
-  replies      Message[]         @relation("MessageReplies")
-  revisions    MessageRevision[]
+  conversation  Conversation          @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+  sender        User?                 @relation("MessageSender", fields: [senderId], references: [id], onDelete: Restrict)
+  replyTo       Message?              @relation("MessageReplies", fields: [replyToId], references: [id], onDelete: SetNull)
+  replies       Message[]             @relation("MessageReplies")
+  revisions     MessageRevision[]
+  attachments   MessageAttachment[]
+  acks          MessageAck[]
+  clinicalNotes PatientClinicalNote[]
 
   @@unique([conversationId, seq])
   @@unique([senderId, clientMessageId])
@@ -1125,4 +1142,105 @@ model UserBlock {
   @@unique([blockerId, blockedId])
   @@index([blockedId])
   @@map("user_blocks")
+}
+
+// A file sent in a conversation. Uploaded first (messageId null), then
+// attached to the message that sends it; one never sent is deleted after
+// 24 hours. Either an encrypted copy on disk (storagePath, keyId:
+// AES-256-GCM, iv || tag || ciphertext, the attachment id authenticated with
+// it), or, in a CASE conversation, a reference to a document of the patient
+// record (patientDocumentId), never copied.
+model MessageAttachment {
+  id                String   @id @default(cuid())
+  conversationId    String   @map("conversation_id")
+  uploaderId        String   @map("uploader_id")
+  messageId         String?  @map("message_id")
+  // Under UPLOAD_ROOT/messaging/<conversationId>/; null for a reference.
+  storagePath       String?  @map("storage_path") @db.VarChar(500)
+  mimeType          String   @map("mime_type") @db.VarChar(100)
+  sizeBytes         Int      @map("size_bytes")
+  // Of the file in clear, checked again at each download.
+  sha256            String   @db.Char(64)
+  originalName      String   @map("original_name") @db.VarChar(255)
+  // The MESSAGING_KEYS key that encrypted it; null for a reference.
+  keyId             String?  @map("key_id") @db.VarChar(16)
+  patientDocumentId String?  @map("patient_document_id")
+  createdAt         DateTime @default(now()) @map("created_at")
+
+  conversation    Conversation     @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+  uploader        User             @relation(fields: [uploaderId], references: [id], onDelete: Restrict)
+  message         Message?         @relation(fields: [messageId], references: [id], onDelete: SetNull)
+  patientDocument PatientDocument? @relation(fields: [patientDocumentId], references: [id], onDelete: SetNull)
+
+  @@index([conversationId])
+  @@index([messageId, createdAt])
+  @@index([uploaderId])
+  @@index([patientDocumentId])
+  @@map("message_attachments")
+}
+
+// The acknowledgement of an urgent message that requires one, by one of its
+// recipients.
+model MessageAck {
+  id        String   @id @default(cuid())
+  messageId String   @map("message_id")
+  userId    String   @map("user_id")
+  ackedAt   DateTime @default(now()) @map("acked_at")
+
+  message Message @relation(fields: [messageId], references: [id], onDelete: Cascade)
+  user    User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([messageId, userId])
+  @@index([userId])
+  @@map("message_acks")
+}
+
+// A note of the patient record. From the messaging: a message of a CASE
+// discussion "filed to the record", its text copied with its author and its
+// date (the record keeps it whatever becomes of the conversation); a given
+// message is filed once.
+model PatientClinicalNote {
+  id                   String             @id @default(cuid())
+  patientId            String             @map("patient_id")
+  // Who filed it.
+  authorId             String             @map("author_id")
+  source               ClinicalNoteSource
+  sourceConversationId String?            @map("source_conversation_id")
+  sourceMessageId      String?            @map("source_message_id")
+  originalAuthorName   String             @map("original_author_name") @db.VarChar(120)
+  originalSentAt       DateTime           @map("original_sent_at")
+  content              String             @db.Text
+  comment              String?            @db.VarChar(1000)
+  createdAt            DateTime           @default(now()) @map("created_at")
+
+  patient            Patient       @relation(fields: [patientId], references: [id], onDelete: Cascade)
+  author             User          @relation(fields: [authorId], references: [id], onDelete: Restrict)
+  sourceConversation Conversation? @relation(fields: [sourceConversationId], references: [id], onDelete: SetNull)
+  sourceMessage      Message?      @relation(fields: [sourceMessageId], references: [id], onDelete: SetNull)
+
+  @@unique([patientId, sourceMessageId])
+  @@index([patientId, createdAt])
+  @@index([authorId])
+  @@index([sourceConversationId])
+  @@index([sourceMessageId])
+  @@map("patient_clinical_notes")
+}
+
+// The days a user read a CASE discussion: MESSAGES_VIEWED goes to the
+// patient's audit once a day per user and conversation, the unique key
+// deciding which call writes it.
+model CaseConversationView {
+  id             String   @id @default(cuid())
+  conversationId String   @map("conversation_id")
+  userId         String   @map("user_id")
+  // The day in Africa/Algiers.
+  day            DateTime @db.Date
+  createdAt      DateTime @default(now()) @map("created_at")
+
+  conversation Conversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+  user         User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([conversationId, userId, day])
+  @@index([userId])
+  @@map("case_conversation_views")
 }

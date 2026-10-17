@@ -305,7 +305,56 @@ Précisions :
 - le réglage « Joignable par des confrères » est en bas de la liste ; une
   personne bloquée se débloque depuis l'annuaire ou le panneau.
 
-**Lots 4 et 5 : à faire.**
+**Lot 4 — discussions de cas, pièces jointes, urgent : fait** (branche
+`feat/messaging-cases`, migration `messaging_cases`).
+- Correctif préalable : la socket se connecte à l'origine de l'API
+  (`NEXT_PUBLIC_API_URL`) en production aussi ; derrière Caddy, c'est la même.
+- CASE : `POST /conversations { type: "CASE", patientId, participantIds? }`,
+  le patient dans le périmètre du créateur, les participants membres ACTIVE
+  et vérifiés de l'espace du patient. Une seule discussion ouverte par
+  patient (création et réouverture verrouillent la ligne du patient) ; un
+  nouvel appel la rouvre et y ajoute l'appelant. Titre « Cas — NOM Prénom ».
+- Accès : participant ACTIVE **et** patient encore dans le périmètre, en
+  lecture comme en écriture (404 sinon) ; mêmes règles dans la liste, le
+  badge de non-lus, les événements temps réel et le tableau de bord.
+- Journal du patient : `CASE_CONVERSATION_CREATED`, `MESSAGES_VIEWED` (une
+  fois par jour, par utilisateur et par conversation, table
+  `case_conversation_views`), `CASE_NOTE_FILED`, et `DOCUMENT_VIEWED` pour un
+  document du dossier ouvert depuis la discussion ; ils apparaissent dans
+  l'onglet Audit du dossier.
+- Pièces jointes (`MessageAttachment`) : PDF, PNG ou JPEG de 10 Mo au plus,
+  type lu sur les premiers octets, chiffrées (AES-256-GCM, l'id de la pièce
+  jointe authentifié) sous `uploads/messaging/<conversation>/`, SHA-256 du
+  clair revérifié au téléchargement (flux coupé sinon) ; 5 par message ; un
+  document du dossier est partagé par référence, sans copie, et son accès
+  revérifié à chaque ouverture ; non envoyées, supprimées après 24 h.
+- Urgent avec accusé (`MessageAck`) : `requiresAck` avec `URGENT` seulement ;
+  `POST /messages/:id/ack` idempotent, refusé à l'expéditeur ; la vue donne
+  `acks`, `ackedByMe`, `pendingAck` ; alerte « À traiter »
+  `URGENT_MESSAGES_UNACKED`.
+- Verser au dossier (`PatientClinicalNote`, source `MESSAGING`) : CASE
+  seulement, une fois par message ; le texte et les noms des pièces jointes
+  sont copiés en clair dans le dossier, comme le reste du dossier ;
+  `GET /patients/:id/clinical-notes`, onglet « Notes » du dossier.
+- Interface : filtre « Cas », pastille dans la liste, bandeau « chaque accès
+  est tracé », patient dans le panneau (nom, âge, dossier, analyses IA),
+  « Discuter du cas » dans le dossier, Joindre (glisser-déposer,
+  progression, aperçus, retrait), « Joindre un document du dossier », case
+  « Accusé de réception requis », vignettes chargées en blob, « Accusé par
+  X à 12:41 » / « En attente d'accusé (2) », confirmation du versement.
+
+Écarts et précisions :
+- route d'envoi : `POST /conversations/:id/attachments` (la section 5
+  écrivait `/attachments`) ; `GET /attachments/:id` toujours en
+  téléchargement (`Content-Disposition: attachment`) ;
+- un participant d'une discussion de cas peut y ajouter des collègues de
+  l'espace du patient et la quitter ; l'archiver la ferme pour tous ; une
+  discussion archivée ne revient pas si une autre a été ouverte depuis
+  (`CASE_ALREADY_OPEN`) ;
+- `pendingAck` compte les participants ACTIVE, même arrivés après le
+  message.
+
+**Lot 5 : à faire.**
 
 ## Sources
 

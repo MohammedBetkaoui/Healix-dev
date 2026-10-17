@@ -2,9 +2,11 @@ import { apiClient } from "@/lib/api/http-client";
 
 import {
   type BlockedUser,
+  type ClinicalNote,
   type Conversation,
   type ConversationPage,
   type ConversationStatusParam,
+  type ConversationType,
   type DirectoryEntry,
   type DirectorySearch,
   type MessagePage,
@@ -15,10 +17,11 @@ import {
   type ReadState,
   type SendMessagePayload,
   type UnreadCount,
+  type UploadedAttachment,
 } from "./messaging.types";
 
-// Every route of the messaging (backend/src/messaging, lot 1). The ids go
-// into paths: encoded, never trusted as path segments.
+// Every route of the messaging (backend/src/messaging, lots 1 and 4). The
+// ids go into paths: encoded, never trusted as path segments.
 
 export const CATCH_UP_PAGE_LIMIT = 50;
 export const MESSAGE_PAGE_LIMIT = 30;
@@ -32,11 +35,24 @@ const conversationPath = (conversationId: string) =>
 export async function listConversations(params: {
   cursor?: string;
   status: ConversationStatusParam;
+  type?: ConversationType;
 }): Promise<ConversationPage> {
   const response = await apiClient.get<ConversationPage>("/messaging/conversations", {
-    params: { cursor: params.cursor, limit: CONVERSATION_PAGE_LIMIT, status: params.status },
+    params: { cursor: params.cursor, limit: CONVERSATION_PAGE_LIMIT, status: params.status, type: params.type },
   });
   return response.data;
+}
+
+// The discussion of a patient: 201 when created, 200 with the open one
+// (the caller is added to it).
+export async function openCaseConversation(
+  patientId: string,
+): Promise<{ conversation: Conversation; created: boolean }> {
+  const response = await apiClient.post<Conversation>("/messaging/conversations", {
+    patientId,
+    type: "CASE",
+  });
+  return { conversation: response.data, created: response.status === 201 };
 }
 
 export async function getConversation(conversationId: string): Promise<Conversation> {
@@ -150,6 +166,62 @@ export async function sendTyping(conversationId: string): Promise<void> {
 
 export async function getUnreadCount(): Promise<UnreadCount> {
   const response = await apiClient.get<UnreadCount>("/messaging/unread-count");
+  return response.data;
+}
+
+// The acknowledgement of an urgent message; again, nothing changes.
+export async function ackMessage(messageId: string): Promise<MessageView> {
+  const response = await apiClient.post<MessageView>(`/messaging/messages/${encodeURIComponent(messageId)}/ack`);
+  return response.data;
+}
+
+// CASE: the message copied to the patient record (once).
+export async function fileMessageToRecord(messageId: string, comment?: string): Promise<ClinicalNote> {
+  const response = await apiClient.post<ClinicalNote>(
+    `/messaging/messages/${encodeURIComponent(messageId)}/file-to-record`,
+    comment ? { comment } : {},
+  );
+  return response.data;
+}
+
+// --- Attachments ----------------------------------------------------------------
+
+// Multipart, field "file"; onProgress gets 0 to 1.
+export async function uploadAttachment(
+  conversationId: string,
+  file: File,
+  onProgress?: (fraction: number) => void,
+  signal?: AbortSignal,
+): Promise<UploadedAttachment> {
+  const form = new FormData();
+  form.append("file", file);
+  const response = await apiClient.post<UploadedAttachment>(`${conversationPath(conversationId)}/attachments`, form, {
+    headers: { "Content-Type": "multipart/form-data" },
+    onUploadProgress: (event) => {
+      if (onProgress && event.total) onProgress(Math.min(1, event.loaded / event.total));
+    },
+    signal,
+  });
+  return response.data;
+}
+
+// CASE: a document of the patient record, shared without copy.
+export async function attachRecordDocument(
+  conversationId: string,
+  patientDocumentId: string,
+): Promise<UploadedAttachment> {
+  const response = await apiClient.post<UploadedAttachment>(
+    `${conversationPath(conversationId)}/attachments/from-record`,
+    { patientDocumentId },
+  );
+  return response.data;
+}
+
+// The file itself, never a public URL: images are shown from a blob: URL.
+export async function downloadAttachment(attachmentId: string): Promise<Blob> {
+  const response = await apiClient.get<Blob>(`/messaging/attachments/${encodeURIComponent(attachmentId)}`, {
+    responseType: "blob",
+  });
   return response.data;
 }
 

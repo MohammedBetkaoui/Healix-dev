@@ -30,8 +30,8 @@ const ID_MAX_LENGTH = 64;
 // Checked again after sanitizeTextInput (1 to 120 characters).
 const RAW_TITLE_MAX_LENGTH = 400;
 
-// POST /messaging/conversations. CASE, REFERRAL and SUPPORT are refused by
-// the service with CONVERSATION_TYPE_NOT_AVAILABLE.
+// POST /messaging/conversations. REFERRAL and SUPPORT are refused by the
+// service with CONVERSATION_TYPE_NOT_AVAILABLE.
 export class CreateConversationDto {
   @IsEnum(ConversationType)
   type!: ConversationType;
@@ -49,7 +49,13 @@ export class CreateConversationDto {
   @MaxLength(RAW_TITLE_MAX_LENGTH)
   title?: string;
 
-  @ValidateIf((dto: CreateConversationDto) => dto.type === 'GROUP')
+  // GROUP: required. CASE: optional, the colleagues brought in with the
+  // creator.
+  @ValidateIf(
+    (dto: CreateConversationDto) =>
+      dto.type === 'GROUP' ||
+      (dto.type === 'CASE' && dto.participantIds !== undefined),
+  )
   @IsArray()
   @ArrayMinSize(1)
   @ArrayMaxSize(GROUP_MEMBERS_MAX)
@@ -57,6 +63,13 @@ export class CreateConversationDto {
   @IsString({ each: true })
   @MaxLength(ID_MAX_LENGTH, { each: true })
   participantIds?: string[];
+
+  // CASE: the patient discussed, in the caller's scope.
+  @ValidateIf((dto: CreateConversationDto) => dto.type === 'CASE')
+  @IsString()
+  @IsNotEmpty()
+  @MaxLength(ID_MAX_LENGTH)
+  patientId?: string;
 }
 
 export const CONVERSATION_LIST_STATUSES = [
@@ -76,7 +89,11 @@ export class ListConversationsQueryDto {
   cursor?: string;
 
   @IsOptional()
-  @IsIn([ConversationType.DIRECT, ConversationType.GROUP])
+  @IsIn([
+    ConversationType.DIRECT,
+    ConversationType.GROUP,
+    ConversationType.CASE,
+  ])
   type?: ConversationType;
 
   @IsOptional()

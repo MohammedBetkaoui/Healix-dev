@@ -3,6 +3,7 @@ import {
   AccountStatus,
   AiAnalysisRunStatus,
   AppointmentStatus,
+  ParticipantStatus,
   PatientAdministrativeStatus,
   PatientConsentStatus,
   PatientConsentType,
@@ -14,6 +15,10 @@ import { UNCERTAINTY_THRESHOLD } from '../ai-analysis-runs/report/ai-report-rule
 import { AppointmentsService } from '../appointments/appointments.service';
 import { type AuthenticatedUserPayload } from '../auth/types/authenticated-request.type';
 import { UserRole } from '../common/enums/user-role.enum';
+import {
+  caseScopeWhere,
+  groupWorkspaceMemberWhere,
+} from '../messaging/conversation-access';
 import { PatientsService } from '../patients/patients.service';
 import { PrismaService } from '../prisma/prisma.service';
 import {
@@ -123,7 +128,7 @@ export class DashboardService {
       this.appointmentsToday(scopes, period, now),
       this.aiAnalyses(scopes, period, now),
       this.activity(scopes, period),
-      this.attentionCounts(scopes, now),
+      this.attentionCounts(user, scopes, now),
       user.role === UserRole.ESTABLISHMENT_ADMIN &&
       appointmentScope.establishmentId
         ? this.activeAffiliatedDoctors(appointmentScope.establishmentId)
@@ -138,6 +143,7 @@ export class DashboardService {
           appointmentsToday.byStatus.SCHEDULED,
         ],
         ['AI_CONSENT_MISSING', attentionExtras.consentMissing],
+        ['URGENT_MESSAGES_UNACKED', attentionExtras.urgentUnacked],
       ] as [DashboardAttentionKind, number][]
     )
       .filter(([, count]) => count > 0)
@@ -369,36 +375,67 @@ export class DashboardService {
   }
 
   // Whatever their age: work to do does not expire with the period.
-  private async attentionCounts(scopes: Scopes, now: Date) {
-    const [aiPendingOver24h, consentMissing] = await Promise.all([
-      this.prisma.aiAnalysisRun.count({
-        where: {
-          AND: [
-            { patient: scopes.patients },
-            { decisionStatus: null, status: AiAnalysisRunStatus.SUCCEEDED },
-            { createdAt: { lt: new Date(now.getTime() - 24 * HOUR_MS) } },
-          ],
-        },
-      }),
-      this.prisma.patient.count({
-        where: {
-          AND: [
-            scopes.patients,
-            { administrativeStatus: PatientAdministrativeStatus.ACTIVE },
-            { aiAnalysisRuns: { some: {} } },
-            {
-              consents: {
-                none: {
-                  status: PatientConsentStatus.SIGNED,
-                  type: PatientConsentType.DIAGNOSTIC_AI,
+  private async attentionCounts(
+    user: AuthenticatedUserPayload,
+    scopes: Scopes,
+    now: Date,
+  ) {
+    const [aiPendingOver24h, consentMissing, urgentUnacked] = await Promise.all(
+      [
+        this.prisma.aiAnalysisRun.count({
+          where: {
+            AND: [
+              { patient: scopes.patients },
+              { decisionStatus: null, status: AiAnalysisRunStatus.SUCCEEDED },
+              { createdAt: { lt: new Date(now.getTime() - 24 * HOUR_MS) } },
+            ],
+          },
+        }),
+        this.prisma.patient.count({
+          where: {
+            AND: [
+              scopes.patients,
+              { administrativeStatus: PatientAdministrativeStatus.ACTIVE },
+              { aiAnalysisRuns: { some: {} } },
+              {
+                consents: {
+                  none: {
+                    status: PatientConsentStatus.SIGNED,
+                    type: PatientConsentType.DIAGNOSTIC_AI,
+                  },
                 },
               },
+            ],
+          },
+        }),
+        // The messages I am asked to acknowledge, in the conversations I can
+        // still read (the messaging's rules: active participant, group of my
+        // workspace, patient in my scope).
+        this.prisma.message.count({
+          where: {
+            acks: { none: { userId: user.sub } },
+            conversation: {
+              AND: [
+                {
+                  participants: {
+                    some: {
+                      status: ParticipantStatus.ACTIVE,
+                      userId: user.sub,
+                    },
+                  },
+                },
+                groupWorkspaceMemberWhere(user.sub),
+                caseScopeWhere(scopes.workspaceId),
+              ],
             },
-          ],
-        },
-      }),
-    ]);
-    return { aiPendingOver24h, consentMissing };
+            deletedAt: null,
+            requiresAck: true,
+            senderId: { not: user.sub },
+          },
+        }),
+      ],
+    );
+    return { aiPendingOver24h, consentMissing, urgentUnacked };
   }
 
   private activeAffiliatedDoctors(establishmentId: string): Promise<number> {

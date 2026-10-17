@@ -1,4 +1,4 @@
-import { ArrowRight, BrainCircuit, CalendarClock, CircleCheck, FileWarning } from "lucide-react";
+import { ArrowRight, BellRing, BrainCircuit, CalendarClock, CircleCheck, FileWarning } from "lucide-react";
 
 import { type AttentionLink } from "@/features/dashboard/dashboard-overview";
 import { type DashboardAttentionKind } from "@/features/dashboard/dashboard.types";
@@ -10,6 +10,7 @@ const icons: Record<DashboardAttentionKind, typeof BrainCircuit> = {
   AI_CONSENT_MISSING: FileWarning,
   AI_PENDING_OVER_24H: BrainCircuit,
   APPOINTMENTS_UNCONFIRMED_TODAY: CalendarClock,
+  URGENT_MESSAGES_UNACKED: BellRing,
 };
 
 // What needs someone's attention now, each with the page where it is handled.

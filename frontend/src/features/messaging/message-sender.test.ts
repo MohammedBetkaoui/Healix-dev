@@ -16,9 +16,14 @@ function serverCopy(payload: SendMessagePayload, seq = 7): MessageView {
     kind: "TEXT",
     priority: payload.priority ?? "NORMAL",
     replyToId: payload.replyToId ?? null,
-    requiresAck: false,
+    requiresAck: payload.requiresAck ?? false,
     senderId: "user-me",
     seq,
+    attachments: [],
+    acks: [],
+    ackedByMe: false,
+    pendingAck: [],
+    filedToRecord: false,
   };
 }
 
@@ -109,5 +114,39 @@ describe("MessageSender", () => {
     expect(changes).toHaveBeenCalledTimes(2);
     expect(store.list("c-1").map(({ body }) => body)).toEqual(["Un"]);
     expect(store.list("c-2").map(({ body }) => body)).toEqual(["Deux"]);
+  });
+
+  it("sends the files uploaded beforehand and the acknowledgement asked, with the message", async () => {
+    const send = jest.fn((_conversationId: string, payload: SendMessagePayload) => Promise.resolve(serverCopy(payload)));
+    const { sender, store } = setup(send);
+    const ecg = { id: "file-1", mimeType: "application/pdf", originalName: "ECG.pdf", sizeBytes: 1_000 };
+
+    const delivery = sender.send("c-1", {
+      attachments: [ecg],
+      body: "",
+      priority: "URGENT",
+      replyToId: null,
+      requiresAck: true,
+    });
+    // Shown at once with its files.
+    expect(store.list("c-1")[0]).toMatchObject({ attachments: [ecg], requiresAck: true });
+    await delivery;
+
+    expect(send).toHaveBeenCalledWith("c-1", {
+      attachmentIds: ["file-1"],
+      body: "",
+      clientMessageId: "client-1",
+      priority: "URGENT",
+      requiresAck: true,
+    });
+  });
+
+  it("never asks an acknowledgement for a message that is not urgent", async () => {
+    const send = jest.fn((_conversationId: string, payload: SendMessagePayload) => Promise.resolve(serverCopy(payload)));
+    const { sender } = setup(send);
+
+    await sender.send("c-1", { body: "Simple", priority: "NORMAL", replyToId: null, requiresAck: true });
+
+    expect(send.mock.calls[0][1]).not.toHaveProperty("requiresAck");
   });
 });

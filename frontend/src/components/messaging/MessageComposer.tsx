@@ -1,12 +1,16 @@
 "use client";
 
 import { useEffect, useId, useLayoutEffect, useRef, useState } from "react";
-import { AlertTriangle, Lock, Pencil, SendHorizontal, X } from "lucide-react";
+import { AlertTriangle, FolderOpen, Lock, Paperclip, Pencil, SendHorizontal, X } from "lucide-react";
 
 import { type Locale } from "@/i18n";
+import { caseMessagingCopy } from "@/features/messaging/case-messaging.copy";
 import { type MessagingCopy } from "@/features/messaging/messaging.copy";
 import { formatNumber } from "@/features/messaging/messaging-format";
 import {
+  ATTACHMENT_ACCEPT,
+  type AttachmentProblem,
+  canSendWith,
   canSubmitMessage,
   type ComposerAvailability,
   isSendShortcut,
@@ -15,8 +19,12 @@ import {
   showsLengthCounter,
   TYPING_SEND_INTERVAL_MS,
 } from "@/features/messaging/messaging-rules";
-import { type MessagePriority } from "@/features/messaging/messaging.types";
+import { type MessagePriority, type UploadedAttachment } from "@/features/messaging/messaging.types";
+import { useDraftAttachments } from "@/features/messaging/use-draft-attachments";
 import { cn } from "@/lib/utils";
+
+import { DraftAttachmentList, RecordDocumentPicker } from "./attachments";
+import styles from "./messaging.module.css";
 
 const MAX_ROWS = 6;
 
@@ -29,10 +37,19 @@ type MessageComposerProps = {
   onCancelReply: () => void;
   editing: { messageId: string; body: string } | null;
   onCancelEdit: () => void;
-  onSend: (body: string, priority: MessagePriority) => void;
+  onSend: (
+    body: string,
+    priority: MessagePriority,
+    options: { requiresAck: boolean; attachments: UploadedAttachment[] },
+  ) => void;
   onSaveEdit: (messageId: string, body: string) => void;
   onTyping: () => void;
+  // A case discussion: its documents can be attached from the record.
+  patientId?: string | null;
+  errorText?: (error: unknown) => string;
 };
+
+const noErrorText = () => "";
 
 export function MessageComposer({
   availability,
@@ -45,14 +62,23 @@ export function MessageComposer({
   onSaveEdit,
   onSend,
   onTyping,
+  patientId = null,
+  errorText = noErrorText,
   replyTo,
 }: MessageComposerProps) {
-  const ids = { counter: useId(), hint: useId(), input: useId() };
+  const ids = { ack: useId(), ackHint: useId(), counter: useId(), files: useId(), hint: useId(), input: useId() };
+  const caseCopy = caseMessagingCopy[locale];
   const field = useRef<HTMLTextAreaElement>(null);
+  const filePicker = useRef<HTMLInputElement>(null);
   const lastTypingAt = useRef(0);
   const [value, setValue] = useState("");
   const [urgent, setUrgent] = useState(false);
+  const [requiresAck, setRequiresAck] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
+  const [dragging, setDragging] = useState(false);
+  const [problem, setProblem] = useState<AttachmentProblem | null>(null);
+  const [pickerOpen, setPickerOpen] = useState(false);
+  const attachments = useDraftAttachments(conversationId, errorText);
 
   // An edit starts with the message's text in the field.
   if (editing && editing.messageId !== editingId) {
@@ -92,27 +118,59 @@ export function MessageComposer({
 
   const length = messageLength(value);
   const tooLong = length > MESSAGE_BODY_MAX_LENGTH;
-  const canSubmit = canSubmitMessage(value);
+  // A message carries text, files, or both; never while a file uploads.
+  const canSubmit = editing ? canSubmitMessage(value) : canSendWith(value, attachments.drafts);
 
   const submit = () => {
     if (!canSubmit) return;
     if (editing) {
       onSaveEdit(editing.messageId, value.trim());
     } else {
-      onSend(value.trim(), urgent ? "URGENT" : "NORMAL");
+      onSend(value.trim(), urgent ? "URGENT" : "NORMAL", {
+        attachments: attachments.drafts.flatMap(({ uploaded }) => (uploaded ? [uploaded] : [])),
+        requiresAck: urgent && requiresAck,
+      });
       setValue("");
       setUrgent(false);
+      setRequiresAck(false);
+      setProblem(null);
+      attachments.clear();
     }
+  };
+
+  const addFiles = (files: File[]) => {
+    if (files.length === 0) return;
+    setProblem(attachments.addFiles(files));
   };
 
   return (
     <form
-      className="border-t border-[var(--border)] px-3 py-2.5 sm:px-4"
+      className={cn(styles.composer, "relative")}
       onSubmit={(event) => {
         event.preventDefault();
         submit();
       }}
+      // Files dropped on the composer are attached, as with "Joindre".
+      onDragOver={(event) => {
+        if (editing || !event.dataTransfer.types.includes("Files")) return;
+        event.preventDefault();
+        setDragging(true);
+      }}
+      onDragLeave={(event) => {
+        if (!event.currentTarget.contains(event.relatedTarget as Node | null)) setDragging(false);
+      }}
+      onDrop={(event) => {
+        if (editing) return;
+        event.preventDefault();
+        setDragging(false);
+        addFiles([...event.dataTransfer.files]);
+      }}
     >
+      {dragging ? (
+        <div aria-hidden="true" className="pointer-events-none absolute inset-1 z-10 flex items-center justify-center rounded-[var(--radius-md)] border-2 border-dashed border-[var(--medical)] bg-[var(--medical-soft)] px-4 text-center text-xs font-medium text-[var(--medical)]">
+          {caseCopy.composer.dropHere}
+        </div>
+      ) : null}
       {replyTo && !editing ? (
         <div className="mb-2 flex items-start gap-2 rounded-[var(--radius-sm)] border-s-2 border-[var(--medical)] bg-[var(--surface-muted)] px-2.5 py-1.5 text-xs">
           <div className="min-w-0 flex-1">
@@ -134,7 +192,14 @@ export function MessageComposer({
       {availability.notice === "firstMessageOnly" ? (
         <p className="mb-2 text-[.7rem] text-[var(--text-secondary)]">{copy.thread.firstMessageOnly}</p>
       ) : null}
-      <div className="flex items-end gap-2">
+      {!editing ? (
+        <DraftAttachmentList drafts={attachments.drafts} onRemove={attachments.remove} onRetry={attachments.retry}
+          copy={caseCopy} locale={locale} />
+      ) : null}
+      {problem ? (
+        <p role="alert" className="mb-2 text-[.7rem] font-medium text-[var(--danger-ink)]">{caseCopy.composer.problems[problem]}</p>
+      ) : null}
+      <div className={styles.composerBox} data-urgent={urgent && !editing}>
         <label htmlFor={ids.input} className="sr-only">{copy.composer.label}</label>
         <textarea
           ref={field}
@@ -146,7 +211,7 @@ export function MessageComposer({
           placeholder={copy.composer.placeholder}
           aria-describedby={`${ids.hint}${showsLengthCounter(value) ? ` ${ids.counter}` : ""}`}
           aria-invalid={tooLong || undefined}
-          className="min-h-[42px] flex-1 resize-none rounded-[var(--radius-sm)] border border-[var(--border)] bg-[var(--surface)] px-3 py-2 text-sm leading-6 text-[var(--text-primary)] outline-none placeholder:text-[var(--text-muted)] focus:border-[var(--accent)] focus:ring-2 focus:ring-[var(--accent-soft)] aria-[invalid=true]:border-[var(--danger)]"
+          className={styles.composerInput}
           onChange={(event) => {
             setValue(event.target.value);
             const now = Date.now();
@@ -166,30 +231,55 @@ export function MessageComposer({
             }
           }}
         />
-        {editing ? null : (
-          <button
-            type="button"
-            aria-pressed={urgent}
-            title={copy.composer.urgentHint}
-            onClick={() => setUrgent((current) => !current)}
-            className={cn(
-              "clinical-button min-h-[42px] shrink-0 px-2.5",
-              urgent && "border-[var(--danger)] bg-[var(--danger-soft)] text-[var(--danger-ink)]",
-            )}
-          >
-            <AlertTriangle size={15} strokeWidth={1.8} aria-hidden="true" />
-            <span className="hidden sm:inline">{copy.composer.urgent}</span>
-            <span className="sr-only sm:hidden">{copy.composer.urgent}</span>
-          </button>
+        <div className={styles.composerToolbar}>
+        {editing ? <span className={styles.editingLabel}><Pencil size={14} aria-hidden="true" />{copy.composer.editing}</span> : (
+          <div className="flex min-w-0 flex-wrap items-center gap-1">
+            <button
+              type="button"
+              aria-pressed={urgent}
+              title={copy.composer.urgentHint}
+              onClick={() => {
+                setUrgent((current) => !current);
+                if (urgent) setRequiresAck(false);
+              }}
+              className={styles.priorityButton}
+            >
+              <AlertTriangle size={15} strokeWidth={1.8} aria-hidden="true" />
+              <span>{copy.composer.urgent}</span>
+            </button>
+            {/* Asked with an urgent message only: unavailable until it is one. */}
+            <label htmlFor={ids.ack} className={cn("inline-flex items-center gap-1.5 px-1.5 text-[.7rem]",
+              urgent ? "cursor-pointer text-[var(--text-primary)]" : "cursor-not-allowed text-[var(--text-muted)]")}>
+              <input id={ids.ack} type="checkbox" checked={urgent && requiresAck} disabled={!urgent}
+                aria-describedby={urgent ? undefined : ids.ackHint} onChange={(event) => setRequiresAck(event.target.checked)} />
+              {caseCopy.composer.requiresAck}
+              {!urgent ? <span id={ids.ackHint} className="sr-only">{caseCopy.composer.requiresAckHint}</span> : null}
+            </label>
+            <input ref={filePicker} id={ids.files} type="file" multiple accept={ATTACHMENT_ACCEPT} className="sr-only" tabIndex={-1}
+              aria-hidden="true" onChange={(event) => {
+                addFiles([...(event.target.files ?? [])]);
+                event.target.value = "";
+              }} />
+            <button type="button" className={styles.priorityButton} onClick={() => filePicker.current?.click()}>
+              <Paperclip size={15} strokeWidth={1.8} aria-hidden="true" />
+              <span>{caseCopy.composer.attach}</span>
+            </button>
+            {patientId ? (
+              <button type="button" className={styles.priorityButton} onClick={() => setPickerOpen(true)}>
+                <FolderOpen size={15} strokeWidth={1.8} aria-hidden="true" />
+                <span>{caseCopy.composer.attachFromRecord}</span>
+              </button>
+            ) : null}
+          </div>
         )}
-        <button type="submit" disabled={!canSubmit} className="clinical-button clinical-button-primary min-h-[42px] shrink-0 px-3 disabled:opacity-50">
+        <button type="submit" disabled={!canSubmit} className={styles.sendButton}>
+          <span>{editing ? copy.composer.save : copy.composer.send}</span>
           <SendHorizontal size={16} strokeWidth={1.8} aria-hidden="true" className="clinical-directional" />
-          <span className="hidden sm:inline">{editing ? copy.composer.save : copy.composer.send}</span>
-          <span className="sr-only sm:hidden">{editing ? copy.composer.save : copy.composer.send}</span>
         </button>
+        </div>
       </div>
-      <div className="mt-1 flex items-center justify-between gap-3 text-[.68rem] text-[var(--text-secondary)]">
-        <p id={ids.hint} className="hidden sm:block">{copy.composer.hint}</p>
+      <div className={styles.composerFooter}>
+        <p id={ids.hint} className={styles.keyboardHint}>{copy.composer.hint}</p>
         {showsLengthCounter(value) ? (
           <p id={ids.counter} aria-live="polite" className={cn("ms-auto tabular-nums", tooLong && "font-semibold text-[var(--danger-ink)]")}>
             {tooLong ? `${copy.composer.tooLong} · ` : ""}
@@ -197,6 +287,10 @@ export function MessageComposer({
           </p>
         ) : null}
       </div>
+      {patientId ? (
+        <RecordDocumentPicker open={pickerOpen} conversationId={conversationId} patientId={patientId}
+          onClose={() => setPickerOpen(false)} onPick={attachments.addUploaded} copy={caseCopy} errorText={errorText} />
+      ) : null}
     </form>
   );
 }

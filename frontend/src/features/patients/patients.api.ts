@@ -1,3 +1,4 @@
+import { type ClinicalNote } from "@/features/messaging/messaging.types";
 import { apiClient } from "@/lib/api/http-client";
 import {
   type Patient,
@@ -308,6 +309,18 @@ function toPatientAuditEntryViewModel(
     id: record.id,
     organization: "",
   };
+}
+
+// GET /patients/:id/clinical-notes: the opinions filed from the case
+// discussions of the messaging, newest first.
+export async function getPatientClinicalNotes(
+  patientId: string,
+): Promise<ClinicalNote[]> {
+  const response = await apiClient.get<ClinicalNote[]>(
+    `/patients/${encodeURIComponent(patientId)}/clinical-notes`,
+  );
+
+  return response.data;
 }
 
 export async function getPatientAuditLog(

@@ -39,6 +39,18 @@ describe("attentionLinks", () => {
     ]);
   });
 
+  it("puts the urgent messages awaiting an acknowledgement first, as a priority, toward Messages", () => {
+    const links = attentionLinks(
+      [
+        { count: 1, kind: "AI_PENDING_OVER_24H" },
+        { count: 3, kind: "URGENT_MESSAGES_UNACKED" },
+      ],
+      "/doctor",
+    );
+    expect(links[0]).toEqual({ count: 3, href: "/doctor/messages", kind: "URGENT_MESSAGES_UNACKED", priority: true });
+    expect(links.map((link) => link.kind)).toEqual(["URGENT_MESSAGES_UNACKED", "AI_PENDING_OVER_24H"]);
+  });
+
   it("drops what has nothing to handle: an empty list means nothing to do", () => {
     expect(attentionLinks([{ count: 0, kind: "AI_PENDING_OVER_24H" }], "/doctor")).toEqual([]);
     expect(attentionLinks([], "/doctor")).toEqual([]);

@@ -23,6 +23,11 @@ const entityTypeByAction: Record<string, string> = {
   AI_ANALYSIS_REPORT_GENERATED: 'AiAnalysisReport',
   AI_ANALYSIS_REPORT_DOWNLOADED: 'AiAnalysisReport',
   PATIENT_AI_ANALYSIS_CREATED: 'PatientAiAnalysis',
+  // Case discussions of the messaging (entityId: the conversation, or the
+  // note filed to the record); never the text of a message.
+  CASE_CONVERSATION_CREATED: 'Conversation',
+  MESSAGES_VIEWED: 'Conversation',
+  CASE_NOTE_FILED: 'PatientClinicalNote',
 };
 
 @Injectable()

@@ -8,10 +8,11 @@ import { ConfigService } from '@nestjs/config';
 import { randomBytes } from 'node:crypto';
 import { createReadStream, existsSync, type ReadStream } from 'node:fs';
 import { mkdir, readFile, rm, writeFile } from 'node:fs/promises';
-import { dirname, resolve } from 'node:path';
+import { dirname } from 'node:path';
 
 import { createSha256Checksum } from '../../common/utils/checksum.util';
 import { sanitizeOriginalFileName } from '../../common/utils/file-name.util';
+import { UploadRoot } from '../../common/utils/upload-root';
 
 type StoreFileInput = {
   documentType: string;
@@ -30,13 +31,12 @@ type StoredFileResult = {
 @Injectable()
 export class PatientFileStorageService {
   private readonly logger = new Logger(PatientFileStorageService.name);
+  private readonly root: UploadRoot;
   private readonly uploadRoot: string;
 
   constructor(configService: ConfigService) {
-    this.uploadRoot = resolve(
-      process.cwd(),
-      configService.get<string>('UPLOAD_ROOT') ?? './uploads',
-    );
+    this.root = new UploadRoot(configService.get<string>('UPLOAD_ROOT'));
+    this.uploadRoot = this.root.path;
   }
 
   async storePatientDocument(input: StoreFileInput): Promise<StoredFileResult> {
@@ -216,23 +216,11 @@ export class PatientFileStorageService {
   }
 
   private resolveSafePath(...segments: string[]) {
-    return this.ensurePathInsideUploadRoot(
-      resolve(this.uploadRoot, ...segments),
-    );
+    return this.root.resolve(...segments);
   }
 
   private ensurePathInsideUploadRoot(pathToCheck: string) {
-    const resolvedPath = resolve(pathToCheck);
-
-    if (
-      resolvedPath !== this.uploadRoot &&
-      !resolvedPath.startsWith(`${this.uploadRoot}\\`) &&
-      !resolvedPath.startsWith(`${this.uploadRoot}/`)
-    ) {
-      throw new InternalServerErrorException('Chemin de fichier invalide.');
-    }
-
-    return resolvedPath;
+    return this.root.ensureInside(pathToCheck);
   }
 
   private async removeEmptyParentDirectories(directory: string): Promise<void> {

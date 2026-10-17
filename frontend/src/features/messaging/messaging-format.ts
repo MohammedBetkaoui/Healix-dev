@@ -65,3 +65,15 @@ export function formatMutedUntil(mutedUntil: string, locale: Locale): string | n
 export function formatNumber(value: number, locale: Locale): string {
   return new Intl.NumberFormat(intlLocale(locale)).format(value);
 }
+
+// A file's size: "850 ko", "2,4 Mo" (French units; Intl in Arabic).
+export function formatFileSize(bytes: number, locale: Locale): string {
+  const megabytes = bytes / (1024 * 1024);
+  const [value, unit] = megabytes >= 1 ? [megabytes, "megabyte"] : [Math.max(1, Math.round(bytes / 1024)), "kilobyte"];
+  return new Intl.NumberFormat(intlLocale(locale), {
+    maximumFractionDigits: unit === "megabyte" ? 1 : 0,
+    style: "unit",
+    unit,
+    unitDisplay: "short",
+  }).format(value);
+}

@@ -55,12 +55,11 @@ export type RealtimeClientOptions = {
   random?: () => number;
 };
 
-// Same origin in production (behind Caddy); the API's origin with next dev
-// (NEXT_PUBLIC_API_URL, written into the build).
+// The API's origin (NEXT_PUBLIC_API_URL, written into the build), in every
+// environment: behind Caddy it is the page's own origin, and a build served
+// without it (next start on its own port) still reaches the API. A relative
+// URL ("/api") has no origin: the socket then opens on the page's.
 export function realtimeUrl(): string | undefined {
-  if (process.env.NODE_ENV === "production") {
-    return undefined;
-  }
   return (
     originOf(process.env.NEXT_PUBLIC_API_URL ?? DEFAULT_API_URL) ?? undefined
   );

@@ -17,6 +17,7 @@ const attentionKinds: DashboardAttentionKind[] = [
   "AI_PENDING_OVER_24H",
   "APPOINTMENTS_UNCONFIRMED_TODAY",
   "AI_CONSENT_MISSING",
+  "URGENT_MESSAGES_UNACKED",
 ];
 const runStatuses: DashboardRecentAnalysis["status"][] = ["RUNNING", "SUCCEEDED", "FAILED", "REJECTED_INPUT"];
 const decisions: DashboardRecentAnalysis["decision"][] = [null, "VALIDATED", "CORRECTED", "REJECTED"];

@@ -27,7 +27,10 @@ export type DashboardAttentionKind =
   | 'APPOINTMENTS_UNCONFIRMED_TODAY'
   // Active patients with an analysis requested but no signed DIAGNOSTIC_AI
   // consent (revoked or never recorded).
-  | 'AI_CONSENT_MISSING';
+  | 'AI_CONSENT_MISSING'
+  // Urgent messages received that ask for an acknowledgement the user has
+  // not given yet (messaging).
+  | 'URGENT_MESSAGES_UNACKED';
 
 export type DashboardOverview = {
   generatedAt: string;

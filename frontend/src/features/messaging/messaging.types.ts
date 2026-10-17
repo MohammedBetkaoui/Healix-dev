@@ -1,7 +1,7 @@
 // Mirrors the responses of backend/src/messaging (conversations.service.ts,
 // message-views.ts, messages.service.ts, directory.service.ts).
 
-export type ConversationType = "DIRECT" | "GROUP";
+export type ConversationType = "DIRECT" | "GROUP" | "CASE";
 export type ParticipantStatus = "PENDING" | "ACTIVE" | "LEFT" | "BLOCKED";
 export type ParticipantRole = "OWNER" | "MEMBER";
 export type MessagePriority = "NORMAL" | "URGENT";
@@ -46,6 +46,17 @@ export type Conversation = {
   lastMessage: LastMessage | null;
   // A DIRECT conversation names both sides; a group its current members.
   participants: ConversationParticipant[];
+  // CASE: the patient discussed (in the caller's scope).
+  patient: CasePatient | null;
+};
+
+export type CasePatient = {
+  id: string;
+  firstName: string;
+  lastName: string;
+  firstNameAr: string;
+  lastNameAr: string;
+  birthDate: string;
 };
 
 export type ConversationPage = {
@@ -53,9 +64,11 @@ export type ConversationPage = {
   nextCursor: string | null;
 };
 
-// The filters of the list: "unread" is the active list, read client-side.
-export type ConversationFilter = "all" | "unread" | "requests" | "archived";
+// The filters of the list: "unread" is the active list, read client-side;
+// "cases" the active case discussions.
+export type ConversationFilter = "all" | "unread" | "cases" | "requests" | "archived";
 export type ConversationStatusParam = "active" | "pending" | "archived";
+export type ConversationListParams = { status: ConversationStatusParam; type?: ConversationType };
 
 export type MessageView = {
   id: string;
@@ -65,7 +78,8 @@ export type MessageView = {
   // The caller's own id for the message; null for the others' messages.
   clientMessageId: string | null;
   kind: "TEXT" | "SYSTEM" | "ATTACHMENT";
-  // null once deleted, or when it cannot be decrypted (bodyUnavailable).
+  // null once deleted, when it cannot be decrypted (bodyUnavailable), or
+  // for files sent without text (ATTACHMENT).
   body: string | null;
   deleted: boolean;
   bodyUnavailable: boolean;
@@ -73,6 +87,51 @@ export type MessageView = {
   requiresAck: boolean;
   replyToId: string | null;
   editedAt: string | null;
+  createdAt: string;
+  attachments: MessageAttachment[];
+  // requiresAck: who acknowledged it, and the recipients still expected.
+  acks: MessageAck[];
+  ackedByMe: boolean;
+  pendingAck: Recipient[];
+  // CASE: copied to the patient record.
+  filedToRecord: boolean;
+};
+
+export type MessageAttachment = {
+  id: string;
+  originalName: string;
+  mimeType: string;
+  sizeBytes: number;
+  // A document of the patient record, shared without copy.
+  fromRecord: boolean;
+};
+
+export type MessageAck = { userId: string; fullName: string; ackedAt: string };
+
+export type Recipient = { userId: string; fullName: string };
+
+// POST /messaging/conversations/:id/attachments (and /from-record).
+export type UploadedAttachment = {
+  id: string;
+  originalName: string;
+  mimeType: string;
+  sizeBytes: number;
+};
+
+// A note of the patient record, filed from a case discussion
+// (backend/src/patients/clinical-note-view.ts).
+export type ClinicalNote = {
+  id: string;
+  patientId: string;
+  source: "MESSAGING";
+  content: string;
+  originalAuthorName: string;
+  originalSentAt: string;
+  authorId: string;
+  authorName: string;
+  comment: string | null;
+  sourceConversationId: string | null;
+  sourceMessageId: string | null;
   createdAt: string;
 };
 
@@ -126,9 +185,13 @@ export type ParticipationEnded = {
 
 export type SendMessagePayload = {
   clientMessageId: string;
+  // Empty with attachments only.
   body: string;
   priority?: MessagePriority;
+  // With priority URGENT only.
+  requiresAck?: boolean;
   replyToId?: string;
+  attachmentIds?: string[];
 };
 
 export type DirectorySearch = {

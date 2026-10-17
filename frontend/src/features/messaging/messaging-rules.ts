@@ -1,13 +1,15 @@
 import { type InfiniteData } from "@tanstack/react-query";
 
 import {
+  type CasePatient,
   type Conversation,
   type ConversationFilter,
+  type ConversationListParams,
   type ConversationParticipant,
-  type ConversationStatusParam,
   type MessagePage,
   type MessagePriority,
   type MessageView,
+  type UploadedAttachment,
 } from "./messaging.types";
 
 // The rules of the Messages interface that need no React: kept apart so that
@@ -34,7 +36,10 @@ export type PendingMessage = {
   conversationId: string;
   body: string;
   priority: MessagePriority;
+  requiresAck: boolean;
   replyToId: string | null;
+  // Uploaded already: sent with the message, shown with the copy.
+  attachments: UploadedAttachment[];
   createdAt: string;
   status: "sending" | "failed";
   errorCode?: string;
@@ -263,7 +268,9 @@ export function composerAvailability(
   if (conversation.me.status !== "ACTIVE") {
     return { canWrite: false, reason: "closed" };
   }
-  if (conversation.type === "GROUP") {
+  // A group or a case discussion has no other side to wait for: an ACTIVE
+  // participant writes, even alone in it.
+  if (conversation.type !== "DIRECT") {
     return { canWrite: true, notice: null };
   }
 
@@ -327,10 +334,11 @@ export function shouldMarkRead(state: {
 
 // --- List -----------------------------------------------------------------------------
 
-export function statusOfFilter(filter: ConversationFilter): ConversationStatusParam {
-  if (filter === "requests") return "pending";
-  if (filter === "archived") return "archived";
-  return "active";
+export function listParamsOfFilter(filter: ConversationFilter): ConversationListParams {
+  if (filter === "requests") return { status: "pending" };
+  if (filter === "archived") return { status: "archived" };
+  if (filter === "cases") return { status: "active", type: "CASE" };
+  return { status: "active" };
 }
 
 // The menu badge: nothing at 0, "99+" beyond 99.
@@ -381,4 +389,110 @@ export function initialsOf(name: string): string {
       .map((part) => Array.from(part)[0]?.toLocaleUpperCase() ?? "")
       .join("") || "?"
   );
+}
+
+// --- Case discussions -------------------------------------------------------------
+
+// The comment that goes with a note filed to the record.
+export const CLINICAL_NOTE_COMMENT_MAX_LENGTH = 1_000;
+
+// The patient as the interface names them: in Arabic letters in Arabic.
+export function patientNameOf(patient: CasePatient, locale: "fr" | "ar"): string {
+  return locale === "ar"
+    ? `${patient.lastNameAr} ${patient.firstNameAr}`.trim()
+    : `${patient.lastName.toLocaleUpperCase("fr")} ${patient.firstName}`.trim();
+}
+
+// In whole years, at the day given.
+export function ageOf(birthDate: string, now = new Date()): number {
+  const birth = new Date(birthDate);
+  let age = now.getUTCFullYear() - birth.getUTCFullYear();
+  const beforeBirthday =
+    now.getUTCMonth() < birth.getUTCMonth() ||
+    (now.getUTCMonth() === birth.getUTCMonth() && now.getUTCDate() < birth.getUTCDate());
+  if (beforeBirthday) age -= 1;
+  return Math.max(0, age);
+}
+
+// "Verser au dossier": a message of a case discussion, not deleted, with
+// something to file (text or files), not filed yet.
+export function canFileToRecord(message: MessageView, conversation: Pick<Conversation, "type">): boolean {
+  return (
+    conversation.type === "CASE" &&
+    !message.deleted &&
+    !message.filedToRecord &&
+    !message.bodyUnavailable &&
+    (Boolean(message.body) || message.attachments.length > 0)
+  );
+}
+
+// What "verser au dossier" will copy, shown before confirming: as the
+// server composes it (backend messaging-rules filedContentOf).
+export function filedContentOf(message: Pick<MessageView, "body" | "attachments">, attachmentLabel: string): string {
+  return [
+    ...(message.body ? [message.body] : []),
+    ...message.attachments.map(({ originalName }) => `[${attachmentLabel} : ${originalName}]`),
+  ].join("\n");
+}
+
+// --- Urgent messages ---------------------------------------------------------------
+
+export type AckState =
+  // Not asked, or deleted.
+  | { kind: "none" }
+  // Everyone acknowledged it: the last of them, and when.
+  | { kind: "acked"; names: string[]; lastAckedAt: string }
+  // Some recipients still expected.
+  | { kind: "pending"; count: number; names: string[] };
+
+export function ackStateOf(message: MessageView): AckState {
+  if (!message.requiresAck || message.deleted) return { kind: "none" };
+  if (message.pendingAck.length > 0) {
+    return { count: message.pendingAck.length, kind: "pending", names: message.acks.map(({ fullName }) => fullName) };
+  }
+  const last = message.acks.at(-1);
+  return last
+    ? { kind: "acked", lastAckedAt: last.ackedAt, names: message.acks.map(({ fullName }) => fullName) }
+    : { kind: "none" };
+}
+
+// A recipient who has not acknowledged a message that asks for it.
+export function canAck(message: MessageView, myUserId: string): boolean {
+  return message.requiresAck && !message.deleted && message.senderId !== myUserId && !message.ackedByMe;
+}
+
+// --- Attachments ----------------------------------------------------------------------
+
+export const ATTACHMENT_MAX_BYTES = 10 * 1024 * 1024;
+export const ATTACHMENTS_PER_MESSAGE_MAX = 5;
+// For the file picker; the server decides on the file's first bytes.
+export const ATTACHMENT_ACCEPT = "application/pdf,image/png,image/jpeg,.pdf,.png,.jpg,.jpeg";
+const ATTACHMENT_TYPES = new Set(["application/pdf", "image/png", "image/jpeg"]);
+const ATTACHMENT_EXTENSIONS = /\.(pdf|png|jpe?g)$/i;
+
+export type AttachmentProblem = "tooLarge" | "type" | "tooMany";
+
+// Checked before uploading, to answer at once; the server checks again, on
+// the content.
+export function attachmentProblemOf(
+  file: { name: string; size: number; type: string },
+  alreadyAttached: number,
+): AttachmentProblem | null {
+  if (alreadyAttached >= ATTACHMENTS_PER_MESSAGE_MAX) return "tooMany";
+  if (file.size > ATTACHMENT_MAX_BYTES) return "tooLarge";
+  const typeKnown = file.type ? ATTACHMENT_TYPES.has(file.type) : ATTACHMENT_EXTENSIONS.test(file.name);
+  return typeKnown ? null : "type";
+}
+
+export function isImageAttachment(attachment: { mimeType: string }): boolean {
+  return attachment.mimeType === "image/png" || attachment.mimeType === "image/jpeg";
+}
+
+// A message is ready to send with text, or with files and nothing being
+// uploaded.
+export function canSendWith(body: string, attachments: { status: "uploading" | "ready" | "failed" }[]): boolean {
+  if (attachments.some(({ status }) => status !== "ready")) return false;
+  const length = messageLength(body);
+  if (length > MESSAGE_BODY_MAX_LENGTH) return false;
+  return length > 0 || attachments.length > 0;
 }

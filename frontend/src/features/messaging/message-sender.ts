@@ -1,7 +1,12 @@
 import { isAxiosError } from "axios";
 
 import { type PendingMessage } from "./messaging-rules";
-import { type MessagePriority, type MessageView, type SendMessagePayload } from "./messaging.types";
+import {
+  type MessagePriority,
+  type MessageView,
+  type SendMessagePayload,
+  type UploadedAttachment,
+} from "./messaging.types";
 
 // Optimistic sending, without React: the copies being sent live here, per
 // conversation, until the server's copy is in the cache. Kept outside the
@@ -70,18 +75,27 @@ export class MessageSender {
     this.now = options.now ?? (() => new Date());
   }
 
-  // Shown at once as "sending"; returns its clientMessageId.
+  // Shown at once as "sending"; returns its clientMessageId. The files are
+  // uploaded already: their ids go with the message.
   send(
     conversationId: string,
-    input: { body: string; priority: MessagePriority; replyToId: string | null },
+    input: {
+      body: string;
+      priority: MessagePriority;
+      replyToId: string | null;
+      requiresAck?: boolean;
+      attachments?: UploadedAttachment[];
+    },
   ): Promise<string> {
     const entry: PendingMessage = {
+      attachments: input.attachments ?? [],
       body: input.body,
       clientMessageId: this.newId(),
       conversationId,
       createdAt: this.now().toISOString(),
       priority: input.priority,
       replyToId: input.replyToId,
+      requiresAck: input.priority === "URGENT" && Boolean(input.requiresAck),
       status: "sending",
     };
     this.options.store.upsert(entry);
@@ -108,7 +122,9 @@ export class MessageSender {
         body: entry.body,
         clientMessageId: entry.clientMessageId,
         priority: entry.priority,
+        ...(entry.requiresAck ? { requiresAck: true } : {}),
         ...(entry.replyToId ? { replyToId: entry.replyToId } : {}),
+        ...(entry.attachments.length > 0 ? { attachmentIds: entry.attachments.map(({ id }) => id) } : {}),
       });
       // Into the cache first: the copy disappears only once the message is
       // shown, never leaving a gap.

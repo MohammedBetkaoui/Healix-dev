@@ -1,16 +1,33 @@
 "use client";
 
 import { useEffect, useId, useRef, useState } from "react";
-import { AlertTriangle, Copy, CornerUpLeft, MoreHorizontal, Pencil, RotateCcw, Trash2, X } from "lucide-react";
+import {
+  AlertTriangle,
+  BellRing,
+  Copy,
+  CornerUpLeft,
+  FileCheck2,
+  FileHeart,
+  MoreHorizontal,
+  Paperclip,
+  Pencil,
+  RotateCcw,
+  Trash2,
+  X,
+} from "lucide-react";
 
 import { type Locale } from "@/i18n";
+import { caseMessagingCopy } from "@/features/messaging/case-messaging.copy";
 import { type MessagingCopy } from "@/features/messaging/messaging.copy";
 import { formatDateTime, formatTime } from "@/features/messaging/messaging-format";
-import { type PendingMessage } from "@/features/messaging/messaging-rules";
+import { type AckState, type PendingMessage } from "@/features/messaging/messaging-rules";
 import { type MessageView } from "@/features/messaging/messaging.types";
 import { cn } from "@/lib/utils";
 
+import { MessageAttachments } from "./attachments";
+import { AckStatus } from "./case-ui";
 import { MessageText } from "./messaging-ui";
+import styles from "./messaging.module.css";
 
 export type BubbleQuote = { authorName: string; text: string; messageId: string | null };
 
@@ -35,6 +52,10 @@ type MessageBubbleProps =
       onReply: () => void;
       onEdit: () => void;
       onDelete: () => void;
+      // An urgent message that asks for an acknowledgement.
+      ack?: { state: AckState; canAck: boolean; busy: boolean; onAck: () => void };
+      // A case discussion: "Verser au dossier", when the message can be.
+      onFileToRecord?: () => void;
     })
   | (Common & {
       kind: "pending";
@@ -46,6 +67,7 @@ type MessageBubbleProps =
 
 export function MessageBubble(props: MessageBubbleProps) {
   const { copy, locale, mine } = props;
+  const caseCopy = caseMessagingCopy[locale];
   const isPending = props.kind === "pending";
   const createdAt = isPending ? props.pending.createdAt : props.message.createdAt;
   // A deleted message keeps its place only: no quote, no URGENT badge.
@@ -53,10 +75,14 @@ export function MessageBubble(props: MessageBubbleProps) {
   const urgent = !deleted && (isPending ? props.pending.priority : props.message.priority) === "URGENT";
   const failed = isPending && props.pending.status === "failed";
 
+  const requiresAck = !deleted && (isPending ? props.pending.requiresAck : props.message.requiresAck);
+
   const body = (() => {
-    if (isPending) return <MessageText text={props.pending.body} />;
+    if (isPending) return props.pending.body ? <MessageText text={props.pending.body} /> : null;
     const { message } = props;
     if (message.deleted) return <span className="italic text-[var(--text-secondary)]">{copy.message.deleted}</span>;
+    // Files sent without text: the files alone.
+    if (message.kind === "ATTACHMENT" && message.body === null && !message.bodyUnavailable) return null;
     if (message.bodyUnavailable || message.body === null) {
       return <span className="italic text-[var(--text-secondary)]">{copy.message.unavailable}</span>;
     }
@@ -68,18 +94,26 @@ export function MessageBubble(props: MessageBubbleProps) {
       {mine && props.kind === "message" ? <MessageActions {...props} /> : null}
       <div
         className={cn(
-          "min-w-0 max-w-[min(85%,36rem)] rounded-[var(--radius-lg)] border px-3 py-2 text-sm leading-6 text-[var(--text-primary)]",
-          mine ? "border-[var(--accent-line)] bg-[var(--medical-soft)]" : "border-[var(--border)] bg-[var(--surface)]",
-          failed && "border-[var(--danger-line)]",
+          styles.bubble,
+          mine ? styles.bubbleMine : styles.bubbleReceived,
+          failed && styles.bubbleFailed,
         )}
       >
         {props.authorName ? (
           <p className="mb-0.5 text-[.72rem] font-semibold text-[var(--medical)]"><bdi>{props.authorName}</bdi></p>
         ) : null}
         {urgent ? (
-          <p className="mb-1 inline-flex items-center gap-1 rounded-[var(--radius-xs)] border border-[var(--danger-line)] bg-[var(--danger-soft)] px-1.5 py-0.5 text-[.68rem] font-semibold uppercase tracking-wide text-[var(--danger-ink)]">
-            <AlertTriangle size={12} strokeWidth={2} aria-hidden="true" />
-            {copy.message.urgent}
+          <p className="mb-1 flex flex-wrap items-center gap-1.5">
+            <span className="inline-flex items-center gap-1 rounded-[var(--radius-xs)] border border-[var(--danger-line)] bg-[var(--danger-soft)] px-1.5 py-0.5 text-[.68rem] font-semibold uppercase tracking-wide text-[var(--danger-ink)]">
+              <AlertTriangle size={12} strokeWidth={2} aria-hidden="true" />
+              {copy.message.urgent}
+            </span>
+            {requiresAck ? (
+              <span className="inline-flex items-center gap-1 text-[.66rem] font-medium text-[var(--danger-ink)]">
+                <BellRing size={11} strokeWidth={2} aria-hidden="true" />
+                {caseCopy.message.ackRequested}
+              </span>
+            ) : null}
           </p>
         ) : null}
         {props.quote && !deleted ? (
@@ -94,8 +128,27 @@ export function MessageBubble(props: MessageBubbleProps) {
             <span dir="auto" className="line-clamp-2">{props.quote.text}</span>
           </button>
         ) : null}
+        {props.kind === "message" && !deleted ? (
+          <MessageAttachments attachments={props.message.attachments} copy={caseCopy} locale={locale} />
+        ) : null}
+        {isPending && props.pending.attachments.length > 0 ? (
+          <ul aria-label={caseCopy.message.attachments} className="mb-1.5 space-y-1 text-xs text-[var(--text-secondary)]">
+            {props.pending.attachments.map((attachment) => (
+              <li key={attachment.id} className="flex items-center gap-1.5">
+                <Paperclip size={12} strokeWidth={1.8} aria-hidden="true" />
+                <bdi className="truncate">{attachment.originalName}</bdi>
+              </li>
+            ))}
+          </ul>
+        ) : null}
         {/* Its own direction: a French message reads left to right in the Arabic interface. */}
-        <div dir="auto">{body}</div>
+        {body ? <div dir="auto">{body}</div> : null}
+        {props.kind === "message" && props.message.filedToRecord && !deleted ? (
+          <p className="mt-1 inline-flex items-center gap-1 rounded-[var(--radius-xs)] border border-[var(--accent-line)] bg-[var(--medical-soft)] px-1.5 py-0.5 text-[.66rem] font-semibold text-[var(--medical)]">
+            <FileCheck2 size={12} strokeWidth={2} aria-hidden="true" />
+            {caseCopy.message.filed}
+          </p>
+        ) : null}
         <p className={cn("mt-1 flex flex-wrap items-center gap-x-1.5 text-[.68rem] text-[var(--text-secondary)]", mine && "justify-end")}>
           <time dateTime={createdAt} title={formatDateTime(createdAt, locale)}>{formatTime(createdAt, locale)}</time>
           {props.kind === "message" && props.message.editedAt && !props.message.deleted ? (
@@ -110,6 +163,10 @@ export function MessageBubble(props: MessageBubbleProps) {
             </span>
           ) : null}
         </p>
+        {props.kind === "message" && props.ack ? (
+          <AckStatus state={props.ack.state} canAck={props.ack.canAck} busy={props.ack.busy} onAck={props.ack.onAck}
+            copy={caseCopy} locale={locale} />
+        ) : null}
         {failed ? (
           <div className="mt-1.5 flex justify-end gap-1.5">
             <button type="button" className="clinical-button min-h-8 px-2 text-xs" onClick={props.onRetry}>
@@ -157,9 +214,16 @@ function MessageActions(props: Extract<MessageBubbleProps, { kind: "message" }>)
   const copyText = () => {
     if (message.body) void navigator.clipboard?.writeText(message.body).catch(() => undefined);
   };
+  const fileToRecord = props.onFileToRecord;
   const items = [
     { action: props.onReply, icon: CornerUpLeft, label: copy.message.reply, show: true },
     { action: copyText, icon: Copy, label: copy.message.copy, show: Boolean(message.body) },
+    {
+      action: () => fileToRecord?.(),
+      icon: FileHeart,
+      label: caseMessagingCopy[props.locale].message.fileToRecord,
+      show: Boolean(fileToRecord),
+    },
     { action: props.onEdit, icon: Pencil, label: copy.message.edit, show: props.canEdit },
     { action: props.onDelete, danger: true, icon: Trash2, label: copy.message.delete, show: props.canDelete },
   ].filter((item) => item.show);

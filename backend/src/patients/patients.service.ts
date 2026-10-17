@@ -7,6 +7,7 @@ import {
 } from '@nestjs/common';
 import {
   type AuditLog,
+  ConversationType,
   type Patient,
   type PatientAiAnalysis,
   type PatientConsent,
@@ -40,6 +41,7 @@ import { UploadPatientDocumentDto } from './dto/upload-patient-document.dto';
 import { UpsertPatientConsentDto } from './dto/upsert-patient-consent.dto';
 import { PatientFileStorageService } from './documents/patient-file-storage.service';
 import { PatientFileValidator } from './documents/patient-file-validator';
+import { toClinicalNoteView } from './clinical-note-view';
 import { findPatientMatches } from './patient-matching.util';
 import { PatientAuditService } from './patient-audit.service';
 
@@ -526,25 +528,40 @@ export class PatientsService {
   async listAuditLog(user: AuthenticatedUserPayload, patientId: string) {
     await this.getPatientInScope(user, patientId);
 
-    const [consultations, documents, analyses, analysisRuns] =
-      await Promise.all([
-        this.prisma.patientConsultation.findMany({
-          where: { patientId },
-          select: { id: true },
-        }),
-        this.prisma.patientDocument.findMany({
-          where: { patientId },
-          select: { id: true },
-        }),
-        this.prisma.patientAiAnalysis.findMany({
-          where: { patientId },
-          select: { id: true },
-        }),
-        this.prisma.aiAnalysisRun.findMany({
-          where: { patientId },
-          select: { id: true },
-        }),
-      ]);
+    const [
+      consultations,
+      documents,
+      analyses,
+      analysisRuns,
+      caseConversations,
+      clinicalNotes,
+    ] = await Promise.all([
+      this.prisma.patientConsultation.findMany({
+        where: { patientId },
+        select: { id: true },
+      }),
+      this.prisma.patientDocument.findMany({
+        where: { patientId },
+        select: { id: true },
+      }),
+      this.prisma.patientAiAnalysis.findMany({
+        where: { patientId },
+        select: { id: true },
+      }),
+      this.prisma.aiAnalysisRun.findMany({
+        where: { patientId },
+        select: { id: true },
+      }),
+      // Case discussions: their creation and each day someone read them.
+      this.prisma.conversation.findMany({
+        where: { patientId, type: ConversationType.CASE },
+        select: { id: true },
+      }),
+      this.prisma.patientClinicalNote.findMany({
+        where: { patientId },
+        select: { id: true },
+      }),
+    ]);
 
     // AuditLog has no patientId column: entries for sub-resources
     // (consultations/documents/AI analyses) are recorded against their own
@@ -556,6 +573,8 @@ export class PatientsService {
       ...documents.map((document) => document.id),
       ...analyses.map((analysis) => analysis.id),
       ...analysisRuns.map((run) => run.id),
+      ...caseConversations.map((conversation) => conversation.id),
+      ...clinicalNotes.map((note) => note.id),
     ];
 
     const entries = await this.prisma.auditLog.findMany({
@@ -565,6 +584,20 @@ export class PatientsService {
     });
 
     return entries.map((entry) => this.toAuditLogEntryResponse(entry));
+  }
+
+  // The notes of the record (an opinion filed from a case discussion), with
+  // the same guard as the record itself; newest first.
+  async listClinicalNotes(user: AuthenticatedUserPayload, patientId: string) {
+    await this.getPatientInScope(user, patientId);
+
+    const notes = await this.prisma.patientClinicalNote.findMany({
+      include: { author: { select: { fullName: true } } },
+      orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
+      where: { patientId },
+    });
+
+    return notes.map(toClinicalNoteView);
   }
 
   private toAuditLogEntryResponse(

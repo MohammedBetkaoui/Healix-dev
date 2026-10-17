@@ -88,8 +88,6 @@ export default async function Home({ searchParams }: HomeProps) {
         <PlatformBento
           context={content.context}
           features={content.features}
-          record={content.patientRecord}
-          screenUi={content.showcase.ui}
         />
         <ClinicalWorkflow journey={content.journey} />
         <ProductTour showcase={content.showcase} />

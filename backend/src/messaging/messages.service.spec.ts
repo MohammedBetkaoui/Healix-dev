@@ -1,15 +1,11 @@
 import { randomBytes, randomUUID } from 'node:crypto';
 
-import { type HttpException } from '@nestjs/common';
+import { type HttpException, NotFoundException } from '@nestjs/common';
 import { GUARDS_METADATA } from '@nestjs/common/constants';
-import {
-  ConversationType,
-  type Message,
-  ParticipantStatus,
-  Prisma,
-} from '@prisma/client';
+import { ConversationType, ParticipantStatus, Prisma } from '@prisma/client';
 
 import { type AuditLogsService } from '../audit-logs/audit-logs.service';
+import { type CaseRecordService } from './case-record.service';
 import { type AuthenticatedUserPayload } from '../auth/types/authenticated-request.type';
 import { UserRole } from '../common/enums/user-role.enum';
 import { VerifiedAccountGuard } from '../common/guards/verified-account.guard';
@@ -19,6 +15,10 @@ import {
   type Participation,
 } from './conversations.service';
 import { MessageCrypto } from './message-crypto';
+import {
+  messageDetailsInclude,
+  type MessageWithDetails,
+} from './message-views';
 import { type MessagingEvents } from './messaging-events';
 import { MessagesController } from './messages.controller';
 import { MessagesService } from './messages.service';
@@ -91,6 +91,7 @@ function participation(
       lastMessageAt: null,
       lastSeq: options.lastSeq ?? 5,
       participants,
+      patient: null,
       patientId: null,
       title: null,
       type: options.type ?? ConversationType.DIRECT,
@@ -123,14 +124,19 @@ function setup() {
   const crypto = MessageCrypto.fromEnv(
     `k1:${randomBytes(32).toString('base64')}`,
   );
-  const stored = (overrides: Partial<Message> = {}): Message => {
+  const stored = (
+    overrides: Partial<MessageWithDetails> = {},
+  ): MessageWithDetails => {
     const encrypted = crypto.encrypt(
       'Texte enregistré',
       overrides.conversationId ?? CONVERSATION,
     );
     return {
+      acks: [],
+      attachments: [],
       bodyCiphertext: encrypted.ciphertext,
       clientMessageId: randomUUID(),
+      clinicalNotes: [],
       conversationId: CONVERSATION,
       createdAt: new Date(),
       deletedAt: null,
@@ -146,6 +152,8 @@ function setup() {
       ...overrides,
     };
   };
+  // The last message created: what is read back after sending.
+  let created: MessageWithDetails | null = null;
   const prisma = {
     $executeRaw: jest.fn().mockResolvedValue(1),
     $queryRaw: jest.fn().mockResolvedValue([{ last_seq: 6 }]),
@@ -157,14 +165,21 @@ function setup() {
     },
     message: {
       count: jest.fn().mockResolvedValue(1),
-      create: jest.fn((args: CreateArgs) =>
-        Promise.resolve(stored(args.data as Partial<Message>)),
-      ),
+      create: jest.fn((args: CreateArgs) => {
+        created = stored(args.data);
+        return Promise.resolve(created);
+      }),
       findMany: jest.fn().mockResolvedValue([]),
       findUnique: jest.fn().mockResolvedValue(null),
+      findUniqueOrThrow: jest.fn(() => Promise.resolve(created ?? stored())),
       update: jest.fn((args: CreateArgs) =>
-        Promise.resolve(stored(args.data as Partial<Message>)),
+        Promise.resolve(stored(args.data as Partial<MessageWithDetails>)),
       ),
+    },
+    messageAck: { createMany: jest.fn().mockResolvedValue({ count: 1 }) },
+    messageAttachment: {
+      count: jest.fn().mockResolvedValue(0),
+      updateMany: jest.fn().mockResolvedValue({ count: 0 }),
     },
     messageRevision: { create: jest.fn() },
   };
@@ -172,8 +187,10 @@ function setup() {
     (callback: (client: typeof prisma) => unknown) => callback(prisma),
   );
   const conversations = {
+    caseScopeWorkspaceId: jest.fn().mockResolvedValue('workspace-a'),
     getParticipation: jest.fn().mockResolvedValue(participation()),
   };
+  const caseRecord = { recordView: jest.fn().mockResolvedValue(undefined) };
   const users = {
     blockRelation: jest
       .fn()
@@ -196,9 +213,11 @@ function setup() {
     auditLogs as unknown as AuditLogsService,
     crypto,
     events as unknown as MessagingEvents,
+    caseRecord as unknown as CaseRecordService,
   );
   return {
     auditLogs,
+    caseRecord,
     conversations,
     crypto,
     events,
@@ -244,12 +263,24 @@ describe('message rules', () => {
 });
 
 describe('MessagesService.send', () => {
-  it('refuses requiresAck in lot 1', async () => {
-    const { service } = setup();
+  it('asks an acknowledgement for an urgent message only', async () => {
+    const { prisma, service } = setup();
     const error = await errorOf(
       service.send(actor, CONVERSATION, { ...sendDto(), requiresAck: true }),
     );
-    expect(codeOf(error)).toBe('ACK_NOT_AVAILABLE');
+    expect(codeOf(error)).toBe('ACK_REQUIRES_URGENT');
+    expect(prisma.message.create).not.toHaveBeenCalled();
+
+    const { message } = await service.send(actor, CONVERSATION, {
+      ...sendDto(),
+      priority: 'URGENT',
+      requiresAck: true,
+    });
+    expect(argOf<CreateArgs>(prisma.message.create).data).toMatchObject({
+      priority: 'URGENT',
+      requiresAck: true,
+    });
+    expect(message).toMatchObject({ requiresAck: true });
   });
 
   it.each([
@@ -461,6 +492,7 @@ describe('MessagesService.list', () => {
     });
 
     expect(prisma.message.findMany).toHaveBeenCalledWith({
+      include: messageDetailsInclude,
       orderBy: { seq: 'desc' },
       take: 3,
       where: { conversationId: CONVERSATION, seq: { lt: 9 } },
@@ -476,6 +508,7 @@ describe('MessagesService.list', () => {
     const page = await service.list(actor, CONVERSATION, { afterSeq: 3 });
 
     expect(prisma.message.findMany).toHaveBeenCalledWith({
+      include: messageDetailsInclude,
       orderBy: { seq: 'asc' },
       take: 31,
       where: { conversationId: CONVERSATION, seq: { gt: 3 } },
@@ -493,7 +526,7 @@ describe('MessagesService.list', () => {
     const { items } = await service.list(actor, CONVERSATION, {});
 
     expect(conversations.getParticipation).toHaveBeenCalledWith(
-      ME,
+      actor,
       CONVERSATION,
       ['ACTIVE', 'PENDING'],
     );
@@ -582,7 +615,7 @@ describe('MessagesService.edit and remove', () => {
   it('answers 404 for a message of a conversation the caller is not in', async () => {
     const { conversations, prisma, service, stored } = setup();
     prisma.message.findUnique.mockResolvedValue(stored());
-    conversations.getParticipation.mockRejectedValue(new Error('404'));
+    conversations.getParticipation.mockRejectedValue(new NotFoundException());
 
     const error = await errorOf(service.remove(actor, 'message-6', context));
 
@@ -597,6 +630,7 @@ describe('MessagesService.edit and remove', () => {
 
     expect(prisma.message.update).toHaveBeenCalledWith({
       data: { deletedAt: expect.any(Date) as Date },
+      include: messageDetailsInclude,
       where: { id: 'message-6' },
     });
     expect(view).toMatchObject({ body: null, deleted: true });
@@ -758,7 +792,7 @@ describe('MessagesService real-time events', () => {
     await service.typing(actor, CONVERSATION);
     expect(events.typing).toHaveBeenCalledWith(CONVERSATION, ME);
     expect(conversations.getParticipation).toHaveBeenLastCalledWith(
-      ME,
+      actor,
       CONVERSATION,
     );
 
@@ -787,5 +821,157 @@ describe('MessagesService real-time events', () => {
       'not found',
     );
     expect(events.typing).not.toHaveBeenCalled();
+  });
+});
+
+describe('MessagesService attachments', () => {
+  const withFiles = (body = '') => ({
+    ...sendDto(body),
+    attachmentIds: ['file-1', 'file-2'],
+  });
+
+  it('sends files without text as an ATTACHMENT message, attached under the lock', async () => {
+    const { prisma, service } = setup();
+    prisma.messageAttachment.count.mockResolvedValue(2);
+    prisma.messageAttachment.updateMany.mockResolvedValue({ count: 2 });
+
+    const { message } = await service.send(actor, CONVERSATION, withFiles());
+
+    const data = argOf<CreateArgs>(prisma.message.create).data;
+    expect(data).toMatchObject({ bodyCiphertext: null, kind: 'ATTACHMENT' });
+    expect(prisma.messageAttachment.updateMany).toHaveBeenCalledWith({
+      data: { messageId: message.id },
+      where: {
+        conversationId: CONVERSATION,
+        id: { in: ['file-1', 'file-2'] },
+        messageId: null,
+        uploaderId: ME,
+      },
+    });
+    expect(message).toMatchObject({ body: null, kind: 'ATTACHMENT' });
+  });
+
+  it('refuses files of another sender, conversation, or already sent, and sends nothing', async () => {
+    const { prisma, service } = setup();
+    prisma.messageAttachment.count.mockResolvedValue(1);
+
+    const error = await errorOf(
+      service.send(actor, CONVERSATION, withFiles('Voici les clichés')),
+    );
+
+    expect(codeOf(error)).toBe('INVALID_ATTACHMENTS');
+    expect(prisma.message.create).not.toHaveBeenCalled();
+  });
+
+  it('rolls the message back when a file was taken meanwhile', async () => {
+    const { prisma, service } = setup();
+    prisma.messageAttachment.count.mockResolvedValue(2);
+    prisma.messageAttachment.updateMany.mockResolvedValue({ count: 1 });
+
+    const error = await errorOf(
+      service.send(actor, CONVERSATION, withFiles('Voici les clichés')),
+    );
+
+    expect(codeOf(error)).toBe('INVALID_ATTACHMENTS');
+  });
+
+  it('still refuses an empty message without files', async () => {
+    const { service } = setup();
+    const error = await errorOf(service.send(actor, CONVERSATION, sendDto('')));
+    expect(codeOf(error)).toBe('INVALID_MESSAGE_BODY');
+  });
+});
+
+describe('MessagesService acknowledgements', () => {
+  const urgent = (overrides: Partial<MessageWithDetails> = {}) => ({
+    priority: 'URGENT' as const,
+    requiresAck: true,
+    senderId: OTHER,
+    ...overrides,
+  });
+
+  it('records the acknowledgement of a recipient once, and tells the participants', async () => {
+    const { events, prisma, service, stored } = setup();
+    prisma.message.findUnique.mockResolvedValue(stored(urgent()));
+    prisma.message.findUniqueOrThrow.mockResolvedValue(
+      stored(
+        urgent({
+          acks: [
+            {
+              ackedAt: new Date('2026-10-17T12:41:00Z'),
+              id: 'ack-1',
+              messageId: 'message-6',
+              user: { fullName: 'Dr Me' },
+              userId: ME,
+            },
+          ],
+        }),
+      ),
+    );
+
+    const view = await service.ack(actor, 'message-6', context);
+
+    expect(prisma.messageAck.createMany).toHaveBeenCalledWith({
+      data: [{ messageId: 'message-6', userId: ME }],
+      skipDuplicates: true,
+    });
+    expect(events.messageUpdated).toHaveBeenCalledWith(
+      CONVERSATION,
+      'message-6',
+    );
+    expect(view).toMatchObject({ ackedByMe: true, pendingAck: [] });
+
+    // Again: nothing new, no event.
+    events.messageUpdated.mockClear();
+    prisma.messageAck.createMany.mockResolvedValue({ count: 0 });
+    await service.ack(actor, 'message-6', context);
+    expect(events.messageUpdated).not.toHaveBeenCalled();
+  });
+
+  it('is refused to the sender, and on a message that asks none', async () => {
+    const { prisma, service, stored } = setup();
+
+    prisma.message.findUnique.mockResolvedValue(
+      stored(urgent({ senderId: ME })),
+    );
+    const own = await errorOf(service.ack(actor, 'message-6', context));
+    expect(codeOf(own)).toBe('CANNOT_ACK_OWN_MESSAGE');
+
+    prisma.message.findUnique.mockResolvedValue(
+      stored({ requiresAck: false, senderId: OTHER }),
+    );
+    const notAsked = await errorOf(service.ack(actor, 'message-6', context));
+    expect(codeOf(notAsked)).toBe('ACK_NOT_REQUIRED');
+    expect(prisma.messageAck.createMany).not.toHaveBeenCalled();
+  });
+
+  it('shows the sender who acknowledged, and who has not yet', async () => {
+    const { prisma, service, stored } = setup();
+    prisma.message.findMany.mockResolvedValue([
+      stored(urgent({ senderId: ME })),
+    ]);
+
+    const { items } = await service.list(actor, CONVERSATION, {});
+
+    expect(items[0]).toMatchObject({
+      ackedByMe: false,
+      acks: [],
+      pendingAck: [{ fullName: OTHER, userId: OTHER }],
+    });
+  });
+});
+
+describe('MessagesService case discussions', () => {
+  it('traces each reading of a case discussion (once a day, in CaseRecordService)', async () => {
+    const { caseRecord, conversations, service } = setup();
+    const caseParticipation = participation({ type: ConversationType.CASE });
+    conversations.getParticipation.mockResolvedValue(caseParticipation);
+
+    await service.list(actor, CONVERSATION, {});
+
+    expect(caseRecord.recordView).toHaveBeenCalledWith(
+      actor,
+      caseParticipation.conversation,
+    );
   });
 });

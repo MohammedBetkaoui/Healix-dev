@@ -50,6 +50,7 @@ import { type DashboardStatusTone } from "@/types/dashboard";
 import { type PatientConsentStatus, type PatientConsentType } from "@/types/patient";
 
 import { EditPatientModal } from "./EditPatientModal";
+import { DiscussCaseButton, PatientClinicalNotes } from "./PatientCaseDiscussion";
 import { UploadPatientDocumentModal } from "./UploadPatientDocumentModal";
 import { UpsertConsentModal } from "./UpsertConsentModal";
 
@@ -63,7 +64,7 @@ type PatientRecordPageProps = {
 type RecordTab =
   | "summary" | "timeline" | "consultations" | "diagnostics" | "allergies"
   | "medications" | "vitals" | "labs" | "imaging" | "documents"
-  | "appointments" | "careTeam" | "consents" | "audit";
+  | "notes" | "appointments" | "careTeam" | "consents" | "audit";
 
 const copy = {
   fr: {
@@ -100,7 +101,7 @@ const copy = {
     tabs: {
       summary: "Résumé", timeline: "Chronologie", consultations: "Consultations", diagnostics: "Diagnostics",
       allergies: "Allergies", medications: "Médicaments", vitals: "Constantes", labs: "Examens / Analyses",
-      imaging: "Imagerie / Pathologie", documents: "Documents", appointments: "Rendez-vous",
+      imaging: "Imagerie / Pathologie", documents: "Documents", notes: "Notes", appointments: "Rendez-vous",
       careTeam: "Équipe médicale", consents: "Consentements", audit: "Audit",
     },
   },
@@ -138,7 +139,7 @@ const copy = {
     tabs: {
       summary: "الملخص", timeline: "التسلسل الزمني", consultations: "الاستشارات", diagnostics: "التشخيصات",
       allergies: "الحساسية", medications: "الأدوية", vitals: "المؤشرات", labs: "الفحوصات / التحاليل",
-      imaging: "التصوير / علم الأمراض", documents: "الوثائق", appointments: "المواعيد",
+      imaging: "التصوير / علم الأمراض", documents: "الوثائق", notes: "الملاحظات", appointments: "المواعيد",
       careTeam: "الفريق الطبي", consents: "الموافقات", audit: "التدقيق",
     },
   },
@@ -146,7 +147,7 @@ const copy = {
 
 const tabs: RecordTab[] = [
   "summary", "timeline", "consultations", "diagnostics", "allergies", "medications",
-  "vitals", "labs", "imaging", "documents", "appointments", "careTeam", "consents", "audit",
+  "vitals", "labs", "imaging", "documents", "notes", "appointments", "careTeam", "consents", "audit",
 ];
 
 // Local time, not UTC (toISOString), so the default date never shifts by a day.
@@ -312,6 +313,8 @@ export function PatientRecordPage({ accountType, initialTab, patientId }: Patien
             <Button variant="outline" className="rounded-[var(--radius-sm)] border-[var(--line)] bg-[var(--panel)] text-[var(--ink-soft)]" onClick={() => setAppointmentModalOpen(true)}><CalendarPlus className="h-4 w-4" strokeWidth={1.7} />{localized.actions.appointment}</Button>
             <Button variant="outline" className="rounded-[var(--radius-sm)] border-[var(--line)] bg-[var(--panel)] text-[var(--ink-soft)]" onClick={() => setDocumentModalOpen(true)}><FilePlus2 className="h-4 w-4" strokeWidth={1.7} />{localized.actions.document}</Button>
             {/* The wizard checks the DIAGNOSTIC_AI consent and explains a missing one. */}
+            <DiscussCaseButton accountType={accountType} patientId={patientId} locale={locale}
+              className="inline-flex h-11 items-center justify-center gap-2 rounded-[var(--radius-sm)] border border-[var(--accent-line)] bg-[var(--medical-soft)] px-4 text-sm font-medium text-[var(--medical)] transition-colors hover:brightness-95 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--accent)] focus-visible:ring-offset-2 focus-visible:ring-offset-[var(--bg)] disabled:opacity-60" />
             <NewAiAnalysisMenu accountType={accountType} className="inline-flex h-11 items-center justify-center gap-2 rounded-[var(--radius-sm)] border border-[var(--ai-line)] bg-[var(--ai-soft)] px-4 text-sm font-medium text-[var(--ai)] transition-colors hover:brightness-95 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--accent)] focus-visible:ring-offset-2 focus-visible:ring-offset-[var(--bg)]" patientId={patientId} t={t}><BrainCircuit className="h-4 w-4" strokeWidth={1.7} aria-hidden="true" />{t("patients.actions.newAiAnalysis")}</NewAiAnalysisMenu>
           </div>
         </section>
@@ -454,6 +457,10 @@ export function PatientRecordPage({ accountType, initialTab, patientId }: Patien
           </section>
         ) : null}
 
+        {activeTab === "notes" ? (
+          <PatientClinicalNotes accountType={accountType} patientId={patientId} locale={locale} />
+        ) : null}
+
         {activeTab === "audit" ? (
           <section className="surface-section border-t-2 border-t-[var(--official)] p-5 sm:p-6">
             <div className="flex items-center gap-3"><History className="h-5 w-5 text-[var(--official)]" strokeWidth={1.7} /><h2 className="text-lg font-semibold text-[var(--ink)]">{localized.auditTitle}</h2></div>
@@ -461,7 +468,7 @@ export function PatientRecordPage({ accountType, initialTab, patientId }: Patien
           </section>
         ) : null}
 
-        {activeTab !== "summary" && activeTab !== "allergies" && activeTab !== "consultations" && activeTab !== "documents" && activeTab !== "imaging" && activeTab !== "consents" && activeTab !== "audit" && activeTab !== "appointments" ? <EmptyTab label={localized.tabs[activeTab]} /> : null}
+        {activeTab !== "summary" && activeTab !== "allergies" && activeTab !== "consultations" && activeTab !== "documents" && activeTab !== "imaging" && activeTab !== "consents" && activeTab !== "audit" && activeTab !== "appointments" && activeTab !== "notes" ? <EmptyTab label={localized.tabs[activeTab]} /> : null}
       </div>
 
       <div role="status" aria-live="polite">

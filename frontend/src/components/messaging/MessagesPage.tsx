@@ -3,14 +3,15 @@
 import { useCallback, useState } from "react";
 import { usePathname, useSearchParams } from "next/navigation";
 import { useQueryClient, type InfiniteData } from "@tanstack/react-query";
-import { isAxiosError } from "axios";
-import { MessagesSquare, RotateCcw } from "lucide-react";
+import { ArrowUpRight, MessageSquarePlus, MessagesSquare, RotateCcw, UsersRound } from "lucide-react";
 
 import { DashboardShell } from "@/components/dashboard/layout/DashboardShell";
 import { doctorNavSections, establishmentNavSections } from "@/components/dashboard/layout/navigation";
 import { VerificationRequiredNotice } from "@/components/shared/VerificationRequiredNotice";
 import { useCurrentUser } from "@/features/auth/hooks/use-current-user";
-import { messagingCopy, type MessagingCopy } from "@/features/messaging/messaging.copy";
+import { caseMessagingCopy } from "@/features/messaging/case-messaging.copy";
+import { messagingErrorText } from "@/features/messaging/messaging-error-text";
+import { messagingCopy } from "@/features/messaging/messaging.copy";
 import { messagingKeys } from "@/features/messaging/messaging-query-keys";
 import { useBlocks, useConversation, useConversations } from "@/features/messaging/messaging.queries";
 import { type Conversation, type ConversationFilter, type ConversationPage } from "@/features/messaging/messaging.types";
@@ -18,28 +19,20 @@ import { useEstablishmentVerificationPrefill } from "@/features/verification/hoo
 import { isVerificationRequiredError } from "@/lib/api/api-error";
 import { getAccountInitials } from "@/lib/format/get-account-initials";
 import { useStoredLocale, useTranslation } from "@/lib/i18n";
-import { cn } from "@/lib/utils";
 
 import { ConversationList } from "./ConversationList";
 import { ConversationPanel } from "./ConversationPanel";
 import { ConversationThread } from "./ConversationThread";
 import { NewConversationDialog } from "./NewConversationDialog";
 import { ThreadSkeleton } from "./messaging-ui";
+import styles from "./messaging.module.css";
 
 type MessagesPageProps = {
   accountType: "DOCTOR" | "ESTABLISHMENT";
 };
 
-// The message of an API error, in the user's language: the backend's stable
-// codes, the network, else a generic one.
-export function messagingErrorText(error: unknown, copy: MessagingCopy): string {
-  if (!isAxiosError(error)) return copy.errors.generic;
-  if (!error.response) return copy.errors.network;
-  const code = (error.response.data as { code?: unknown } | undefined)?.code;
-  if (typeof code === "string" && copy.errors.codes[code]) return copy.errors.codes[code];
-  if (error.response.status === 404) return copy.thread.notFound;
-  return copy.errors.generic;
-}
+// Where it always was, for its callers.
+export { messagingErrorText } from "@/features/messaging/messaging-error-text";
 
 export function MessagesPage({ accountType }: MessagesPageProps) {
   const { locale } = useStoredLocale();
@@ -54,12 +47,20 @@ export function MessagesPage({ accountType }: MessagesPageProps) {
   const [filter, setFilter] = useState<ConversationFilter>("all");
   const [panelOpen, setPanelOpen] = useState(false);
   const [newOpen, setNewOpen] = useState(false);
+  const [newKind, setNewKind] = useState<"peer" | "group">("peer");
   const myUserId = currentUser.data?.id ?? null;
   const conversations = useConversations("all");
   const conversation = useConversation(selectedId);
   const blocks = useBlocks();
   const blockedUserIds = new Set((blocks.data ?? []).map((entry) => entry.userId));
-  const errorText = useCallback((error: unknown) => messagingErrorText(error, copy), [copy]);
+  const errorText = useCallback(
+    (error: unknown) => messagingErrorText(error, copy, caseMessagingCopy[locale].errors),
+    [copy, locale],
+  );
+  const startConversation = (kind: "peer" | "group" = "peer") => {
+    setNewKind(kind);
+    setNewOpen(true);
+  };
 
   // ?c=<id>: a link that can be shared, and the browser's back button
   // returns to the previous conversation (pushState keeps useSearchParams in
@@ -97,10 +98,31 @@ export function MessagesPage({ accountType }: MessagesPageProps) {
   const thread = (() => {
     if (!selectedId) {
       return (
-        <div className="flex flex-1 flex-col items-center justify-center gap-2 p-8 text-center">
-          <span className="healix-mark"><MessagesSquare size={18} strokeWidth={1.8} aria-hidden="true" /></span>
-          <p className="text-sm font-medium text-[var(--text-primary)]">{copy.thread.selectTitle}</p>
-          <p className="clinical-caption max-w-sm">{copy.thread.selectHint}</p>
+        <div className={styles.welcome}>
+          <div className={styles.welcomeContent}>
+            <div className={styles.welcomeSymbol} aria-hidden="true">
+              <MessagesSquare size={34} strokeWidth={1.3} />
+              <span><UsersRound size={17} strokeWidth={1.6} /></span>
+            </div>
+            <p className={styles.eyebrow}>{copy.workspace.eyebrow}</p>
+            <h2>{copy.thread.selectTitle}</h2>
+            <p className={styles.welcomeHint}>{copy.thread.selectHint}</p>
+            <div className={styles.welcomeActions}>
+              {(["peer", "group"] as const).map((kind) => {
+                const Icon = kind === "peer" ? MessageSquarePlus : UsersRound;
+                return (
+                  <button key={kind} type="button" onClick={() => startConversation(kind)} className={styles.welcomeAction}>
+                    <Icon size={20} strokeWidth={1.6} aria-hidden="true" />
+                    <span>
+                      <strong>{kind === "peer" ? copy.workspace.direct : copy.workspace.group}</strong>
+                      <small>{kind === "peer" ? copy.workspace.directHint : copy.workspace.groupHint}</small>
+                    </span>
+                    <ArrowUpRight size={17} aria-hidden="true" className="rtl:-scale-x-100" />
+                  </button>
+                );
+              })}
+            </div>
+          </div>
         </div>
       );
     }
@@ -138,28 +160,41 @@ export function MessagesPage({ accountType }: MessagesPageProps) {
 
   return (
     <DashboardShell {...shellProps} activeKey="messages">
-      <h1 className="sr-only">{copy.title}</h1>
       {isVerificationRequiredError(conversations.error) ? (
         <VerificationRequiredNotice accountType={accountType} t={t} />
       ) : (
-        <div className="surface-section flex h-[calc(100dvh-7.5rem)] min-h-[520px] overflow-hidden lg:h-[calc(100dvh-8.5rem)]">
-          <div className={cn("min-h-0 w-full flex-col lg:flex lg:w-[340px] lg:shrink-0 lg:border-e lg:border-[var(--border)]", selectedId ? "hidden" : "flex")}>
+        <div className={styles.workspace}>
+          <header className={styles.workspaceHeader}>
+            <div className={styles.workspaceIdentity}>
+              <span className={styles.workspaceIcon}><MessagesSquare size={21} strokeWidth={1.6} aria-hidden="true" /></span>
+              <div>
+                <h1>{copy.title}</h1>
+                <p>{copy.workspace.subtitle}</p>
+              </div>
+            </div>
+            <button type="button" className={styles.newButton} onClick={() => startConversation()}>
+              <MessageSquarePlus size={17} strokeWidth={1.8} aria-hidden="true" />
+              <span>{copy.list.newConversation}</span>
+            </button>
+          </header>
+          <div className={styles.panes} data-selected={Boolean(selectedId)} data-details={panelOpen}>
+          <div className={styles.listPane}>
             <ConversationList
               filter={filter}
               onFilterChange={setFilter}
               selectedId={selectedId}
               onSelect={openConversation}
-              onNewConversation={() => setNewOpen(true)}
+              onNewConversation={() => startConversation()}
               myUserId={myUserId ?? ""}
               copy={copy}
               locale={locale}
             />
           </div>
-          <div className={cn("min-h-0 min-w-0 flex-1 flex-col", !selectedId ? "hidden lg:flex" : panelOpen ? "hidden xl:flex" : "flex")}>
+          <div className={styles.threadPane}>
             {thread}
           </div>
           {panelOpen && conversation.data && myUserId ? (
-            <div className="flex min-h-0 w-full flex-col xl:w-80 xl:shrink-0">
+            <div className={styles.detailPane}>
               <ConversationPanel
                 key={conversation.data.id}
                 conversation={conversation.data}
@@ -170,12 +205,16 @@ export function MessagesPage({ accountType }: MessagesPageProps) {
                 onClose={() => setPanelOpen(false)}
                 onLeft={() => openConversation(null)}
                 errorText={errorText}
+                recordBasePath={accountType === "ESTABLISHMENT" ? "/establishment" : "/doctor"}
               />
             </div>
           ) : null}
+          </div>
         </div>
       )}
       <NewConversationDialog
+        key={newKind}
+        initialTab={newKind}
         open={newOpen}
         onClose={() => setNewOpen(false)}
         onOpenConversation={(conversationId) => {

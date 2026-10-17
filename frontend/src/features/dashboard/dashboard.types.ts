@@ -19,7 +19,9 @@ export type DashboardAppointmentStatus =
 export type DashboardAttentionKind =
   | "AI_PENDING_OVER_24H"
   | "APPOINTMENTS_UNCONFIRMED_TODAY"
-  | "AI_CONSENT_MISSING";
+  | "AI_CONSENT_MISSING"
+  // Urgent messages received that ask for an acknowledgement not given yet.
+  | "URGENT_MESSAGES_UNACKED";
 
 export type DashboardActivityDay = {
   /** Local day (Africa/Algiers), YYYY-MM-DD. */

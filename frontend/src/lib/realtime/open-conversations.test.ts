@@ -22,6 +22,11 @@ function message(conversationId: string, seq: number): MessageView {
     requiresAck: false,
     senderId: "user-b",
     seq,
+    attachments: [],
+    acks: [],
+    ackedByMe: false,
+    pendingAck: [],
+    filedToRecord: false,
   };
 }
 
