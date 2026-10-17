@@ -217,10 +217,10 @@ describe("case discussion banner", () => {
     lastMessage: null,
     lastMessageAt: null,
     lastSeq: 0,
-    me: { lastReadSeq: 0, mutedUntil: null, role: "OWNER", status: "ACTIVE" },
+    me: { lastReadAt: null, lastReadSeq: 0, mutedUntil: null, role: "OWNER", status: "ACTIVE" },
     participants: [
-      { establishmentName: "Clinique Ibn Sina", fullName: "Dr Me", role: "OWNER", speciality: null, status: "ACTIVE", userId: ME },
-      { establishmentName: "Clinique Ibn Sina", fullName: "Dr Kaci", role: "MEMBER", speciality: null, status: "ACTIVE", userId: "user-samir" },
+      { establishmentName: "Clinique Ibn Sina", fullName: "Dr Me", joinedAt: "2026-10-17T08:00:00.000Z", lastReadAt: null, lastReadSeq: 0, role: "OWNER", speciality: null, status: "ACTIVE", userId: ME },
+      { establishmentName: "Clinique Ibn Sina", fullName: "Dr Kaci", joinedAt: "2026-10-17T08:00:00.000Z", lastReadAt: null, lastReadSeq: 0, role: "MEMBER", speciality: null, status: "ACTIVE", userId: "user-samir" },
     ],
     patient:
       type === "CASE"

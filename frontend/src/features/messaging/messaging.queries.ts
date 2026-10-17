@@ -5,6 +5,7 @@ import { useInfiniteQuery, useQuery } from "@tanstack/react-query";
 import {
   downloadAttachment,
   getConversation,
+  getMessageReaders,
   getMessagingSettings,
   getUnreadCount,
   getWorkspaceMembers,
@@ -120,5 +121,17 @@ export function useAttachmentBlob(attachmentId: string, enabled = true) {
     queryKey: messagingKeys.attachment(attachmentId),
     retry: false,
     staleTime: Number.POSITIVE_INFINITY,
+  });
+}
+
+// Who saw a message, and when: for the "Vu à 14:32" of a direct
+// conversation and the readers of a group message, on demand.
+export function useMessageReaders(messageId: string, enabled = true) {
+  return useQuery({
+    enabled: enabled && Boolean(messageId),
+    queryFn: () => getMessageReaders(messageId),
+    queryKey: messagingKeys.readers(messageId),
+    retry: false,
+    staleTime: 30_000,
   });
 }

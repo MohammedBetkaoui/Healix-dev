@@ -222,3 +222,19 @@ export function attachmentNameOf(
   const stem = found ? cleaned.slice(0, -found.length) : cleaned;
   return `${stem || 'document'}${allowed[0]}`;
 }
+
+// --- Read receipts -------------------------------------------------------------
+
+// Reciprocal, as in the consumer messaging apps: a participant's read
+// position is shown to another only when both share their read receipts;
+// always to the participant themselves. The unread count and the urgent
+// acknowledgements (MessageAck) do not depend on it.
+export function readPositionVisible(
+  viewer: { userId: string; sharesReadReceipts: boolean },
+  participant: { userId: string; sharesReadReceipts: boolean },
+): boolean {
+  return (
+    viewer.userId === participant.userId ||
+    (viewer.sharesReadReceipts && participant.sharesReadReceipts)
+  );
+}

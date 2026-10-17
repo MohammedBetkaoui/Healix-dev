@@ -9,7 +9,8 @@ export type RealtimeEventPayloads = {
   "message.updated": { conversationId: string; messageId: string };
   "message.deleted": { conversationId: string; messageId: string };
   "conversation.updated": { conversationId: string };
-  "read.updated": { conversationId: string; userId: string; seq: number };
+  // readAt: ISO 8601. Sent only between people who share read receipts.
+  "read.updated": { conversationId: string; userId: string; seq: number; readAt: string };
   typing: { conversationId: string; userId: string };
 };
 
@@ -66,6 +67,8 @@ export function queriesToInvalidate<Event extends RealtimeEventName>(
     case "read.updated":
       return [
         messagingKeys.conversation(conversationId),
+        // "Vu à 14:32", "Vu par 3 sur 5": read again.
+        messagingKeys.readersAll,
         messagingKeys.conversationLists,
         messagingKeys.unreadCount,
       ];

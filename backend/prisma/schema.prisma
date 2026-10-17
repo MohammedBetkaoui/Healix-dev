@@ -333,6 +333,9 @@ model User {
   // Listed in the messaging directory and reachable by professionals of
   // other workspaces.
   discoverableByPeers Boolean       @default(true) @map("discoverable_by_peers")
+  // Read receipts, reciprocal: off, the others no longer see when this user
+  // reads, and this user no longer sees when they do.
+  shareReadReceipts   Boolean       @default(true) @map("share_read_receipts")
   createdAt           DateTime      @default(now()) @map("created_at")
   updatedAt           DateTime      @updatedAt @map("updated_at")
 
@@ -363,6 +366,7 @@ model User {
   messageAcks                  MessageAck[]
   filedClinicalNotes           PatientClinicalNote[]
   caseConversationViews        CaseConversationView[]
+  readMarks                    ConversationReadMark[]
 
   @@map("users")
 }
@@ -1052,6 +1056,7 @@ model Conversation {
   attachments   MessageAttachment[]
   clinicalNotes PatientClinicalNote[]
   views         CaseConversationView[]
+  readMarks     ConversationReadMark[]
 
   @@index([workspaceId, lastMessageAt])
   @@index([patientId])
@@ -1068,6 +1073,8 @@ model ConversationParticipant {
   status         ParticipantStatus @default(ACTIVE)
   // Unread messages: conversation.lastSeq - lastReadSeq.
   lastReadSeq    Int               @default(0) @map("last_read_seq")
+  // When lastReadSeq last moved forward (a reading, or a message sent).
+  lastReadAt     DateTime?         @map("last_read_at")
   mutedUntil     DateTime?         @map("muted_until")
   joinedAt       DateTime          @default(now()) @map("joined_at")
   leftAt         DateTime?         @map("left_at")
@@ -1224,6 +1231,24 @@ model PatientClinicalNote {
   @@index([sourceConversationId])
   @@index([sourceMessageId])
   @@map("patient_clinical_notes")
+}
+
+// Each time a participant's read position moves forward, never one row per
+// message: a message was seen at the readAt of the first mark of that
+// participant whose seq reaches it.
+model ConversationReadMark {
+  id             String   @id @default(cuid())
+  conversationId String   @map("conversation_id")
+  userId         String   @map("user_id")
+  seq            Int
+  readAt         DateTime @default(now()) @map("read_at")
+
+  conversation Conversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+  user         User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([conversationId, userId, seq])
+  @@index([userId])
+  @@map("conversation_read_marks")
 }
 
 // The days a user read a CASE discussion: MESSAGES_VIEWED goes to the

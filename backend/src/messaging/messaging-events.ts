@@ -83,12 +83,78 @@ export class MessagingEvents {
     });
   }
 
-  readUpdated(conversationId: string, userId: string, seq: number) {
-    return this.notify(conversationId, 'read.updated', {
-      conversationId,
-      seq,
-      userId,
-    });
+  // Read receipts are reciprocal: the reader's other tabs always get it;
+  // the other participants only when both they and the reader share read
+  // receipts.
+  async readUpdated(
+    conversationId: string,
+    userId: string,
+    seq: number,
+    readAt: Date,
+  ): Promise<void> {
+    try {
+      const recipients = await this.recipients(conversationId);
+      const users = await this.prisma.user.findMany({
+        select: { id: true, shareReadReceipts: true },
+        where: { id: { in: [...new Set([...recipients, userId])] } },
+      });
+      const shares = new Map(
+        users.map((user) => [user.id, user.shareReadReceipts]),
+      );
+      const readerShares = shares.get(userId) ?? false;
+      const to = [...new Set([...recipients, userId])].filter(
+        (id) => id === userId || (readerShares && shares.get(id) === true),
+      );
+      this.realtime.emitToUsers(to, 'read.updated', {
+        conversationId,
+        readAt: readAt.toISOString(),
+        seq,
+        userId,
+      });
+    } catch (error) {
+      this.logger.error(
+        `Real-time event read.updated of conversation ${conversationId} not sent: ${error instanceof Error ? error.message : 'unknown error'}`,
+      );
+    }
+  }
+
+  // A user turned their read receipts on or off: the participants of their
+  // conversations read them again (positions shown or hidden).
+  async readReceiptsChanged(userId: string): Promise<void> {
+    try {
+      const rows = await this.prisma.conversationParticipant.findMany({
+        select: { conversationId: true, userId: true },
+        where: {
+          conversation: {
+            participants: {
+              some: {
+                status: {
+                  in: [ParticipantStatus.ACTIVE, ParticipantStatus.PENDING],
+                },
+                userId,
+              },
+            },
+          },
+          status: { in: [ParticipantStatus.ACTIVE, ParticipantStatus.PENDING] },
+        },
+      });
+      const byConversation = new Map<string, string[]>();
+      for (const row of rows) {
+        byConversation.set(row.conversationId, [
+          ...(byConversation.get(row.conversationId) ?? []),
+          row.userId,
+        ]);
+      }
+      for (const [conversationId, userIds] of byConversation) {
+        this.realtime.emitToUsers(userIds, 'conversation.updated', {
+          conversationId,
+        });
+      }
+    } catch (error) {
+      this.logger.error(
+        `Read receipts change of ${userId} not sent: ${error instanceof Error ? error.message : 'unknown error'}`,
+      );
+    }
   }
 
   // Calls less than 3 s apart, for the same user and conversation, are

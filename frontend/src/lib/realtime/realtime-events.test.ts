@@ -25,11 +25,17 @@ describe("queriesToInvalidate", () => {
     }
   });
 
-  it("reads the conversation, the lists and the badge again on a read position", () => {
+  it("reads the conversation, the readers, the lists and the badge again on a read position", () => {
     expect(
-      queriesToInvalidate("read.updated", { conversationId, seq: 3, userId: "user-a" }),
+      queriesToInvalidate("read.updated", {
+        conversationId,
+        readAt: "2026-10-18T14:32:00.000Z",
+        seq: 3,
+        userId: "user-a",
+      }),
     ).toEqual([
       messagingKeys.conversation(conversationId),
+      messagingKeys.readersAll,
       messagingKeys.conversationLists,
       messagingKeys.unreadCount,
     ]);

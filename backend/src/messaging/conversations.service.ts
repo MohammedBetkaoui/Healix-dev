@@ -59,6 +59,7 @@ import {
   directKeyFor,
   encodeCursor,
   PARTICIPANT_ROLE,
+  readPositionVisible,
 } from './messaging-rules';
 import {
   MessagingUsersService,
@@ -92,7 +93,10 @@ export type CasePatientView = Prisma.PatientGetPayload<{
 
 export const participantsInclude = {
   participants: {
-    include: { user: { select: peerProfileSelect } },
+    // shareReadReceipts: whose read positions the view may show.
+    include: {
+      user: { select: { ...peerProfileSelect, shareReadReceipts: true } },
+    },
     orderBy: [{ joinedAt: 'asc' }, { id: 'asc' }],
   },
   patient: { select: casePatientSelect },
@@ -116,6 +120,11 @@ export type ConversationParticipantView = {
   establishmentName: string | null;
   role: string;
   status: ParticipantStatus;
+  joinedAt: Date;
+  // How far this participant has read, and when: null when they or the
+  // viewer do not share read receipts (always shown for the viewer).
+  lastReadSeq: number | null;
+  lastReadAt: Date | null;
 };
 
 export type ConversationView = {
@@ -132,6 +141,7 @@ export type ConversationView = {
     role: string;
     status: ParticipantStatus;
     lastReadSeq: number;
+    lastReadAt: Date | null;
     mutedUntil: Date | null;
   };
   unreadCount: number;
@@ -1072,6 +1082,7 @@ export class ConversationsService {
       lastMessageAt: conversation.lastMessageAt,
       lastSeq: conversation.lastSeq,
       me: {
+        lastReadAt: me.lastReadAt,
         lastReadSeq: me.lastReadSeq,
         mutedUntil: me.mutedUntil,
         role: me.role,
@@ -1087,9 +1098,24 @@ export class ConversationsService {
         )
         .map((entry) => {
           const profile = toPeerProfile(entry.user);
+          const visible =
+            entry.status === ParticipantStatus.ACTIVE &&
+            readPositionVisible(
+              {
+                sharesReadReceipts: me.user.shareReadReceipts,
+                userId,
+              },
+              {
+                sharesReadReceipts: entry.user.shareReadReceipts,
+                userId: entry.userId,
+              },
+            );
           return {
             establishmentName: profile.establishmentName,
             fullName: profile.fullName,
+            joinedAt: entry.joinedAt,
+            lastReadAt: visible ? entry.lastReadAt : null,
+            lastReadSeq: visible ? entry.lastReadSeq : null,
             role: entry.role,
             speciality: profile.speciality,
             status: entry.status,

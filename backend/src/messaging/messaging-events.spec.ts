@@ -6,13 +6,27 @@ type FindManyArgs = {
   where: { conversationId: string; status: { in: string[] }; OR: unknown[] };
 };
 
-function setup(participants = ['user-a', 'user-b', 'user-c']) {
+function setup(
+  participants = ['user-a', 'user-b', 'user-c'],
+  notSharing: string[] = [],
+) {
   const findMany = jest
     .fn()
     .mockResolvedValue(participants.map((userId) => ({ userId })));
+  const users = jest.fn((args: { where: { id: { in: string[] } } }) =>
+    Promise.resolve(
+      args.where.id.in.map((id) => ({
+        id,
+        shareReadReceipts: !notSharing.includes(id),
+      })),
+    ),
+  );
   const emitToUsers = jest.fn();
   const events = new MessagingEvents(
-    { conversationParticipant: { findMany } } as unknown as PrismaService,
+    {
+      conversationParticipant: { findMany },
+      user: { findMany: users },
+    } as unknown as PrismaService,
     { emitToUsers } as unknown as RealtimeService,
   );
   const recipients = (call = 0) =>
@@ -75,7 +89,7 @@ describe('MessagingEvents', () => {
     findMany.mockRejectedValue(new Error('database down'));
 
     await expect(
-      events.readUpdated('conversation-1', 'user-a', 3),
+      events.readUpdated('conversation-1', 'user-a', 3, new Date()),
     ).resolves.toBeUndefined();
     expect(emitToUsers).not.toHaveBeenCalled();
   });
@@ -108,5 +122,38 @@ describe('MessagingEvents', () => {
       events.typing('conversation-1', 'user-a', start + TYPING_INTERVAL_MS),
     ).resolves.toBe(true);
     expect(emitToUsers).toHaveBeenCalledTimes(4);
+  });
+});
+
+describe('MessagingEvents read receipts', () => {
+  const readAt = new Date('2026-10-17T14:32:00Z');
+
+  it('sends a read position, with its date, to those who share read receipts', async () => {
+    const { events, recipients, sent } = setup(
+      ['user-a', 'user-b', 'user-c'],
+      ['user-c'],
+    );
+
+    await events.readUpdated('conversation-1', 'user-a', 7, readAt);
+
+    // user-c does not share: they do not see the others' readings.
+    expect(recipients()).toEqual(['user-a', 'user-b']);
+    expect(sent()[2]).toEqual({
+      conversationId: 'conversation-1',
+      readAt: '2026-10-17T14:32:00.000Z',
+      seq: 7,
+      userId: 'user-a',
+    });
+  });
+
+  it('keeps the reading of someone who does not share to their own tabs', async () => {
+    const { events, recipients } = setup(
+      ['user-a', 'user-b', 'user-c'],
+      ['user-a'],
+    );
+
+    await events.readUpdated('conversation-1', 'user-a', 7, readAt);
+
+    expect(recipients()).toEqual(['user-a']);
   });
 });

@@ -34,7 +34,13 @@ export type RealtimeEventPayloads = {
   'message.updated': { conversationId: string; messageId: string };
   'message.deleted': { conversationId: string; messageId: string };
   'conversation.updated': { conversationId: string };
-  'read.updated': { conversationId: string; userId: string; seq: number };
+  // readAt: ISO 8601, when the position moved.
+  'read.updated': {
+    conversationId: string;
+    userId: string;
+    seq: number;
+    readAt: string;
+  };
   typing: { conversationId: string; userId: string };
 };
 

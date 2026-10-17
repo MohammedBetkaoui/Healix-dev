@@ -9,6 +9,7 @@ import { VerifiedAccountGuard } from '../common/guards/verified-account.guard';
 import { type PrismaService } from '../prisma/prisma.service';
 import { type WorkspaceContextService } from '../workspaces/workspace-context.service';
 import { DirectoryController } from './directory.controller';
+import { type MessagingEvents } from './messaging-events';
 import {
   DIRECTORY_LIMIT,
   DirectoryService,
@@ -79,13 +80,17 @@ function setup() {
       .fn()
       .mockResolvedValue({ workspaceId: 'workspace-a' }),
   };
+  const events = {
+    readReceiptsChanged: jest.fn().mockResolvedValue(undefined),
+  };
   const service = new DirectoryService(
     prisma as unknown as PrismaService,
     users as unknown as MessagingUsersService,
     auditLogs as unknown as AuditLogsService,
     workspaceContext as unknown as WorkspaceContextService,
+    events as unknown as MessagingEvents,
   );
-  return { auditLogs, prisma, service, workspaceContext };
+  return { auditLogs, events, prisma, service, workspaceContext };
 }
 
 describe('DirectoryService.search', () => {
@@ -279,16 +284,44 @@ describe('DirectoryService.workspaceMembers', () => {
 });
 
 describe('DirectoryService settings', () => {
-  it("changes the caller's own discoverableByPeers only", async () => {
-    const { prisma, service } = setup();
-    prisma.user.update.mockResolvedValue({ discoverableByPeers: false });
+  const settings = { discoverableByPeers: true, shareReadReceipts: true };
+
+  it("changes the caller's own settings only, one at a time if need be", async () => {
+    const { events, prisma, service } = setup();
+    prisma.user.findUniqueOrThrow.mockResolvedValue(settings);
+    prisma.user.update.mockResolvedValue({
+      ...settings,
+      discoverableByPeers: false,
+    });
 
     await service.updateSettings(actor, { discoverableByPeers: false });
 
     expect(prisma.user.update).toHaveBeenCalledWith({
-      data: { discoverableByPeers: false },
-      select: { discoverableByPeers: true },
+      data: { discoverableByPeers: false, shareReadReceipts: undefined },
+      select: { discoverableByPeers: true, shareReadReceipts: true },
       where: { id: ME },
+    });
+    expect(events.readReceiptsChanged).not.toHaveBeenCalled();
+  });
+
+  it('tells the participants of the caller conversations when read receipts change', async () => {
+    const { events, prisma, service } = setup();
+    prisma.user.findUniqueOrThrow.mockResolvedValue(settings);
+    prisma.user.update.mockResolvedValue({
+      ...settings,
+      shareReadReceipts: false,
+    });
+
+    await expect(
+      service.updateSettings(actor, { shareReadReceipts: false }),
+    ).resolves.toEqual({ discoverableByPeers: true, shareReadReceipts: false });
+    expect(events.readReceiptsChanged).toHaveBeenCalledWith(ME);
+  });
+
+  it('refuses an empty change', async () => {
+    const { service } = setup();
+    await expect(service.updateSettings(actor, {})).rejects.toMatchObject({
+      response: { code: 'NOTHING_TO_UPDATE' },
     });
   });
 });

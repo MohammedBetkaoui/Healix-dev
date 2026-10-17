@@ -54,6 +54,7 @@ function profile(userId: string) {
     fullName: `Dr ${userId}`,
     id: userId,
     role: UserRole.AFFILIATED_DOCTOR,
+    shareReadReceipts: true,
   };
 }
 
@@ -65,6 +66,7 @@ function participant(
     conversationId: 'conversation-1',
     id: `participant-${userId}`,
     joinedAt: new Date('2026-10-01T08:00:00Z'),
+    lastReadAt: null,
     lastReadSeq: 0,
     leftAt: null,
     mutedUntil: null,
@@ -579,7 +581,7 @@ describe('ConversationsService', () => {
             ...profile(OTHER),
             email: 'secret@healix.test',
             phone: '0550 00 00 00',
-          } as ParticipantRow['user'],
+          } as unknown as ParticipantRow['user'],
         }),
       ]);
       prisma.conversation.findMany.mockResolvedValue([row]);
@@ -615,6 +617,9 @@ describe('ConversationsService', () => {
       expect(item.participants[1]).toEqual({
         establishmentName: 'Clinique El Nour',
         fullName: `Dr ${OTHER}`,
+        joinedAt: new Date('2026-10-01T08:00:00Z'),
+        lastReadAt: null,
+        lastReadSeq: 0,
         role: 'MEMBER',
         speciality: 'Cardiologie',
         status: 'ACTIVE',
@@ -1145,5 +1150,59 @@ describe('ConversationsService', () => {
       expect(codeOf(error)).toBe('CASE_ALREADY_OPEN');
       expect(prisma.conversation.update).not.toHaveBeenCalled();
     });
+  });
+});
+
+describe('ConversationsService read positions in the view', () => {
+  const readAt = new Date('2026-10-17T14:32:00Z');
+  const withReader = (
+    meShares: boolean,
+    otherShares: boolean,
+  ): ConversationWithParticipants =>
+    conversation({ lastSeq: 9 }, [
+      participant(ME, {
+        lastReadAt: readAt,
+        lastReadSeq: 9,
+        user: { ...profile(ME), shareReadReceipts: meShares },
+      }),
+      participant(OTHER, {
+        lastReadAt: readAt,
+        lastReadSeq: 7,
+        user: { ...profile(OTHER), shareReadReceipts: otherShares },
+      }),
+    ]);
+
+  it('gives each ACTIVE participant how far they read, and when', async () => {
+    const { prisma, service } = setup();
+    prisma.conversation.findFirst.mockResolvedValue(withReader(true, true));
+
+    const view = await service.getOne(actor, 'conversation-1');
+
+    expect(view.participants.find((p) => p.userId === OTHER)).toMatchObject({
+      lastReadAt: readAt,
+      lastReadSeq: 7,
+    });
+    expect(view.me).toMatchObject({ lastReadAt: readAt, lastReadSeq: 9 });
+  });
+
+  it('hides them both ways when either side does not share read receipts', async () => {
+    const { prisma, service } = setup();
+
+    prisma.conversation.findFirst.mockResolvedValue(withReader(true, false));
+    const hiddenByOther = await service.getOne(actor, 'conversation-1');
+    expect(
+      hiddenByOther.participants.find((p) => p.userId === OTHER),
+    ).toMatchObject({ lastReadAt: null, lastReadSeq: null });
+
+    prisma.conversation.findFirst.mockResolvedValue(withReader(false, true));
+    const hiddenByMe = await service.getOne(actor, 'conversation-1');
+    expect(
+      hiddenByMe.participants.find((p) => p.userId === OTHER),
+    ).toMatchObject({ lastReadAt: null, lastReadSeq: null });
+    // One's own position stays shown, and the unread count does not change.
+    expect(hiddenByMe.participants.find((p) => p.userId === ME)).toMatchObject({
+      lastReadSeq: 9,
+    });
+    expect(hiddenByMe.unreadCount).toBe(0);
   });
 });
