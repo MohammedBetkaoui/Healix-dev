@@ -100,6 +100,7 @@ type State = "idle" | "connecting" | "connected" | "waiting" | "stopped";
 export class RealtimeClient {
   private socket: SocketLike | null = null;
   private state: State = "idle";
+  private everConnected = false;
   private attempt = 0;
   private holders = 0;
   private closeReason: RealtimeCloseReason | null = null;
@@ -125,6 +126,13 @@ export class RealtimeClient {
 
   get status(): State {
     return this.state;
+  }
+
+  // The socket was up and is trying to come back: the interface says so
+  // ("Reconnexion…"), sending stays possible over REST. Not before the
+  // first connection, nor once stopped.
+  get reconnecting(): boolean {
+    return this.everConnected && (this.state === "connecting" || this.state === "waiting");
   }
 
   // Each component that needs the connection holds it; it opens with the
@@ -188,6 +196,7 @@ export class RealtimeClient {
     this.cancelRetry = null;
     this.state = "idle";
     this.attempt = 0;
+    this.everConnected = false;
     const socket = this.socket;
     this.socket = null;
     socket?.disconnect();
@@ -196,6 +205,7 @@ export class RealtimeClient {
   private bind(socket: SocketLike): void {
     socket.on("connect", () => {
       this.state = "connected";
+      this.everConnected = true;
       this.attempt = 0;
       this.closeReason = null;
       this.notifyConnection(true);
@@ -212,11 +222,14 @@ export class RealtimeClient {
     }) as (...args: never[]) => void);
 
     socket.on("disconnect", ((reason: string) => {
-      this.notifyConnection(false);
       // Closed by the server: socket.io does not reconnect by itself.
       if (reason === "io server disconnect") {
         this.afterServerClose(this.closeReason);
+      } else if (this.socket === socket) {
+        // A network failure: socket.io reconnects by itself.
+        this.state = "connecting";
       }
+      this.notifyConnection(false);
     }) as (...args: never[]) => void);
 
     socket.on("connect_error", ((error: Error) => {
@@ -290,6 +303,7 @@ export class RealtimeClient {
     this.socket = null;
     socket?.disconnect();
     this.state = "stopped";
+    this.notifyConnection(false);
   }
 
   private notifyConnection(connected: boolean): void {

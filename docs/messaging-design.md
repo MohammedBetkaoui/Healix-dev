@@ -266,11 +266,46 @@ Précisions :
   appareils, sauf `typing` ;
 - une mise en sourdine ne prévient que son auteur ;
 - `read.updated` est envoyé à tous les participants (les accusés de lecture
-  du lot 3 s'en servent) ;
-- le client n'est encore monté dans aucune page : l'interface Messages
-  (lot 3) appellera `useRealtimeEvents` et `registerOpenConversation`.
+  du lot 3 s'en servent).
 
-**Lots 3 à 5 : à faire.**
+**Lot 3 — interface Messages : fait** (branche `feat/messaging-interface`).
+- Pages `/doctor/messages` et `/establishment/messages`, conversation
+  ouverte dans `?c=` ; lien du menu avec badge de non-lus (« 99+ »).
+- Trois colonnes (une seule sur mobile, avec retour) : liste filtrée
+  (Toutes, Non lues, Demandes, Archivées), fil, panneau de contexte
+  repliable.
+- Envoi optimiste (`clientMessageId`), « non envoyé · Réessayer » avec le
+  même identifiant ; modification et suppression par l'auteur pendant
+  15 min.
+- Demandes : bandeau Accepter / Refuser / Bloquer, un seul message avant
+  l'acceptation ; nouvelle conversation par l'annuaire (recherche différée
+  de 300 ms) ou groupe d'équipe.
+- Lecture envoyée seulement quand le dernier message est visible et la
+  fenêtre active, une fois par seconde au plus ; « X écrit… » pendant 5 s.
+- `useRealtimeEvents` monté dans le shell clinique (le badge est sur toutes
+  les pages), `registerOpenConversation` par le fil ; « Reconnexion… »
+  discret.
+- Français et arabe, RTL ; chaque message garde sa propre direction
+  (`dir="auto"`).
+
+Écarts et précisions par rapport à la section 8 :
+- route ajoutée : `GET /messaging/workspace-members`, les membres actifs de
+  l'espace de l'appelant, pour les groupes d'équipe (l'annuaire ne liste
+  que les profils joignables, 20 au plus, et `GET /doctors` est réservé à
+  l'administration) ;
+- filtre « Cas », pièces jointes, urgent avec accusé et cloche : lots 4 et
+  suivants ;
+- « Lu » vient de `read.updated` seulement : l'API ne donne pas la position
+  de lecture des autres participants, et l'état redevient « Envoyé » au
+  rechargement de la page. À exposer dans un lot suivant ;
+- une demande reçue n'est pas dans « Toutes » (l'API la liste à part) : son
+  nombre est affiché sur le filtre « Demandes » et en tête de « Toutes » ;
+- « Non lues » est filtré dans le navigateur, sur les conversations
+  chargées ;
+- le réglage « Joignable par des confrères » est en bas de la liste ; une
+  personne bloquée se débloque depuis l'annuaire ou le panneau.
+
+**Lots 4 et 5 : à faire.**
 
 ## Sources
 

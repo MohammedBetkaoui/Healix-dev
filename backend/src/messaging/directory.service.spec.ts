@@ -1,4 +1,4 @@
-import { type HttpException } from '@nestjs/common';
+import { ForbiddenException, type HttpException } from '@nestjs/common';
 import { GUARDS_METADATA } from '@nestjs/common/constants';
 
 import { type AuditLogsService } from '../audit-logs/audit-logs.service';
@@ -7,8 +7,13 @@ import { ROLES_KEY } from '../common/decorators/roles.decorator';
 import { UserRole } from '../common/enums/user-role.enum';
 import { VerifiedAccountGuard } from '../common/guards/verified-account.guard';
 import { type PrismaService } from '../prisma/prisma.service';
+import { type WorkspaceContextService } from '../workspaces/workspace-context.service';
 import { DirectoryController } from './directory.controller';
-import { DIRECTORY_LIMIT, DirectoryService } from './directory.service';
+import {
+  DIRECTORY_LIMIT,
+  DirectoryService,
+  WORKSPACE_MEMBERS_LIMIT,
+} from './directory.service';
 import {
   type MessagingUsersService,
   reachableUserWhere,
@@ -69,12 +74,18 @@ function setup() {
     activeWorkspaceIds: jest.fn().mockResolvedValue(['workspace-a']),
   };
   const auditLogs = { createAuditLog: jest.fn() };
+  const workspaceContext = {
+    resolveWorkspaceForUser: jest
+      .fn()
+      .mockResolvedValue({ workspaceId: 'workspace-a' }),
+  };
   const service = new DirectoryService(
     prisma as unknown as PrismaService,
     users as unknown as MessagingUsersService,
     auditLogs as unknown as AuditLogsService,
+    workspaceContext as unknown as WorkspaceContextService,
   );
-  return { auditLogs, prisma, service };
+  return { auditLogs, prisma, service, workspaceContext };
 }
 
 describe('DirectoryService.search', () => {
@@ -221,6 +232,49 @@ describe('DirectoryService blocks', () => {
     prisma.userBlock.deleteMany.mockResolvedValue({ count: 0 });
     await service.unblock(actor, 'user-target', context);
     expect(auditLogs.createAuditLog).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe('DirectoryService.workspaceMembers', () => {
+  it("lists the caller's workspace colleagues, listed in the directory or not, never the caller", async () => {
+    const { prisma, service, workspaceContext } = setup();
+
+    await service.workspaceMembers(actor, ' Kaci ');
+
+    expect(workspaceContext.resolveWorkspaceForUser).toHaveBeenCalledWith({
+      role: UserRole.INDEPENDENT_DOCTOR,
+      userId: ME,
+    });
+    const args = argOf<FindManyArgs>(prisma.user.findMany);
+    expect(args.take).toBe(WORKSPACE_MEMBERS_LIMIT);
+    expect(args.where.AND).toEqual([
+      reachableUserWhere,
+      { id: { not: ME } },
+      {
+        workspaceMemberships: {
+          some: { status: 'ACTIVE', workspaceId: 'workspace-a' },
+        },
+      },
+      {
+        OR: [
+          { fullName: { contains: 'Kaci' } },
+          { doctorProfile: { speciality: { contains: 'Kaci' } } },
+        ],
+      },
+    ]);
+    expect(JSON.stringify(args.where)).not.toContain('discoverableByPeers');
+    expect(Object.keys(args.select)).not.toContain('email');
+    expect(Object.keys(args.select)).not.toContain('phone');
+  });
+
+  it('is empty for a caller without a clinical workspace', async () => {
+    const { prisma, service, workspaceContext } = setup();
+    workspaceContext.resolveWorkspaceForUser.mockRejectedValue(
+      new ForbiddenException('Aucun workspace actif'),
+    );
+
+    await expect(service.workspaceMembers(actor)).resolves.toEqual([]);
+    expect(prisma.user.findMany).not.toHaveBeenCalled();
   });
 });
 

@@ -25,6 +25,7 @@ import { DirectoryService } from './directory.service';
 import {
   DirectoryQueryDto,
   UpdateMessagingSettingsDto,
+  WorkspaceMembersQueryDto,
 } from './dto/directory.dto';
 import { MESSAGING_ROLES } from './messaging-rules';
 
@@ -42,6 +43,15 @@ export class DirectoryController {
     @Query() query: DirectoryQueryDto,
   ) {
     return this.directoryService.search(user, query);
+  }
+
+  // The colleagues of the caller's workspace, for a team group.
+  @Get('workspace-members')
+  workspaceMembers(
+    @CurrentUser() user: AuthenticatedUserPayload,
+    @Query() query: WorkspaceMembersQueryDto,
+  ) {
+    return this.directoryService.workspaceMembers(user, query.search);
   }
 
   @Get('blocks')

@@ -202,7 +202,22 @@ describe("RealtimeClient", () => {
 
     expect(events).toEqual([["message.created", { conversationId: "c-1", seq: 3 }]]);
     expect(connection).toEqual([true, false]);
-    expect(client.status).toBe("connected");
+    // A network failure: socket.io comes back by itself, the interface says so.
+    expect(client.status).toBe("connecting");
+    expect(client.reconnecting).toBe(true);
+    socket.fire("connect");
+    expect(client.reconnecting).toBe(false);
+  });
+
+  it("does not say it is reconnecting before the first connection, nor once stopped", async () => {
+    const { client, socket } = await setup();
+    expect(client.reconnecting).toBe(false);
+
+    socket.fire("connect");
+    socket.refuse("unauthorized");
+
+    expect(client.status).toBe("stopped");
+    expect(client.reconnecting).toBe(false);
   });
 
   it("opens with the first holder and closes with the last", async () => {

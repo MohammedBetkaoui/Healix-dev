@@ -1,12 +1,12 @@
 "use client";
 
 import { type QueryClient, useQueryClient } from "@tanstack/react-query";
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useSyncExternalStore } from "react";
 
 import { messagingKeys } from "@/features/messaging/messaging-query-keys";
 
 import { catchUpOpenConversations } from "./open-conversations";
-import { getRealtimeClient } from "./realtime-client";
+import { getRealtimeClient, type RealtimeListener } from "./realtime-client";
 import {
   applyRealtimeEvent,
   type RealtimeEventPayloads,
@@ -68,4 +68,35 @@ export function useRealtimeEvents(options: Options = {}): void {
       release();
     };
   }, [queryClient]);
+}
+
+// The events themselves, for an interface that shows them (typing, read
+// positions): no invalidation here, useRealtimeEvents does it. Holds the
+// connection while mounted.
+export function useRealtimeSubscription(listener: RealtimeListener): void {
+  const current = useRef(listener);
+
+  useEffect(() => {
+    current.current = listener;
+  }, [listener]);
+
+  useEffect(() => {
+    const client = getRealtimeClient();
+    const unsubscribe = client.subscribe((event, payload) => current.current(event, payload));
+    const release = client.retain();
+    return () => {
+      unsubscribe();
+      release();
+    };
+  }, []);
+}
+
+// The socket was up and is coming back. Sending stays possible without it
+// (REST): the interface only says it is reconnecting.
+export function useRealtimeReconnecting(): boolean {
+  return useSyncExternalStore(
+    (onChange) => getRealtimeClient().onConnectionChange(onChange),
+    () => getRealtimeClient().reconnecting,
+    () => false,
+  );
 }

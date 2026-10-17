@@ -1,4 +1,4 @@
-import { Injectable } from '@nestjs/common';
+import { ForbiddenException, Injectable } from '@nestjs/common';
 import {
   ParticipantStatus,
   Prisma,
@@ -10,6 +10,7 @@ import { type AuthenticatedUserPayload } from '../auth/types/authenticated-reque
 import { type RequestContext } from '../common/utils/request-context';
 import { sanitizeTextInput } from '../common/utils/sanitize';
 import { PrismaService } from '../prisma/prisma.service';
+import { WorkspaceContextService } from '../workspaces/workspace-context.service';
 import { type DirectoryQueryDto } from './dto/directory.dto';
 import { cannotBlockSelf, recipientNotFound } from './messaging-errors';
 import { directKeyFor, MESSAGING_ROLES } from './messaging-rules';
@@ -22,6 +23,7 @@ import {
 } from './messaging-users.service';
 
 export const DIRECTORY_LIMIT = 20;
+export const WORKSPACE_MEMBERS_LIMIT = 100;
 
 export type DirectoryEntry = PeerProfile & {
   // A DIRECT conversation opens at once; otherwise it starts as a request.
@@ -47,7 +49,57 @@ export class DirectoryService {
     private readonly prisma: PrismaService,
     private readonly users: MessagingUsersService,
     private readonly auditLogs: AuditLogsService,
+    private readonly workspaceContext: WorkspaceContextService,
   ) {}
+
+  // The colleagues a group of the caller can hold: verified, usable
+  // professionals with an ACTIVE membership of the caller's workspace (the
+  // one a new group is created in), listed or not in the directory. Never
+  // the caller, never an e-mail nor a phone. An independent doctor, alone in
+  // their practice, gets an empty list.
+  async workspaceMembers(
+    actor: AuthenticatedUserPayload,
+    rawSearch?: string,
+  ): Promise<PeerProfile[]> {
+    let workspaceId: string;
+    try {
+      ({ workspaceId } = await this.workspaceContext.resolveWorkspaceForUser({
+        role: actor.role,
+        userId: actor.sub,
+      }));
+    } catch (error) {
+      if (error instanceof ForbiddenException) return [];
+      throw error;
+    }
+
+    const search = sanitizeTextInput(rawSearch);
+    const users = await this.prisma.user.findMany({
+      orderBy: [{ fullName: 'asc' }, { id: 'asc' }],
+      select: peerProfileSelect,
+      take: WORKSPACE_MEMBERS_LIMIT,
+      where: {
+        AND: [
+          reachableUserWhere,
+          { id: { not: actor.sub } },
+          {
+            workspaceMemberships: {
+              some: { status: WorkspaceMembershipStatus.ACTIVE, workspaceId },
+            },
+          },
+          search
+            ? {
+                OR: [
+                  { fullName: contains(search) },
+                  { doctorProfile: { speciality: contains(search) } },
+                ],
+              }
+            : {},
+        ],
+      },
+    });
+
+    return users.map(toPeerProfile);
+  }
 
   // Verified, usable professionals who chose to be listed, 20 at most, by
   // name; never the caller, never someone who blocked the caller, never an

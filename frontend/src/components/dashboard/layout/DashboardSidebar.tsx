@@ -5,10 +5,13 @@ import { PanelLeftClose, PanelLeftOpen, X } from "lucide-react";
 import { WorkspaceLink as Link } from "./WorkspaceLink";
 
 import { DemoBadge } from "@/components/dashboard/shared/DemoModule";
+import { UnreadCountBadge } from "@/components/messaging/messaging-ui";
 import { HealixLogo } from "@/components/shared/HealixLogo";
+import { messagingCopy } from "@/features/messaging/messaging.copy";
+import { useUnreadCount } from "@/features/messaging/messaging.queries";
 
 import { useLogout } from "@/features/auth/hooks/use-logout";
-import { type Direction, type TranslationFunction } from "@/lib/i18n";
+import { type Direction, type TranslationFunction, useStoredLocale } from "@/lib/i18n";
 import { cn } from "@/lib/utils";
 import { type DashboardNavItem, type DashboardNavSection, type DashboardUserSummary } from "@/types/dashboard";
 
@@ -24,26 +27,34 @@ type DashboardSidebarProps = {
   user: DashboardUserSummary;
 };
 
-function NavRow({ item, active, collapsed, onNavigate, t }: {
+function NavRow({ item, active, collapsed, onNavigate, t, unread }: {
   item: DashboardNavItem; active: boolean; collapsed: boolean; onNavigate: () => void; t: TranslationFunction;
+  // Messages: the live unread count ("N messages non lus").
+  unread?: { count: number; label: string };
 }) {
   const Icon = item.icon;
   const label = t(item.labelKey);
   const demo = item.demo ? t("dashboard.clinical.demo.badge") : null;
-  // The badge is part of the name: it stays announced when the row is collapsed.
-  const name = demo ? `${label} (${demo})` : label;
+  // The badges are part of the name: they stay announced when the row is collapsed.
+  const unreadName = unread && unread.count > 0 ? unread.label : null;
+  const name = [demo ? `${label} (${demo})` : label, unreadName].filter(Boolean).join(", ");
   return (
-    <Link href={item.href} className={cn("clinical-nav-row", collapsed && "lg:justify-center lg:px-0")}
+    <Link href={item.href} className={cn("clinical-nav-row relative", collapsed && "lg:justify-center lg:px-0")}
       title={name} aria-label={name} aria-current={active ? "page" : undefined} onClick={onNavigate}>
       <Icon size={17} strokeWidth={1.8} aria-hidden="true" className="shrink-0" />
       <span className={cn("min-w-0 flex-1 truncate", collapsed && "lg:hidden")}>{label}</span>
       {demo ? <DemoBadge className={cn(collapsed && "lg:hidden")} label={demo} /> : null}
+      {unread ? <UnreadCountBadge count={unread.count} label={unread.label} className={cn(collapsed && "lg:absolute lg:end-1 lg:top-1")} /> : null}
     </Link>
   );
 }
 
 export function DashboardSidebar({ activeKey, direction, isCollapsed, isOpen, navSections, onClose, onToggleCollapse, t, user }: DashboardSidebarProps) {
   const { isLoading: isLogoutLoading, logout } = useLogout();
+  const { locale } = useStoredLocale();
+  // Kept current by the real-time events (useRealtimeEvents in the shell).
+  const unreadCount = useUnreadCount().data?.total ?? 0;
+  const unread = { count: unreadCount, label: messagingCopy[locale].list.unread(unreadCount) };
   const asideRef = useRef<HTMLElement>(null);
   const CollapseIcon = isCollapsed ? PanelLeftOpen : PanelLeftClose;
   const logoutItem = navSections.flatMap((section) => section.items).find((item) => item.key === "logout");
@@ -120,7 +131,8 @@ export function DashboardSidebar({ activeKey, direction, isCollapsed, isOpen, na
             <section key={section.key} className="mb-4 last:mb-0">
               <h2 className={cn("clinical-nav-heading", isCollapsed && "lg:sr-only")}>{t(section.titleKey)}</h2>
               {section.items.filter((item) => item.key !== "logout").map((item) => (
-                <NavRow key={item.key} item={item} active={item.key === activeKey} collapsed={isCollapsed} onNavigate={onClose} t={t} />
+                <NavRow key={item.key} item={item} active={item.key === activeKey} collapsed={isCollapsed} onNavigate={onClose} t={t}
+                  unread={item.key === "messages" ? unread : undefined} />
               ))}
             </section>
           ))}
