@@ -4,6 +4,7 @@ import { useId, useState } from "react";
 import { Archive, ArchiveRestore, Ban, BellOff, BellRing, LogOut, UserMinus, UserPlus, X } from "lucide-react";
 
 import { type Locale } from "@/i18n";
+import { caseMessagingCopy } from "@/features/messaging/case-messaging.copy";
 import { type MessagingCopy } from "@/features/messaging/messaging.copy";
 import { formatMutedUntil } from "@/features/messaging/messaging-format";
 import {
@@ -16,6 +17,7 @@ import { isMuted, type MuteOption, mutedUntilFor, otherParticipant } from "@/fea
 import { type Conversation } from "@/features/messaging/messaging.types";
 import { cn } from "@/lib/utils";
 
+import { CasePatientCard } from "./case-ui";
 import { Avatar, ConfirmDialog } from "./messaging-ui";
 
 type ConversationPanelProps = {
@@ -25,9 +27,11 @@ type ConversationPanelProps = {
   copy: MessagingCopy;
   locale: Locale;
   onClose: () => void;
-  // The caller left the group: back to the list.
+  // The caller left the group or the case discussion: back to the list.
   onLeft: () => void;
   errorText: (error: unknown) => string;
+  // "/doctor" or "/establishment": the patient record's links.
+  recordBasePath: string;
 };
 
 const MUTE_OPTIONS: MuteOption[] = ["1h", "8h", "24h", "forever"];
@@ -41,6 +45,7 @@ export function ConversationPanel({
   myUserId,
   onClose,
   onLeft,
+  recordBasePath,
 }: ConversationPanelProps) {
   const ids = { add: useId(), title: useId(), titleField: useId() };
   const update = useUpdateConversation(conversation.id);
@@ -51,13 +56,19 @@ export function ConversationPanel({
   const [confirm, setConfirm] = useState<"leave" | "block" | null>(null);
   const [error, setError] = useState<string | null>(null);
 
+  const caseCopy = caseMessagingCopy[locale];
   const isGroup = conversation.type === "GROUP";
+  const isCase = conversation.type === "CASE";
   const isOwner = conversation.me.role === "OWNER";
-  const canManage = isGroup && isOwner && conversation.me.status === "ACTIVE";
-  const other = isGroup ? null : otherParticipant(conversation, myUserId);
+  const active = conversation.me.status === "ACTIVE";
+  // A group's name and members are its OWNER's; any participant of a case
+  // discussion brings in colleagues (of the patient's workspace, the caller's).
+  const canManage = isGroup && isOwner && active;
+  const canAddMembers = canManage || (isCase && active);
+  const other = isGroup || isCase ? null : otherParticipant(conversation, myUserId);
   const blocked = other ? blockedUserIds.has(other.userId) : false;
   const muted = isMuted(conversation);
-  const candidates = useWorkspaceMembers("", canManage);
+  const candidates = useWorkspaceMembers("", canAddMembers);
   const current = new Set(conversation.participants.filter((p) => p.status === "ACTIVE").map((p) => p.userId));
   const addable = (candidates.data ?? []).filter((member) => !current.has(member.id));
   const canArchive = !isGroup || isOwner;
@@ -78,6 +89,10 @@ export function ConversationPanel({
 
       <div className="space-y-6 px-4 py-4 text-sm">
         {error ? <p role="alert" className="rounded-[var(--radius-sm)] border border-[var(--danger-line)] bg-[var(--danger-soft)] px-3 py-2 text-xs text-[var(--danger-ink)]">{error}</p> : null}
+
+        {isCase && conversation.patient ? (
+          <CasePatientCard patient={conversation.patient} copy={caseCopy} locale={locale} recordBasePath={recordBasePath} />
+        ) : null}
 
         {canManage ? (
           <form
@@ -105,7 +120,7 @@ export function ConversationPanel({
 
         <section>
           <h3 className="mb-2 text-xs font-semibold uppercase tracking-wide text-[var(--text-secondary)]">
-            {isGroup ? copy.panel.members : copy.panel.participants}
+            {isGroup || isCase ? copy.panel.members : copy.panel.participants}
           </h3>
           <ul className="space-y-2">
             {conversation.participants.map((participant) => {
@@ -137,7 +152,7 @@ export function ConversationPanel({
           </ul>
         </section>
 
-        {canManage ? (
+        {canAddMembers ? (
           <section aria-labelledby={ids.add}>
             <h3 id={ids.add} className="mb-2 text-xs font-semibold uppercase tracking-wide text-[var(--text-secondary)]">{copy.panel.addMembers}</h3>
             {addable.length === 0 ? (
@@ -218,10 +233,10 @@ export function ConversationPanel({
               </button>
             )
           ) : null}
-          {isGroup && conversation.me.status === "ACTIVE" ? (
+          {(isGroup || isCase) && active ? (
             <button type="button" className={cn("clinical-button w-full text-[var(--danger-ink)]")} onClick={() => setConfirm("leave")}>
               <LogOut size={15} strokeWidth={1.8} aria-hidden="true" className="clinical-directional" />
-              {copy.panel.leave}
+              {isCase ? caseCopy.panel.leaveCase : copy.panel.leave}
             </button>
           ) : null}
         </section>
@@ -229,9 +244,9 @@ export function ConversationPanel({
 
       <ConfirmDialog
         open={confirm === "leave"}
-        title={copy.panel.leave}
-        body={copy.panel.leaveConfirm}
-        confirmLabel={copy.panel.leave}
+        title={isCase ? caseCopy.panel.leaveCase : copy.panel.leave}
+        body={isCase ? caseCopy.panel.leaveCaseConfirm : copy.panel.leaveConfirm}
+        confirmLabel={isCase ? caseCopy.panel.leaveCase : copy.panel.leave}
         cancelLabel={copy.panel.cancel}
         danger
         busy={members.remove.isPending}

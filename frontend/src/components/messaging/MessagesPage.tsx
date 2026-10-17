@@ -3,14 +3,15 @@
 import { useCallback, useState } from "react";
 import { usePathname, useSearchParams } from "next/navigation";
 import { useQueryClient, type InfiniteData } from "@tanstack/react-query";
-import { isAxiosError } from "axios";
 import { ArrowUpRight, MessageSquarePlus, MessagesSquare, RotateCcw, UsersRound } from "lucide-react";
 
 import { DashboardShell } from "@/components/dashboard/layout/DashboardShell";
 import { doctorNavSections, establishmentNavSections } from "@/components/dashboard/layout/navigation";
 import { VerificationRequiredNotice } from "@/components/shared/VerificationRequiredNotice";
 import { useCurrentUser } from "@/features/auth/hooks/use-current-user";
-import { messagingCopy, type MessagingCopy } from "@/features/messaging/messaging.copy";
+import { caseMessagingCopy } from "@/features/messaging/case-messaging.copy";
+import { messagingErrorText } from "@/features/messaging/messaging-error-text";
+import { messagingCopy } from "@/features/messaging/messaging.copy";
 import { messagingKeys } from "@/features/messaging/messaging-query-keys";
 import { useBlocks, useConversation, useConversations } from "@/features/messaging/messaging.queries";
 import { type Conversation, type ConversationFilter, type ConversationPage } from "@/features/messaging/messaging.types";
@@ -30,16 +31,8 @@ type MessagesPageProps = {
   accountType: "DOCTOR" | "ESTABLISHMENT";
 };
 
-// The message of an API error, in the user's language: the backend's stable
-// codes, the network, else a generic one.
-export function messagingErrorText(error: unknown, copy: MessagingCopy): string {
-  if (!isAxiosError(error)) return copy.errors.generic;
-  if (!error.response) return copy.errors.network;
-  const code = (error.response.data as { code?: unknown } | undefined)?.code;
-  if (typeof code === "string" && copy.errors.codes[code]) return copy.errors.codes[code];
-  if (error.response.status === 404) return copy.thread.notFound;
-  return copy.errors.generic;
-}
+// Where it always was, for its callers.
+export { messagingErrorText } from "@/features/messaging/messaging-error-text";
 
 export function MessagesPage({ accountType }: MessagesPageProps) {
   const { locale } = useStoredLocale();
@@ -60,7 +53,10 @@ export function MessagesPage({ accountType }: MessagesPageProps) {
   const conversation = useConversation(selectedId);
   const blocks = useBlocks();
   const blockedUserIds = new Set((blocks.data ?? []).map((entry) => entry.userId));
-  const errorText = useCallback((error: unknown) => messagingErrorText(error, copy), [copy]);
+  const errorText = useCallback(
+    (error: unknown) => messagingErrorText(error, copy, caseMessagingCopy[locale].errors),
+    [copy, locale],
+  );
   const startConversation = (kind: "peer" | "group" = "peer") => {
     setNewKind(kind);
     setNewOpen(true);
@@ -209,6 +205,7 @@ export function MessagesPage({ accountType }: MessagesPageProps) {
                 onClose={() => setPanelOpen(false)}
                 onLeft={() => openConversation(null)}
                 errorText={errorText}
+                recordBasePath={accountType === "ESTABLISHMENT" ? "/establishment" : "/doctor"}
               />
             </div>
           ) : null}

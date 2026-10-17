@@ -14,4 +14,5 @@ export const messagingKeys = {
   workspaceMembers: (search: string) => ["messaging", "workspace-members", search] as const,
   blocks: ["messaging", "blocks"] as const,
   settings: ["messaging", "settings"] as const,
+  attachment: (attachmentId: string) => ["messaging", "attachment", attachmentId] as const,
 };

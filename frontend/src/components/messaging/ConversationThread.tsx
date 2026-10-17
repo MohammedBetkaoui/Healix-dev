@@ -5,24 +5,31 @@ import { useQueryClient } from "@tanstack/react-query";
 import { ArrowLeft, PanelRight, RotateCcw, WifiOff } from "lucide-react";
 
 import { type Locale } from "@/i18n";
+import { caseMessagingCopy } from "@/features/messaging/case-messaging.copy";
 import { sendTyping } from "@/features/messaging/messaging.api";
 import { type MessagingCopy } from "@/features/messaging/messaging.copy";
 import {
   putMessages,
+  useAckMessage,
   useAnswerRequest,
   useBlockToggle,
   useDeleteMessage,
   useEditMessage,
+  useFileToRecord,
   useMarkRead,
   useMessageSender,
   usePendingMessages,
 } from "@/features/messaging/messaging.mutations";
 import { useMessages } from "@/features/messaging/messaging.queries";
 import {
+  ackStateOf,
   buildTimeline,
+  canAck,
   canDeleteMessage,
   canEditMessage,
+  canFileToRecord,
   composerAvailability,
+  filedContentOf,
   messagesOfPages,
   newMessagesSeparatorSeq,
   otherParticipant,
@@ -38,6 +45,7 @@ import { conversationName, conversationSubtitle } from "./ConversationList";
 import { MessageBubble } from "./MessageBubble";
 import { MessageComposer } from "./MessageComposer";
 import { MessageLog } from "./MessageLog";
+import { CaseNotice, FileToRecordDialog } from "./case-ui";
 import { Avatar, ConfirmDialog, PatientDataNotice, RequestBanner, ThreadSkeleton } from "./messaging-ui";
 import styles from "./messaging.module.css";
 
@@ -79,6 +87,9 @@ export function ConversationThread({
   const deleteMessage = useDeleteMessage(conversationId);
   const markRead = useMarkRead(conversationId);
   const request = useAnswerRequest(conversationId);
+  const ack = useAckMessage(conversationId);
+  const fileToRecord = useFileToRecord(conversationId);
+  const caseCopy = caseMessagingCopy[locale];
   const blocks = useBlockToggle();
   const reconnecting = useRealtimeReconnecting();
   const { readPositions, typingUserIds } = useConversationActivity(conversationId, myUserId);
@@ -87,6 +98,10 @@ export function ConversationThread({
   const [deleting, setDeleting] = useState<MessageView | null>(null);
   const [actionError, setActionError] = useState<string | null>(null);
   const [confirmBlock, setConfirmBlock] = useState(false);
+  const [filing, setFiling] = useState<MessageView | null>(null);
+  const [fileError, setFileError] = useState<string | null>(null);
+  // Said to screen readers: an acknowledgement given, a note filed.
+  const [announcement, setAnnouncement] = useState("");
   // Fixed when the conversation opens: reading does not move the separator.
   const [openingReadSeq] = useState(conversation.me.lastReadSeq);
 
@@ -110,7 +125,8 @@ export function ConversationThread({
   const availability = composerAvailability(conversation, myUserId, blockedUserIds);
   const other = otherParticipant(conversation, myUserId);
   const isGroup = conversation.type === "GROUP";
-  const name = conversationName(conversation, myUserId, copy.list.group);
+  const isCase = conversation.type === "CASE";
+  const name = conversationName(conversation, myUserId, copy.list.group, locale);
   const authorName = (senderId: string | null) =>
     senderId === myUserId ? copy.message.you : (senderId && names.get(senderId)) || copy.thread.formerMember;
 
@@ -201,7 +217,7 @@ export function ConversationThread({
         kind="message"
         message={message}
         mine={mine}
-        authorName={isGroup && !mine ? authorName(message.senderId) : null}
+        authorName={(isGroup || isCase) && !mine ? authorName(message.senderId) : null}
         quote={quoteOf(message.replyToId)}
         receipt={
           !receipt ? null
@@ -220,6 +236,21 @@ export function ConversationThread({
           setEditing(message);
         }}
         onDelete={() => setDeleting(message)}
+        ack={
+          message.requiresAck
+            ? {
+                busy: ack.isPending && ack.variables === message.id,
+                canAck: canAck(message, myUserId),
+                onAck: () =>
+                  run(ack.mutateAsync(message.id), () => setAnnouncement(caseCopy.message.acked)),
+                state: ackStateOf(message),
+              }
+            : undefined
+        }
+        onFileToRecord={canFileToRecord(message, conversation) ? () => {
+          setFileError(null);
+          setFiling(message);
+        } : undefined}
         onJumpTo={jumpTo}
         copy={copy}
         locale={locale}
@@ -238,7 +269,7 @@ export function ConversationThread({
         <Avatar name={name} group={isGroup} />
         <div className="min-w-0 flex-1">
           <h2 className={styles.threadName}><bdi>{name}</bdi></h2>
-          <p className={styles.threadSubtitle}>{conversationSubtitle(conversation, myUserId, copy) || copy.workspace.direct}</p>
+          <p className={styles.threadSubtitle}>{conversationSubtitle(conversation, myUserId, copy, locale) || copy.workspace.direct}</p>
         </div>
         {reconnecting ? (
           <p role="status" className="flex shrink-0 items-center gap-1.5 text-[.7rem] text-[var(--text-secondary)]">
@@ -252,7 +283,7 @@ export function ConversationThread({
         </button>
       </header>
 
-      <PatientDataNotice text={copy.thread.patientNotice} />
+      {isCase ? <CaseNotice text={caseCopy.thread.caseNotice} /> : <PatientDataNotice text={copy.thread.patientNotice} />}
       {conversation.me.status === "PENDING" && other ? (
         <RequestBanner
           variant="received"
@@ -310,15 +341,47 @@ export function ConversationThread({
           onCancelReply={() => setReplyTo(null)}
           editing={editing ? { body: editing.body ?? "", messageId: editing.id } : null}
           onCancelEdit={() => setEditing(null)}
-          onSend={(body, priority) => {
-            void sender.send(conversationId, { body, priority, replyToId: replyTo?.id ?? null });
+          onSend={(body, priority, options) => {
+            void sender.send(conversationId, {
+              attachments: options.attachments,
+              body,
+              priority,
+              replyToId: replyTo?.id ?? null,
+              requiresAck: options.requiresAck,
+            });
             setReplyTo(null);
           }}
+          patientId={isCase ? conversation.patient?.id ?? null : null}
+          errorText={errorText}
           onSaveEdit={(messageId, body) => run(editMessage.mutateAsync({ body, messageId }), () => setEditing(null))}
           onTyping={() => void sendTyping(conversationId).catch(() => undefined)}
         />
       </div>
 
+      <p aria-live="polite" className="sr-only">{announcement}</p>
+      <FileToRecordDialog
+        open={filing !== null}
+        content={filing ? filedContentOf(filing, caseCopy.message.attachmentLine) : ""}
+        authorName={filing ? authorName(filing.senderId) : ""}
+        sentAt={filing?.createdAt ?? new Date(0).toISOString()}
+        busy={fileToRecord.isPending}
+        error={fileError}
+        onCancel={() => setFiling(null)}
+        onConfirm={(comment) => {
+          const target = filing;
+          if (!target) return;
+          setFileError(null);
+          fileToRecord.mutateAsync({ comment: comment || undefined, messageId: target.id }).then(
+            () => {
+              setFiling(null);
+              setAnnouncement(caseCopy.fileDialog.done);
+            },
+            (reason: unknown) => setFileError(errorText(reason)),
+          );
+        }}
+        copy={caseCopy}
+        locale={locale}
+      />
       <ConfirmDialog
         open={deleting !== null}
         title={copy.message.deleteTitle}

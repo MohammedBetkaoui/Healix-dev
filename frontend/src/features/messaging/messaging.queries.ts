@@ -3,6 +3,7 @@
 import { useInfiniteQuery, useQuery } from "@tanstack/react-query";
 
 import {
+  downloadAttachment,
   getConversation,
   getMessagingSettings,
   getUnreadCount,
@@ -13,7 +14,7 @@ import {
   searchDirectory,
 } from "./messaging.api";
 import { messagingKeys } from "./messaging-query-keys";
-import { statusOfFilter } from "./messaging-rules";
+import { listParamsOfFilter } from "./messaging-rules";
 import { type ConversationFilter, type DirectorySearch } from "./messaging.types";
 
 // The queries of the Messages interface. No automatic retry: a refused
@@ -25,7 +26,7 @@ export function useConversations(filter: ConversationFilter, enabled = true) {
   // the order of the object.
   return useInfiniteQuery({
     queryKey: messagingKeys.conversationList(filter),
-    queryFn: ({ pageParam }) => listConversations({ cursor: pageParam, status: statusOfFilter(filter) }),
+    queryFn: ({ pageParam }) => listConversations({ cursor: pageParam, ...listParamsOfFilter(filter) }),
     initialPageParam: undefined as string | undefined,
     getNextPageParam: (lastPage) => lastPage.nextCursor ?? undefined,
     enabled,
@@ -106,5 +107,18 @@ export function useMessagingSettings(enabled = true) {
     queryKey: messagingKeys.settings,
     retry: false,
     staleTime: 60_000,
+  });
+}
+
+// An attachment's content, for an image thumbnail: fetched once, kept while
+// the conversation is open (never a public URL).
+export function useAttachmentBlob(attachmentId: string, enabled = true) {
+  return useQuery({
+    enabled,
+    gcTime: 5 * 60_000,
+    queryFn: () => downloadAttachment(attachmentId),
+    queryKey: messagingKeys.attachment(attachmentId),
+    retry: false,
+    staleTime: Number.POSITIVE_INFINITY,
   });
 }

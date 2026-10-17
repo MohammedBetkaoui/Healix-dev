@@ -59,6 +59,7 @@ export const clinicalWorkspaceAr = {
       AI_PENDING_OVER_24H: "تحاليل ذكاء اصطناعي تنتظر القرار منذ أكثر من 24 ساعة",
       APPOINTMENTS_UNCONFIRMED_TODAY: "مواعيد اليوم غير المؤكدة",
       AI_CONSENT_MISSING: "مرضى لديهم تحليل ذكاء اصطناعي دون موافقة موقّعة على الذكاء الاصطناعي",
+      URGENT_MESSAGES_UNACKED: "رسائل عاجلة واردة تنتظر إشعاركم بالاستلام",
     },
   },
   flow: {

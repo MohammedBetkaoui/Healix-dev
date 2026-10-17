@@ -1,22 +1,23 @@
 "use client";
 
 import { useId, useRef, useState, type KeyboardEvent, type ReactNode } from "react";
-import { BellOff, ChevronRight, Inbox, MessageSquarePlus, RotateCcw, Search, X } from "lucide-react";
+import { BellOff, ChevronRight, Inbox, MessageSquarePlus, Paperclip, RotateCcw, Search, Stethoscope, X } from "lucide-react";
 
 import { type Locale } from "@/i18n";
+import { caseMessagingCopy } from "@/features/messaging/case-messaging.copy";
 import { type MessagingCopy } from "@/features/messaging/messaging.copy";
 import { formatListDate, formatNumber } from "@/features/messaging/messaging-format";
 import { matchesConversationSearch } from "@/features/messaging/conversation-search";
 import { useUpdateMessagingSettings } from "@/features/messaging/messaging.mutations";
 import { useConversations, useMessagingSettings } from "@/features/messaging/messaging.queries";
-import { isMuted, otherParticipant } from "@/features/messaging/messaging-rules";
+import { isMuted, otherParticipant, patientNameOf } from "@/features/messaging/messaging-rules";
 import { type Conversation, type ConversationFilter } from "@/features/messaging/messaging.types";
 import { cn } from "@/lib/utils";
 
 import { Avatar, ListSkeleton, UnreadCountBadge } from "./messaging-ui";
 import styles from "./messaging.module.css";
 
-const FILTERS: ConversationFilter[] = ["all", "unread", "requests", "archived"];
+const FILTERS: ConversationFilter[] = ["all", "unread", "cases", "requests", "archived"];
 
 type ConversationListProps = {
   filter: ConversationFilter;
@@ -29,24 +30,40 @@ type ConversationListProps = {
   locale: Locale;
 };
 
-export function conversationName(conversation: Conversation, myUserId: string, fallback: string): string {
+// A case discussion is named after its patient, in the interface's script.
+export function conversationName(conversation: Conversation, myUserId: string, fallback: string, locale: Locale = "fr"): string {
+  if (conversation.type === "CASE") {
+    return conversation.patient ? patientNameOf(conversation.patient, locale) : (conversation.title ?? fallback);
+  }
   if (conversation.type === "GROUP") return conversation.title ?? fallback;
   return otherParticipant(conversation, myUserId)?.fullName ?? fallback;
 }
 
-export function conversationSubtitle(conversation: Conversation, myUserId: string, copy: MessagingCopy): string {
+export function conversationSubtitle(conversation: Conversation, myUserId: string, copy: MessagingCopy, locale: Locale = "fr"): string {
+  const members = conversation.participants.filter((participant) => participant.status === "ACTIVE").length;
+  if (conversation.type === "CASE") return caseMessagingCopy[locale].thread.caseSubtitle(members);
   if (conversation.type === "GROUP") {
-    return copy.thread.group(conversation.participants.filter((participant) => participant.status === "ACTIVE").length);
+    return copy.thread.group(members);
   }
   const other = otherParticipant(conversation, myUserId);
   return [other?.speciality, other?.establishmentName].filter(Boolean).join(" · ");
 }
 
 // The text isolated (bdi): a French preview keeps its direction in Arabic.
-function preview(conversation: Conversation, myUserId: string, copy: MessagingCopy): ReactNode {
+// Files sent without text: "Pièce jointe".
+function preview(conversation: Conversation, myUserId: string, copy: MessagingCopy, locale: Locale): ReactNode {
   const last = conversation.lastMessage;
   if (!last) return copy.list.noMessages;
-  const text = <bdi>{last.deleted ? copy.list.deletedPreview : (last.preview ?? "")}</bdi>;
+  const text = last.deleted ? (
+    <bdi>{copy.list.deletedPreview}</bdi>
+  ) : last.preview === null && last.kind === "ATTACHMENT" ? (
+    <span className="inline-flex items-center gap-1">
+      <Paperclip size={12} strokeWidth={1.8} aria-hidden="true" />
+      {caseMessagingCopy[locale].list.attachmentPreview}
+    </span>
+  ) : (
+    <bdi>{last.preview ?? ""}</bdi>
+  );
   return last.senderId === myUserId ? <>{copy.list.you} : {text}</> : text;
 }
 
@@ -208,8 +225,9 @@ function ConversationRow({
   copy: MessagingCopy;
   locale: Locale;
 }) {
-  const name = conversationName(conversation, myUserId, copy.list.group);
-  const subtitle = conversationSubtitle(conversation, myUserId, copy);
+  const name = conversationName(conversation, myUserId, copy.list.group, locale);
+  const subtitle = conversationSubtitle(conversation, myUserId, copy, locale);
+  const isCase = conversation.type === "CASE";
   const date = conversation.lastMessage?.createdAt ?? conversation.lastMessageAt ?? conversation.createdAt;
   const muted = isMuted(conversation);
   const unread = conversation.unreadCount;
@@ -226,6 +244,12 @@ function ConversationRow({
       <Avatar name={name} group={conversation.type === "GROUP"} />
       <span className="min-w-0 flex-1">
         <span className="flex items-center gap-2">
+          {isCase ? (
+            <span className="inline-flex shrink-0 items-center gap-1 rounded-full border border-[var(--accent-line)] bg-[var(--medical-soft)] px-1.5 text-[.62rem] font-semibold text-[var(--medical)]">
+              <Stethoscope size={11} strokeWidth={2} aria-hidden="true" />
+              {caseMessagingCopy[locale].list.casePill}
+            </span>
+          ) : null}
           <span className={cn("min-w-0 flex-1 truncate text-sm text-[var(--text-primary)]", unread > 0 ? "font-semibold" : "font-medium")}>
             <bdi>{name}</bdi>
           </span>
@@ -237,7 +261,7 @@ function ConversationRow({
             {conversation.me.status === "PENDING" ? (
               <span className="me-1 rounded-[var(--radius-xs)] border border-[var(--accent-line)] px-1 text-[.65rem] font-semibold text-[var(--medical)]">{copy.list.request}</span>
             ) : null}
-            {preview(conversation, myUserId, copy)}
+            {preview(conversation, myUserId, copy, locale)}
           </span>
           {muted ? (
             <span role="img" aria-label={copy.list.muted} title={copy.list.muted} className="shrink-0 text-[var(--text-secondary)]">

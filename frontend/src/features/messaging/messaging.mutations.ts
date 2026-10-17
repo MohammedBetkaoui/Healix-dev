@@ -3,8 +3,11 @@
 import { type InfiniteData, type QueryClient, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useMemo, useSyncExternalStore } from "react";
 
+import { clinicalNotesKey } from "@/features/patients/hooks/use-patient-clinical-notes";
+
 import {
   acceptConversation,
+  ackMessage,
   addParticipants,
   blockUser,
   createDirectConversation,
@@ -12,7 +15,9 @@ import {
   declineConversation,
   deleteMessage,
   editMessage,
+  fileMessageToRecord,
   markConversationRead,
+  openCaseConversation,
   removeParticipant,
   sendMessage,
   unblockUser,
@@ -160,6 +165,43 @@ export function useDeleteMessage(conversationId: string) {
     onSuccess: (message) => {
       putMessages(queryClient, conversationId, [message]);
       void queryClient.invalidateQueries({ queryKey: messagingKeys.conversationLists });
+    },
+  });
+}
+
+// --- Case discussions, urgent messages ---------------------------------------------
+
+// "Discuter du cas" from the patient record: the patient's discussion,
+// opened or created.
+export function useOpenCaseConversation() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: openCaseConversation,
+    onSuccess: ({ conversation }) => {
+      storeConversation(queryClient, conversation);
+      refreshLists(queryClient);
+    },
+  });
+}
+
+export function useAckMessage(conversationId: string) {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (messageId: string) => ackMessage(messageId),
+    onSuccess: (message) => putMessages(queryClient, conversationId, [message]),
+  });
+}
+
+// The note goes to the patient record (its "Notes" tab reads it again); the
+// message now shows "Versé au dossier".
+export function useFileToRecord(conversationId: string) {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: ({ comment, messageId }: { messageId: string; comment?: string }) =>
+      fileMessageToRecord(messageId, comment),
+    onSuccess: (note) => {
+      void queryClient.invalidateQueries({ queryKey: messagingKeys.messages(conversationId) });
+      void queryClient.invalidateQueries({ queryKey: clinicalNotesKey(note.patientId) });
     },
   });
 }
