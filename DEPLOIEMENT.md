@@ -33,7 +33,9 @@ Cinq conteneurs applicatifs, plus celui des sauvegardes, décrits par
 - **Volumes nommés :**
   - `healixdz_mysql-data` : la base ;
   - `healixdz_patient-files` : documents patients, masques de segmentation,
-    comptes rendus PDF ;
+    comptes rendus PDF, et les pièces jointes de la messagerie
+    (`messaging/<conversation>/`, chiffrées ; une pièce jointe jamais
+    envoyée est supprimée après 24 heures par une tâche horaire du backend) ;
   - `healixdz_caddy-data` et `healixdz_caddy-config` : certificats et état de
     Caddy.
 - **Fichiers montés depuis le dépôt ou l'hôte, en lecture seule :**
@@ -146,8 +148,8 @@ openssl rand -hex 32   # Linux, Git Bash
 ```
 
 **Clé des messages (`MESSAGING_KEYS`).** Le texte des messages est chiffré
-dans la base (AES-256-GCM) ; sans cette variable, le backend ne démarre pas.
-Générez une clé de 32 octets :
+dans la base, et leurs pièces jointes sur le disque (AES-256-GCM) ; sans
+cette variable, le backend ne démarre pas. Générez une clé de 32 octets :
 
 ```bash
 openssl rand -base64 32   # Linux, Git Bash
@@ -158,7 +160,10 @@ $b = New-Object byte[] 32; [Security.Cryptography.RandomNumberGenerator]::Create
 ```
 
 puis écrivez-la précédée d'un identifiant : `MESSAGING_KEYS=k1:<clé>`.
-Sauvegardez-la **à part** des sauvegardes de la base (section 8).
+Sauvegardez-la **à part** des sauvegardes de la base (section 8) : sans
+elle, ni les messages ni les pièces jointes d'une sauvegarde ne se relisent.
+Pour changer de clé, ajoutez-en une à la fin (`k1:<ancienne>,k2:<nouvelle>`)
+et gardez l'ancienne tant que des messages ou des fichiers l'utilisent.
 
 `.env` contient les secrets : ne le versionnez pas (Git l'ignore) et ne
 l'envoyez à personne.
@@ -402,7 +407,7 @@ dépose dans `BACKUP_DIR` (par défaut `./backups`) :
 | Fichier | Contenu |
 | --- | --- |
 | `healixdz-db-<date UTC>.sql.gz[.age]` | la base, `mysqldump --single-transaction` (copie cohérente, sans bloquer l'application) |
-| `healixdz-files-<date UTC>.tar.gz[.age]` | le volume des fichiers patients (documents, masques, comptes rendus) |
+| `healixdz-files-<date UTC>.tar.gz[.age]` | le volume des fichiers patients (documents, masques, comptes rendus) et les pièces jointes de la messagerie (`messaging/`, déjà chiffrées par `MESSAGING_KEYS`) |
 | `….sha256` | l'empreinte SHA-256 de chaque archive, vérifiable avec `sha256sum -c` |
 
 Les archives de plus de `BACKUP_RETENTION_DAYS` jours (14) sont supprimées
