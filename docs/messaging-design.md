@@ -354,6 +354,36 @@ Précisions :
 - `pendingAck` compte les participants ACTIVE, même arrivés après le
   message.
 
+**Accusés de lecture (« Vu ») : fait** (branche
+`feat/messaging-read-receipts`, migration `messaging_read_receipts`).
+- Persistés : `ConversationParticipant.lastReadAt`, et une ligne
+  `ConversationReadMark { conversationId, userId, seq, readAt }` à chaque
+  avancée de `lastReadSeq` (lecture, ou envoi d'un message), jamais par
+  message ; la route `read` reste limitée à 1 appel par seconde.
+- Heure à laquelle un message a été vu : `readAt` de la première marque de ce
+  participant dont `seq` ≥ celui du message.
+- `read.updated` porte `{ conversationId, userId, seq, readAt }` ; la vue de
+  conversation donne `lastReadSeq` et `lastReadAt` de chaque participant
+  ACTIVE, et `joinedAt` : le statut se calcule sans dépendre des événements
+  reçus pendant la session et survit au rechargement.
+- `GET /messages/:id/readers` (participant ACTIVE, périmètre patient
+  revérifié pour CASE) : `{ seen, notSeen, notShared }`, sans l'expéditeur
+  ni ceux arrivés après le message.
+- Réglage réciproque `shareReadReceipts` (défaut vrai) : désactivé, les
+  lectures de l'utilisateur ne sont plus montrées aux autres (positions
+  masquées, « non communiqué ») et il ne voit plus les leurs ; les
+  événements `read.updated` ne sont envoyés qu'entre personnes qui
+  partagent. Le compteur de non-lus et les accusés des messages URGENT
+  (`MessageAck`) n'en dépendent pas.
+- Interface : « Envoi… », « Envoyé » (une coche), « Vu » (deux coches,
+  couleur d'accent et texte, infobulle « Vu à 14:32 »), « Vu par 3 sur 5 »
+  dans un groupe avec le panneau « Vu par / Pas encore vu / Non
+  communiqué » ; le statut n'est affiché en permanence que sous mon dernier
+  message et le dernier vu (au survol ou au focus pour les autres) ;
+  réglage « Accusés de lecture » à côté de « Joignable par des confrères ».
+
+**Présence en ligne : à faire** (spécification à compléter).
+
 **Lot 5 : à faire.**
 
 ## Sources
