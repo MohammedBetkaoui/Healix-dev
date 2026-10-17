@@ -1,4 +1,4 @@
-import { randomBytes } from 'node:crypto';
+import { randomBytes, randomUUID } from 'node:crypto';
 import { type Server } from 'node:http';
 import { type AddressInfo } from 'node:net';
 
@@ -341,5 +341,102 @@ describeWithDatabase('real-time notifications against a server', () => {
         reason: 'protocol_violation',
       });
     });
+  });
+
+  describe('events of the messaging', () => {
+    const api = (as: TestUser, method: string, path: string, body?: object) =>
+      fetch(`${baseUrl}/api${path}`, {
+        body: body ? JSON.stringify(body) : undefined,
+        headers: {
+          'Content-Type': 'application/json',
+          Cookie: `access_token=${token(as)}`,
+        },
+        method,
+      });
+
+    const wait = (ms: number) =>
+      new Promise((resolve) => setTimeout(resolve, ms));
+
+    const next = (socket: Socket, event: string) =>
+      new Promise<unknown>((resolve, reject) => {
+        const timer = setTimeout(() => reject(new Error(`no ${event}`)), 3_000);
+        socket.once(event, (payload: unknown) => {
+          clearTimeout(timer);
+          resolve(payload);
+        });
+      });
+
+    // B writes to A (another workspace: a contact request).
+    const openDirect = async () => {
+      const response = await api(
+        users.doctorB,
+        'POST',
+        '/messaging/conversations',
+        {
+          participantId: users.doctorA.id,
+          type: 'DIRECT',
+        },
+      );
+      return ((await response.json()) as { id: string }).id;
+    };
+
+    it('tells A when B writes to them, and nobody else, with identifiers only', async () => {
+      const recipient = open(token(users.doctorA));
+      const outsider = open(token(users.doctorC));
+      await Promise.all([connected(recipient), connected(outsider)]);
+      const seenByOutsider: string[] = [];
+      outsider.onAny((event: string) => seenByOutsider.push(event));
+
+      const announced = next(recipient, 'conversation.updated');
+      const conversationId = await openDirect();
+      await expect(announced).resolves.toEqual({ conversationId });
+
+      const created = next(recipient, 'message.created');
+      const sent = await api(
+        users.doctorB,
+        'POST',
+        `/messaging/conversations/${conversationId}/messages`,
+        { body: 'Demande d’avis sur une IRM', clientMessageId: randomUUID() },
+      );
+      expect(sent.status).toBe(201);
+      await expect(created).resolves.toEqual({ conversationId, seq: 1 });
+
+      await wait(300);
+      expect(seenByOutsider).toEqual([]);
+    });
+
+    it('sends typing to the other participant at most every 3 s', async () => {
+      const conversationId = await openDirect();
+      await api(
+        users.doctorA,
+        'POST',
+        `/messaging/conversations/${conversationId}/accept`,
+      );
+      const recipient = open(token(users.doctorA));
+      const typist = open(token(users.doctorB));
+      await Promise.all([connected(recipient), connected(typist)]);
+      const received: unknown[] = [];
+      const ownEcho: unknown[] = [];
+      recipient.on('typing', (payload: unknown) => received.push(payload));
+      typist.on('typing', (payload: unknown) => ownEcho.push(payload));
+      const typing = () =>
+        api(
+          users.doctorB,
+          'POST',
+          `/messaging/conversations/${conversationId}/typing`,
+        );
+
+      expect((await typing()).status).toBe(204);
+      expect((await typing()).status).toBe(204);
+      await wait(400);
+      expect(received).toEqual([{ conversationId, userId: users.doctorB.id }]);
+
+      await wait(3_000);
+      await typing();
+      await wait(400);
+      expect(received).toHaveLength(2);
+      // Never sent back to the one typing.
+      expect(ownEcho).toEqual([]);
+    }, 15_000);
   });
 });

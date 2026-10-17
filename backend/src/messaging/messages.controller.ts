@@ -64,6 +64,17 @@ export class MessagesController {
     return message;
   }
 
+  // "Is typing": 204, sent to the other participants at most every 3 s.
+  @Post('conversations/:id/typing')
+  @HttpCode(HttpStatus.NO_CONTENT)
+  @ThrottlePerUser({ limit: 20, ttl: 60_000 })
+  typing(
+    @CurrentUser() user: AuthenticatedUserPayload,
+    @Param('id') id: string,
+  ) {
+    return this.messagesService.typing(user, id);
+  }
+
   @Post('conversations/:id/read')
   @HttpCode(HttpStatus.OK)
   markRead(

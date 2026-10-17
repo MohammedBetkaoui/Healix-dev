@@ -3,6 +3,7 @@ import { ConfigModule, ConfigService } from '@nestjs/config';
 
 import { AuditLogsModule } from '../audit-logs/audit-logs.module';
 import { PrismaModule } from '../prisma/prisma.module';
+import { RealtimeModule } from '../realtime/realtime.module';
 import { WorkspaceModule } from '../workspaces/workspace.module';
 import { ConversationsController } from './conversations.controller';
 import { ConversationsService } from './conversations.service';
@@ -11,12 +12,19 @@ import { DirectoryService } from './directory.service';
 import { MessageCrypto } from './message-crypto';
 import { MessagesController } from './messages.controller';
 import { MessagesService } from './messages.service';
+import { MessagingEvents } from './messaging-events';
 import { MessagingUsersService } from './messaging-users.service';
 
 // Messaging (docs/messaging-design.md). The backend does not start without
 // valid MESSAGING_KEYS: a message is never stored in clear text.
 @Module({
-  imports: [ConfigModule, PrismaModule, AuditLogsModule, WorkspaceModule],
+  imports: [
+    ConfigModule,
+    PrismaModule,
+    AuditLogsModule,
+    RealtimeModule,
+    WorkspaceModule,
+  ],
   controllers: [
     ConversationsController,
     MessagesController,
@@ -32,6 +40,7 @@ import { MessagingUsersService } from './messaging-users.service';
     ConversationsService,
     DirectoryService,
     MessagesService,
+    MessagingEvents,
     MessagingUsersService,
   ],
   exports: [MessageCrypto],
