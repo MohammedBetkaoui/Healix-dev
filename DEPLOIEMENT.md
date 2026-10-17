@@ -22,6 +22,11 @@ Cinq conteneurs applicatifs, plus celui des sauvegardes, décrits par
   - `internal` (backend, MySQL, service IA) : `internal: true`, sans route
     vers l'extérieur.
   - Le backend sort par `edge` (SMTP).
+- **Temps réel (messagerie).** Le navigateur ouvre une WebSocket sur
+  `wss://APP_DOMAIN/api/realtime`. Caddy la relaie au backend comme le reste
+  de `/api/*`, sans réglage particulier. **Aucun service n'est ajouté** : les
+  notifications partent du backend lui-même. Redis ne deviendra nécessaire
+  que le jour où plusieurs instances du backend tourneront (section 10).
 - **Appels serveur du frontend.** Le serveur Next.js vérifie les sessions en
   appelant directement le backend (`API_INTERNAL_URL=http://backend:3001/api`),
   sans repasser par l'adresse publique.
@@ -315,6 +320,23 @@ restriction facultative de l'administration.
   affiche « Service momentanément indisponible, réessayez ». Pour changer
   les limites : `THROTTLE_USER_LIMIT` et `THROTTLE_ANON_LIMIT` dans `.env`,
   puis `docker compose up -d backend`.
+- **WebSocket temps réel** (`/api/realtime`). Elle sert seulement à prévenir le
+  navigateur : les messages s'écrivent et se lisent en REST. Les événements
+  ne portent que des identifiants, jamais le texte d'un message.
+  - Transport WebSocket seul (pas de long-polling), donc pas de sessions
+    collantes.
+  - À la connexion, dans cet ordre :
+    1. l'en-tête `Origin` doit être celui du site (`APP_PUBLIC_URL`, ou
+       `FRONTEND_URL` hors production). CORS ne s'applique pas aux
+       WebSocket, et le navigateur y joint les cookies : c'est la seule
+       protection contre le détournement depuis un autre site ;
+    2. le cookie `access_token` doit être valide ;
+    3. le compte doit être vérifié, ni suspendu ni refusé.
+  - Une socket est fermée à l'expiration du jeton d'accès (15 minutes), à la
+    déconnexion, au changement de mot de passe et à la suspension du compte.
+    Elle est aussi fermée si le client lui envoie des messages : le client
+    n'a rien à envoyer. Au plus 5 sockets par utilisateur.
+  - La CSP des pages autorise `wss://APP_DOMAIN` dans `connect-src`.
 - **CORS désactivé** (`CORS_ENABLED=false`) : pages et API partagent une
   seule origine, le navigateur n'a donc jamais d'appel inter-origines à
   faire, et aucun autre site ne reçoit d'en-tête `Access-Control-Allow-*`.
@@ -522,6 +544,17 @@ les avoir changés, lancez `docker compose build frontend`.
   beaucoup d'utilisateurs simultanés, et la page affiche alors « Service
   momentanément indisponible, réessayez », sans déconnexion. Augmentez
   `THROTTLE_ANON_LIMIT` si cela arrive.
+- **Une seule instance du backend.** Les salles temps réel (une par
+  utilisateur) sont gardées en mémoire par le backend. Avec plusieurs
+  instances derrière Caddy, un événement émis par l'une n'atteindrait pas les
+  sockets ouvertes sur une autre. Il faudrait alors :
+  - ajouter un service Redis à `docker-compose.yml` ;
+  - brancher `@socket.io/redis-adapter` dans le backend (même code
+    d'émission).
+
+  Les sessions collantes ne sont pas nécessaires : le transport est
+  WebSocket seul. En attendant, un événement perdu n'est pas grave : le
+  client rattrape les messages au retour de la connexion (`afterSeq`).
 - **Docker Desktop.** Sous Windows et macOS, les connexions arrivent dans les
   conteneurs avec l'adresse de la passerelle Docker, et non celle du client :
   en démonstration locale, tous les navigateurs partagent donc la même
@@ -576,6 +609,20 @@ les avoir changés, lancez `docker compose build frontend`.
       vide (section 8), avec connexion et ouverture d'un document.
 
 ## 12. Ce qui a été vérifié, et ce qui ne l'a pas été
+
+**Temps réel (17 octobre 2026, sans Docker).** Vérifié par les tests
+d'intégration du backend : un vrai serveur, de vrais clients
+`socket.io-client`, MySQL 8.4. Ils couvrent :
+- les refus à la connexion (sans cookie, cookie invalide ou expiré, mauvaise
+  `Origin`, compte non vérifié ou suspendu) ;
+- la fermeture des sockets (expiration du jeton, déconnexion, limite de 5
+  sockets) ;
+- la diffusion d'un message à son seul destinataire, et la saisie limitée à
+  un événement toutes les 3 s.
+
+**Pas encore vérifié :** le relais par Caddy d'une vraie WebSocket en HTTPS
+(`wss://`). À contrôler au premier déploiement, une fois l'interface
+Messages livrée (lot 3).
 
 D'après vos vérifications, la pile précédente (quatre services, sans Caddy)
 démarre et ses quatre services sont `healthy` sur MySQL 8.4 ; la génération
