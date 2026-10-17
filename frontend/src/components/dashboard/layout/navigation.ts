@@ -49,7 +49,7 @@ export const establishmentNavSections: DashboardNavSection[] = [
   {
     key: "communication", titleKey: "dashboard.clinical.nav.collaboration",
     items: [
-      { href: "#messages", icon: MessageSquare, key: "messages", labelKey: "dashboard.sidebar.establishment.messages" },
+      { href: "/establishment/messages", icon: MessageSquare, key: "messages", labelKey: "dashboard.sidebar.establishment.messages" },
       { href: "#notifications", icon: Bell, key: "notifications", labelKey: "dashboard.sidebar.establishment.notifications" },
     ],
   },
@@ -137,8 +137,8 @@ export const doctorNavSections: DashboardNavSection[] = [
     titleKey: "dashboard.clinical.nav.collaboration",
     items: [
       {
-        badge: { text: "3", tone: "blue" },
-        href: "#messages",
+        // Its unread badge is live (MessagesNavBadge).
+        href: "/doctor/messages",
         icon: MessageSquare,
         key: "messages",
         labelKey: "dashboard.sidebar.doctor.messages",

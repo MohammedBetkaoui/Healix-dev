@@ -11,6 +11,7 @@ import {
 } from "@/types/dashboard";
 import { useDashboardSidebarPreference } from "@/lib/dashboard-preferences";
 import { useStoredLocale, useTranslation } from "@/lib/i18n";
+import { useRealtimeEvents } from "@/lib/realtime/use-realtime-events";
 
 import { DashboardContent } from "./DashboardContent";
 import { DashboardHeader } from "./DashboardHeader";
@@ -61,6 +62,9 @@ export function DashboardShell({
     useDashboardSidebarPreference();
   const { locale, setLocale } = useStoredLocale();
   const { direction, t } = useTranslation(locale);
+  // The tab's real-time connection, on every page of the clinical
+  // workspace: the menu badge and the Messages page stay current.
+  useRealtimeEvents();
 
   return (
     <WorkspaceNavigationContext value={showUnavailableModule}>
