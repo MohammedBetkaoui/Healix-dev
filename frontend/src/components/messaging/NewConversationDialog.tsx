@@ -16,6 +16,7 @@ import { type Direction } from "@/lib/i18n";
 import { cn } from "@/lib/utils";
 
 import { Avatar } from "./messaging-ui";
+import styles from "./messaging.module.css";
 
 export const SEARCH_DEBOUNCE_MS = 300;
 const TITLE_MAX_LENGTH = 120;
@@ -31,6 +32,7 @@ export function useDebouncedValue<Value>(value: Value, delayMs = SEARCH_DEBOUNCE
 }
 
 type NewConversationDialogProps = {
+  initialTab?: "peer" | "group";
   open: boolean;
   onClose: () => void;
   onOpenConversation: (conversationId: string) => void;
@@ -47,7 +49,7 @@ const fieldClass =
 export function NewConversationDialog(props: NewConversationDialogProps) {
   const { copy, direction, onClose, open } = props;
   const ids = { group: useId(), peer: useId(), subtitle: useId(), title: useId() };
-  const [tab, setTab] = useState<"peer" | "group">("peer");
+  const [tab, setTab] = useState<"peer" | "group">(props.initialTab ?? "peer");
   const dialog = useRef<HTMLDivElement>(null);
 
   // Focus inside on opening, back where it was on closing.
@@ -78,7 +80,7 @@ export function NewConversationDialog(props: NewConversationDialogProps) {
     >
       <div className="flex min-h-full items-start justify-center p-4 sm:items-center sm:p-6">
         <div ref={dialog} role="dialog" aria-modal="true" aria-labelledby={ids.title} aria-describedby={ids.subtitle} dir={direction}
-          className="surface-section surface-raised flex max-h-[min(720px,calc(100dvh-2rem))] w-full max-w-xl flex-col overflow-hidden">
+          className={styles.newDialog}>
           <header className="flex items-start justify-between gap-4 border-b border-[var(--border)] px-5 py-4">
             <div className="flex items-start gap-3">
               <span className="healix-mark"><MessageSquarePlus size={18} strokeWidth={1.8} aria-hidden="true" /></span>

@@ -1,11 +1,13 @@
 "use client";
 
-import { Fragment, type ReactNode, useLayoutEffect, useMemo, useRef } from "react";
+import { Fragment, type ReactNode, useLayoutEffect, useMemo, useRef, useState } from "react";
+import { ArrowDown, MessageSquare } from "lucide-react";
 
 import { type Locale } from "@/i18n";
 import { type MessagingCopy } from "@/features/messaging/messaging.copy";
 import { formatDayHeading } from "@/features/messaging/messaging-format";
 import { groupByDay, type TimelineEntry } from "@/features/messaging/messaging-rules";
+import styles from "./messaging.module.css";
 
 // Loads older messages when the reader gets this close to the top.
 const LOAD_OLDER_THRESHOLD_PX = 80;
@@ -44,6 +46,7 @@ export function MessageLog({
   separatorSeq,
 }: MessageLogProps) {
   const scroller = useRef<HTMLDivElement>(null);
+  const [showLatest, setShowLatest] = useState(false);
   const separator = useRef<HTMLLIElement>(null);
   // The position to restore after older messages come in above.
   const anchor = useRef<{ height: number; top: number } | null>(null);
@@ -89,6 +92,7 @@ export function MessageLog({
   }, [conversationId, lastKey]);
 
   return (
+    <div className={styles.logArea}>
     <div
       ref={scroller}
       role="log"
@@ -96,10 +100,11 @@ export function MessageLog({
       aria-relevant="additions"
       aria-label={copy.thread.logLabel}
       tabIndex={0}
-      className="min-h-0 flex-1 overflow-y-auto px-3 py-3 focus-visible:outline-2 focus-visible:outline-[var(--accent)] sm:px-5"
+      className={styles.logScroller}
       onScroll={(event) => {
         const element = event.currentTarget;
         wasAtBottom.current = element.scrollHeight - element.scrollTop - element.clientHeight < STICK_TO_BOTTOM_PX;
+        setShowLatest(!wasAtBottom.current);
         if (element.scrollTop < LOAD_OLDER_THRESHOLD_PX) loadOlder();
       }}
     >
@@ -110,15 +115,20 @@ export function MessageLog({
           </button>
         </div>
       ) : null}
-      <ol className="space-y-4">
+      {entries.length === 0 ? <div className={styles.emptyThread}>
+        <MessageSquare size={27} strokeWidth={1.3} aria-hidden="true" />
+        <h3>{copy.thread.startTitle}</h3>
+        <p>{copy.thread.startHint}</p>
+      </div> : null}
+      <ol className={styles.timeline}>
         {groups.map((group) => (
           <li key={group.day}>
-            <h3 className="sticky top-0 z-10 my-2 flex justify-center">
-              <span className="rounded-full border border-[var(--border)] bg-[var(--surface)] px-3 py-0.5 text-[.68rem] font-medium text-[var(--text-secondary)]">
+            <h3 className={styles.dayHeading}>
+              <span>
                 {formatDayHeading(group.day, locale, { today: copy.thread.today, yesterday: copy.thread.yesterday })}
               </span>
             </h3>
-            <ol className="space-y-2">
+            <ol className={styles.dayMessages}>
               {group.items.map((entry) => (
                 <Fragment key={entry.key}>
                   {entry.kind === "message" && entry.message.seq === separatorSeq ? (
@@ -139,6 +149,13 @@ export function MessageLog({
         ))}
       </ol>
       <div ref={endRef} aria-hidden="true" className="h-px" />
+    </div>
+    {showLatest ? <button type="button" className={styles.latestButton} onClick={() => {
+      const element = scroller.current;
+      if (element) element.scrollTop = element.scrollHeight;
+    }}>
+      <ArrowDown size={15} aria-hidden="true" />{copy.thread.latest}
+    </button> : null}
     </div>
   );
 }

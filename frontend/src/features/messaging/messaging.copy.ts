@@ -8,7 +8,21 @@ import { type ConversationFilter } from "./messaging.types";
 
 type MessagingCopy = {
   title: string;
+  workspace: {
+    subtitle: string;
+    eyebrow: string;
+    direct: string;
+    group: string;
+    directHint: string;
+    groupHint: string;
+  };
   list: {
+    search: string;
+    searchPlaceholder: string;
+    searchScope: string;
+    clearSearch: string;
+    noResults: string;
+    results: (count: string) => string;
     label: string;
     filtersLabel: string;
     filters: Record<ConversationFilter, string>;
@@ -28,6 +42,9 @@ type MessagingCopy = {
     unread: (count: number) => string;
   };
   thread: {
+    latest: string;
+    startTitle: string;
+    startHint: string;
     selectTitle: string;
     selectHint: string;
     back: string;
@@ -160,6 +177,14 @@ type MessagingCopy = {
 };
 
 const fr: MessagingCopy = {
+  workspace: {
+    subtitle: "Un espace pour vos échanges professionnels.",
+    eyebrow: "Votre réseau professionnel",
+    direct: "Échange direct",
+    group: "Groupe d’équipe",
+    directHint: "Retrouvez un confrère dans l’annuaire.",
+    groupHint: "Réunissez les membres de votre espace.",
+  },
   composer: {
     blocked: {
       awaitingReply: "En attente de réponse : un seul message est possible avant l’acceptation de votre demande.",
@@ -196,6 +221,12 @@ const fr: MessagingCopy = {
     network: "Le serveur ne répond pas. Vérifiez votre connexion puis réessayez.",
   },
   list: {
+    search: "Rechercher une conversation",
+    searchPlaceholder: "Nom, groupe ou spécialité…",
+    searchScope: "Recherche dans les conversations chargées de cet onglet.",
+    clearSearch: "Effacer la recherche",
+    noResults: "Aucune conversation correspondante.",
+    results: (count) => `${count} résultat(s) affiché(s)`,
     deletedPreview: "Message supprimé",
     empty: {
       all: "Aucune conversation pour l’instant.",
@@ -306,6 +337,9 @@ const fr: MessagingCopy = {
     you: "vous",
   },
   thread: {
+    latest: "Revenir aux derniers messages",
+    startTitle: "La conversation commence ici.",
+    startHint: "Envoyez votre premier message depuis la zone de rédaction.",
     accept: "Accepter",
     back: "Retour aux conversations",
     block: "Bloquer",
@@ -323,8 +357,8 @@ const fr: MessagingCopy = {
     reconnecting: "Reconnexion…",
     requestReceived: (name) => `${name} vous a écrit.`,
     requestSent: "En attente de réponse ; un seul message possible.",
-    selectHint: "Choisissez une conversation dans la liste, ou commencez-en une nouvelle.",
-    selectTitle: "Aucune conversation ouverte",
+    selectHint: "Reprenez un échange dans votre boîte de réception ou ouvrez une conversation avec un confrère.",
+    selectTitle: "Le bon échange, au bon endroit.",
     today: "Aujourd’hui",
     typing: (names) =>
       names.length === 1 ? `${names[0]} écrit…` : names.length === 2 ? `${names[0]} et ${names[1]} écrivent…` : "Plusieurs personnes écrivent…",
@@ -334,6 +368,14 @@ const fr: MessagingCopy = {
 };
 
 const ar: MessagingCopy = {
+  workspace: {
+    subtitle: "مساحة لتواصلكم المهني.",
+    eyebrow: "شبكتكم المهنية",
+    direct: "محادثة مباشرة",
+    group: "مجموعة الفريق",
+    directHint: "ابحثوا عن زميل في الدليل.",
+    groupHint: "اجمعوا أعضاء فضائكم في محادثة.",
+  },
   composer: {
     blocked: {
       awaitingReply: "في انتظار الرد: يمكن إرسال رسالة واحدة فقط قبل قبول طلبكم.",
@@ -370,6 +412,12 @@ const ar: MessagingCopy = {
     network: "الخادم لا يستجيب. تحققوا من الاتصال ثم أعيدوا المحاولة.",
   },
   list: {
+    search: "البحث عن محادثة",
+    searchPlaceholder: "الاسم أو المجموعة أو التخصص…",
+    searchScope: "البحث في المحادثات المحمّلة ضمن هذا التبويب.",
+    clearSearch: "مسح البحث",
+    noResults: "لا توجد محادثة مطابقة.",
+    results: (count) => `${count} من النتائج المعروضة`,
     deletedPreview: "رسالة محذوفة",
     empty: {
       all: "لا توجد محادثات حاليًا.",
@@ -480,6 +528,9 @@ const ar: MessagingCopy = {
     you: "أنتم",
   },
   thread: {
+    latest: "العودة إلى أحدث الرسائل",
+    startTitle: "تبدأ المحادثة هنا.",
+    startHint: "أرسلوا رسالتكم الأولى من مساحة الكتابة.",
     accept: "قبول",
     back: "العودة إلى المحادثات",
     block: "حظر",
@@ -497,8 +548,8 @@ const ar: MessagingCopy = {
     reconnecting: "جارٍ إعادة الاتصال…",
     requestReceived: (name) => `راسلكم ${name}.`,
     requestSent: "في انتظار الرد؛ رسالة واحدة فقط ممكنة.",
-    selectHint: "اختاروا محادثة من القائمة أو ابدؤوا محادثة جديدة.",
-    selectTitle: "لا توجد محادثة مفتوحة",
+    selectHint: "تابعوا محادثة من صندوق الوارد أو ابدؤوا تبادلًا جديدًا مع زميل.",
+    selectTitle: "المحادثة المناسبة، في المكان المناسب.",
     today: "اليوم",
     typing: (names) =>
       names.length === 1 ? `${names[0]} يكتب…` : names.length === 2 ? `${names[0]} و${names[1]} يكتبان…` : "عدة أشخاص يكتبون…",

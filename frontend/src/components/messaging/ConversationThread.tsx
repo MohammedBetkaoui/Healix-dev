@@ -39,6 +39,7 @@ import { MessageBubble } from "./MessageBubble";
 import { MessageComposer } from "./MessageComposer";
 import { MessageLog } from "./MessageLog";
 import { Avatar, ConfirmDialog, PatientDataNotice, RequestBanner, ThreadSkeleton } from "./messaging-ui";
+import styles from "./messaging.module.css";
 
 const MAX_PAGES_TO_FIRST_UNREAD = 3;
 
@@ -229,15 +230,15 @@ export function ConversationThread({
   const typingNames = typingUserIds.map((userId) => names.get(userId)).filter((value): value is string => Boolean(value));
 
   return (
-    <section aria-label={name} className="flex h-full min-h-0 flex-col bg-[var(--surface-muted)]">
-      <header className="flex items-center gap-3 border-b border-[var(--border)] bg-[var(--surface)] px-3 py-2.5 sm:px-4">
-        <button type="button" className="clinical-icon-button lg:hidden" onClick={onBack} aria-label={copy.thread.back}>
+    <section aria-label={name} className={styles.thread}>
+      <header className={styles.threadHeader}>
+        <button type="button" className={`${styles.iconButton} ${styles.backButton}`} onClick={onBack} aria-label={copy.thread.back}>
           <ArrowLeft size={18} strokeWidth={1.8} aria-hidden="true" className="clinical-directional" />
         </button>
         <Avatar name={name} group={isGroup} />
         <div className="min-w-0 flex-1">
-          <h2 className="truncate text-sm font-semibold text-[var(--text-primary)]"><bdi>{name}</bdi></h2>
-          <p className="truncate text-xs text-[var(--text-secondary)]">{conversationSubtitle(conversation, myUserId, copy)}</p>
+          <h2 className={styles.threadName}><bdi>{name}</bdi></h2>
+          <p className={styles.threadSubtitle}>{conversationSubtitle(conversation, myUserId, copy) || copy.workspace.direct}</p>
         </div>
         {reconnecting ? (
           <p role="status" className="flex shrink-0 items-center gap-1.5 text-[.7rem] text-[var(--text-secondary)]">
@@ -245,7 +246,7 @@ export function ConversationThread({
             {copy.thread.reconnecting}
           </p>
         ) : null}
-        <button type="button" className="clinical-icon-button" onClick={onTogglePanel} aria-label={copy.thread.details}
+        <button type="button" className={styles.iconButton} onClick={onTogglePanel} aria-label={copy.thread.details}
           aria-expanded={panelOpen} title={copy.thread.details}>
           <PanelRight size={18} strokeWidth={1.8} aria-hidden="true" className="clinical-directional" />
         </button>
@@ -295,11 +296,11 @@ export function ConversationThread({
         />
       )}
 
-      <p aria-live="polite" className="min-h-5 px-4 text-[.7rem] italic text-[var(--text-secondary)]">
-        {typingNames.length > 0 ? copy.thread.typing(typingNames) : null}
+      <p aria-live="polite" className={styles.typing}>
+        {typingNames.length > 0 ? <><span className={styles.typingDots} aria-hidden="true"><i /><i /><i /></span>{copy.thread.typing(typingNames)}</> : null}
       </p>
 
-      <div className="bg-[var(--surface)]">
+      <div className={styles.composerDock}>
         <MessageComposer
           conversationId={conversationId}
           availability={availability}

@@ -17,6 +17,7 @@ import {
 } from "@/features/messaging/messaging-rules";
 import { type MessagePriority } from "@/features/messaging/messaging.types";
 import { cn } from "@/lib/utils";
+import styles from "./messaging.module.css";
 
 const MAX_ROWS = 6;
 
@@ -107,7 +108,7 @@ export function MessageComposer({
 
   return (
     <form
-      className="border-t border-[var(--border)] px-3 py-2.5 sm:px-4"
+      className={styles.composer}
       onSubmit={(event) => {
         event.preventDefault();
         submit();
@@ -134,7 +135,7 @@ export function MessageComposer({
       {availability.notice === "firstMessageOnly" ? (
         <p className="mb-2 text-[.7rem] text-[var(--text-secondary)]">{copy.thread.firstMessageOnly}</p>
       ) : null}
-      <div className="flex items-end gap-2">
+      <div className={styles.composerBox} data-urgent={urgent && !editing}>
         <label htmlFor={ids.input} className="sr-only">{copy.composer.label}</label>
         <textarea
           ref={field}
@@ -146,7 +147,7 @@ export function MessageComposer({
           placeholder={copy.composer.placeholder}
           aria-describedby={`${ids.hint}${showsLengthCounter(value) ? ` ${ids.counter}` : ""}`}
           aria-invalid={tooLong || undefined}
-          className="min-h-[42px] flex-1 resize-none rounded-[var(--radius-sm)] border border-[var(--border)] bg-[var(--surface)] px-3 py-2 text-sm leading-6 text-[var(--text-primary)] outline-none placeholder:text-[var(--text-muted)] focus:border-[var(--accent)] focus:ring-2 focus:ring-[var(--accent-soft)] aria-[invalid=true]:border-[var(--danger)]"
+          className={styles.composerInput}
           onChange={(event) => {
             setValue(event.target.value);
             const now = Date.now();
@@ -166,30 +167,27 @@ export function MessageComposer({
             }
           }}
         />
-        {editing ? null : (
+        <div className={styles.composerToolbar}>
+        {editing ? <span className={styles.editingLabel}><Pencil size={14} aria-hidden="true" />{copy.composer.editing}</span> : (
           <button
             type="button"
             aria-pressed={urgent}
             title={copy.composer.urgentHint}
             onClick={() => setUrgent((current) => !current)}
-            className={cn(
-              "clinical-button min-h-[42px] shrink-0 px-2.5",
-              urgent && "border-[var(--danger)] bg-[var(--danger-soft)] text-[var(--danger-ink)]",
-            )}
+            className={styles.priorityButton}
           >
             <AlertTriangle size={15} strokeWidth={1.8} aria-hidden="true" />
-            <span className="hidden sm:inline">{copy.composer.urgent}</span>
-            <span className="sr-only sm:hidden">{copy.composer.urgent}</span>
+            <span>{copy.composer.urgent}</span>
           </button>
         )}
-        <button type="submit" disabled={!canSubmit} className="clinical-button clinical-button-primary min-h-[42px] shrink-0 px-3 disabled:opacity-50">
+        <button type="submit" disabled={!canSubmit} className={styles.sendButton}>
+          <span>{editing ? copy.composer.save : copy.composer.send}</span>
           <SendHorizontal size={16} strokeWidth={1.8} aria-hidden="true" className="clinical-directional" />
-          <span className="hidden sm:inline">{editing ? copy.composer.save : copy.composer.send}</span>
-          <span className="sr-only sm:hidden">{editing ? copy.composer.save : copy.composer.send}</span>
         </button>
+        </div>
       </div>
-      <div className="mt-1 flex items-center justify-between gap-3 text-[.68rem] text-[var(--text-secondary)]">
-        <p id={ids.hint} className="hidden sm:block">{copy.composer.hint}</p>
+      <div className={styles.composerFooter}>
+        <p id={ids.hint} className={styles.keyboardHint}>{copy.composer.hint}</p>
         {showsLengthCounter(value) ? (
           <p id={ids.counter} aria-live="polite" className={cn("ms-auto tabular-nums", tooLong && "font-semibold text-[var(--danger-ink)]")}>
             {tooLong ? `${copy.composer.tooLong} · ` : ""}

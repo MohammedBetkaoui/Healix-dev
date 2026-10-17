@@ -11,6 +11,7 @@ import { type MessageView } from "@/features/messaging/messaging.types";
 import { cn } from "@/lib/utils";
 
 import { MessageText } from "./messaging-ui";
+import styles from "./messaging.module.css";
 
 export type BubbleQuote = { authorName: string; text: string; messageId: string | null };
 
@@ -68,9 +69,9 @@ export function MessageBubble(props: MessageBubbleProps) {
       {mine && props.kind === "message" ? <MessageActions {...props} /> : null}
       <div
         className={cn(
-          "min-w-0 max-w-[min(85%,36rem)] rounded-[var(--radius-lg)] border px-3 py-2 text-sm leading-6 text-[var(--text-primary)]",
-          mine ? "border-[var(--accent-line)] bg-[var(--medical-soft)]" : "border-[var(--border)] bg-[var(--surface)]",
-          failed && "border-[var(--danger-line)]",
+          styles.bubble,
+          mine ? styles.bubbleMine : styles.bubbleReceived,
+          failed && styles.bubbleFailed,
         )}
       >
         {props.authorName ? (
