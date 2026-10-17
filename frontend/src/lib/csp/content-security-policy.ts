@@ -22,6 +22,19 @@ export function originOf(url: string | undefined): string | null {
   }
 }
 
+// The origin of the real-time WebSocket (/api/realtime), the API's in ws(s):
+// wss://<APP_DOMAIN> in production, ws://localhost:3001 with next dev.
+// 'self' does not cover wss: in every browser.
+export function websocketOriginOf(origin: string | null): string | null {
+  if (origin?.startsWith("https://")) {
+    return `wss://${origin.slice("https://".length)}`;
+  }
+  if (origin?.startsWith("http://")) {
+    return `ws://${origin.slice("http://".length)}`;
+  }
+  return null;
+}
+
 type PolicyOptions = {
   // Where the browser calls the API (NEXT_PUBLIC_API_URL). Same origin behind
   // Caddy; another origin with next dev on :3000 and the API on :3001.
@@ -47,9 +60,11 @@ export function buildContentSecurityPolicy({
     "'strict-dynamic'",
     ...(development ? ["'unsafe-eval'"] : []),
   ];
+  const websocketOrigin = websocketOriginOf(apiOrigin);
   const connectSources = [
     "'self'",
     ...(apiOrigin ? [apiOrigin] : []),
+    ...(websocketOrigin ? [websocketOrigin] : []),
     ...(development ? ["ws:", "wss:"] : []),
   ];
 
