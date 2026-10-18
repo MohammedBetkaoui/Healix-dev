@@ -17,6 +17,8 @@ os.environ.setdefault("OPENCV_IO_MAX_IMAGE_PIXELS", str(_settings.max_image_pixe
 # TensorFlow's C++ start-up notices (oneDNN, CPU features) left out of the logs.
 os.environ.setdefault("TF_CPP_MIN_LOG_LEVEL", "1")
 
+from .ecg_input import EcgInputError  # noqa: E402
+from .ecg_pipeline import analyze_ecg  # noqa: E402
 from .models import ModelRegistry, load_service_registry  # noqa: E402
 from .pathology_pipeline import (  # noqa: E402
     NUCLEI_TILE,
@@ -81,6 +83,9 @@ def create_app(settings: Settings | None = None, registry: ModelRegistry | None 
             raise HTTPException(
                 status_code=422, detail={"code": "image_dimensions_too_large", "maxSide": settings.nuclei_max_side}
             ) from error
+        except EcgInputError as error:
+            # ecg_*: a refused signal, with what the user needs to fix it.
+            raise HTTPException(status_code=422, detail={"code": error.code, **error.details}) from error
         except ModelNotLoaded as error:
             raise HTTPException(status_code=503, detail={"code": "model_not_loaded"}) from error
 
@@ -102,6 +107,19 @@ def create_app(settings: Settings | None = None, registry: ModelRegistry | None 
         return run(
             lambda: analyze_nuclei(data, app.state.registry, settings.max_image_pixels, settings.nuclei_max_side)
         )
+
+    # A 12-lead signal file (CSV/TXT, or WFDB in a .zip), never an image.
+    # samplingRate: required for a CSV (Hz); unit: mV (default) or uV.
+    @app.post("/analyze/cardio/ecg", dependencies=[Depends(require_token)])
+    def cardio_ecg(
+        file: UploadFile = File(...),
+        samplingRate: str | None = Form(default=None),  # noqa: N803  (the form field's name)
+        unit: str | None = Form(default=None),
+    ) -> dict:
+        data = file.file.read(settings.max_image_bytes + 1)
+        if len(data) > settings.max_image_bytes:
+            raise HTTPException(status_code=413, detail={"code": "file_too_large"})
+        return run(lambda: analyze_ecg(data, samplingRate, unit, app.state.registry))
 
     return app
 
