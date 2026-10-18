@@ -1,8 +1,8 @@
-# HealixDZ AI service (brain and pathology pipelines)
+# HealixDZ AI service (brain, pathology and cardiology pipelines)
 
 Inference service called by the NestJS backend only. CPU, FastAPI, listens on
-`127.0.0.1` by default. It receives the bytes of one image and nothing else:
-no patient identity ever reaches it.
+`127.0.0.1` by default. It receives the bytes of one image or one ECG signal
+file and nothing else: no patient identity ever reaches it.
 
 **Decision support only.** The models are not certified as medical devices.
 
@@ -141,6 +141,71 @@ types, or with a colour that is not `#RRGGBB`, stops the service at start-up.
 On a 12-thread laptop CPU, a tile takes about 0.14 s (a 4096×4096 image is
 361 tiles) and a classification about 0.5 s.
 
+## Cardiology pipeline (ECG 12 leads)
+
+One PyTorch model, `cardio-ecg-resnet1d-ptbxl-superdiagnostic`
+(`app/ecg_models.py`, `app/ecg_input.py`, `app/ecg_pipeline.py`), behind its
+own endpoint, independent of the other pipelines.
+
+| Model id | File | Input | SHA-256 |
+| --- | --- | --- | --- |
+| cardio-ecg-resnet1d-ptbxl-superdiagnostic | `cardio-ecg-resnet1d-ptbxl.pt` | 12 × 1000 (10 s at 100 Hz) | `258e4e4de3c5b876b71bf172d335666ee75b3f5f0cae9806b1a71096e5a7b55a` |
+
+HealixDzECGNet, a ResNet1D-34 trained on PTB-XL 1.0.1 (`records100`,
+`strat_fold` 1–8 train, 9 validation, 10 test) for 5 **multi-label**
+superclasses: `NORM, MI, STTC, CD, HYP`, a sigmoid each, compared with its own
+threshold.
+
+**The model card is the single source of truth**:
+`cardio-ecg-resnet1d-ptbxl.json`, next to the weights, gives the lead order,
+the sampling rate, the window, the band-pass filter, the normalisation, the
+per-class thresholds and the notebook's test figures. Its `sha256` must be
+the weights' (`error: "weights_sha256_mismatch"` otherwise); `/models` shows
+both files and their SHA-256. A copy of the card is committed in
+`tests/fixtures/ecg/model-card.json` (the frontend copies its test figures
+from it; a test checks it is the deployed card).
+
+**Input** (`POST /analyze/cardio/ecg`, 20 MB at most):
+
+- **CSV/TXT**: a header naming the 12 leads (any order, case-insensitive:
+  `aVR`, `AVR`, `avr`), an optional time column (`time`, `t`, `temps`, `ms`,
+  `s`), `,`, `;` or tab as separator, decimal comma accepted with `;`. The
+  sampling rate is **required** (`samplingRate`, 100 to 1000 Hz); `unit`:
+  `mV` (default) or `uV`.
+- **WFDB in a `.zip`**: one `.hea` and its `.dat` (4 entries, 50 MB
+  unpacked at most, no absolute or `..` path); rate and unit come from the
+  header. Extracted into a temporary folder, always deleted.
+- A future format (DICOM waveform) is a new reader in `ecg_input._READERS`;
+  paper, PDF or photographed ECGs are out of scope.
+
+**Checks** (422, `detail.code`): `ecg_unsupported_format`,
+`ecg_unsafe_archive`, `ecg_missing_leads` (with `missing`),
+`ecg_sampling_rate_required`, `ecg_sampling_rate_invalid`, `ecg_unit_invalid`,
+`ecg_too_short` (under 10 s: never padded), `ecg_too_long` (over 60 s),
+`ecg_non_finite` (over 1 % NaN/inf; below, they become 0 as in training),
+`ecg_flat_lead` (standard deviation under 0.01 mV), `ecg_amplitude_out_of_range`
+(over 30 mV peak to peak: most likely µV declared as mV). 413
+`file_too_large`.
+
+**Preprocessing** (as in the notebook): `scipy.signal.resample_poly` to the
+card's rate (reduced fraction; none at 100 Hz) → windows of 10 s every 5 s,
+the last one aligned on the end of the signal (a 30 s ECG is 5 windows) →
+Butterworth band-pass (order 3, 0.5–40 Hz, `filtfilt`) → z-score per lead
+(eps 1e-8) → float32 inference on CPU, one at a time → sigmoid, averaged over
+the windows.
+
+**Decision support only**: the answer holds the probabilities, the card's
+thresholds and the classes at or above them; never an urgency level nor a
+course of action.
+
+Measured precision against the notebook's fixtures (`tests/fixtures/ecg/`,
+5 PTB-XL test ECGs): within 1e-3 at 100 Hz. At 500 Hz (the same ECGs from
+`records500`), within 0.05, except one class close to its threshold (ECG 162,
+MI 0.557 → 0.483): PTB-XL's own 100 Hz records differ from the 500 Hz ones
+by a similar amount, and the model is sensitive near the threshold; the test
+allows 0.1 for classes within 0.05 of their threshold and compares the
+positive classes only away from it.
+
 ## Install
 
 Python 3.12. Versions are pinned to training: torch 2.10.0, timm 1.0.25
@@ -166,7 +231,7 @@ uv pip install --python .venv -r requirements-dev.txt \
 | `AI_MODELS_DIR` | `<repo>/models` | Folder holding the `.pth` and `.keras` files and `breakhis_inference_config.json` |
 | `AI_SERVICE_HOST` | `127.0.0.1` | |
 | `AI_SERVICE_PORT` | `8001` | |
-| `AI_MAX_IMAGE_BYTES` | `20971520` (20 MB) | Larger uploads: 413 |
+| `AI_MAX_IMAGE_BYTES` | `20971520` (20 MB) | Larger uploads (images and ECG files): 413 |
 | `AI_MAX_IMAGE_PIXELS` | `50000000` | Larger images: 422 |
 | `AI_NUCLEI_MAX_SIDE` | `4096` | Nuclei segmentation: longer sides get 422 |
 | `AI_TF_INTRA_OP_THREADS` | half the CPUs | TensorFlow threads per operation |
@@ -184,8 +249,8 @@ All routes but `/health` require `X-Service-Token` (constant-time comparison).
 
 - `GET /health` → `{ "status": "ok" }`
 - `GET /models` → `{ "models": [{ modelId, file, loaded, weightsSha256, error }] }`:
-  the three brain models, then the two pathology ones; the BreakHis
-  classifier also has `config: { file, sha256 }`.
+  the three brain models, the two pathology ones, then the ECG model; the
+  BreakHis classifier and the ECG model also have `config: { file, sha256 }`.
 - `POST /analyze/brain` (multipart, field `image`, PNG or JPEG) →
 
 ```json
@@ -255,6 +320,32 @@ alpha 0. `classFractions.background`: share of all the pixels;
 `nucleusTypes`: share of each type among the non-background pixels (`null`
 each, when no pixel is a nucleus).
 
+- `POST /analyze/cardio/ecg` (multipart: `file`, CSV/TXT or `.zip`;
+  `samplingRate`, required for a CSV/TXT; `unit`: `mV` or `uV`) →
+
+```json
+{
+  "modelId": "cardio-ecg-resnet1d-ptbxl-superdiagnostic",
+  "weightsSha256": "…",
+  "configSha256": "…",
+  "probabilities": { "NORM": 0.04, "MI": 0.83, "STTC": 0.61, "CD": 0.1, "HYP": 0.05 },
+  "thresholds": { "NORM": 0.6408, "MI": 0.5788, "STTC": 0.5285, "CD": 0.8064, "HYP": 0.8121 },
+  "positive": ["MI", "STTC"],
+  "windows": 5,
+  "inputSamplingRate": 500,
+  "durationSeconds": 30.0,
+  "trace": { "I": ["… 1000 values"], "II": ["…"], "… 12 leads": [] },
+  "traceSamplingRate": 100,
+  "durationMs": 120
+}
+```
+
+`positive`: the classes at or above their threshold, by decreasing
+probability (possibly none). `trace`: the first 10 s at the card's rate,
+band-pass filtered, **not** normalised, in mV rounded to the µV: what the
+interface draws. 503 `model_not_loaded` without the model; the ECG refusals
+are listed under *Cardiology pipeline*.
+
 Errors, on every endpoint: 401 token, 413 too large, 422 `invalid_image`
 (not a decodable PNG/JPEG), 503 `model_not_loaded` (the classifier, for
 `/analyze/brain`). Pathology only, 422: `invalid_magnification` (missing, or
@@ -268,7 +359,8 @@ not 40, 100, 200 or 400), `image_too_small` (`minSide`: 256),
 ```
 
 Tests that need the weights read `AI_MODELS_DIR` (default `../models`) and
-are skipped when the files are absent. Routing is tested with stand-in
+are skipped when the files are absent (`tests/test_cardio.py`: the ECG
+weights and card). Routing is tested with stand-in
 modules, independently of the weights; so are the pathology pipelines (test-time
 augmentation, threshold, tiling and rebuilt label map), and the Keras loading
 with tiny models saved by the tests.
@@ -535,3 +627,52 @@ path.
   tiled path is not measured on real large images.
 - The notebooks ran on GPU: small numerical differences with this CPU run are
   possible.
+
+## Cardiology evaluation
+
+`scripts/evaluate_cardio.py` replays the service's own ECG code
+(`app.ecg_pipeline.predict`: windows, band-pass, z-score, inference, mean of
+the sigmoid outputs; `app.ecg_input.validate_signal` for the checks) on the
+notebook's test fold, on CPU. The service never imports it.
+
+### Data (never committed)
+
+PTB-XL 1.0.1 (<https://physionet.org/content/ptb-xl/1.0.1/>, licence CC BY
+4.0). Give the folder that holds `ptbxl_database.csv`, `scp_statements.csv`
+and `records100/`. Labels as in the notebook: the diagnostic SCP statements
+of likelihood ≥ 50 mapped to their superclass, ECGs without any left out,
+`strat_fold` 10 as test (2,055 ECGs).
+
+### Commands (PowerShell)
+
+```powershell
+cd <repository>\ai-service
+
+# Quick check on the first 100 ECGs: writes cardio-<date>-<sha8>-partial.json,
+# never cardio-latest.json
+.\.venv\Scripts\python.exe -m scripts.evaluate_cardio --ptbxl C:\datasets\ptb-xl-1.0.1 --limit 100
+
+# Full test fold
+.\.venv\Scripts\python.exe -m scripts.evaluate_cardio --ptbxl C:\datasets\ptb-xl-1.0.1
+```
+
+Writes `evaluation/cardio-<date>-<sha256[:8] of the weights>.json`, copied to
+`evaluation/cardio-latest.json`: AUC per class and macro, sensitivity,
+specificity, PPV, F1 and counts at the card's thresholds, the ECGs the
+service's checks would refuse (still scored, as in the notebook), the weights
+and card SHA-256 and the library versions. Exit code 1 when the macro AUC
+differs from the card's test figure by more than 0.005; 2 when the dataset or
+the model is missing. The backend quotes `cardio-latest.json` in the PDF
+report and on the result page when its SHA-256 is the analysis's own;
+otherwise the card's test figures, marked as the notebook's.
+
+Not run yet in this repository (PTB-XL is not on the development machine):
+the figures shown today are the notebook's.
+
+### What it does not measure
+
+- **No clinical validation**: PTB-XL is one public dataset, recorded with one
+  type of device; performances must be confirmed on the establishment's ECGs.
+- The 5 superclasses only: no rhythm statement, no measurement (intervals,
+  axis).
+- The notebook ran on GPU: small numerical differences are possible.
