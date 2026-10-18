@@ -30,7 +30,9 @@ export type PatientDocumentType =
   | "PRESCRIPTION"
   | "MEDICAL_REPORT"
   | "MEDICAL_IMAGE"
-  | "DICOM";
+  | "DICOM"
+  // A 12-lead ECG signal: CSV/TXT, or a WFDB record (.hea + .dat) zipped.
+  | "ECG_SIGNAL";
 
 export type PatientAiAnalysisType = "MRI" | "CT_SCAN" | "XRAY" | "ECG";
 

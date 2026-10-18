@@ -1,15 +1,17 @@
 "use client";
 
-import { FileImage, ImagePlus, Loader2 } from "lucide-react";
-import { useId } from "react";
+import { Activity, Check, FileImage, FileUp, Loader2, Search } from "lucide-react";
+import { useId, useState } from "react";
 
 import { formatPatientDate } from "@/features/patients/patient-registry";
 import { type Locale } from "@/i18n";
 import { type TranslationFunction } from "@/lib/i18n";
-import { cn } from "@/lib/utils";
 import { type PatientDocument } from "@/types/patient";
 
 type ImageStepProps = {
+  /** "signal" for the ECG chain: its documents are signals, not images. */
+  copy?: "image" | "signal";
+  acceptedFormats: readonly string[] | null;
   documents: PatientDocument[];
   isError: boolean;
   isLoading: boolean;
@@ -22,6 +24,8 @@ type ImageStepProps = {
 };
 
 export function ImageStep({
+  copy = "image",
+  acceptedFormats,
   documents,
   isError,
   isLoading,
@@ -33,59 +37,54 @@ export function ImageStep({
   t,
 }: ImageStepProps) {
   const id = useId();
+  const [search, setSearch] = useState("");
+  const filtered = documents.filter((document) => document.fileName.toLocaleLowerCase().includes(search.trim().toLocaleLowerCase()));
+  const DocumentIcon = copy === "signal" ? Activity : FileImage;
+  const text = (key: string, params?: Record<string, string>) => t(`aiAnalyses.wizard.${copy}.${key}`, params);
 
   return (
-    <div className="space-y-4">
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        <p className="text-sm text-[var(--text-secondary)]">
-          {t("aiAnalyses.wizard.image.hint", { patient: patientName })}
-        </p>
-        <button type="button" className="clinical-button" onClick={onImport}>
-          <ImagePlus size={16} strokeWidth={1.8} aria-hidden="true" />
-          {t("aiAnalyses.wizard.image.import")}
-        </button>
-      </div>
+    <div className="ai-document-step">
+      <button type="button" className="ai-document-import" onClick={onImport}>
+        <span className="ai-document-import-icon"><FileUp size={23} strokeWidth={1.5} aria-hidden="true" /></span>
+        <span><strong>{text("import")}</strong><span>{t("aiAnalyses.wizard.workspace.importHint")}</span></span>
+        {acceptedFormats ? <bdi dir="ltr">{acceptedFormats.join(" / ").toUpperCase()}</bdi> : null}
+      </button>
 
-      <fieldset>
+      <p className="ai-document-record-hint">{text("hint", { patient: patientName })}</p>
+      {documents.length > 5 ? <div className="ai-document-search"><label htmlFor={`${id}-search`}>{t("aiAnalyses.wizard.workspace.documentSearch")}</label><div><Search size={16} aria-hidden="true" /><input id={`${id}-search`} type="search" value={search} onChange={(event) => setSearch(event.target.value)} placeholder={t("aiAnalyses.wizard.workspace.documentSearchPlaceholder")} /></div></div> : null}
+      <fieldset className="ai-document-results">
         <legend className="mb-2 text-[.8rem] font-medium text-[var(--text-primary)]">
-          {t("aiAnalyses.wizard.image.listLabel")}
+          {text("listLabel")}
         </legend>
         {isLoading ? (
           <p role="status" className="flex items-center gap-2 text-sm text-[var(--text-secondary)]">
             <Loader2 size={16} className="animate-spin" aria-hidden="true" />
-            {t("aiAnalyses.wizard.image.loading")}
+            {text("loading")}
           </p>
         ) : isError ? (
-          <p role="alert" className="text-sm text-[var(--danger-ink)]">{t("aiAnalyses.wizard.image.error")}</p>
+          <p role="alert" className="text-sm text-[var(--danger-ink)]">{text("error")}</p>
         ) : documents.length === 0 ? (
           <p className="rounded-[var(--radius-sm)] border border-dashed border-[var(--border-strong)] px-4 py-6 text-center text-sm text-[var(--text-secondary)]">
-            {t("aiAnalyses.wizard.image.empty")}
+            {text("empty")}
           </p>
-        ) : (
-          <ul className="grid gap-2">
-            {documents.map((document) => {
+        ) : filtered.length === 0 ? <p className="ai-document-empty">{t("aiAnalyses.wizard.workspace.noDocumentsMatch")}</p> : (
+          <ul className="ai-document-list">
+            {filtered.map((document) => {
               const isSelected = document.id === selectedId;
 
               return (
                 <li key={document.id}>
-                  <label
-                    className={cn(
-                      "flex cursor-pointer items-center gap-3 rounded-[var(--radius-sm)] border px-3 py-2.5",
-                      isSelected
-                        ? "border-[var(--accent)] bg-[var(--accent-soft)]"
-                        : "border-[var(--border)] bg-[var(--surface)] hover:bg-[var(--surface-muted)]",
-                    )}
-                  >
+                  <label className="ai-document-option" data-selected={isSelected}>
                     <input
                       type="radio"
                       name={`${id}-document`}
-                      className="accent-[var(--accent)]"
+                      className="accent-[var(--medical)]"
                       checked={isSelected}
                       onChange={() => onSelect(document.id)}
                     />
-                    <FileImage size={18} strokeWidth={1.7} aria-hidden="true" className="shrink-0 text-[var(--text-secondary)]" />
+                    <span className="ai-document-file-icon"><DocumentIcon size={20} strokeWidth={1.5} aria-hidden="true" /></span>
                     <span className="min-w-0 flex-1">
-                      <span className="block truncate text-sm font-medium text-[var(--text-primary)]">
+                      <span className="block truncate text-sm font-medium text-[var(--text-primary)]" title={document.fileName}>
                         <bdi>{document.fileName}</bdi>
                       </span>
                       <span className="block text-xs text-[var(--text-secondary)]">
@@ -96,6 +95,7 @@ export function ImageStep({
                         <bdi dir="ltr">{document.size}</bdi>
                       </span>
                     </span>
+                    {isSelected ? <Check size={16} aria-hidden="true" className="ai-document-selected" /> : null}
                   </label>
                 </li>
               );

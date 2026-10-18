@@ -235,6 +235,8 @@ enum PatientDocumentType {
   MEDICAL_REPORT
   MEDICAL_IMAGE
   DICOM
+  // A 12-lead ECG signal (CSV/TXT or a zipped WFDB record), for the cardiology AI.
+  ECG_SIGNAL
 }
 
 enum PatientAiAnalysisType {
@@ -970,6 +972,10 @@ model AiAnalysisRun {
   nucleiFractions             Json?               @map("nuclei_fractions")
   tileCount                   Int?                @map("tile_count")
   overlayPath                 String?             @map("overlay_path") @db.VarChar(512)
+  // Cardiology ECG: `predictions` holds the probabilities per class, the
+  // thresholds, the classes above them, the windows and the input's rate and
+  // duration; tracePath the first 10 s filtered (JSON, mV at 100 Hz), as drawn.
+  tracePath                   String?             @map("trace_path") @db.VarChar(512)
   clinicianImpression         String?             @map("clinician_impression") @db.Text
   errorCode                   String?             @map("error_code") @db.VarChar(60)
   durationMs                  Int?                @map("duration_ms")
@@ -980,6 +986,9 @@ model AiAnalysisRun {
   // class, the BreakHis result) or their correction (CORRECTED); null when
   // the analysis is REJECTED, and for a validated nuclei map (no label).
   decisionLabel               String?             @map("decision_label") @db.VarChar(40)
+  // Cardiology ECG (multi-label): the classes kept, the model's positive
+  // classes (VALIDATED) or the correction (CORRECTED); decisionLabel stays null.
+  decisionLabels              Json?               @map("decision_labels")
   decisionReason              String?             @map("decision_reason") @db.Text
   decidedById                 String?             @map("decided_by_id")
   decidedAt                   DateTime?           @map("decided_at")

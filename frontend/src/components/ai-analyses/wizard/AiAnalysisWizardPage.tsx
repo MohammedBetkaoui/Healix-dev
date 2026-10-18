@@ -1,6 +1,6 @@
 "use client";
 
-import { ArrowLeft, ArrowRight, ShieldAlert } from "lucide-react";
+import { ArrowLeft, ArrowRight, ShieldCheck } from "lucide-react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
@@ -12,14 +12,23 @@ import {
 } from "@/components/dashboard/layout/navigation";
 import { UploadPatientDocumentModal } from "@/components/patients/UploadPatientDocumentModal";
 import { VerificationRequiredNotice } from "@/components/shared/VerificationRequiredNotice";
-import { type AiMagnification, type AiPipelineId } from "@/features/ai-analyses/ai-analyses.types";
+import { ECG_MAX_SAMPLING_RATE, ECG_MIN_SAMPLING_RATE, type AiMagnification, type AiPipelineId, type EcgUnit } from "@/features/ai-analyses/ai-analyses.types";
+import { canLaunchPreparedAnalysis, getAcquisitionIssue } from "@/features/ai-analyses/wizard-presentation";
 import { findModel, findPipeline } from "@/features/ai-analyses/ai-models.registry";
 import { useCreateAiAnalysisRun } from "@/features/ai-analyses/hooks/use-create-ai-analysis-run";
 import { useDebouncedValue } from "@/features/ai-analyses/hooks/use-debounced-value";
 import { useAiModelsStatus } from "@/features/ai-analyses/hooks/use-ai-models-status";
+import { useEcgHeaderProbe } from "@/features/ai-analyses/hooks/use-ecg-header-probe";
 import { useImageProbe } from "@/features/ai-analyses/hooks/use-image-probe";
+import { evaluateEcgQualityChecks, isEcgArchive, parseSamplingRate } from "@/features/ai-analyses/ecg-quality";
 import { evaluateQualityChecks, isDicomDocument } from "@/features/ai-analyses/quality-check";
-import { getFailedRunId, getLaunchErrorKey, getLaunchState } from "@/features/ai-analyses/run-presentation";
+import {
+  ecgRejectionParams,
+  getEcgRejection,
+  getFailedRunId,
+  getLaunchErrorKey,
+  getLaunchState,
+} from "@/features/ai-analyses/run-presentation";
 import { useCurrentUser } from "@/features/auth/hooks/use-current-user";
 import { usePatient } from "@/features/patients/hooks/use-patient";
 import { usePatientConsents } from "@/features/patients/hooks/use-patient-consents";
@@ -32,14 +41,20 @@ import { getAccountInitials } from "@/lib/format/get-account-initials";
 import { useStoredLocale, useTranslation } from "@/lib/i18n";
 import { type Patient, type PatientDocumentType } from "@/types/patient";
 
+import { HealixSpecialtyArtwork } from "../HealixSpecialtyArtwork";
+import { AcquisitionSettings, type EcgReadingInput } from "./AcquisitionSettings";
 import { ImageStep } from "./ImageStep";
 import { PatientStep, getPatientDisplayName, type ConsentState } from "./PatientStep";
 import { QualityStep } from "./QualityStep";
 import { ReadingStep } from "./ReadingStep";
+import { PreparationSummary } from "./PreparationSummary";
 import { WizardStepper } from "./WizardStepper";
+import "./ai-analysis-wizard.css";
 
 const steps = ["patient", "image", "quality", "reading"] as const;
 const imageDocumentTypes: readonly PatientDocumentType[] = ["MEDICAL_IMAGE", "DICOM"];
+// The ECG chain reads signals only, never an image.
+const signalDocumentTypes: readonly PatientDocumentType[] = ["ECG_SIGNAL"];
 // The nuclei map takes H&E images at 40x only (the backend refuses any other).
 const NUCLEI_MAGNIFICATION = 40;
 
@@ -62,6 +77,8 @@ export function AiAnalysisWizardPage({ accountType, initialPatientId, pipelineId
   const initials = getAccountInitials(currentUser.data?.fullName);
   const pipeline = findPipeline(pipelineId);
   const model = findModel(pipeline?.entryModelId);
+  const isEcg = pipelineId === "cardio-ecg";
+  const documentTypes = isEcg ? signalDocumentTypes : imageDocumentTypes;
   const roleBase = accountType === "ESTABLISHMENT" ? "/establishment" : "/doctor";
 
   const [stepIndex, setStepIndex] = useState(0);
@@ -73,6 +90,11 @@ export function AiAnalysisWizardPage({ accountType, initialPatientId, pipelineId
   // (nuclei); no default, the physician states it for each image.
   const [magnification, setMagnification] = useState<AiMagnification | null>(null);
   const [he40xConfirmed, setHe40xConfirmed] = useState(false);
+  // ECG (CSV/TXT): the sampling rate and unit the physician states; no
+  // default rate, the file does not say it.
+  const [rateChoice, setRateChoice] = useState<number | "other" | null>(null);
+  const [otherRate, setOtherRate] = useState("");
+  const [ecgUnit, setEcgUnit] = useState<EcgUnit>("mV");
   const [isUploadOpen, setUploadOpen] = useState(false);
   const [notice, setNotice] = useState("");
   const headingRef = useRef<HTMLHeadingElement>(null);
@@ -100,21 +122,43 @@ export function AiAnalysisWizardPage({ accountType, initialPatientId, pipelineId
   // The record's documents are only listed once the AI consent is confirmed.
   const documentsQuery = usePatientDocuments(consentState === "signed" ? patientId : "");
 
-  const imageDocuments = (documentsQuery.data ?? []).filter((document) => imageDocumentTypes.includes(document.type));
+  const imageDocuments = (documentsQuery.data ?? []).filter((document) => documentTypes.includes(document.type));
   const selectedDocument = imageDocuments.find((document) => document.id === documentId) ?? null;
-  const isDicom = selectedDocument ? isDicomDocument(selectedDocument) : false;
+  const isDicom = !isEcg && selectedDocument ? isDicomDocument(selectedDocument) : false;
+  const isArchive = isEcg && selectedDocument ? isEcgArchive(selectedDocument.fileName) : false;
   // Downloaded (and audited) only once the user reaches the checks; a DICOM
   // file is not displayed at this step, so it is not downloaded at all.
   const documentView = usePatientDocumentView(patientId, selectedDocument?.id ?? null, {
     enabled: stepIndex >= 2 && !isDicom,
   });
-  const probe = useImageProbe({ blob: documentView.data, isDicom, isError: documentView.isError });
-  const report = evaluateQualityChecks({
-    acceptedFormats: model?.acceptedFormats ?? null,
-    fileName: selectedDocument?.fileName ?? "",
-    inputConstraints: model?.inputConstraints ?? null,
-    probe,
+  // A signal is never decoded as an image; an image never read as a signal.
+  const probe = useImageProbe({ blob: isEcg ? undefined : documentView.data, isDicom, isError: documentView.isError });
+  const headerProbe = useEcgHeaderProbe({
+    blob: documentView.data,
+    enabled: isEcg,
+    isArchive,
+    isError: documentView.isError,
   });
+  const report = isEcg
+    ? evaluateEcgQualityChecks({ fileName: selectedDocument?.fileName ?? "", probe: headerProbe })
+    : evaluateQualityChecks({
+        acceptedFormats: model?.acceptedFormats ?? null,
+        fileName: selectedDocument?.fileName ?? "",
+        inputConstraints: model?.inputConstraints ?? null,
+        probe,
+      });
+  const samplingRate =
+    rateChoice === null ? null : rateChoice === "other" ? parseSamplingRate(otherRate) : rateChoice;
+  const acquisitionIssue = getAcquisitionIssue({ pipelineId, magnification, he40xConfirmed, isArchive, samplingRate, rateChoice, otherRate });
+  const acquisitionBlocker = acquisitionIssue === "magnification"
+    ? t("aiAnalyses.wizard.reading.magnification.required")
+    : acquisitionIssue === "he40x"
+      ? t("aiAnalyses.wizard.reading.he40x.required")
+      : acquisitionIssue === "samplingRateInvalid"
+        ? t("aiAnalyses.wizard.ecg.samplingRate.invalid", { min: ECG_MIN_SAMPLING_RATE, max: ECG_MAX_SAMPLING_RATE })
+        : acquisitionIssue === "samplingRate"
+          ? t("aiAnalyses.wizard.ecg.samplingRate.required")
+          : null;
 
   const verificationRequired = [
     patientsQuery.error,
@@ -134,6 +178,7 @@ export function AiAnalysisWizardPage({ accountType, initialPatientId, pipelineId
   }, [stepIndex]);
 
   const goTo = (index: number) => {
+    if (createRunMutation.isPending) return;
     hasNavigated.current = true;
     setStepIndex(index);
   };
@@ -146,6 +191,7 @@ export function AiAnalysisWizardPage({ accountType, initialPatientId, pipelineId
       setImpression("");
       setMagnification(null);
       setHe40xConfirmed(false);
+      resetSignalInput();
     }
   };
 
@@ -156,8 +202,15 @@ export function AiAnalysisWizardPage({ accountType, initialPatientId, pipelineId
       setImpression("");
       setMagnification(null);
       setHe40xConfirmed(false);
+      resetSignalInput();
     }
   };
+
+  function resetSignalInput() {
+    setRateChoice(null);
+    setOtherRate("");
+    setEcgUnit("mV");
+  }
 
   const blockedReason =
     stepIndex === 0
@@ -173,13 +226,19 @@ export function AiAnalysisWizardPage({ accountType, initialPatientId, pipelineId
       : stepIndex === 1
         ? selectedDocument
           ? null
-          : t("aiAnalyses.wizard.image.selectFirst")
+          : isEcg
+            ? t("aiAnalyses.wizard.signal.selectFirst")
+            : t("aiAnalyses.wizard.image.selectFirst")
         : stepIndex === 2
           ? report.canContinue
-            ? null
+            ? acquisitionBlocker
             : report.checks.some((check) => check.status === "pending")
-              ? t("aiAnalyses.wizard.quality.waiting")
-              : t("aiAnalyses.wizard.quality.blocked")
+              ? isEcg
+                ? t("aiAnalyses.wizard.ecg.qualityWaiting")
+                : t("aiAnalyses.wizard.quality.waiting")
+              : isEcg
+                ? t("aiAnalyses.wizard.ecg.qualityBlocked")
+                : t("aiAnalyses.wizard.quality.blocked")
           : null;
 
   const shellProps = accountType === "ESTABLISHMENT"
@@ -201,7 +260,7 @@ export function AiAnalysisWizardPage({ accountType, initialPatientId, pipelineId
   const pipelineName = t(`aiAnalyses.pipelines.${pipeline.id}.name`);
   const step = steps[stepIndex];
   const blockedId = "ai-wizard-blocked";
-  const launchState = getLaunchState(modelsStatusQuery, pipeline.entryModelId);
+  const launchState = modelsStatusQuery.isFetching ? "loading" : getLaunchState(modelsStatusQuery, pipeline.entryModelId);
   // The magnification the chain sends: none for brain, the chosen one for a
   // breast slide, 40 once the nuclei image is confirmed as H&E at 40x.
   const sentMagnification: AiMagnification | null | undefined =
@@ -212,10 +271,51 @@ export function AiAnalysisWizardPage({ accountType, initialPatientId, pipelineId
           ? NUCLEI_MAGNIFICATION
           : null
         : undefined;
-  const choiceMissing = sentMagnification === null;
+  // A CSV/TXT signal needs its rate; a WFDB header gives its own.
+  const sentSignal = isEcg && !isArchive ? { samplingRate, unit: ecgUnit } : null;
+  const canLaunch = canLaunchPreparedAnalysis({
+    hasPatient: Boolean(patientId), hasDocument: Boolean(selectedDocument),
+    consentSigned: consentState === "signed", qualityPassed: report.canContinue,
+    acquisitionIssue, launchState, isLaunching: createRunMutation.isPending,
+  });
+  const preparationBlocker = consentState !== "signed"
+    ? t("aiAnalyses.wizard.workspace.consentChanged")
+    : !report.canContinue
+      ? t("aiAnalyses.wizard.workspace.qualityChanged")
+      : acquisitionBlocker;
+  const acquisitionSummary: string[] = pipelineId === "pathology-breast" && magnification
+    ? [t("aiAnalyses.wizard.reading.magnification.option", { value: magnification })]
+    : pipelineId === "pathology-nuclei" && he40xConfirmed
+      ? [t("aiAnalyses.wizard.reading.he40x.label")]
+      : isEcg && isArchive
+        ? [t("aiAnalyses.wizard.workspace.wfdbSettings")]
+        : isEcg && samplingRate
+          ? [t("aiAnalyses.wizard.ecg.samplingRate.option", { value: samplingRate }), t(`aiAnalyses.wizard.ecg.unit.${ecgUnit}`)]
+          : [];
+  const ecgInput: EcgReadingInput | undefined = isEcg ? {
+    isArchive, otherRate, rateChoice, samplingRate, unit: ecgUnit,
+    onOtherRateChange: (value) => { createRunMutation.reset(); setOtherRate(value); },
+    onRateChoiceChange: (value) => { createRunMutation.reset(); setRateChoice(value); },
+    onUnitChange: (value) => { createRunMutation.reset(); setEcgUnit(value); },
+  } : undefined;
+  const qualityState = !selectedDocument || stepIndex < 2 ? "waiting"
+    : report.checks.some((check) => check.status === "pending") ? "checking"
+      : !report.canContinue ? "failed" : acquisitionIssue ? "incomplete" : "passed";
+  const documentStep = pipelineId === "brain" ? "mri" : isEcg ? "signal" : "slide";
+  const displaySteps = ["patient", documentStep, "quality", "reading"];
+  const stepTitle = step === "patient" ? t("aiAnalyses.wizard.patient.title")
+    : step === "image" ? t(`aiAnalyses.wizard.workspace.pipelines.${pipelineId}.documentTitle`)
+      : step === "quality" ? t(`aiAnalyses.wizard.workspace.pipelines.${pipelineId}.qualityTitle`)
+        : t(`aiAnalyses.wizard.workspace.pipelines.${pipelineId}.readingTitle`);
+  const stepHint = step === "patient" ? t("aiAnalyses.wizard.workspace.patientHint")
+    : step === "image" ? t(`aiAnalyses.wizard.workspace.pipelines.${pipelineId}.documentHint`)
+      : step === "quality" ? t(`aiAnalyses.wizard.workspace.pipelines.${pipelineId}.qualityHint`)
+        : t("aiAnalyses.wizard.workspace.readingHint");
+  // A refused signal: the wizard says why and stays open (rate or unit to fix).
+  const ecgRejection = createRunMutation.isError ? getEcgRejection(createRunMutation.error) : null;
 
   const launchAnalysis = () => {
-    if (!selectedDocument || !patientId || launchState !== "ready" || choiceMissing) {
+    if (!canLaunch || !selectedDocument || !patientId) {
       return;
     }
 
@@ -229,11 +329,12 @@ export function AiAnalysisWizardPage({ accountType, initialPatientId, pipelineId
         sourceDocumentId: selectedDocument.id,
         ...(trimmedImpression ? { clinicianImpression: trimmedImpression } : {}),
         ...(sentMagnification ? { magnification: sentMagnification } : {}),
+        ...(sentSignal?.samplingRate ? { samplingRate: sentSignal.samplingRate, unit: sentSignal.unit } : {}),
       },
       {
         onError: (error) => {
           const runId = getFailedRunId(error);
-          if (runId) router.push(resultHref(runId));
+          if (runId && !getEcgRejection(error)) router.push(resultHref(runId));
         },
         onSuccess: (run) => router.push(resultHref(run.id)),
       },
@@ -247,47 +348,48 @@ export function AiAnalysisWizardPage({ accountType, initialPatientId, pipelineId
       breadcrumbLabel={t("aiAnalyses.wizard.breadcrumb")}
       titleKey="aiAnalyses.page.title"
     >
-      <div className="workspace-stack">
-        <header className="workspace-intro">
-          <div className="min-w-0">
-            <p className="mb-2 text-xs font-medium text-[var(--medical)]">{t("aiAnalyses.wizard.context")}</p>
-            <h1 className="break-words">{pipelineName}</h1>
-            <p className="mt-1 text-sm text-[var(--text-secondary)]">
+      <div className="ai-wizard" data-pipeline={pipelineId}>
+        <header className="ai-wizard-banner">
+          <div className="ai-wizard-banner-copy">
+            <div className="ai-wizard-banner-top"><p>{t("aiAnalyses.hub.brandEyebrow")}</p>
+              <Link href={`${roleBase}/ai-analyses`} className="ai-wizard-back" aria-disabled={createRunMutation.isPending} onClick={(event) => { if (createRunMutation.isPending) event.preventDefault(); }}>
+                <ArrowLeft size={14} aria-hidden="true" className="clinical-directional" />{t("aiAnalyses.wizard.backToHub")}
+              </Link>
+            </div>
+            <h1>{pipelineName}</h1>
+            <p className="ai-wizard-banner-description">{t(`aiAnalyses.hub.analyses.${pipelineId}.description`)}</p>
+            <p className="ai-wizard-model-line">
               {t(`aiAnalyses.modules.${model.module}.title`)}
               {" · "}
               {t(`aiAnalyses.models.${model.id}.name`)}
               {model.version ? <> · <bdi dir="ltr" className="font-[var(--font-auth-mono)]">v{model.version}</bdi></> : null}
             </p>
           </div>
-          <Link href={`${roleBase}/ai-analyses`} className="clinical-button">
-            <ArrowLeft size={16} strokeWidth={1.8} aria-hidden="true" className="clinical-directional" />
-            {t("aiAnalyses.wizard.backToHub")}
-          </Link>
+          <div className="ai-wizard-banner-art" aria-hidden="true"><HealixSpecialtyArtwork pipeline={pipelineId} /><span>HealixDz / {t("aiAnalyses.hub.atlasEdition")}</span></div>
         </header>
-
-        <div
-          role="note"
-          className="flex items-start gap-3 rounded-[var(--radius-md)] border border-s-[3px] border-[var(--border)] border-s-[color:var(--warning)] bg-[var(--surface)] px-4 py-3"
-        >
-          <ShieldAlert size={18} strokeWidth={1.8} aria-hidden="true" className="mt-0.5 shrink-0 text-[var(--warning-ink)]" />
-          <p className="text-sm font-medium text-[var(--text-primary)]">{t("aiAnalyses.page.disclaimer")}</p>
-        </div>
 
         {verificationRequired ? (
           <VerificationRequiredNotice accountType={accountType} t={t} />
         ) : (
           <>
-            <WizardStepper current={stepIndex} onSelect={goTo} steps={steps} t={t} />
-
-            <section aria-labelledby="ai-wizard-step-title" className="surface-section p-5">
-              <div className="mb-5">
-                <p className="clinical-caption">
+            <WizardStepper
+              current={stepIndex}
+              disabled={createRunMutation.isPending}
+              onSelect={goTo}
+              steps={displaySteps}
+              t={t}
+            />
+            <div className="ai-wizard-layout" data-reading={step === "reading"}>
+            <section aria-labelledby="ai-wizard-step-title" className="ai-wizard-panel" aria-busy={createRunMutation.isPending}>
+              <div className="ai-wizard-panel-heading">
+                <p className="ai-wizard-step-count">
                   {t("aiAnalyses.wizard.stepOf", { current: stepIndex + 1, total: steps.length })}
                 </p>
-                <h2 ref={headingRef} id="ai-wizard-step-title" tabIndex={-1} className="mt-1 text-lg font-semibold text-[var(--text-primary)] focus:outline-none">
-                  {t(`aiAnalyses.wizard.${step}.title`)}
-                </h2>
+                <h2 ref={headingRef} id="ai-wizard-step-title" tabIndex={-1}>{stepTitle}</h2>
+                <p className="ai-wizard-step-hint">{stepHint}</p>
               </div>
+
+              {step === "reading" && selectedPatient ? <div className="ai-wizard-reading-context"><span>{t("aiAnalyses.wizard.steps.patient")}</span><strong><bdi>{getPatientDisplayName(selectedPatient, locale)}</bdi></strong>{selectedDocument ? <bdi className="ai-wizard-context-file">{selectedDocument.fileName}</bdi> : null}</div> : null}
 
               {step === "patient" ? (
                 <PatientStep
@@ -308,6 +410,8 @@ export function AiAnalysisWizardPage({ accountType, initialPatientId, pipelineId
 
               {step === "image" && selectedPatient ? (
                 <ImageStep
+                  copy={isEcg ? "signal" : "image"}
+                  acceptedFormats={model.acceptedFormats}
                   documents={imageDocuments}
                   isError={documentsQuery.isError}
                   isLoading={documentsQuery.isLoading}
@@ -320,53 +424,61 @@ export function AiAnalysisWizardPage({ accountType, initialPatientId, pipelineId
                 />
               ) : null}
 
-              {step === "quality" ? (
-                <QualityStep onChooseAnother={() => goTo(1)} report={report} t={t} />
-              ) : null}
+              {step === "quality" ? <>
+                <QualityStep copy={isEcg ? "signal" : "image"} onChooseAnother={() => goTo(1)} report={report} t={t} />
+                <AcquisitionSettings pipelineId={pipelineId} ecg={ecgInput} magnification={magnification} he40xConfirmed={he40xConfirmed}
+                  onMagnificationChange={(value) => { createRunMutation.reset(); setMagnification(value); }}
+                  onHe40xChange={(value) => { createRunMutation.reset(); setHe40xConfirmed(value); }} t={t} />
+              </> : null}
 
               {step === "reading" && selectedDocument ? (
                 <ReadingStep
                   blob={documentView.data ?? null}
                   fileName={selectedDocument.fileName}
-                  he40xConfirmed={he40xConfirmed}
                   impression={impression}
                   isDicom={isDicom}
                   isError={documentView.isError}
                   isLaunching={createRunMutation.isPending}
                   launchError={
-                    createRunMutation.isError && !getFailedRunId(createRunMutation.error)
-                      ? { key: getLaunchErrorKey(createRunMutation.error) }
-                      : null
+                    ecgRejection
+                      ? {
+                          key: null,
+                          message: t(
+                            `aiAnalyses.ecg.rejections.${ecgRejection.code}`,
+                            ecgRejectionParams(ecgRejection.details, locale),
+                          ),
+                        }
+                      : createRunMutation.isError && !getFailedRunId(createRunMutation.error)
+                        ? { key: getLaunchErrorKey(createRunMutation.error) }
+                        : null
                   }
                   launchState={launchState}
-                  magnification={magnification}
                   module={model.module}
-                  onHe40xChange={(confirmed) => {
-                    createRunMutation.reset();
-                    setHe40xConfirmed(confirmed);
-                  }}
                   onImpressionChange={setImpression}
                   onLaunch={launchAnalysis}
-                  onMagnificationChange={(value) => {
-                    createRunMutation.reset();
-                    setMagnification(value);
-                  }}
+                  canLaunch={canLaunch}
+                  preparationBlocker={preparationBlocker}
+                  acquisitionSummary={acquisitionSummary}
+                  onEditAcquisition={() => goTo(2)}
+                  onRetryService={() => void modelsStatusQuery.refetch()}
+                  isRefreshingService={modelsStatusQuery.isFetching}
                   pipelineId={pipeline.id}
                   t={t}
                 />
               ) : null}
+              {step === "reading" && !selectedDocument ? <div className="ai-wizard-invalidated" role="alert"><p>{t("aiAnalyses.wizard.workspace.documentChanged")}</p><button type="button" className="clinical-button" onClick={() => goTo(1)}>{t(`aiAnalyses.wizard.steps.${documentStep}`)}</button></div> : null}
 
-              <footer className="mt-6 flex flex-wrap items-center justify-between gap-3 border-t border-[var(--border)] pt-4">
+              <footer className="ai-wizard-actions">
                 <div>
                   {stepIndex > 0 ? (
-                    <button type="button" className="clinical-button" onClick={() => goTo(stepIndex - 1)}>
+                    <button type="button" className="clinical-button" disabled={createRunMutation.isPending} onClick={() => goTo(stepIndex - 1)}>
                       <ArrowLeft size={16} strokeWidth={1.8} aria-hidden="true" className="clinical-directional" />
                       {t("aiAnalyses.wizard.previous")}
                     </button>
                   ) : null}
                 </div>
                 {stepIndex < steps.length - 1 ? (
-                  <div className="flex flex-wrap items-center justify-end gap-3">
+                  <div className="ai-wizard-next-action">
                     {blockedReason ? (
                       <p id={blockedId} className="text-xs text-[var(--text-secondary)]">{blockedReason}</p>
                     ) : null}
@@ -377,26 +489,30 @@ export function AiAnalysisWizardPage({ accountType, initialPatientId, pipelineId
                       aria-describedby={blockedReason ? blockedId : undefined}
                       onClick={() => goTo(stepIndex + 1)}
                     >
-                      {t("aiAnalyses.wizard.next")}
+                      {t("aiAnalyses.wizard.workspace.continueTo", { step: t(`aiAnalyses.wizard.steps.${displaySteps[stepIndex + 1]}`) })}
                       <ArrowRight size={16} strokeWidth={1.8} aria-hidden="true" className="clinical-directional" />
                     </button>
                   </div>
                 ) : null}
               </footer>
             </section>
+            <PreparationSummary current={stepIndex} patientName={selectedPatient ? getPatientDisplayName(selectedPatient, locale) : null} document={selectedDocument}
+              consentState={consentState} qualityState={qualityState} acquisitionSummary={acquisitionSummary} expectedResult={t(`aiAnalyses.hub.analyses.${pipelineId}.output`)} disabled={createRunMutation.isPending} onEdit={goTo} t={t} />
+            </div>
           </>
         )}
+        <div role="note" className="ai-wizard-clinical-note"><ShieldCheck size={18} aria-hidden="true" /><div><strong>{t("aiAnalyses.hub.clinicalNote")}</strong><p>{t("aiAnalyses.page.disclaimer")}</p></div></div>
       </div>
 
       {selectedPatient ? (
         <UploadPatientDocumentModal
           direction={direction}
-          documentTypes={imageDocumentTypes}
+          documentTypes={documentTypes}
           isOpen={isUploadOpen}
           onClose={() => setUploadOpen(false)}
           onUploaded={(document) => {
             selectDocument(document.id);
-            setNotice(t("aiAnalyses.wizard.image.uploaded"));
+            setNotice(isEcg ? t("aiAnalyses.wizard.signal.uploaded") : t("aiAnalyses.wizard.image.uploaded"));
             window.setTimeout(() => setNotice(""), 3200);
           }}
           patientId={selectedPatient.id}

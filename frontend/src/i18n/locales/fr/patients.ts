@@ -72,7 +72,7 @@ export const patientsFr = {
     grant: "Accorder",
     update: "Mettre à jour",
   },
-  documents: { DICOM: "Fichier DICOM", MEDICAL_IMAGE: "Image médicale", MEDICAL_REPORT: "Rapport médical", PRESCRIPTION: "Ordonnance PDF" },
+  documents: { ECG_SIGNAL: "Signal ECG", DICOM: "Fichier DICOM", MEDICAL_IMAGE: "Image médicale", MEDICAL_REPORT: "Rapport médical", PRESCRIPTION: "Ordonnance PDF" },
   actions: {
     addDocument: "Ajouter document",
     aiAnalysis: "Analyse IA",
@@ -130,6 +130,7 @@ export const patientsFr = {
       changeFile: "Changer de fichier",
       dragHint: "Glissez-déposez un fichier ici, ou cliquez pour parcourir.",
       acceptedFormats: "PDF, JPG, PNG ou DICOM (.dcm)",
+      acceptedFormatsEcg: "CSV, TXT ou ZIP d’un enregistrement WFDB (.hea + .dat)",
       maxSize: "20 Mo maximum",
       submit: "Ajouter le document",
       submitting: "Envoi…",

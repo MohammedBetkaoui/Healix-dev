@@ -2,7 +2,8 @@ import { Injectable } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 
 // Client of the Python inference service (ai-service/). It only ever sends
-// the bytes of an image: no patient identity leaves the backend.
+// the bytes of an image or of an ECG signal file: no patient identity leaves
+// the backend.
 
 export const BRAIN_CLASSIFIER_ID = 'brain-efficientnetb4-tumor-classification';
 export const BRAIN_LABELS = [
@@ -38,6 +39,38 @@ export const NUCLEUS_TYPES = [
   'epithelial',
 ] as const;
 export type NucleusType = (typeof NUCLEUS_TYPES)[number];
+
+// Cardiology (ai-service/app/ecg_*.py): a 12-lead ECG, 5 superclasses of
+// PTB-XL, multi-label (each class against its own threshold). The service
+// reads them from its model card; a card with other classes or leads is
+// another model, refused here.
+export const CARDIO_ECG_MODEL_ID = 'cardio-ecg-resnet1d-ptbxl-superdiagnostic';
+export const ECG_CLASSES = ['NORM', 'MI', 'STTC', 'CD', 'HYP'] as const;
+export type EcgClass = (typeof ECG_CLASSES)[number];
+export const ECG_LEADS = [
+  'I',
+  'II',
+  'III',
+  'aVR',
+  'aVL',
+  'aVF',
+  'V1',
+  'V2',
+  'V3',
+  'V4',
+  'V5',
+  'V6',
+] as const;
+export type EcgLead = (typeof ECG_LEADS)[number];
+export const ECG_UNITS = ['mV', 'uV'] as const;
+export type EcgUnit = (typeof ECG_UNITS)[number];
+export const ECG_MIN_SAMPLING_RATE = 100;
+export const ECG_MAX_SAMPLING_RATE = 1000;
+// The service accepts 10 to 60 s.
+const ECG_MIN_DURATION_S = 10;
+const ECG_MAX_DURATION_S = 60;
+// A 10 s trace at 1 kHz at most.
+const ECG_MAX_TRACE_SAMPLES = 10_000;
 
 export const AI_SERVICE_TIMEOUT_MS = 60_000;
 const STATUS_TIMEOUT_MS = 5_000;
@@ -104,7 +137,47 @@ export type NucleiAnalysisResult = {
   durationMs: number;
 };
 
+export type EcgAnalysisResult = {
+  modelId: string;
+  weightsSha256: string;
+  /** SHA-256 of the model card the service read (thresholds, filter, leads). */
+  configSha256: string;
+  /** Sigmoid of each class, averaged over the windows: independent, not summing to 1. */
+  probabilities: Record<EcgClass, number>;
+  thresholds: Record<EcgClass, number>;
+  /** Classes at or above their threshold, by decreasing probability. */
+  positive: EcgClass[];
+  windows: number;
+  inputSamplingRate: number;
+  durationSeconds: number;
+  /** The first 10 s, band-pass filtered, not normalized: what is drawn. */
+  trace: {
+    samplingRate: number;
+    unit: 'mV';
+    leads: Record<EcgLead, number[]>;
+  };
+  durationMs: number;
+};
+
+// Why the service refused an ECG file (ai-service/app/ecg_input.py).
+export const ECG_REJECTIONS = [
+  'ECG_UNSUPPORTED_FORMAT',
+  'ECG_UNSAFE_ARCHIVE',
+  'ECG_MISSING_LEADS',
+  'ECG_SAMPLING_RATE_REQUIRED',
+  'ECG_SAMPLING_RATE_INVALID',
+  'ECG_UNIT_INVALID',
+  'ECG_TOO_SHORT',
+  'ECG_TOO_LONG',
+  'ECG_NON_FINITE',
+  'ECG_FLAT_LEAD',
+  'ECG_AMPLITUDE_OUT_OF_RANGE',
+  'ECG_FILE_TOO_LARGE',
+] as const;
+export type EcgRejection = (typeof ECG_REJECTIONS)[number];
+
 export type AiServiceFailure =
+  | EcgRejection
   | 'SERVICE_NOT_CONFIGURED'
   | 'SERVICE_UNAVAILABLE'
   | 'SERVICE_TIMEOUT'
@@ -122,12 +195,17 @@ export const INPUT_REJECTIONS: readonly AiServiceFailure[] = [
   'IMAGE_TOO_LARGE',
   'IMAGE_TOO_SMALL',
   'IMAGE_DIMENSIONS_TOO_LARGE',
+  ...ECG_REJECTIONS,
 ];
+
+/** What a refusal says about the input (missing leads, duration...), never a signal value. */
+export type RejectionDetails = Record<string, number | string | string[]>;
 
 export class AiServiceError extends Error {
   constructor(
     readonly code: AiServiceFailure,
     message: string = code,
+    readonly details: RejectionDetails = {},
   ) {
     super(message);
     this.name = 'AiServiceError';
@@ -427,6 +505,171 @@ export function pathologyRejection(code: unknown): AiServiceFailure {
   }
 }
 
+function parseClassRecord(
+  value: unknown,
+  what: string,
+): Record<EcgClass, number> {
+  if (
+    !isRecord(value) ||
+    Object.keys(value).length !== ECG_CLASSES.length ||
+    !ECG_CLASSES.every((label) => isFiniteBetween(value[label], 0, 1))
+  ) {
+    throw invalid(what);
+  }
+  return Object.fromEntries(
+    ECG_CLASSES.map((label) => [label, value[label] as number]),
+  ) as Record<EcgClass, number>;
+}
+
+function parseTrace(value: unknown): EcgAnalysisResult['trace']['leads'] {
+  if (
+    !isRecord(value) ||
+    Object.keys(value).length !== ECG_LEADS.length ||
+    !ECG_LEADS.every((lead) => Array.isArray(value[lead]))
+  ) {
+    throw invalid('tracé');
+  }
+  const length = (value.I as unknown[]).length;
+  if (length < 1 || length > ECG_MAX_TRACE_SAMPLES) throw invalid('tracé');
+  for (const lead of ECG_LEADS) {
+    const samples = value[lead] as unknown[];
+    if (
+      samples.length !== length ||
+      !samples.every(
+        (sample) => typeof sample === 'number' && Number.isFinite(sample),
+      )
+    ) {
+      throw invalid('tracé');
+    }
+  }
+  return Object.fromEntries(
+    ECG_LEADS.map((lead) => [lead, [...(value[lead] as number[])]]),
+  ) as EcgAnalysisResult['trace']['leads'];
+}
+
+/**
+ * Validates POST /analyze/cardio/ecg: the 5 classes and 12 leads, the
+ * positive classes exactly those at or above their threshold (by decreasing
+ * probability), a 10 to 60 s input. Anything else is a service error.
+ */
+export function parseEcgAnalysis(body: unknown): EcgAnalysisResult {
+  if (!isRecord(body)) throw invalid('forme');
+  if (body.modelId !== CARDIO_ECG_MODEL_ID) throw invalid('modèle');
+  if (!isSha256(body.weightsSha256)) throw invalid('empreinte');
+  if (!isSha256(body.configSha256)) throw invalid('empreinte de la carte');
+
+  const probabilities = parseClassRecord(body.probabilities, 'probabilités');
+  const thresholds = parseClassRecord(body.thresholds, 'seuils');
+  const expected = ECG_CLASSES.filter(
+    (label) => probabilities[label] >= thresholds[label],
+  );
+  const positive: unknown = body.positive;
+  if (
+    !Array.isArray(positive) ||
+    positive.length !== expected.length ||
+    !expected.every((label) => positive.includes(label))
+  ) {
+    throw invalid('classes positives');
+  }
+  const sorted = positive as EcgClass[];
+  if (
+    sorted.some(
+      (label, index) =>
+        index > 0 && probabilities[label] > probabilities[sorted[index - 1]],
+    )
+  ) {
+    throw invalid('ordre des classes positives');
+  }
+
+  if (!isPositiveInteger(body.windows)) throw invalid('fenêtres');
+  if (
+    !Number.isInteger(body.inputSamplingRate) ||
+    !isFiniteBetween(
+      body.inputSamplingRate,
+      ECG_MIN_SAMPLING_RATE,
+      ECG_MAX_SAMPLING_RATE,
+    )
+  ) {
+    throw invalid("fréquence d'échantillonnage");
+  }
+  if (
+    !isFiniteBetween(
+      body.durationSeconds,
+      ECG_MIN_DURATION_S,
+      ECG_MAX_DURATION_S,
+    )
+  ) {
+    throw invalid('durée du signal');
+  }
+  if (!isPositiveInteger(body.traceSamplingRate))
+    throw invalid('fréquence du tracé');
+  const leads = parseTrace(body.trace);
+  if (!isFiniteBetween(body.durationMs, 0, Number.MAX_SAFE_INTEGER))
+    throw invalid('durée');
+
+  return {
+    configSha256: body.configSha256,
+    durationMs: Math.round(body.durationMs as number),
+    durationSeconds: body.durationSeconds as number,
+    inputSamplingRate: body.inputSamplingRate as number,
+    modelId: CARDIO_ECG_MODEL_ID,
+    positive: [...sorted],
+    probabilities,
+    thresholds,
+    trace: { leads, samplingRate: body.traceSamplingRate, unit: 'mV' },
+    weightsSha256: body.weightsSha256,
+    windows: body.windows,
+  };
+}
+
+/** The ECG refusals of the service (ecg_*): any other 422 is a service error. */
+export function ecgRejection(code: unknown): AiServiceFailure {
+  const upper = typeof code === 'string' ? code.toUpperCase() : '';
+  return (ECG_REJECTIONS as readonly string[]).includes(upper)
+    ? (upper as EcgRejection)
+    : 'SERVICE_ERROR';
+}
+
+const DETAIL_KEYS = [
+  'accepted',
+  'duplicateLead',
+  'durationSeconds',
+  'leads',
+  'line',
+  'max',
+  'maxBytes',
+  'maxMillivolts',
+  'maxSeconds',
+  'maxShare',
+  'min',
+  'minSeconds',
+  'missing',
+  'reason',
+] as const;
+const isShortText = (value: unknown): value is string =>
+  typeof value === 'string' && value.length <= 40;
+
+/** The known details of a refusal: numbers, short texts or short lists of them. */
+export function rejectionDetails(body: unknown): RejectionDetails {
+  const detail = isRecord(body) && isRecord(body.detail) ? body.detail : {};
+  const details: RejectionDetails = {};
+  for (const key of DETAIL_KEYS) {
+    const value = detail[key];
+    if (typeof value === 'number' && Number.isFinite(value)) {
+      details[key] = value;
+    } else if (isShortText(value)) {
+      details[key] = value;
+    } else if (
+      Array.isArray(value) &&
+      value.length <= ECG_LEADS.length &&
+      value.every(isShortText)
+    ) {
+      details[key] = [...value];
+    }
+  }
+  return details;
+}
+
 const detailCode = (body: unknown): unknown =>
   isRecord(body) && isRecord(body.detail) ? body.detail.code : undefined;
 
@@ -448,9 +691,9 @@ export class AiServiceClient {
     mimeType: string,
   ): Promise<BrainAnalysisResult> {
     // Any 422 of /analyze/brain is an image the service could not decode.
-    const body = await this.postImage(
+    const body = await this.postFile(
       '/analyze/brain',
-      { fileName, image, mimeType },
+      { data: image, fileName, mimeType },
       {},
       () => 'INVALID_IMAGE',
     );
@@ -463,9 +706,9 @@ export class AiServiceClient {
     mimeType: string,
     magnification: number,
   ): Promise<BreastAnalysisResult> {
-    const body = await this.postImage(
+    const body = await this.postFile(
       '/analyze/pathology/breast-classification',
-      { fileName, image, mimeType },
+      { data: image, fileName, mimeType },
       { magnification: String(magnification) },
       pathologyRejection,
     );
@@ -477,9 +720,9 @@ export class AiServiceClient {
     fileName: string,
     mimeType: string,
   ): Promise<NucleiAnalysisResult> {
-    const body = await this.postImage(
+    const body = await this.postFile(
       '/analyze/pathology/nuclei-segmentation',
-      { fileName, image, mimeType },
+      { data: image, fileName, mimeType },
       {},
       pathologyRejection,
     );
@@ -487,16 +730,41 @@ export class AiServiceClient {
   }
 
   /**
-   * Sends one image (multipart field "image", plus text fields) and returns
-   * the JSON body of a 2xx answer. Errors: 413 IMAGE_TOO_LARGE; 422 as
-   * `rejection` reads detail.code; 503 MODEL_NOT_LOADED or
-   * SERVICE_UNAVAILABLE; any other status SERVICE_ERROR.
+   * A 12-lead ECG file (multipart field "file"). samplingRate (Hz) and unit
+   * are those the physician gave for a CSV/TXT; a WFDB header has its own.
    */
-  private async postImage(
+  async analyzeEcg(
+    data: Buffer,
+    fileName: string,
+    mimeType: string,
+    options: { samplingRate?: number; unit?: EcgUnit } = {},
+  ): Promise<EcgAnalysisResult> {
+    const fields: Record<string, string> = {};
+    if (options.samplingRate !== undefined)
+      fields.samplingRate = String(options.samplingRate);
+    if (options.unit !== undefined) fields.unit = options.unit;
+    const body = await this.postFile(
+      '/analyze/cardio/ecg',
+      { data, field: 'file', fileName, mimeType },
+      fields,
+      ecgRejection,
+      'ECG_FILE_TOO_LARGE',
+    );
+    return parseEcgAnalysis(body);
+  }
+
+  /**
+   * Sends one file (multipart field "image" unless told otherwise, plus text
+   * fields) and returns the JSON body of a 2xx answer. Errors: 413
+   * `tooLarge`; 422 as `rejection` reads detail.code, with its details; 503
+   * MODEL_NOT_LOADED or SERVICE_UNAVAILABLE; any other status SERVICE_ERROR.
+   */
+  private async postFile(
     path: string,
-    file: { image: Buffer; fileName: string; mimeType: string },
+    file: { data: Buffer; fileName: string; mimeType: string; field?: string },
     fields: Record<string, string>,
     rejection: (code: unknown) => AiServiceFailure,
+    tooLarge: AiServiceFailure = 'IMAGE_TOO_LARGE',
   ): Promise<unknown> {
     if (!this.token) {
       throw new AiServiceError('SERVICE_NOT_CONFIGURED');
@@ -504,8 +772,8 @@ export class AiServiceClient {
 
     const form = new FormData();
     form.append(
-      'image',
-      new Blob([new Uint8Array(file.image)], { type: file.mimeType }),
+      file.field ?? 'image',
+      new Blob([new Uint8Array(file.data)], { type: file.mimeType }),
       file.fileName,
     );
     for (const [name, value] of Object.entries(fields)) {
@@ -530,9 +798,11 @@ export class AiServiceClient {
       throw toTransportError(error);
     }
 
-    if (response.status === 422)
-      throw new AiServiceError(rejection(detailCode(body)));
-    if (response.status === 413) throw new AiServiceError('IMAGE_TOO_LARGE');
+    if (response.status === 422) {
+      const code = rejection(detailCode(body));
+      throw new AiServiceError(code, code, rejectionDetails(body));
+    }
+    if (response.status === 413) throw new AiServiceError(tooLarge);
     if (response.status === 503) {
       throw new AiServiceError(
         detailCode(body) === 'model_not_loaded'

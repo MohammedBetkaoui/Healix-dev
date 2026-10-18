@@ -17,7 +17,7 @@ import {
   useAiAnalysisRunOverlay,
 } from "@/features/ai-analyses/hooks/use-ai-analysis-run";
 import { limitationParams } from "@/features/ai-analyses/format-ai-metric";
-import { getRunErrorKey, shortSha256 } from "@/features/ai-analyses/run-presentation";
+import { getEcgPredictions, getRunErrorKey, shortSha256 } from "@/features/ai-analyses/run-presentation";
 import { useCurrentUser } from "@/features/auth/hooks/use-current-user";
 import { formatPatientDateTime } from "@/features/patients/patient-registry";
 import { usePatient } from "@/features/patients/hooks/use-patient";
@@ -26,14 +26,36 @@ import { usePatientDocuments } from "@/features/patients/hooks/use-patient-docum
 import { useEstablishmentVerificationPrefill } from "@/features/verification/hooks/use-establishment-verification-prefill";
 import { isVerificationRequiredError } from "@/lib/api/api-error";
 import { getAccountInitials } from "@/lib/format/get-account-initials";
-import { useStoredLocale, useTranslation } from "@/lib/i18n";
+import { type AiAnalysisRun } from "@/features/ai-analyses/ai-analyses.types";
+import { type TranslationFunction, useStoredLocale, useTranslation } from "@/lib/i18n";
 
 import { getPatientDisplayName } from "../wizard/PatientStep";
 import { AiRunDecisionBadge, AiRunDecisionPanel } from "./AiRunDecisionPanel";
 import { AiRunReportSection } from "./AiRunReportSection";
 import { BrainResult } from "./BrainResult";
 import { BreastResult } from "./BreastResult";
+import { EcgResult } from "./EcgResult";
 import { NucleiResult } from "./NucleiResult";
+
+// The ECG model, its weights, and the signal it read.
+function EcgTraceability({ decimal, run, t }: { decimal: Intl.NumberFormat; run: AiAnalysisRun; t: TranslationFunction }) {
+  const model = findModel(run.classificationModelId);
+  const ecg = getEcgPredictions(run);
+  return (
+    <>
+      <dt className="text-[var(--text-secondary)]">{t("aiAnalyses.run.model")}</dt>
+      <dd className="break-words">{model ? t(`aiAnalyses.models.${model.id}.name`) : run.classificationModelId ?? t("aiAnalyses.run.none")}</dd>
+      <dt className="text-[var(--text-secondary)]">{t("aiAnalyses.run.weights")}</dt>
+      <dd><bdi dir="ltr" className="font-[var(--font-auth-mono)]">{shortSha256(run.classificationWeightsSha256) ?? t("aiAnalyses.run.none")}</bdi></dd>
+      <dt className="text-[var(--text-secondary)]">{t("aiAnalyses.run.inputSamplingRate")}</dt>
+      <dd>{ecg ? <bdi dir="ltr">{t("aiAnalyses.run.hertz", { value: ecg.inputSamplingRate })}</bdi> : t("aiAnalyses.run.none")}</dd>
+      <dt className="text-[var(--text-secondary)]">{t("aiAnalyses.run.signalDuration")}</dt>
+      <dd>{ecg ? <bdi dir="ltr">{t("aiAnalyses.run.seconds", { value: decimal.format(ecg.durationSeconds) })}</bdi> : t("aiAnalyses.run.none")}</dd>
+      <dt className="text-[var(--text-secondary)]">{t("aiAnalyses.run.windows")}</dt>
+      <dd>{ecg ? ecg.windows : t("aiAnalyses.run.none")}</dd>
+    </>
+  );
+}
 
 type AiAnalysisRunPageProps = {
   accountType: "DOCTOR" | "ESTABLISHMENT";
@@ -54,8 +76,9 @@ export function AiAnalysisRunPage({ accountType, patientId, runId }: AiAnalysisR
   const documentsQuery = usePatientDocuments(patientId);
   const run = runQuery.data;
   const sourceDocument = (documentsQuery.data ?? []).find((document) => document.id === run?.sourceDocumentId) ?? null;
+  // An ECG's source is a signal file: its trace is fetched by EcgResult.
   const imageQuery = usePatientDocumentView(patientId, run?.sourceDocumentId ?? null, {
-    enabled: run?.status === "SUCCEEDED",
+    enabled: run?.status === "SUCCEEDED" && run.pipeline !== "cardio-ecg",
   });
   // The brain mask is shown at once; a nuclei map shows its colour overlay
   // (its label map is fetched by NucleiResult, only to hide types).
@@ -138,7 +161,11 @@ export function AiAnalysisRunPage({ accountType, patientId, runId }: AiAnalysisR
             <AlertTriangle size={20} className="mt-0.5 shrink-0 text-[var(--danger-ink)]" aria-hidden="true" />
             <div>
               <h2 className="font-semibold text-[var(--danger-ink)]">
-                {run.status === "REJECTED_INPUT" ? t("aiAnalyses.run.rejectedTitle") : t("aiAnalyses.run.failedTitle")}
+                {run.status !== "REJECTED_INPUT"
+                  ? t("aiAnalyses.run.failedTitle")
+                  : run.pipeline === "cardio-ecg"
+                    ? t("aiAnalyses.run.rejectedSignalTitle")
+                    : t("aiAnalyses.run.rejectedTitle")}
               </h2>
               <p className="mt-1 text-sm text-[var(--text-secondary)]">
                 {t(`aiAnalyses.run.errors.${getRunErrorKey(run.errorCode)}`)}
@@ -151,7 +178,9 @@ export function AiAnalysisRunPage({ accountType, patientId, runId }: AiAnalysisR
 
     return (
       <>
-        {run.pipeline === "pathology-breast" ? (
+        {run.pipeline === "cardio-ecg" ? (
+          <EcgResult locale={locale} patientId={patientId} run={run} t={t} />
+        ) : run.pipeline === "pathology-breast" ? (
           <BreastResult {...imageProps} run={run} />
         ) : run.pipeline === "pathology-nuclei" ? (
           <NucleiResult {...imageProps} overlayBlob={overlayQuery.data} patientId={patientId} run={run} />
@@ -182,6 +211,8 @@ export function AiAnalysisRunPage({ accountType, patientId, runId }: AiAnalysisR
                   <dt className="text-[var(--text-secondary)]">{t("aiAnalyses.run.weights")}</dt>
                   <dd><bdi dir="ltr" className="font-[var(--font-auth-mono)]">{shortSha256(run.segmentationWeightsSha256) ?? t("aiAnalyses.run.none")}</bdi></dd>
                 </>
+              ) : run.pipeline === "cardio-ecg" ? (
+                <EcgTraceability decimal={decimal} run={run} t={t} />
               ) : (
                 // One model per pathology chain: the classifier (breast) or the segmenter (nuclei).
                 <>

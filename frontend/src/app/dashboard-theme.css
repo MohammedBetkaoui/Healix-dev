@@ -42,6 +42,12 @@
   --specialty-dermatology: #ea580c;
   --specialty-ophthalmology: #a16207;
 
+  /* ECG paper: 1 mm and 5 mm squares, as printed. */
+  --ecg-paper: #fffdfc;
+  --ecg-grid-minor: #f5d0d0;
+  --ecg-grid-major: #e09090;
+  --ecg-trace: #0f172a;
+
   /* Compatibility for shared components; decorative gold becomes brand blue. */
   --gold: var(--accent);
   --gold-dark: var(--accent-dark);
@@ -85,6 +91,10 @@
   --danger-soft: #3b202a;
   --danger-line: #7f3541;
   --danger-ink: #fca5a5;
+  --ecg-paper: #0f1a2a;
+  --ecg-grid-minor: #33283a;
+  --ecg-grid-major: #6b3a4a;
+  --ecg-trace: #e2e8f0;
   color-scheme: dark;
 }
 
@@ -369,6 +379,13 @@
 .clinical-theme :is(.ai-module, .ai-viewer, .ai-result)[data-module="brain"] { --ai-module-color: var(--specialty-brain); }
 .clinical-theme :is(.ai-module, .ai-viewer, .ai-result)[data-module="cardiology"] { --ai-module-color: var(--specialty-cardiology); }
 .clinical-theme :is(.ai-module, .ai-viewer, .ai-result)[data-module="pathology"] { --ai-module-color: var(--specialty-pathology); }
+
+/* ECG trace (EcgTraceViewer): drawn in millimetres of paper. */
+.ecg-paper .ecg-paper-background { fill: var(--ecg-paper); }
+.ecg-paper .ecg-grid-minor { stroke: var(--ecg-grid-minor); stroke-width: 0.1; }
+.ecg-paper .ecg-grid-major { stroke: var(--ecg-grid-major); stroke-width: 0.25; }
+.ecg-paper .ecg-trace { fill: none; stroke: var(--ecg-trace); stroke-width: 0.3; stroke-linejoin: round; stroke-linecap: round; }
+.ecg-paper .ecg-lead-label { fill: var(--ecg-trace); font-size: 3px; font-weight: 600; }
 .clinical-theme .ai-module-icon { color: var(--ai-module-color); }
 /* AI image viewer: always dark, whatever the theme (image reading). Its
    specialty accent uses the dark-theme value: the light cardiology red is

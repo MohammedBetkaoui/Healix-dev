@@ -5,9 +5,11 @@ import { useEffect, useId, useRef, useState, type FormEvent } from "react";
 
 import { StatusBadge } from "@/components/dashboard/shared/StatusBadge";
 import {
+  ecgClasses,
   type AiAnalysisRun,
   type AiPipelineId,
   type AiRunDecision,
+  type EcgClass,
 } from "@/features/ai-analyses/ai-analyses.types";
 import { useDecideAiAnalysisRun } from "@/features/ai-analyses/hooks/use-decide-ai-analysis-run";
 import {
@@ -19,8 +21,11 @@ import {
   getDecisionErrorKey,
   getDecisionOptions,
   getModelLabel,
+  getModelLabels,
   normalizeDecisionReason,
+  sortEcgLabels,
   toDecisionPayload,
+  toggleEcgLabel,
   validateDecisionDraft,
   type DecisionDraft,
 } from "@/features/ai-analyses/run-decision";
@@ -36,14 +41,36 @@ const decisionIcons = {
   VALIDATED: CheckCircle2,
 } as const;
 
-// A nuclei map is validated or rejected as a map: its options have their own words.
+// A nuclei map is validated or rejected as a map, an ECG keeps a set of
+// classes: their options have their own words.
 const optionKey = (pipeline: AiPipelineId, status: AiRunDecision) =>
   pipeline === "pathology-nuclei" ? `aiAnalyses.decision.nucleiOptions.${status}` : `aiAnalyses.decision.options.${status}`;
 const optionHintKey = (pipeline: AiPipelineId, status: AiRunDecision) =>
-  pipeline === "pathology-nuclei" ? `aiAnalyses.decision.nucleiOptionHints.${status}` : `aiAnalyses.decision.optionHints.${status}`;
+  pipeline === "pathology-nuclei"
+    ? `aiAnalyses.decision.nucleiOptionHints.${status}`
+    : pipeline === "cardio-ecg"
+      ? `aiAnalyses.decision.ecgOptionHints.${status}`
+      : `aiAnalyses.decision.optionHints.${status}`;
 
-// What the decision retains: a class, the validated map, or nothing.
-function retainedText(pipeline: AiPipelineId, status: AiRunDecision, label: string | null, t: TranslationFunction) {
+/** ECG classes named in a sentence; "none at its threshold" for an empty set. */
+function ecgClassesText(labels: readonly EcgClass[] | null, t: TranslationFunction) {
+  return labels && labels.length > 0
+    ? labels.map((label) => t(`aiAnalyses.classes.${label}`)).join(", ")
+    : t("aiAnalyses.decision.noModelClass");
+}
+
+// What the decision retains: a class (a set of classes for an ECG), the
+// validated map, or nothing.
+function retainedText(
+  pipeline: AiPipelineId,
+  status: AiRunDecision,
+  label: string | null,
+  t: TranslationFunction,
+  labels: readonly EcgClass[] | null = null,
+) {
+  if (pipeline === "cardio-ecg" && status !== "REJECTED") {
+    return labels && labels.length > 0 ? ecgClassesText(labels, t) : t("aiAnalyses.decision.noClassRetained");
+  }
   if (label) return t(`aiAnalyses.classes.${label}`);
   if (pipeline === "pathology-nuclei" && status === "VALIDATED") return t("aiAnalyses.decision.mapAccepted");
   return t("aiAnalyses.decision.noRetainedLabel");
@@ -153,7 +180,16 @@ function DecisionRecord({ locale, run, t }: { locale: Locale; run: AiAnalysisRun
   const status = run.decisionStatus as AiRunDecision;
   const Icon = decisionIcons[status];
   const modelLabel = getModelLabel(run);
+  const modelLabels = getModelLabels(run);
   const agreement = getDecisionAgreement(run);
+  const agreementText =
+    agreement === "pending" || agreement === "notApplicable"
+      ? t("aiAnalyses.run.none")
+      : modelLabels
+        ? t(`aiAnalyses.decision.ecgAgreement.${agreement}`, { classes: ecgClassesText(modelLabels, t) })
+        : modelLabel
+          ? t(`aiAnalyses.decision.agreement.${agreement}`, { class: t(`aiAnalyses.classes.${modelLabel}`) })
+          : t("aiAnalyses.run.none");
 
   return (
     <>
@@ -166,17 +202,13 @@ function DecisionRecord({ locale, run, t }: { locale: Locale; run: AiAnalysisRun
         </dd>
         <dt className="text-[var(--text-secondary)]">{t("aiAnalyses.decision.fields.retainedLabel")}</dt>
         <dd className="font-semibold text-[var(--text-primary)]">
-          {retainedText(run.pipeline, status, run.decisionLabel, t)}
+          {retainedText(run.pipeline, status, run.decisionLabel, t, run.decisionLabels)}
         </dd>
         {/* A nuclei map has no proposed class to agree with. */}
         {agreement !== "notApplicable" ? (
           <>
             <dt className="text-[var(--text-secondary)]">{t("aiAnalyses.decision.fields.agreement")}</dt>
-            <dd className="text-[var(--text-primary)]">
-              {modelLabel && agreement !== "pending"
-                ? t(`aiAnalyses.decision.agreement.${agreement}`, { class: t(`aiAnalyses.classes.${modelLabel}`) })
-                : t("aiAnalyses.run.none")}
-            </dd>
+            <dd className="text-[var(--text-primary)]">{agreementText}</dd>
           </>
         ) : null}
         <dt className="text-[var(--text-secondary)]">{t("aiAnalyses.decision.fields.reason")}</dt>
@@ -201,6 +233,8 @@ function DecisionForm({ mutation, run, t }: { mutation: DecisionMutation; run: A
     correctedLabel: `${id}-corrected`,
     correctedLabelError: `${id}-corrected-error`,
     correctedLabelHint: `${id}-corrected-hint`,
+    correctedLabels: (label: EcgClass) => `${id}-corrected-${label}`,
+    correctedLabelsError: `${id}-corrected-labels-error`,
     option: (status: AiRunDecision) => `${id}-option-${status}`,
     optionHint: (status: AiRunDecision) => `${id}-option-${status}-hint`,
     reason: `${id}-reason`,
@@ -209,14 +243,20 @@ function DecisionForm({ mutation, run, t }: { mutation: DecisionMutation; run: A
     reasonHint: `${id}-reason-hint`,
     statusError: `${id}-status-error`,
   };
-  const [draft, setDraft] = useState<DecisionDraft>({ correctedLabel: "", reason: "", status: null });
+  const [draft, setDraft] = useState<DecisionDraft>({ correctedLabel: "", correctedLabels: [], reason: "", status: null });
   const [showErrors, setShowErrors] = useState(false);
   const [isConfirming, setConfirming] = useState(false);
   const submitRef = useRef<HTMLButtonElement>(null);
 
   const modelLabel = getModelLabel(run);
-  const modelClass = modelLabel ? t(`aiAnalyses.classes.${modelLabel}`) : "";
-  const errors = validateDecisionDraft(draft, modelLabel, run.pipeline);
+  const modelLabels = getModelLabels(run);
+  const isEcg = run.pipeline === "cardio-ecg";
+  const modelClass = isEcg
+    ? ecgClassesText(modelLabels, t)
+    : modelLabel
+      ? t(`aiAnalyses.classes.${modelLabel}`)
+      : "";
+  const errors = validateDecisionDraft(draft, modelLabel, run.pipeline, modelLabels);
   const visible = showErrors ? errors : {};
   const needsReason = draft.status === "CORRECTED" || draft.status === "REJECTED";
   const reasonLength = normalizeDecisionReason(draft.reason).length;
@@ -227,6 +267,13 @@ function DecisionForm({ mutation, run, t }: { mutation: DecisionMutation; run: A
     : visible.correctedLabel === "matchesModel"
       ? t("aiAnalyses.decision.draftErrors.correctedLabelMatchesModel")
       : null;
+  const correctedLabelsError = visible.correctedLabels === "required"
+    ? t("aiAnalyses.decision.draftErrors.correctedLabelsRequired")
+    : visible.correctedLabels === "normExclusive"
+      ? t("aiAnalyses.decision.draftErrors.correctedLabelsNormExclusive")
+      : visible.correctedLabels === "matchesModel"
+        ? t("aiAnalyses.decision.draftErrors.correctedLabelsMatchesModel")
+        : null;
   const reasonError = visible.reason === "required"
     ? t("aiAnalyses.decision.draftErrors.reasonRequired")
     : visible.reason === "tooShort"
@@ -241,9 +288,11 @@ function DecisionForm({ mutation, run, t }: { mutation: DecisionMutation; run: A
       setShowErrors(true);
       const target = errors.status
         ? ids.option("VALIDATED")
-        : errors.correctedLabel
-          ? ids.correctedLabel
-          : ids.reason;
+        : errors.correctedLabels
+          ? ids.correctedLabels(ecgClasses[0])
+          : errors.correctedLabel
+            ? ids.correctedLabel
+            : ids.reason;
       document.getElementById(target)?.focus();
       return;
     }
@@ -286,7 +335,7 @@ function DecisionForm({ mutation, run, t }: { mutation: DecisionMutation; run: A
                 <span className="min-w-0">
                   <span className="block text-sm font-medium text-[var(--text-primary)]">{t(optionKey(run.pipeline, status))}</span>
                   <span id={ids.optionHint(status)} className="mt-0.5 block text-xs leading-5 text-[var(--text-secondary)]">
-                    {t(optionHintKey(run.pipeline, status), { class: modelClass })}
+                    {t(optionHintKey(run.pipeline, status), { class: modelClass, classes: modelClass })}
                   </span>
                 </span>
               </label>
@@ -300,7 +349,54 @@ function DecisionForm({ mutation, run, t }: { mutation: DecisionMutation; run: A
         ) : null}
       </fieldset>
 
-      {draft.status === "CORRECTED" ? (
+      {draft.status === "CORRECTED" && isEcg ? (
+        <fieldset
+          className="space-y-2"
+          aria-describedby={describedBy(ids.correctedLabelHint, correctedLabelsError && ids.correctedLabelsError)}
+        >
+          <legend className="text-[.8rem] font-medium text-[var(--text-primary)]">{t("aiAnalyses.decision.correctedLabels")}</legend>
+          <p id={ids.correctedLabelHint} className="text-xs text-[var(--text-secondary)]">
+            {t("aiAnalyses.decision.correctedLabelsHint", { classes: modelClass })}
+          </p>
+          <div className="grid gap-2 sm:grid-cols-2">
+            {ecgClasses.map((label) => {
+              const isChecked = (draft.correctedLabels ?? []).includes(label);
+              return (
+                <label
+                  key={label}
+                  htmlFor={ids.correctedLabels(label)}
+                  className={cn(
+                    "flex cursor-pointer items-center gap-2.5 rounded-[var(--radius-sm)] border px-3 py-2 text-sm",
+                    isChecked
+                      ? "border-[var(--accent)] bg-[var(--accent-soft)]"
+                      : "border-[var(--border)] bg-[var(--surface)] hover:bg-[var(--surface-muted)]",
+                  )}
+                >
+                  <input
+                    id={ids.correctedLabels(label)}
+                    type="checkbox"
+                    className="accent-[var(--accent)]"
+                    checked={isChecked}
+                    aria-invalid={correctedLabelsError ? true : undefined}
+                    onChange={() =>
+                      setDraft((current) => ({
+                        ...current,
+                        correctedLabels: toggleEcgLabel(current.correctedLabels ?? [], label),
+                      }))
+                    }
+                  />
+                  <span className="text-[var(--text-primary)]">
+                    {t(`aiAnalyses.classes.${label}`)} <bdi dir="ltr" className="text-xs text-[var(--text-secondary)]">({label})</bdi>
+                  </span>
+                </label>
+              );
+            })}
+          </div>
+          {correctedLabelsError ? (
+            <p id={ids.correctedLabelsError} className="text-xs font-medium text-[var(--danger-ink)]">{correctedLabelsError}</p>
+          ) : null}
+        </fieldset>
+      ) : draft.status === "CORRECTED" ? (
         <div className="space-y-1.5">
           <label htmlFor={ids.correctedLabel} className="text-[.8rem] font-medium text-[var(--text-primary)]">
             {t("aiAnalyses.decision.correctedLabel")}
@@ -362,6 +458,7 @@ function DecisionForm({ mutation, run, t }: { mutation: DecisionMutation; run: A
         <ConfirmDecisionDialog
           draft={{ ...draft, status: draft.status }}
           modelLabel={modelLabel}
+          modelLabels={modelLabels}
           mutation={mutation}
           pipeline={run.pipeline}
           t={t}
@@ -378,6 +475,8 @@ function DecisionForm({ mutation, run, t }: { mutation: DecisionMutation; run: A
 type ConfirmDecisionDialogProps = {
   draft: DecisionDraft & { status: AiRunDecision };
   modelLabel: string | null;
+  /** ECG: the model's positive classes. */
+  modelLabels: EcgClass[] | null;
   mutation: DecisionMutation;
   onClosed: () => void;
   pipeline: AiPipelineId;
@@ -386,11 +485,13 @@ type ConfirmDecisionDialogProps = {
 
 // Native modal <dialog>: focus kept inside, Escape closes (unless sending),
 // the page behind is inert.
-function ConfirmDecisionDialog({ draft, modelLabel, mutation, onClosed, pipeline, t }: ConfirmDecisionDialogProps) {
+function ConfirmDecisionDialog({ draft, modelLabel, modelLabels, mutation, onClosed, pipeline, t }: ConfirmDecisionDialogProps) {
   const id = useId();
   const ref = useRef<HTMLDialogElement>(null);
-  const payload = toDecisionPayload(draft);
+  const payload = toDecisionPayload(draft, pipeline);
   const retainedLabel = draft.status === "VALIDATED" ? modelLabel : draft.status === "CORRECTED" ? draft.correctedLabel : null;
+  const retainedLabels =
+    draft.status === "VALIDATED" ? modelLabels : draft.status === "CORRECTED" ? sortEcgLabels(draft.correctedLabels ?? []) : null;
   const isPending = mutation.isPending;
   const errorMessage = mutation.isError
     ? getVerificationRequiredMessage(mutation.error, t) ?? t(`aiAnalyses.decision.errors.${getDecisionErrorKey(mutation.error)}`)
@@ -428,7 +529,7 @@ function ConfirmDecisionDialog({ draft, modelLabel, mutation, onClosed, pipeline
             {t(optionKey(pipeline, draft.status))}
           </dd>
           <dt className="text-[var(--text-secondary)]">{t("aiAnalyses.decision.confirm.retainedLabel")}</dt>
-          <dd className="font-semibold">{retainedText(pipeline, draft.status, retainedLabel, t)}</dd>
+          <dd className="font-semibold">{retainedText(pipeline, draft.status, retainedLabel, t, retainedLabels)}</dd>
           {payload.reason ? (
             <>
               <dt className="text-[var(--text-secondary)]">{t("aiAnalyses.decision.confirm.reason")}</dt>

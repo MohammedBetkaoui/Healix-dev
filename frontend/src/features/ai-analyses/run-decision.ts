@@ -7,28 +7,50 @@ import { type DashboardStatusTone } from "@/types/dashboard";
 
 import {
   aiRunDecisions,
+  ecgClasses,
   type AiAnalysisRun,
   type AiOutputClassKey,
   type AiPipelineId,
   type AiRunDecision,
+  type EcgClass,
 } from "./ai-analyses.types";
 import { type DecideAiAnalysisRunPayload } from "./ai-analysis-runs.api";
 import { getTopLabel } from "./run-presentation";
 
 /**
  * Classes a correction may name, per chain (backend CORRECTION_LABELS): the
- * model's own, or one it does not know. A nuclei map is never corrected.
+ * model's own, or one it does not know. A nuclei map is never corrected. An
+ * ECG is corrected to a set of classes (ecgClasses), not to one.
  */
 export const correctionLabels = {
   brain: ["glioma", "meningioma", "notumor", "pituitary", "other"],
   "pathology-breast": ["benign", "malignant", "other"],
   "pathology-nuclei": [],
+  "cardio-ecg": [],
 } as const satisfies Record<AiPipelineId, readonly AiOutputClassKey[]>;
 
 /** Every class a decision may retain, whatever the chain. */
 export const aiDecisionLabels: readonly AiOutputClassKey[] = [
-  ...new Set<AiOutputClassKey>(Object.values(correctionLabels).flat()),
+  ...new Set<AiOutputClassKey>([...Object.values(correctionLabels).flat(), ...ecgClasses]),
 ];
+
+/** "Normal" excludes every other class of the ECG. */
+export const ECG_NORMAL_CLASS: EcgClass = "NORM";
+
+/** In class order, never two of the same. */
+export function sortEcgLabels(labels: readonly string[]): EcgClass[] {
+  return ecgClasses.filter((label) => labels.includes(label));
+}
+
+/** A class ticked or unticked: NORM clears the others, any other clears NORM. */
+export function toggleEcgLabel(current: readonly EcgClass[], label: EcgClass): EcgClass[] {
+  if (current.includes(label)) return current.filter((value) => value !== label);
+  if (label === ECG_NORMAL_CLASS) return [ECG_NORMAL_CLASS];
+  return sortEcgLabels([...current.filter((value) => value !== ECG_NORMAL_CLASS), label]);
+}
+
+const sameLabels = (a: readonly string[], b: readonly string[]) =>
+  a.length === b.length && a.every((label) => b.includes(label));
 
 /** The decisions a chain offers: a nuclei map is validated or rejected, never corrected. */
 export function getDecisionOptions(pipeline: AiPipelineId): readonly AiRunDecision[] {
@@ -45,8 +67,11 @@ export const decisionTones: Record<AiRunDecision, DashboardStatusTone> = {
   REJECTED: "danger",
 };
 
-type ModelAnswerFields = Pick<AiAnalysisRun, "modelDecision" | "modelLabel" | "pipeline" | "predictions">;
-type DecisionFields = ModelAnswerFields & Pick<AiAnalysisRun, "decisionLabel" | "decisionStatus">;
+type ModelAnswerFields = Pick<AiAnalysisRun, "modelDecision" | "modelLabel" | "pipeline" | "predictions"> &
+  Partial<Pick<AiAnalysisRun, "modelLabels">>;
+type DecisionFields = ModelAnswerFields &
+  Pick<AiAnalysisRun, "decisionLabel" | "decisionStatus"> &
+  Partial<Pick<AiAnalysisRun, "decisionLabels">>;
 
 /**
  * The model's answer the physician decides on (backend getModelLabel): the
@@ -64,6 +89,14 @@ export function getModelLabel(run: ModelAnswerFields): string | null {
   }
 }
 
+/** ECG: the model's positive classes (backend getModelLabels); null for the other chains. */
+export function getModelLabels(run: ModelAnswerFields): EcgClass[] | null {
+  if (run.pipeline !== "cardio-ecg") return null;
+  if (run.modelLabels) return sortEcgLabels(run.modelLabels);
+  const stored = run.predictions;
+  return stored && !Array.isArray(stored) ? sortEcgLabels(stored.positive) : null;
+}
+
 /** notApplicable: a nuclei map, which has no class to agree with. */
 export type DecisionAgreement = "pending" | "agrees" | "disagrees" | "rejected" | "notApplicable";
 
@@ -71,6 +104,11 @@ export type DecisionAgreement = "pending" | "agrees" | "disagrees" | "rejected" 
 export function getDecisionAgreement(run: DecisionFields): DecisionAgreement {
   if (run.decisionStatus === null) return "pending";
   if (run.decisionStatus === "REJECTED") return "rejected";
+  if (run.pipeline === "cardio-ecg") {
+    const modelLabels = getModelLabels(run);
+    if (!modelLabels || !run.decisionLabels) return "notApplicable";
+    return sameLabels(run.decisionLabels, modelLabels) ? "agrees" : "disagrees";
+  }
   const modelLabel = getModelLabel(run);
   if (modelLabel === null) return "notApplicable";
   return run.decisionLabel !== null && run.decisionLabel === modelLabel ? "agrees" : "disagrees";
@@ -119,12 +157,15 @@ export function normalizeDecisionReason(reason: string): string {
 export type DecisionDraft = {
   status: AiRunDecision | null;
   correctedLabel: string;
+  /** ECG only: the classes kept by a correction. */
+  correctedLabels?: EcgClass[];
   reason: string;
 };
 
 export type DecisionDraftErrors = {
   status?: "required";
   correctedLabel?: "required" | "matchesModel";
+  correctedLabels?: "required" | "matchesModel" | "normExclusive";
   reason?: "required" | "tooShort" | "tooLong";
 };
 
@@ -133,12 +174,19 @@ export function validateDecisionDraft(
   draft: DecisionDraft,
   modelLabel: string | null,
   pipeline: AiPipelineId,
+  /** ECG: the model's positive classes. */
+  modelLabels: readonly EcgClass[] | null = null,
 ): DecisionDraftErrors {
   if (draft.status === null || !getDecisionOptions(pipeline).includes(draft.status)) return { status: "required" };
   if (draft.status === "VALIDATED") return {};
 
   const errors: DecisionDraftErrors = {};
-  if (draft.status === "CORRECTED") {
+  if (draft.status === "CORRECTED" && pipeline === "cardio-ecg") {
+    const labels = sortEcgLabels(draft.correctedLabels ?? []);
+    if (labels.length === 0) errors.correctedLabels = "required";
+    else if (labels.includes(ECG_NORMAL_CLASS) && labels.length > 1) errors.correctedLabels = "normExclusive";
+    else if (modelLabels && sameLabels(labels, modelLabels)) errors.correctedLabels = "matchesModel";
+  } else if (draft.status === "CORRECTED") {
     if (!(correctionLabels[pipeline] as readonly string[]).includes(draft.correctedLabel)) errors.correctedLabel = "required";
     else if (draft.correctedLabel === modelLabel) errors.correctedLabel = "matchesModel";
   }
@@ -152,12 +200,21 @@ export function validateDecisionDraft(
 }
 
 /** The body of POST .../decision: a validation carries no reason nor class. */
-export function toDecisionPayload(draft: DecisionDraft & { status: AiRunDecision }): DecideAiAnalysisRunPayload {
+export function toDecisionPayload(
+  draft: DecisionDraft & { status: AiRunDecision },
+  pipeline: AiPipelineId | null = null,
+): DecideAiAnalysisRunPayload {
   switch (draft.status) {
     case "VALIDATED":
       return { status: "VALIDATED" };
     case "CORRECTED":
-      return { correctedLabel: draft.correctedLabel, reason: normalizeDecisionReason(draft.reason), status: "CORRECTED" };
+      return pipeline === "cardio-ecg"
+        ? {
+            correctedLabels: sortEcgLabels(draft.correctedLabels ?? []),
+            reason: normalizeDecisionReason(draft.reason),
+            status: "CORRECTED",
+          }
+        : { correctedLabel: draft.correctedLabel, reason: normalizeDecisionReason(draft.reason), status: "CORRECTED" };
     case "REJECTED":
       return { reason: normalizeDecisionReason(draft.reason), status: "REJECTED" };
   }
@@ -171,6 +228,9 @@ export const knownDecisionErrorCodes = [
   "AI_CORRECTED_LABEL_UNEXPECTED",
   "AI_CORRECTED_LABEL_INVALID",
   "AI_CORRECTION_NOT_APPLICABLE",
+  "AI_CORRECTED_LABELS_REQUIRED",
+  "AI_CORRECTED_LABELS_INVALID",
+  "AI_CORRECTED_LABELS_NOT_APPLICABLE",
 ] as const;
 const KNOWN_DECISION_ERRORS = new Set<string>(knownDecisionErrorCodes);
 

@@ -43,6 +43,7 @@ export default async function Page({ searchParams }: PageProps) {
 
   return (
     <AiAnalysisWizardPage
+      key={`${selectedPipeline.id}:${patientId ?? ""}`}
       accountType="DOCTOR"
       initialPatientId={patientId}
       pipelineId={selectedPipeline.id}

@@ -4,12 +4,18 @@
 // national identity number nor the phone of the patient). No urgency level,
 // no suggested specialist, no consultation delay, no recommendation: the
 // physician's conclusion is the only conclusion of the document. One template
-// for the three chains (brain, pathology-breast, pathology-nuclei); a measured
-// figure is printed only from the evaluation of the analysis's own weights.
+// for the four chains (brain, pathology-breast, pathology-nuclei, cardio-ecg);
+// a measured figure is printed only from the evaluation of the analysis's own
+// weights.
 
 import { createSha256Checksum } from '../../common/utils/checksum.util';
 import { formatPhysicianName } from '../../common/utils/physician-name';
-import { NUCLEUS_TYPES, type NucleusType } from '../ai-service.client';
+import {
+  ECG_CLASSES,
+  NUCLEUS_TYPES,
+  type EcgClass,
+  type NucleusType,
+} from '../ai-service.client';
 import {
   BRAIN_CLASS_LABELS,
   type ConfusionWarning,
@@ -20,6 +26,7 @@ import {
   isUncertain,
   UNCERTAINTY_THRESHOLD,
 } from './ai-report-rules';
+import { type CardioEvaluation } from './cardio-evaluation';
 import { NUCLEI_PALETTE } from './nuclei-palette';
 import {
   type BreakhisEvaluation,
@@ -59,6 +66,15 @@ const NUCLEUS_NAMES: Record<NucleusType, string> = {
   inflammatory: 'Inflammatoires',
   neoplastic: 'Néoplasiques',
 };
+// The 5 superclasses of PTB-XL, named in French, with their code.
+export const ECG_CLASS_NAMES: Record<EcgClass, string> = {
+  CD: 'Trouble de la conduction',
+  HYP: 'Hypertrophie',
+  MI: 'Infarctus du myocarde',
+  NORM: 'ECG normal',
+  STTC: 'Trouble ST/T',
+};
+
 // Too rare in training and in test: its share is shown, flagged.
 const UNRELIABLE_NUCLEUS_TYPES: readonly NucleusType[] = ['dead'];
 
@@ -86,6 +102,8 @@ const MODEL_NAMES: Record<string, string> = {
     'EfficientNet-B0 BreakHis (classification bénin / malin)',
   'pathology-unet-pannuke-segmentation':
     'U-Net EfficientNet-B0 PanNuke (segmentation des noyaux)',
+  'cardio-ecg-resnet1d-ptbxl-superdiagnostic':
+    'ResNet1D-34 PTB-XL (classification multi-label de l’ECG 12 dérivations)',
 };
 
 const SKIPPED_SEGMENTATION: Record<string, string> = {
@@ -163,6 +181,20 @@ export type ReportInput = {
       nucleusTypes: Record<string, number | null>;
     } | null;
     tileCount: number | null;
+    // Cardiology (null for the other chains).
+    ecg: {
+      probabilities: Record<EcgClass, number>;
+      thresholds: Record<EcgClass, number>;
+      /** Classes at or above their threshold. */
+      positive: EcgClass[];
+      windows: number;
+      inputSamplingRate: number;
+      durationSeconds: number;
+      /** SHA-256 of the model card (thresholds, filter, leads). */
+      configSha256: string;
+    } | null;
+    /** The classes the physician kept on an ECG (possibly none); null otherwise. */
+    decisionLabels: EcgClass[] | null;
   };
   requestedBy: ReportPerson;
   decidedBy: ReportPerson;
@@ -178,6 +210,10 @@ export type ReportInput = {
   mask: { data: Buffer; sha256: string } | null;
   /** Colour overlay of a nuclei segmentation. */
   overlay: { data: Buffer; sha256: string } | null;
+  /** Lead II of the stored ECG trace (first 10 s, filtered, mV), as drawn. */
+  ecgTrace: { samplingRate: number; leadII: number[]; sha256: string } | null;
+  /** Cardiology: the service's evaluation of these weights, else the notebook's, or null. */
+  cardioEvaluation: CardioEvaluation | null;
   /** brain: null when the evaluation report is missing or incomplete. */
   evaluation: EvaluationReport | null;
   /** Pathology: the evaluation of these very weights, or null. */
@@ -520,8 +556,20 @@ function conclusion(input: ReportInput): string {
     : run.decisionStatus === 'CORRECTED'
       ? 'Résultat corrigé'
       : 'Résultat validé';
-  const labelRow =
-    nuclei || run.decisionLabel === null
+  const ecgLabels = run.pipeline === 'cardio-ecg' ? run.decisionLabels : null;
+  const labelRow = ecgLabels
+    ? row(
+        'Classes retenues',
+        ecgLabels.length > 0
+          ? ecgLabels
+              .map(
+                (label) =>
+                  `<strong>${escapeHtml(ecgClassName(label))}</strong>`,
+              )
+              .join('<br />')
+          : 'Aucune des 5 classes du modèle',
+      )
+    : nuclei || run.decisionLabel === null
       ? ''
       : row(
           run.pipeline === 'pathology-breast'
@@ -834,6 +882,196 @@ function pathologyLegal(input: ReportInput): string {
 </section>`;
 }
 
+// --- Cardiology ---------------------------------------------------------------
+
+/** The evaluation describes these weights (and was found for them). */
+function cardioApplies(input: ReportInput): boolean {
+  return evaluationMatchesWeights(
+    input.run.classificationWeightsSha256,
+    input.cardioEvaluation?.weightsSha256 ?? null,
+  );
+}
+
+export const ecgClassName = (label: EcgClass) =>
+  `${ECG_CLASS_NAMES[label]} (${label})`;
+
+// Standard ECG paper: 25 mm/s, 10 mm/mV; 1 mm squares, 5 mm ones in bold.
+const ECG_SPEED_MM_PER_S = 25;
+const ECG_GAIN_MM_PER_MV = 10;
+const ECG_STRIP_SECONDS = 5;
+// Room for the 1 mV calibration pulse, left of the trace: 2 large squares,
+// so the large squares of the grid start with the trace.
+const ECG_CALIBRATION_MM = 10;
+const ECG_MIN_STRIP_MM = 25;
+const ECG_MAX_STRIP_MM = 45;
+
+const mm = (value: number) => Number(value.toFixed(2));
+
+/**
+ * One strip of lead II on ECG paper, as SVG in millimetres: grid, 1 mV
+ * calibration pulse, then the samples as one polyline (clipped to the strip).
+ */
+export function ecgStripSvg(
+  samples: readonly number[],
+  samplingRate: number,
+  index: number,
+): string {
+  const traceWidth = (samples.length / samplingRate) * ECG_SPEED_MM_PER_S;
+  const width = ECG_CALIBRATION_MM + traceWidth;
+  const low = Math.min(0, ...samples);
+  const high = Math.max(1, ...samples);
+  const span = Math.ceil(((high - low) * ECG_GAIN_MM_PER_MV + 8) / 5) * 5;
+  const height = Math.min(ECG_MAX_STRIP_MM, Math.max(ECG_MIN_STRIP_MM, span));
+  // The middle of the signal in the middle of the strip, on a 1 mm line.
+  const baseline = Math.round(
+    height / 2 + ((high + low) / 2) * ECG_GAIN_MM_PER_MV,
+  );
+  const y = (millivolts: number) =>
+    mm(baseline - millivolts * ECG_GAIN_MM_PER_MV);
+
+  const lines: string[] = [];
+  for (let x = 0; x <= width + 1e-9; x += 1) {
+    lines.push(
+      `<line x1="${mm(x)}" y1="0" x2="${mm(x)}" y2="${height}" class="${Math.round(x) % 5 === 0 ? 'major' : 'minor'}" />`,
+    );
+  }
+  for (let row = 0; row <= height; row += 1) {
+    lines.push(
+      `<line x1="0" y1="${row}" x2="${mm(width)}" y2="${row}" class="${row % 5 === 0 ? 'major' : 'minor'}" />`,
+    );
+  }
+  const step = ECG_SPEED_MM_PER_S / samplingRate;
+  const points = samples
+    .map(
+      (value, sample) =>
+        `${mm(ECG_CALIBRATION_MM + sample * step)},${y(value)}`,
+    )
+    .join(' ');
+  // 1 mV for 0.2 s, from the baseline.
+  const pulse = `M1,${y(0)} H2 V${y(1)} H${mm(2 + 0.2 * ECG_SPEED_MM_PER_S)} V${y(0)} H${ECG_CALIBRATION_MM - 1}`;
+
+  return `<svg class="ecg-strip" viewBox="0 0 ${mm(width)} ${height}" width="${mm(width)}mm" height="${height}mm" role="img" aria-label="Dérivation II, ${index === 0 ? '0 à 5' : '5 à 10'} s">
+      <defs><clipPath id="ecg-clip-${index}"><rect x="0" y="0" width="${mm(width)}" height="${height}" /></clipPath></defs>
+      <g class="grid">${lines.join('')}</g>
+      <g clip-path="url(#ecg-clip-${index})">
+        <path class="calibration" d="${pulse}" />
+        <polyline class="trace" points="${points}" />
+      </g>
+      <text x="1" y="3.2" class="lead">II</text>
+    </svg>`;
+}
+
+function ecgFigure(input: ReportInput): string {
+  const trace = input.ecgTrace;
+  if (!trace || trace.leadII.length === 0) {
+    return '<p>Tracé non disponible.</p>';
+  }
+  const perStrip = Math.round(ECG_STRIP_SECONDS * trace.samplingRate);
+  const strips: string[] = [];
+  for (let start = 0; start < trace.leadII.length; start += perStrip) {
+    strips.push(
+      ecgStripSvg(
+        trace.leadII.slice(start, start + perStrip),
+        trace.samplingRate,
+        strips.length,
+      ),
+    );
+  }
+  return `<figure class="ecg">
+    ${strips.join('\n    ')}
+    <figcaption><strong>Figure 1</strong> — Dérivation II, 10 premières secondes après filtrage passe-bande (signal rééchantillonné à ${integer.format(trace.samplingRate)} Hz) ; 25 mm/s, 10 mm/mV, impulsion d'étalonnage de 1 mV.</figcaption>
+  </figure>`;
+}
+
+function ecgTechnique(input: ReportInput): string {
+  const { run, sourceDocument } = input;
+  const ecg = run.ecg;
+  const duration =
+    run.durationMs === null
+      ? 'Non renseignée'
+      : `${new Intl.NumberFormat('fr-FR', { maximumFractionDigits: 1 }).format(run.durationMs / 1000)} s`;
+  const signal = ecg
+    ? `12 dérivations, ${decimals(1).format(ecg.durationSeconds)} s à ${integer.format(ecg.inputSamplingRate)} Hz`
+    : 'Non renseigné';
+  const model = run.classificationModelId
+    ? `${escapeHtml(MODEL_NAMES[run.classificationModelId] ?? run.classificationModelId)}<br /><span class="sha">Poids SHA-256 : ${escapeHtml(run.classificationWeightsSha256 ?? '—')}</span>${ecg ? `<br /><span class="sha">Carte du modèle SHA-256 : ${escapeHtml(ecg.configSha256)}</span>` : ''}`
+    : 'Non renseigné';
+  return `<section>
+  <h2>Technique</h2>
+  <table class="facts">
+    ${row('Document analysé', escapeHtml(sourceDocument.originalName))}
+    ${row("Date d'import", formatDateTime(sourceDocument.createdAt))}
+    ${row('Signal', signal)}
+    ${row("Chaîne d'analyse", `Rééchantillonnage à 100 Hz, fenêtres de 10 s toutes les 5 s${ecg ? ` (${integer.format(ecg.windows)} fenêtre${ecg.windows > 1 ? 's' : ''})` : ''}, filtre passe-bande 0,5–40 Hz, probabilités moyennées sur les fenêtres`)}
+    ${row('Modèle utilisé', model)}
+    ${row('Durée de traitement', duration)}
+  </table>
+</section>`;
+}
+
+function ecgResults(input: ReportInput): string {
+  const ecg = input.run.ecg;
+  const rows = ecg
+    ? ECG_CLASSES.map((label) => {
+        const positive = ecg.positive.includes(label);
+        return `<tr${positive ? ' class="top"' : ''}><td>${escapeHtml(ecgClassName(label))}</td><td class="num">${probability.format(ecg.probabilities[label])}</td><td class="num">${probability.format(ecg.thresholds[label])}</td><td>${positive ? 'Positif' : 'Négatif'}</td></tr>`;
+      }).join('\n      ')
+    : '';
+  return `<section>
+  <h2>Résultats</h2>
+  <table class="grid">
+    <thead><tr><th scope="col">Classe</th><th scope="col" class="num">Probabilité</th><th scope="col" class="num">Seuil</th><th scope="col">Résultat du modèle</th></tr></thead>
+    <tbody>
+      ${rows}
+    </tbody>
+  </table>
+  <p class="note">Classification multi-label : chaque classe est comparée à son propre seuil ; les probabilités sont indépendantes et ne s'additionnent pas.${ecg && ecg.positive.length === 0 ? ' Aucune classe n’atteint son seuil.' : ''}</p>
+  ${ecgFigure(input)}
+</section>`;
+}
+
+function ecgPerformances(input: ReportInput): string {
+  const evaluation = input.cardioEvaluation;
+  if (!cardioApplies(input) || !evaluation) {
+    return `<section class="small">
+  <h2>Performances de référence</h2>
+  <p>${notMeasured(input.run.classificationWeightsSha256)}</p>
+</section>`;
+  }
+  const perClass = ECG_CLASSES.map((label) => {
+    const metrics = evaluation.perClass[label];
+    const share = (value: number | null) =>
+      value === null ? '—' : formatPercent(value);
+    return `${escapeHtml(ECG_CLASS_NAMES[label])} : AUC ${decimals(2).format(metrics.auc)}, sensibilité ${share(metrics.sensitivity)}, spécificité ${share(metrics.specificity)}`;
+  }).join(' ; ');
+  const source =
+    evaluation.source === 'service'
+      ? `Mesurées le ${formatDate(new Date(evaluation.generatedAt as string))} par le service d'analyse lui-même (même prétraitement, même inférence) sur le pli 10 de PTB-XL (${integer.format(evaluation.nEcg)} ECG), aux seuils du modèle (rapport ${escapeHtml(evaluation.file)}).`
+      : `Mesures du notebook d'entraînement sur le pli 10 de PTB-XL (${integer.format(evaluation.nEcg)} ECG), reprises de la carte du modèle (${escapeHtml(evaluation.file)}) : non mesurées sur le service d'analyse lui-même.`;
+  return `<section class="small">
+  <h2>Performances de référence</h2>
+  <p>${source} AUC macro : ${decimals(3).format(evaluation.aucMacro)}. ${perClass}.</p>
+</section>`;
+}
+
+function ecgLegal(input: ReportInput): string {
+  const hyp =
+    cardioApplies(input) && input.cardioEvaluation
+      ? input.cardioEvaluation.perClass.HYP.sensitivity
+      : null;
+  const limitations = [
+    "Métriques issues d'une validation interne sur PTB-XL : performances à confirmer sur les données de votre établissement.",
+    'Ne reconnaît que 5 superclasses : un trouble du rythme ou une autre anomalie peut ne pas être signalé comme tel.',
+    `Sensibilité plus faible pour l'hypertrophie${hyp === null ? '' : ` : ${formatPercent(hyp)} sur le jeu de test`}.`,
+    "Analyse d'un signal numérique : elle ne remplace pas la lecture du tracé complet.",
+  ];
+  return `<section class="small">
+  <h2>Mentions légales</h2>
+  <p>Aide à la décision. Ce compte rendu ne constitue pas un diagnostic à lui seul et ne remplace pas l'avis d'un médecin. Modèle non certifié comme dispositif médical.</p>
+  <ul>${limitations.map((item) => `<li>${escapeHtml(item)}</li>`).join('')}</ul>
+</section>`;
+}
+
 const STYLES = `
 *{box-sizing:border-box}
 html{-webkit-print-color-adjust:exact;print-color-adjust:exact}
@@ -876,7 +1114,25 @@ h1{text-transform:uppercase}
 ul.legend{display:flex;flex-wrap:wrap;gap:1.5mm 5mm;margin:0 0 3mm;padding:0;list-style:none;font-size:8.4pt}
 ul.legend .swatch{display:inline-block;width:3mm;height:3mm;margin-right:1.4mm;vertical-align:-.3mm;border:.3pt solid #5a5a5a}
 ul.limits{margin:2mm 0 0;padding-left:4mm;font-size:8.4pt;color:#4a4a4a}
+.sha{font-size:7.4pt;color:#4a4a4a;word-break:break-all}
+figure.ecg{width:auto;margin:4mm 0 0}
+.ecg-strip{display:block;margin-bottom:2mm;background:#fff}
+.ecg-strip .minor{stroke:#f2c4c4;stroke-width:.08}
+.ecg-strip .major{stroke:#de8f8f;stroke-width:.2}
+.ecg-strip .trace,.ecg-strip .calibration{fill:none;stroke:#111;stroke-width:.3;stroke-linejoin:round}
+.ecg-strip .lead{font-size:2.6px;font-weight:700;fill:#111}
 `;
+
+const TITLES: Record<string, string> = {
+  brain:
+    "COMPTE RENDU D'ANALYSE D'IMAGERIE ASSISTÉE PAR INTELLIGENCE ARTIFICIELLE",
+  'cardio-ecg': "Compte rendu d'électrocardiogramme analysé par IA",
+};
+
+const SUBTITLES: Record<string, string> = {
+  brain: 'Imagerie cérébrale (IRM)',
+  'cardio-ecg': 'Cardiologie — ECG 12 dérivations, 5 superclasses (PTB-XL)',
+};
 
 const PATHOLOGY_SUBTITLES: Record<string, string> = {
   'pathology-breast': 'Histopathologie mammaire — classification bénin / malin',
@@ -903,6 +1159,13 @@ function evaluationIdentity(
             sha256: input.breakhisEvaluation.weightsSha256,
           }
         : null;
+    case 'cardio-ecg':
+      return cardioApplies(input) && input.cardioEvaluation
+        ? {
+            file: input.cardioEvaluation.file,
+            sha256: input.cardioEvaluation.weightsSha256,
+          }
+        : null;
     default:
       return pannukeApplies(input) && input.pannukeEvaluation
         ? {
@@ -915,7 +1178,9 @@ function evaluationIdentity(
 
 /** Builds the report; the printed facts are hashed into its fingerprint. */
 export function buildReportDocument(input: ReportInput): ReportDocument {
-  const brain = input.run.pipeline === 'brain';
+  const pipeline = input.run.pipeline;
+  const brain = pipeline === 'brain';
+  const cardio = pipeline === 'cardio-ecg';
   const evaluationApplies =
     brain &&
     evaluationMatchesWeights(
@@ -937,6 +1202,7 @@ export function buildReportDocument(input: ReportInput): ReportDocument {
           name: input.sourceDocument.originalName,
           width: input.sourceDocument.width,
         },
+        ecgTraceSha256: input.ecgTrace?.sha256 ?? null,
         editedAt: input.editedAt,
         evaluation: evaluationIdentity(input, evaluationApplies),
         maskSha256: input.mask?.sha256 ?? null,
@@ -961,19 +1227,19 @@ export function buildReportDocument(input: ReportInput): ReportDocument {
 </head>
 <body>
 <div class="title">
-  <h1>${brain ? "COMPTE RENDU D'ANALYSE D'IMAGERIE ASSISTÉE PAR INTELLIGENCE ARTIFICIELLE" : "Compte rendu d'analyse histopathologique assistée par IA"}</h1>
-  <p class="subtitle">${brain ? 'Imagerie cérébrale (IRM)' : (PATHOLOGY_SUBTITLES[input.run.pipeline] ?? 'Histopathologie')}</p>
+  <h1>${TITLES[pipeline] ?? "Compte rendu d'analyse histopathologique assistée par IA"}</h1>
+  <p class="subtitle">${SUBTITLES[pipeline] ?? PATHOLOGY_SUBTITLES[pipeline] ?? 'Histopathologie'}</p>
 </div>
 ${identification(input)}
 ${indication(input)}
-${technique(input)}
-${brain ? results(input, evaluationApplies) : input.run.pipeline === 'pathology-breast' ? breastResults(input) : nucleiResults(input)}
+${cardio ? ecgTechnique(input) : technique(input)}
+${brain ? results(input, evaluationApplies) : cardio ? ecgResults(input) : pipeline === 'pathology-breast' ? breastResults(input) : nucleiResults(input)}
 <div class="closing">
 ${conclusion(input)}
 ${signature(input, contentSha256)}
 </div>
-${brain ? performances(input, evaluationApplies) : input.run.pipeline === 'pathology-breast' ? breastPerformances(input) : nucleiPerformances(input)}
-${brain ? legal(input, evaluationApplies) : pathologyLegal(input)}
+${brain ? performances(input, evaluationApplies) : cardio ? ecgPerformances(input) : pipeline === 'pathology-breast' ? breastPerformances(input) : nucleiPerformances(input)}
+${brain ? legal(input, evaluationApplies) : cardio ? ecgLegal(input) : pathologyLegal(input)}
 </body>
 </html>`;
 

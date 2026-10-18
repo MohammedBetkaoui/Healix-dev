@@ -75,6 +75,7 @@ export const patientDocumentTypeValues: PatientDocumentType[] = [
   "MEDICAL_REPORT",
   "MEDICAL_IMAGE",
   "DICOM",
+  "ECG_SIGNAL",
 ];
 
 export const patientAgeFilterValues = [

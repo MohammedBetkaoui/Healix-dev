@@ -107,7 +107,7 @@ export class PatientFileStorageService {
     png: Buffer;
     runId: string;
   }): Promise<{ checksum: string; localPath: string }> {
-    return this.storeAiImage(input, `${input.runId}.png`, {
+    return this.storeAiFile(input.patientId, input.png, `${input.runId}.png`, {
       log: 'Failed to store an AI segmentation mask.',
       message: 'Une erreur est survenue lors du stockage du masque.',
     });
@@ -120,34 +120,59 @@ export class PatientFileStorageService {
     png: Buffer;
     runId: string;
   }): Promise<{ checksum: string; localPath: string }> {
-    return this.storeAiImage(input, `${input.runId}-overlay.png`, {
-      log: 'Failed to store an AI segmentation overlay.',
-      message: 'Une erreur est survenue lors du stockage de la superposition.',
-    });
+    return this.storeAiFile(
+      input.patientId,
+      input.png,
+      `${input.runId}-overlay.png`,
+      {
+        log: 'Failed to store an AI segmentation overlay.',
+        message:
+          'Une erreur est survenue lors du stockage de la superposition.',
+      },
+    );
   }
 
-  private async storeAiImage(
-    input: { patientId: string; png: Buffer },
+  // The ECG trace of a cardiology run (JSON, the first 10 s filtered), with
+  // the other files of the runs: patients/<patientId>/ai-masks/<runId>-ecg-trace.json.
+  storeAiEcgTrace(input: {
+    patientId: string;
+    json: Buffer;
+    runId: string;
+  }): Promise<{ checksum: string; localPath: string }> {
+    return this.storeAiFile(
+      input.patientId,
+      input.json,
+      `${input.runId}-ecg-trace.json`,
+      {
+        log: 'Failed to store an AI ECG trace.',
+        message: 'Une erreur est survenue lors du stockage du tracé ECG.',
+      },
+    );
+  }
+
+  private async storeAiFile(
+    patientId: string,
+    data: Buffer,
     fileName: string,
     failure: { log: string; message: string },
   ): Promise<{ checksum: string; localPath: string }> {
     const targetDirectory = this.resolveSafePath(
       'patients',
-      input.patientId,
+      patientId,
       'ai-masks',
     );
     const localPath = this.resolveSafePath(
       'patients',
-      input.patientId,
+      patientId,
       'ai-masks',
       fileName,
     );
 
     try {
       await mkdir(targetDirectory, { recursive: true });
-      await writeFile(localPath, input.png);
+      await writeFile(localPath, data);
 
-      return { checksum: createSha256Checksum(input.png), localPath };
+      return { checksum: createSha256Checksum(data), localPath };
     } catch (error) {
       this.logger.error(
         failure.log,

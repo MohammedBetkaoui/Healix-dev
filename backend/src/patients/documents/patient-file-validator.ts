@@ -6,6 +6,8 @@ import {
 import { ConfigService } from '@nestjs/config';
 import { extname } from 'node:path';
 
+import { PatientDocumentType } from '../../common/enums/patient-document-type.enum';
+
 // Own MIME->extension map (distinct from verification-file-validator.ts):
 // patient documents also accept DICOM, which verification documents never
 // do. Browsers very commonly send an empty mimetype for .dcm uploads (DICOM
@@ -30,6 +32,33 @@ const allowedExtensionsByMimeType = new Map<string, string[]>([
   ['image/png', ['.png']],
   ['application/dicom', ['.dcm']],
 ]);
+
+// ECG signals (ECG_SIGNAL documents only, never another type): CSV/TXT text,
+// or a WFDB record zipped. Browsers send a CSV as text/csv, text/plain or,
+// on Windows with Excel installed, application/vnd.ms-excel; a zip as
+// application/zip or application/x-zip-compressed. Stored under one MIME
+// type per extension.
+const ECG_MIME_TYPES_BY_EXTENSION = new Map<string, string[]>([
+  ['.csv', ['text/csv', 'application/vnd.ms-excel', 'text/plain']],
+  ['.txt', ['text/plain', 'text/csv']],
+  ['.zip', ['application/zip', 'application/x-zip-compressed']],
+]);
+const ECG_STORED_MIME_TYPES: Record<string, string> = {
+  '.csv': 'text/csv',
+  '.txt': 'text/plain',
+  '.zip': 'application/zip',
+};
+// Local file header of a zip archive.
+const ZIP_SIGNATURE = Buffer.from([0x50, 0x4b, 0x03, 0x04]);
+
+export type ValidatedPatientFile = {
+  extension: string;
+  /** The MIME type to store (one per extension for an ECG signal). */
+  mimeType: string;
+};
+
+const unsupported = () =>
+  new UnsupportedMediaTypeException('Format de fichier non accepté.');
 
 function isDicomExtensionWithoutMimeType(
   originalName: string,
@@ -85,9 +114,21 @@ export class PatientFileValidator {
       : 20 * 1024 * 1024;
   }
 
-  validate(file: Express.Multer.File): string {
+  validate(
+    file: Express.Multer.File,
+    documentType: PatientDocumentType,
+  ): ValidatedPatientFile {
     if (file.size > this.maxSizeBytes) {
       throw new PayloadTooLargeException('Fichier trop volumineux.');
+    }
+
+    const extension = extname(file.originalname).toLowerCase();
+    if (documentType === PatientDocumentType.ECG_SIGNAL) {
+      return validateEcgSignal(file, extension);
+    }
+    // A signal file is an ECG_SIGNAL document, whatever the configuration.
+    if (ECG_MIME_TYPES_BY_EXTENSION.has(extension)) {
+      throw unsupported();
     }
 
     const isDicomFallback = isDicomExtensionWithoutMimeType(
@@ -96,18 +137,41 @@ export class PatientFileValidator {
     );
 
     if (!isDicomFallback && !this.allowedMimeTypes.has(file.mimetype)) {
-      throw new UnsupportedMediaTypeException('Format de fichier non accepté.');
+      throw unsupported();
     }
 
-    const extension = getSafePatientDocumentExtension(
+    const safeExtension = getSafePatientDocumentExtension(
       file.originalname,
       file.mimetype,
     );
 
-    if (!extension) {
-      throw new UnsupportedMediaTypeException('Format de fichier non accepté.');
+    if (!safeExtension) {
+      throw unsupported();
     }
 
-    return extension;
+    return { extension: safeExtension, mimeType: file.mimetype };
   }
+}
+
+// The content is checked too: a zip starts with its signature, a text file
+// holds no NUL byte (a binary renamed .csv).
+function validateEcgSignal(
+  file: Express.Multer.File,
+  extension: string,
+): ValidatedPatientFile {
+  const mimeTypes = ECG_MIME_TYPES_BY_EXTENSION.get(extension);
+  if (!mimeTypes?.includes(file.mimetype)) {
+    throw unsupported();
+  }
+
+  const content = file.buffer ?? Buffer.alloc(0);
+  const valid =
+    extension === '.zip'
+      ? content.subarray(0, ZIP_SIGNATURE.length).equals(ZIP_SIGNATURE)
+      : content.length > 0 && !content.includes(0);
+  if (!valid) {
+    throw unsupported();
+  }
+
+  return { extension, mimeType: ECG_STORED_MIME_TYPES[extension] };
 }

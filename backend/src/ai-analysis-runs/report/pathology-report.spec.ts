@@ -194,6 +194,7 @@ function pathologyInput(
   const breast = pipeline === 'pathology-breast';
   return {
     breakhisEvaluation: breast ? BREAKHIS : null,
+    cardioEvaluation: null,
     decidedBy: {
       fullName: 'Leïla Achour',
       role: 'physician',
@@ -201,6 +202,7 @@ function pathologyInput(
     },
     editedAt: new Date('2026-10-12T10:30:00Z'),
     evaluation: null,
+    ecgTrace: null,
     fonts: {
       bold: Buffer.from('b'),
       regular: Buffer.from('r'),
@@ -266,6 +268,8 @@ function pathologyInput(
       segmentationSkippedReason: null,
       segmentationWeightsSha256: breast ? null : PANNUKE_SHA,
       tileCount: breast ? null : 9,
+      ecg: null,
+      decisionLabels: null,
       ttaScores: breast ? [0.58, 0.6, 0.57, 0.61] : null,
       ...run,
     },

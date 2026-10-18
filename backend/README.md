@@ -112,12 +112,15 @@ loads nothing from the network: the Inter font (SIL OFL 1.1, in
 `assets/fonts/inter/`) and the images are embedded.
 
 The report quotes the measured performance from the evaluation reports of
-`ai-service/scripts/evaluate_brain.py` and `evaluate_pathology.py`:
+`ai-service/scripts/evaluate_brain.py`, `evaluate_pathology.py` and
+`evaluate_cardio.py`:
 
 | Variable | Default |
 | --- | --- |
 | `AI_EVALUATION_REPORT_PATH` | `../ai-service/evaluation/brain-latest.json` (from the backend folder) |
 | `AI_PATHOLOGY_EVALUATION_DIR` | `../ai-service/evaluation` (from the backend folder) |
+| `AI_CARDIO_EVALUATION_PATH` | `../ai-service/evaluation/cardio-latest.json` (from the backend folder) |
+| `AI_CARDIO_MODEL_CARD_PATH` | `../models/cardio-ecg-resnet1d-ptbxl.json` (from the backend folder) |
 
 Brain: when the report is missing, or describes other classifier weights than
 those of the analysis, the report prints "Performances non mesurées pour cette
@@ -128,6 +131,43 @@ Histopathology (`report/pathology-evaluation.ts`): among the
 (`breakhis` or `pannuke`) has status `ok` **and** whose SHA-256 for that model
 is the run's own; none prints "Performance non mesurée sur un jeu de test
 indépendant" and no figure. No figure is ever written by hand.
+
+Cardiology (`report/cardio-evaluation.ts`, also served by
+`GET /ai-models/cardio-ecg/evaluation/:weightsSha256` for the result page):
+`cardio-latest.json` when its SHA-256 is the run's own (measured on the
+service itself), otherwise the `test` figures of the model card when its
+SHA-256 is the run's own, printed as the training notebook's; otherwise no
+figure.
+
+### Cardiology (ECG 12 leads)
+
+- **Documents**: an ECG is uploaded as an `ECG_SIGNAL` document only: `.csv`
+  or `.txt` (text, no NUL byte; stored as `text/csv` / `text/plain`) or a
+  `.zip` holding a WFDB record (checked by its `PK\x03\x04` signature; stored
+  as `application/zip`). These extensions are refused for any other document
+  type, and an `ECG_SIGNAL` accepts nothing else.
+- **Run**: `POST /patients/:id/ai-analysis-runs` with `pipeline: "cardio-ecg"`,
+  an `ECG_SIGNAL` document (otherwise 422 `AI_UNSUPPORTED_DOCUMENT`),
+  `samplingRate` (100–1000 Hz, required for a CSV/TXT: 400
+  `AI_SAMPLING_RATE_REQUIRED`) and `unit` (`mV` by default, or `uV`). A
+  zipped WFDB record gives its own rate and unit. A signal the service
+  refuses is stored `REJECTED_INPUT` and answered 422 `AI_INPUT_REJECTED`
+  with `reason` (`ECG_MISSING_LEADS`, `ECG_TOO_SHORT`, ...), `details`
+  (`missing`, `durationSeconds`, ...) and `runId`.
+- **Result**: `predictions` holds the probabilities, the thresholds, the
+  positive classes, the windows, the input rate and duration, and the model
+  card's SHA-256. The trace (first 10 s, filtered, mV, 100 Hz) is a file,
+  served by `GET .../ai-analysis-runs/:runId/ecg-trace` with the same headers
+  and scope check as `/mask`.
+- **Decision**: multi-label. `VALIDATED` keeps the model's positive classes
+  (possibly none); `CORRECTED` takes `correctedLabels`, a non-empty set of
+  `NORM | MI | STTC | CD | HYP` different from the model's, `NORM` alone or
+  absent; `correctedLabel` is refused for an ECG, `correctedLabels` for the
+  other chains. Stored in `decisionLabels`.
+- **Report**: the 5 classes (probability, threshold, positive or negative),
+  the decision, lead II drawn as vectors on ECG paper (25 mm/s, 10 mm/mV, two
+  strips of 5 s, 1 mV calibration), the model and the SHA-256 of its weights
+  and card, the decision-support mention. No urgency, no course of action.
 
 The histopathology report ("Compte rendu d'analyse histopathologique assistée
 par IA") keeps the template, the CR-IA numbering and the SHA-256 freezing:

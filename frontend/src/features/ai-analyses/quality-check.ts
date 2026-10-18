@@ -24,7 +24,8 @@ export type ImageProbe =
 
 // dimensions: the generic floor; minSide and maxSide: the model's own sizes
 // (AiModel.inputConstraints), checked instead of it when it gives them.
-export const qualityCheckKeys = ["format", "decodable", "dimensions", "minSide", "maxSide"] as const;
+// leads: the 12 leads of an ECG signal (ecg-quality.ts).
+export const qualityCheckKeys = ["format", "decodable", "dimensions", "minSide", "maxSide", "leads"] as const;
 export type QualityCheckKey = (typeof qualityCheckKeys)[number];
 
 // not_provided: the registry gives no value to check against (shown, never
@@ -71,7 +72,7 @@ export function isDicomDocument(
   );
 }
 
-function checkFormat(
+export function checkFormat(
   acceptedFormats: readonly string[] | null,
   fileName: string,
 ): QualityCheck {

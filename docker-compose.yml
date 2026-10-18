@@ -133,6 +133,10 @@ services:
       AI_EVALUATION_REPORT_PATH: /app/evaluation/brain-latest.json
       # The pathology reports: the one of the analysis's own weights is used.
       AI_PATHOLOGY_EVALUATION_DIR: /app/evaluation
+      # Cardiology: the service's evaluation, else the notebook's figures of
+      # the model card (next to the weights), for the analysis's weights only.
+      AI_CARDIO_EVALUATION_PATH: /app/evaluation/cardio-latest.json
+      AI_CARDIO_MODEL_CARD_PATH: /app/model-cards/cardio-ecg-resnet1d-ptbxl.json
       UPLOAD_ROOT: /app/uploads
       SMTP_HOST: ${SMTP_HOST:-}
       SMTP_PORT: ${SMTP_PORT:-587}
@@ -148,6 +152,12 @@ services:
       - type: bind
         source: ./ai-service/evaluation
         target: /app/evaluation
+        read_only: true
+      # The models folder, for the cardiology model card only (its test
+      # figures), read-only.
+      - type: bind
+        source: ${AI_MODELS_DIR:-./models}
+        target: /app/model-cards
         read_only: true
     # Edge: reached by Caddy and the frontend, and its way out (SMTP).
     # Internal: MySQL and the AI service. No published port.
@@ -201,7 +211,7 @@ services:
         target: /models
         read_only: true
     # Internal network only, no published port, no Internet access: it only
-    # ever receives image bytes from the backend.
+    # ever receives image or ECG signal bytes from the backend.
     networks:
       - internal
     healthcheck:

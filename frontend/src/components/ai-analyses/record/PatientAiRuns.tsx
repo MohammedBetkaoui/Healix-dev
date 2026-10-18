@@ -199,6 +199,16 @@ export function PatientAiRunsSection({ accountType, hasSignedAiConsent, locale, 
                         <p className="mt-1 text-xs font-medium text-[var(--ink)]">
                           {t("aiAnalyses.record.retained", { class: t(`aiAnalyses.classes.${displayed.label}`) })}
                         </p>
+                      ) : run.decisionStatus === "CORRECTED" && run.decisionLabels ? (
+                        // An ECG keeps a set of classes, possibly none.
+                        <p className="mt-1 text-xs font-medium text-[var(--ink)]">
+                          {t("aiAnalyses.record.retained", {
+                            class:
+                              run.decisionLabels.length > 0
+                                ? run.decisionLabels.map((label) => t(`aiAnalyses.classes.${label}`)).join(", ")
+                                : t("aiAnalyses.decision.noClassRetained"),
+                          })}
+                        </p>
                       ) : null}
                     </td>
                     <td className="py-3 text-end">

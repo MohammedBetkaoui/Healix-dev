@@ -17,3 +17,7 @@ opencv-python-headless<5
 # Pathology models (.keras), trained with TensorFlow 2.20.0 / Keras 3.13.2.
 tensorflow-cpu==2.20.0
 keras==3.13.2
+# Cardiology ECG (cardio-ecg-resnet1d-ptbxl): resampling and the
+# Butterworth band-pass of the training notebook, reading WFDB records.
+scipy==1.18.1
+wfdb==4.3.1

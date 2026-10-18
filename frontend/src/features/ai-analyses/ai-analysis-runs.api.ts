@@ -4,6 +4,7 @@ import { apiClient } from "@/lib/api/http-client";
 
 import {
   type AiAnalysisRun,
+  type AiEcgTrace,
   type AiMagnification,
   type AiPipelineId,
   type AiRunDecision,
@@ -11,6 +12,9 @@ import {
   type AiRunsPage,
   type AiRunsSummary,
   type AiServiceStatus,
+  type CardioEvaluation,
+  type EcgClass,
+  type EcgUnit,
 } from "./ai-analyses.types";
 
 // The backend waits up to 60 s for the inference service: the default 10 s
@@ -25,6 +29,10 @@ export type CreateAiAnalysisRunPayload = {
   clinicianImpression?: string;
   /** Pathology only: the slide magnification (40 for the nuclei map); never sent for brain. */
   magnification?: AiMagnification;
+  /** ECG only: the sampling rate of a CSV/TXT signal, in Hz (a WFDB header has its own). */
+  samplingRate?: number;
+  /** ECG only: the unit of a CSV/TXT signal; mV when absent. */
+  unit?: EcgUnit;
 };
 
 /** GET /ai-analysis-runs: the runs of every patient in scope. */
@@ -71,8 +79,10 @@ export async function createAiAnalysisRun(
 
 export type DecideAiAnalysisRunPayload = {
   status: AiRunDecision;
-  /** CORRECTED only. */
+  /** CORRECTED only (not an ECG). */
   correctedLabel?: string;
+  /** ECG, CORRECTED only: the classes kept, NORM alone or without it. */
+  correctedLabels?: EcgClass[];
   /** Required for CORRECTED and REJECTED. */
   reason?: string;
 };
@@ -131,6 +141,20 @@ export async function getAiAnalysisRunMask(patientId: string, runId: string): Pr
     responseType: "blob",
   });
   return response.data;
+}
+
+/** The trace of an ECG run: the first 10 s, filtered, in mV, per lead. */
+export async function getAiAnalysisRunEcgTrace(patientId: string, runId: string): Promise<AiEcgTrace> {
+  const response = await apiClient.get<AiEcgTrace>(`/patients/${patientId}/ai-analysis-runs/${runId}/ecg-trace`);
+  return response.data;
+}
+
+/** The figures of the ECG model for these weights (service, else notebook), or null. */
+export async function getCardioEvaluation(weightsSha256: string): Promise<CardioEvaluation | null> {
+  const response = await apiClient.get<{ evaluation: CardioEvaluation | null }>(
+    `/ai-models/cardio-ecg/evaluation/${encodeURIComponent(weightsSha256)}`,
+  );
+  return response.data.evaluation;
 }
 
 /** The colour overlay of a nuclei map (PNG, background transparent). */

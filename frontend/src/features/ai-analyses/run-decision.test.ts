@@ -12,7 +12,10 @@ import {
   getDisplayedLabel,
   getModelLabel,
   getLatestRetainedRun,
+  getModelLabels,
+  sortEcgLabels,
   toDecisionPayload,
+  toggleEcgLabel,
   validateDecisionDraft,
   type DecisionDraft,
 } from "./run-decision";
@@ -53,6 +56,92 @@ const axiosError = (status: number, data: unknown) => {
   const response: AxiosResponse = { config, data, headers: {}, status, statusText: "" };
   return new AxiosError("Request failed", "ERR_BAD_RESPONSE", config, {}, response);
 };
+
+// An ECG run: MI and STTC above their thresholds (stored by probability).
+const ecgRun = (overrides: Partial<AiAnalysisRun> = {}) => ({
+  ...run({ pipeline: "cardio-ecg", predictions: null, ...overrides }),
+  decisionLabels: overrides.decisionLabels ?? null,
+  modelLabels: "modelLabels" in overrides ? (overrides.modelLabels ?? null) : (["MI", "STTC"] as AiAnalysisRun["modelLabels"]),
+});
+
+describe("ECG decision (multi-label)", () => {
+  const reason = "Relecture du tracé complet.";
+  const ecgDraft = (labels: DecisionDraft["correctedLabels"], status: DecisionDraft["status"] = "CORRECTED"): DecisionDraft => ({
+    correctedLabel: "",
+    correctedLabels: labels,
+    reason,
+    status,
+  });
+
+  it("reads the model's classes in class order, from modelLabels or the stored predictions", () => {
+    expect(getModelLabels(ecgRun({ modelLabels: ["STTC", "MI"] }))).toEqual(["MI", "STTC"]);
+    expect(
+      getModelLabels(
+        ecgRun({
+          modelLabels: null,
+          predictions: {
+            configSha256: "d".repeat(64),
+            durationSeconds: 10,
+            inputSamplingRate: 100,
+            positive: ["HYP", "NORM"],
+            probabilities: { CD: 0.1, HYP: 0.9, MI: 0.1, NORM: 0.7, STTC: 0.1 },
+            thresholds: { CD: 0.8, HYP: 0.8, MI: 0.58, NORM: 0.64, STTC: 0.53 },
+            windows: 1,
+          },
+        }),
+      ),
+    ).toEqual(["NORM", "HYP"]);
+    expect(getModelLabels(run())).toBeNull();
+    expect(getModelLabel(ecgRun())).toBeNull();
+  });
+
+  it("keeps NORM exclusive when classes are ticked", () => {
+    expect(toggleEcgLabel([], "MI")).toEqual(["MI"]);
+    expect(toggleEcgLabel(["MI"], "HYP")).toEqual(["MI", "HYP"]);
+    expect(toggleEcgLabel(["MI", "HYP"], "NORM")).toEqual(["NORM"]);
+    expect(toggleEcgLabel(["NORM"], "CD")).toEqual(["CD"]);
+    expect(toggleEcgLabel(["MI", "CD"], "MI")).toEqual(["CD"]);
+    expect(sortEcgLabels(["HYP", "NORM", "HYP"])).toEqual(["NORM", "HYP"]);
+  });
+
+  it("validates a correction as the backend does", () => {
+    const model = ["MI", "STTC"] as const;
+    const validate = (draft: DecisionDraft) => validateDecisionDraft(draft, null, "cardio-ecg", [...model]);
+
+    expect(validate(ecgDraft([]))).toEqual({ correctedLabels: "required" });
+    expect(validate(ecgDraft(["NORM", "MI"]))).toEqual({ correctedLabels: "normExclusive" });
+    expect(validate(ecgDraft(["STTC", "MI"]))).toEqual({ correctedLabels: "matchesModel" });
+    expect(validate(ecgDraft(["MI"]))).toEqual({});
+    expect(validate(ecgDraft(["NORM"]))).toEqual({});
+    expect(validate({ ...ecgDraft(["MI"]), reason: "" })).toEqual({ reason: "required" });
+    // Validating keeps the model's classes, even none.
+    expect(validateDecisionDraft(ecgDraft([], "VALIDATED"), null, "cardio-ecg", [])).toEqual({});
+  });
+
+  it("sends the classes kept, never a single label", () => {
+    expect(toDecisionPayload({ ...ecgDraft(["HYP", "MI"]), status: "CORRECTED" }, "cardio-ecg")).toEqual({
+      correctedLabels: ["MI", "HYP"],
+      reason,
+      status: "CORRECTED",
+    });
+    expect(toDecisionPayload({ ...ecgDraft(["MI"], "VALIDATED"), status: "VALIDATED" }, "cardio-ecg")).toEqual({
+      status: "VALIDATED",
+    });
+  });
+
+  it("agrees when the set kept is the model's, whatever the order", () => {
+    expect(getDecisionAgreement(ecgRun({ decisionLabels: ["STTC", "MI"], decisionStatus: "VALIDATED" }))).toBe("agrees");
+    expect(getDecisionAgreement(ecgRun({ decisionLabels: ["MI"], decisionStatus: "CORRECTED" }))).toBe("disagrees");
+    expect(getDecisionAgreement(ecgRun({ decisionStatus: "REJECTED" }))).toBe("rejected");
+    expect(getDecisionAgreement(ecgRun())).toBe("pending");
+  });
+
+  it("explains the ECG decision errors", () => {
+    for (const code of ["AI_CORRECTED_LABELS_REQUIRED", "AI_CORRECTED_LABELS_INVALID", "AI_CORRECTED_LABELS_NOT_APPLICABLE"]) {
+      expect(getDecisionErrorKey(axiosError(400, { code }))).toBe(code);
+    }
+  });
+});
 
 describe("physician / model agreement", () => {
   it("is pending until the physician decides", () => {
@@ -152,7 +241,7 @@ describe("decision draft", () => {
 
   it("knows every class a decision may retain, once", () => {
     expect([...aiDecisionLabels].sort()).toEqual(
-      ["benign", "glioma", "malignant", "meningioma", "notumor", "other", "pituitary"].sort(),
+      ["benign", "glioma", "malignant", "meningioma", "notumor", "other", "pituitary", "NORM", "MI", "STTC", "CD", "HYP"].sort(),
     );
   });
 

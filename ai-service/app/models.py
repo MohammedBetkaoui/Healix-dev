@@ -171,10 +171,12 @@ def load_registry(models_dir: Path) -> ModelRegistry:
 
 
 def load_service_registry(models_dir: Path, tf_intra_op_threads: int, tf_inter_op_threads: int) -> ModelRegistry:
-    """Every model the service serves: the brain models (PyTorch), then the pathology ones (Keras)."""
+    """Every model the service serves: brain (PyTorch), pathology (Keras), cardiology ECG (PyTorch)."""
+    from .ecg_models import ECG_MODEL_ID, load_ecg_model
     from .pathology_models import configure_tensorflow_threads, load_pathology_models
 
     registry = load_registry(models_dir)
     configure_tensorflow_threads(tf_intra_op_threads, tf_inter_op_threads)
     registry.models.update(load_pathology_models(models_dir))
+    registry.models[ECG_MODEL_ID] = load_ecg_model(models_dir)
     return registry

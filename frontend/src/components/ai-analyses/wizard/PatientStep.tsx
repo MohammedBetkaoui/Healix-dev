@@ -1,13 +1,13 @@
 "use client";
 
-import { CircleCheck, Loader2, Search, ShieldAlert, TriangleAlert } from "lucide-react";
+import { Check, CircleCheck, Loader2, Search, ShieldAlert, TriangleAlert } from "lucide-react";
 import Link from "next/link";
 import { useId } from "react";
 
 import { formatPatientDate } from "@/features/patients/patient-registry";
 import { type Locale } from "@/i18n";
 import { type TranslationFunction } from "@/lib/i18n";
-import { cn } from "@/lib/utils";
+import { getAccountInitials } from "@/lib/format/get-account-initials";
 import { type Patient } from "@/types/patient";
 
 export type ConsentState = "idle" | "loading" | "signed" | "missing" | "error";
@@ -32,8 +32,8 @@ export function getPatientDisplayName(
   patient: Pick<Patient, "firstName" | "lastName" | "firstNameAr" | "lastNameAr">,
   locale: Locale,
 ) {
-  const latin = `${patient.firstName} ${patient.lastName}`.trim();
-  const arabic = `${patient.firstNameAr} ${patient.lastNameAr}`.trim();
+  const latin = [patient.firstName, patient.lastName].filter(Boolean).join(" ");
+  const arabic = [patient.firstNameAr, patient.lastNameAr].filter(Boolean).join(" ");
 
   return locale === "ar" ? arabic || latin : latin || arabic;
 }
@@ -59,7 +59,7 @@ export function PatientStep({
     : patients;
 
   return (
-    <div className="space-y-5">
+    <div className="ai-patient-step">
       {preselectedError ? (
         <p role="alert" className="flex items-start gap-2 rounded-[var(--radius-sm)] border border-[var(--warning-line)] bg-[var(--warning-soft)] px-3 py-2.5 text-sm text-[var(--warning-ink)]">
           <TriangleAlert size={16} strokeWidth={1.8} className="mt-0.5 shrink-0" aria-hidden="true" />
@@ -67,11 +67,11 @@ export function PatientStep({
         </p>
       ) : null}
 
-      <div className="space-y-1.5">
+      <div className="ai-patient-search">
         <label htmlFor={`${id}-search`} className="text-[.8rem] font-medium text-[var(--text-primary)]">
           {t("aiAnalyses.wizard.patient.searchLabel")}
         </label>
-        <div className="relative max-w-xl">
+        <div className="relative">
           <Search size={16} strokeWidth={1.8} aria-hidden="true" className="pointer-events-none absolute start-3 top-1/2 -translate-y-1/2 text-[var(--text-muted)]" />
           <input
             id={`${id}-search`}
@@ -84,7 +84,7 @@ export function PatientStep({
         </div>
       </div>
 
-      <fieldset>
+      <fieldset className="ai-patient-results">
         <legend className="mb-2 text-[.8rem] font-medium text-[var(--text-primary)]">
           {t("aiAnalyses.wizard.patient.resultsLabel")}
         </legend>
@@ -98,35 +98,31 @@ export function PatientStep({
         ) : listed.length === 0 ? (
           <p className="text-sm text-[var(--text-secondary)]">{t("aiAnalyses.wizard.patient.empty")}</p>
         ) : (
-          <ul className="grid gap-2 md:grid-cols-2">
+          <ul className="ai-patient-list">
             {listed.map((patient) => {
               const isSelected = patient.id === selected?.id;
 
               return (
                 <li key={patient.id}>
-                  <label
-                    className={cn(
-                      "flex cursor-pointer items-start gap-3 rounded-[var(--radius-sm)] border px-3 py-2.5",
-                      isSelected
-                        ? "border-[var(--accent)] bg-[var(--accent-soft)]"
-                        : "border-[var(--border)] bg-[var(--surface)] hover:bg-[var(--surface-muted)]",
-                    )}
-                  >
+                  <label className="ai-patient-option" data-selected={isSelected}>
                     <input
                       type="radio"
                       name={`${id}-patient`}
-                      className="mt-1 accent-[var(--accent)]"
+                      className="accent-[var(--medical)]"
                       checked={isSelected}
                       onChange={() => onSelect(patient)}
                     />
-                    <span className="min-w-0">
+                    <span className="ai-patient-avatar" aria-hidden="true">{getAccountInitials(getPatientDisplayName(patient, locale))}</span>
+                    <span className="ai-patient-identity">
                       <span className="block truncate text-sm font-medium text-[var(--text-primary)]">
                         <bdi>{getPatientDisplayName(patient, locale)}</bdi>
                       </span>
                       <span className="block text-xs text-[var(--text-secondary)]">
                         {t("aiAnalyses.wizard.patient.born", { date: formatPatientDate(patient.birthDate, locale) })}
                       </span>
+                      {patient.internalId ? <span className="ai-patient-record">{t("aiAnalyses.wizard.workspace.recordNumber", { number: patient.internalId })}</span> : null}
                     </span>
+                    {isSelected ? <Check size={16} aria-hidden="true" className="ai-patient-selected" /> : null}
                   </label>
                 </li>
               );
