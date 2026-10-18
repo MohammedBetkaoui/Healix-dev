@@ -373,7 +373,10 @@ export class PatientsService {
 
     await this.getPatientInScope(user, patientId);
 
-    const extension = this.fileValidator.validate(file);
+    const { extension, mimeType } = this.fileValidator.validate(
+      file,
+      dto.documentType,
+    );
     const storedFile = await this.fileStorageService.storePatientDocument({
       documentType: dto.documentType,
       extension,
@@ -388,7 +391,7 @@ export class PatientsService {
           documentType: dto.documentType,
           originalName: storedFile.originalName,
           storedName: storedFile.storedName,
-          mimeType: file.mimetype,
+          mimeType,
           size: file.size,
           localPath: storedFile.localPath,
           checksum: storedFile.checksum,

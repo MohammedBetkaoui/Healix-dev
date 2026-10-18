@@ -13,6 +13,8 @@ import {
 import {
   AiAnalysisRunStatus,
   AiRunDecision,
+  PatientDocumentType,
+  type Prisma,
   type AiAnalysisRun,
 } from '@prisma/client';
 
@@ -31,8 +33,13 @@ import {
   AiServiceClient,
   AiServiceError,
   type AiServiceFailure,
+  ECG_CLASSES,
+  ECG_REJECTIONS,
+  type EcgAnalysisResult,
+  type EcgClass,
   INPUT_REJECTIONS,
   type NucleiFractions,
+  type RejectionDetails,
 } from './ai-service.client';
 import {
   type AiPipeline,
@@ -42,10 +49,26 @@ import {
 import {
   CORRECTION_LABELS,
   DecideAiAnalysisRunDto,
+  ECG_NORMAL_CLASS,
 } from './dto/decide-ai-analysis-run.dto';
 
 // The inference service decodes PNG and JPEG only (no DICOM).
 const SUPPORTED_IMAGE_TYPES = new Set(['image/png', 'image/jpeg']);
+// A CSV/TXT signal (stored as text/csv or text/plain) carries no sampling
+// rate; a zipped WFDB record has it in its header.
+const ECG_TEXT_TYPES = new Set(['text/csv', 'text/plain']);
+
+/** What a cardiology run stores in `predictions`: never the signal itself. */
+export type EcgPredictions = Pick<
+  EcgAnalysisResult,
+  | 'configSha256'
+  | 'durationSeconds'
+  | 'inputSamplingRate'
+  | 'positive'
+  | 'probabilities'
+  | 'thresholds'
+  | 'windows'
+>;
 
 // A run still RUNNING this long after its creation lost its request (backend
 // restarted mid-analysis): the service call itself stops at the timeout.
@@ -105,6 +128,32 @@ export function getTopLabel(predictions: unknown): string | null {
   return getTopPrediction(predictions)?.label ?? null;
 }
 
+const isEcgClass = (value: unknown): value is EcgClass =>
+  (ECG_CLASSES as readonly unknown[]).includes(value);
+
+/**
+ * The ECG model's answer, the classes at or above their threshold (possibly
+ * none), in class order; null for the other chains and without a result.
+ */
+export function getModelLabels(run: {
+  pipeline: string;
+  predictions: unknown;
+}): EcgClass[] | null {
+  if (run.pipeline !== 'cardio-ecg') return null;
+  const predictions = run.predictions as { positive?: unknown } | null;
+  if (!predictions || !Array.isArray(predictions.positive)) return null;
+  const positive = predictions.positive as unknown[];
+  return ECG_CLASSES.filter((label) => positive.includes(label));
+}
+
+/** The classes a physician kept on an ECG, as stored. */
+export function getDecisionLabels(value: unknown): EcgClass[] | null {
+  return Array.isArray(value) ? value.filter(isEcgClass) : null;
+}
+
+const sameLabels = (a: readonly string[], b: readonly string[]) =>
+  a.length === b.length && a.every((label) => b.includes(label));
+
 /**
  * The model's answer the physician validates or corrects: the brain
  * classifier's top class, the BreakHis result (benign | malignant). None for
@@ -134,7 +183,7 @@ export function checkMagnification(
   pipeline: AiPipeline,
   magnification: number | null | undefined,
 ): number | null {
-  if (pipeline === 'brain') {
+  if (pipeline === 'brain' || pipeline === 'cardio-ecg') {
     if (magnification != null) {
       throw new BadRequestException({
         code: 'AI_MAGNIFICATION_UNEXPECTED',
@@ -163,11 +212,31 @@ export function checkMagnification(
   return magnification;
 }
 
+/** The sampling rate and unit of a signal belong to the ECG chain only. */
+export function checkEcgOptions(
+  pipeline: AiPipeline,
+  options: { samplingRate?: number; unit?: string },
+): void {
+  if (
+    pipeline !== 'cardio-ecg' &&
+    (options.samplingRate !== undefined || options.unit !== undefined)
+  ) {
+    throw new BadRequestException({
+      code: 'AI_ECG_OPTIONS_UNEXPECTED',
+      message:
+        "La fréquence d'échantillonnage et l'unité ne concernent que l'analyse d'un ECG.",
+    });
+  }
+}
+
 type FinishData = Partial<
-  Omit<AiAnalysisRun, 'predictions' | 'ttaScores' | 'nucleiFractions'>
+  Omit<
+    AiAnalysisRun,
+    'predictions' | 'ttaScores' | 'nucleiFractions' | 'decisionLabels'
+  >
 > & {
   errorCode?: RunErrorCode;
-  predictions?: { label: string; probability: number }[];
+  predictions?: { label: string; probability: number }[] | EcgPredictions;
   ttaScores?: number[];
   nucleiFractions?: NucleiFractions;
   status: AiAnalysisRunStatus;
@@ -190,6 +259,7 @@ export class AiAnalysisRunsService {
   ) {
     // The request itself first: nothing is read for a malformed one.
     const magnification = checkMagnification(dto.pipeline, dto.magnification);
+    checkEcgOptions(dto.pipeline, dto);
 
     await this.patientsService.getPatientInScope(user, patientId);
     await this.patientsService.assertDiagnosticAiConsentSigned(patientId);
@@ -203,10 +273,26 @@ export class AiAnalysisRunsService {
       throw new NotFoundException('Document introuvable.');
     }
 
-    if (!SUPPORTED_IMAGE_TYPES.has(document.mimeType)) {
+    const ecg = dto.pipeline === 'cardio-ecg';
+    if (ecg && document.documentType !== PatientDocumentType.ECG_SIGNAL) {
+      throw new UnprocessableEntityException({
+        code: 'AI_UNSUPPORTED_DOCUMENT',
+        message:
+          'Seul un document de type « Signal ECG » peut être analysé par cette chaîne.',
+      });
+    }
+    if (!ecg && !SUPPORTED_IMAGE_TYPES.has(document.mimeType)) {
       throw new UnprocessableEntityException({
         code: 'AI_UNSUPPORTED_DOCUMENT',
         message: 'Seules les images PNG ou JPEG peuvent être analysées.',
+      });
+    }
+    const textSignal = ecg && ECG_TEXT_TYPES.has(document.mimeType);
+    if (textSignal && dto.samplingRate === undefined) {
+      throw new BadRequestException({
+        code: 'AI_SAMPLING_RATE_REQUIRED',
+        message:
+          "Indiquez la fréquence d'échantillonnage du signal (un fichier CSV ou texte ne la contient pas).",
       });
     }
 
@@ -229,7 +315,8 @@ export class AiAnalysisRunsService {
       },
     });
 
-    // The chain and the magnification, never a result.
+    // The chain and the magnification (the rate and unit of a signal),
+    // never a result.
     await this.patientAuditService.log(
       user,
       'AI_ANALYSIS_RUN_CREATED',
@@ -239,6 +326,12 @@ export class AiAnalysisRunsService {
         patientId,
         pipeline: dto.pipeline,
         sourceDocumentId: document.id,
+        ...(ecg
+          ? {
+              samplingRate: dto.samplingRate ?? null,
+              unit: dto.unit ?? null,
+            }
+          : {}),
       },
     );
 
@@ -252,6 +345,14 @@ export class AiAnalysisRunsService {
         return this.runBreast(user, run, file, magnification as number);
       case 'pathology-nuclei':
         return this.runNuclei(user, run, file);
+      case 'cardio-ecg':
+        // A WFDB header gives its own rate and unit: sent for text only.
+        return this.runEcg(
+          user,
+          run,
+          file,
+          textSignal ? { samplingRate: dto.samplingRate, unit: dto.unit } : {},
+        );
       default:
         return this.runBrain(user, run, file);
     }
@@ -386,7 +487,61 @@ export class AiAnalysisRunsService {
     return this.toRunResponse(completed);
   }
 
-  // The service call; a failure is stored (REJECTED_INPUT when the image is
+  // A 12-lead ECG: the probabilities per class, the thresholds and the
+  // classes above them in `predictions`; the trace (first 10 s, filtered, as
+  // drawn) in its own file, served by GET .../ecg-trace.
+  private async runEcg(
+    user: AuthenticatedUserPayload,
+    run: AiAnalysisRun,
+    file: { image: Buffer; mimeType: string; name: string },
+    options: { samplingRate?: number; unit?: 'mV' | 'uV' },
+  ) {
+    const result = await this.analyze(user, run.id, () =>
+      this.aiServiceClient.analyzeEcg(
+        file.image,
+        file.name,
+        file.mimeType,
+        options,
+      ),
+    );
+
+    let tracePath: string;
+    try {
+      ({ localPath: tracePath } = await this.fileStorageService.storeAiEcgTrace(
+        {
+          json: Buffer.from(JSON.stringify(result.trace), 'utf8'),
+          patientId: run.patientId,
+          runId: run.id,
+        },
+      ));
+    } catch {
+      await this.finish(user, run.id, {
+        errorCode: 'MASK_STORAGE_FAILED',
+        status: AiAnalysisRunStatus.FAILED,
+      });
+      throw this.toHttpError('MASK_STORAGE_FAILED', run.id);
+    }
+
+    const completed = await this.finish(user, run.id, {
+      classificationModelId: result.modelId,
+      classificationWeightsSha256: result.weightsSha256,
+      durationMs: result.durationMs,
+      predictions: {
+        configSha256: result.configSha256,
+        durationSeconds: result.durationSeconds,
+        inputSamplingRate: result.inputSamplingRate,
+        positive: result.positive,
+        probabilities: result.probabilities,
+        thresholds: result.thresholds,
+        windows: result.windows,
+      },
+      status: AiAnalysisRunStatus.SUCCEEDED,
+      tracePath,
+    });
+    return this.toRunResponse(completed);
+  }
+
+  // The service call; a failure is stored (REJECTED_INPUT when the input is
   // refused, FAILED otherwise) and answered with the run's id.
   private async analyze<T>(
     user: AuthenticatedUserPayload,
@@ -404,7 +559,11 @@ export class AiAnalysisRunsService {
           ? AiAnalysisRunStatus.REJECTED_INPUT
           : AiAnalysisRunStatus.FAILED,
       });
-      throw this.toHttpError(code, runId);
+      throw this.toHttpError(
+        code,
+        runId,
+        error instanceof AiServiceError ? error.details : {},
+      );
     }
   }
 
@@ -435,7 +594,8 @@ export class AiAnalysisRunsService {
   // The physician's decision is final: one per run, only on a SUCCEEDED run.
   // Brain and breast: validate the model's answer, correct it to another
   // label of the chain, or reject it. Nuclei: the map is validated (reviewed
-  // and accepted, no label) or rejected, never corrected.
+  // and accepted, no label) or rejected, never corrected. ECG (multi-label):
+  // validate the model's classes, correct them to another set, or reject.
   async decide(
     user: AuthenticatedUserPayload,
     patientId: string,
@@ -453,6 +613,17 @@ export class AiAnalysisRunsService {
 
     if (run.decisionStatus !== null) {
       throw alreadyDecided();
+    }
+
+    if (run.pipeline === 'cardio-ecg') {
+      return this.decideEcg(user, patientId, run, dto);
+    }
+    if (dto.correctedLabels !== undefined) {
+      throw new BadRequestException({
+        code: 'AI_CORRECTED_LABELS_NOT_APPLICABLE',
+        message:
+          'Plusieurs classes ne se retiennent que pour un ECG ; corrigez avec une seule classe.',
+      });
     }
 
     const isNuclei = run.pipeline === 'pathology-nuclei';
@@ -509,16 +680,122 @@ export class AiAnalysisRunsService {
         : dto.status === AiRunDecision.CORRECTED
           ? (dto.correctedLabel as string)
           : null;
-    const reason = dto.reason ? sanitizeTextInput(dto.reason) : '';
 
-    // Conditional write: of two concurrent submissions, only one lands.
+    // Agreement with the model only, never the reason's text. A nuclei map
+    // has no label to agree with.
+    return this.recordDecision(
+      user,
+      patientId,
+      run,
+      dto,
+      { decisionLabel },
+      {
+        agreesWithModel:
+          dto.status === AiRunDecision.REJECTED || isNuclei
+            ? null
+            : decisionLabel === modelLabel,
+        decisionLabel,
+        modelLabel,
+        status: dto.status,
+      },
+    );
+  }
+
+  // NORM excludes every other class; a correction differs from the model's
+  // set. Validating keeps the model's classes, even none above a threshold.
+  private async decideEcg(
+    user: AuthenticatedUserPayload,
+    patientId: string,
+    run: RunWithDecider,
+    dto: DecideAiAnalysisRunDto,
+  ) {
+    const modelLabels = getModelLabels(run);
+    if (!modelLabels) {
+      throw new ConflictException({
+        code: 'AI_RUN_NOT_DECIDABLE',
+        message: "Cette analyse n'a pas de résultat de classification.",
+      });
+    }
+
+    if (dto.correctedLabel !== undefined) {
+      throw new BadRequestException({
+        code: 'AI_CORRECTED_LABEL_UNEXPECTED',
+        message:
+          'Un ECG se corrige par un ensemble de classes (correctedLabels), pas par une seule.',
+      });
+    }
+    if (dto.status !== AiRunDecision.CORRECTED && dto.correctedLabels) {
+      throw new BadRequestException({
+        code: 'AI_CORRECTED_LABEL_UNEXPECTED',
+        message: "Des classes corrigées n'accompagnent qu'une correction.",
+      });
+    }
+
+    let decisionLabels: EcgClass[] | null = null;
+    if (dto.status === AiRunDecision.VALIDATED) {
+      decisionLabels = modelLabels;
+    } else if (dto.status === AiRunDecision.CORRECTED) {
+      const corrected = dto.correctedLabels;
+      if (!corrected || corrected.length === 0) {
+        throw new BadRequestException({
+          code: 'AI_CORRECTED_LABELS_REQUIRED',
+          message: 'Indiquez les classes retenues.',
+        });
+      }
+      if (corrected.includes(ECG_NORMAL_CLASS) && corrected.length > 1) {
+        throw new BadRequestException({
+          code: 'AI_CORRECTED_LABELS_INVALID',
+          message: '« ECG normal » exclut toute autre classe.',
+        });
+      }
+      decisionLabels = ECG_CLASSES.filter((label) => corrected.includes(label));
+      if (sameLabels(decisionLabels, modelLabels)) {
+        throw new BadRequestException({
+          code: 'AI_CORRECTION_MATCHES_MODEL',
+          message:
+            'Les classes corrigées doivent différer de celles proposées par le modèle.',
+        });
+      }
+    }
+
+    return this.recordDecision(
+      user,
+      patientId,
+      run,
+      dto,
+      { decisionLabel: null, decisionLabels },
+      {
+        agreesWithModel:
+          dto.status === AiRunDecision.REJECTED
+            ? null
+            : dto.status === AiRunDecision.VALIDATED,
+        decisionLabels,
+        modelLabels,
+        status: dto.status,
+      },
+    );
+  }
+
+  // Conditional write: of two concurrent submissions, only one lands.
+  private async recordDecision(
+    user: AuthenticatedUserPayload,
+    patientId: string,
+    run: RunWithDecider,
+    dto: DecideAiAnalysisRunDto,
+    labels: { decisionLabel: string | null; decisionLabels?: string[] | null },
+    audit: Prisma.InputJsonObject,
+  ) {
+    const reason = dto.reason ? sanitizeTextInput(dto.reason) : '';
     const { count } = await this.prisma.aiAnalysisRun.updateMany({
       data: {
         decidedAt: new Date(),
         decidedById: user.sub,
-        decisionLabel,
+        decisionLabel: labels.decisionLabel,
         decisionReason: reason || null,
         decisionStatus: dto.status,
+        ...(labels.decisionLabels
+          ? { decisionLabels: labels.decisionLabels }
+          : {}),
       },
       where: {
         decisionStatus: null,
@@ -531,24 +808,14 @@ export class AiAnalysisRunsService {
       throw alreadyDecided();
     }
 
-    // Agreement with the model only, never the reason's text. A nuclei map
-    // has no label to agree with.
     await this.patientAuditService.log(
       user,
       'AI_ANALYSIS_RUN_DECIDED',
       run.id,
-      {
-        agreesWithModel:
-          dto.status === AiRunDecision.REJECTED || isNuclei
-            ? null
-            : decisionLabel === modelLabel,
-        decisionLabel,
-        modelLabel,
-        status: dto.status,
-      },
+      audit,
     );
 
-    return this.findOne(user, patientId, runId);
+    return this.findOne(user, patientId, run.id);
   }
 
   // Without this, a run whose request died (backend restart) would stay
@@ -631,6 +898,24 @@ export class AiAnalysisRunsService {
     };
   }
 
+  // The trace of an ECG analysis: the first 10 s, filtered, in mV, per lead.
+  async getEcgTrace(
+    user: AuthenticatedUserPayload,
+    patientId: string,
+    runId: string,
+  ) {
+    const run = await this.getRunInScope(user, patientId, runId);
+
+    if (!run.tracePath) {
+      throw new NotFoundException('Tracé introuvable.');
+    }
+
+    return {
+      fileName: `trace-ecg-${run.id}.json`,
+      json: await this.fileStorageService.readStoredFile(run.tracePath),
+    };
+  }
+
   private async getRunInScope(
     user: AuthenticatedUserPayload,
     patientId: string,
@@ -678,14 +963,29 @@ export class AiAnalysisRunsService {
     return run;
   }
 
-  // Every failure carries the runId: the result page shows its state.
-  private toHttpError(code: RunErrorCode, runId: string): HttpException {
+  // Every failure carries the runId: the result page shows its state. A
+  // refused ECG says why (missing leads, duration...) in `details`.
+  private toHttpError(
+    code: RunErrorCode,
+    runId: string,
+    details: RejectionDetails = {},
+  ): HttpException {
     const body = (status: string, message: string) => ({
       code: status,
       message,
       reason: code,
       runId,
+      ...(Object.keys(details).length > 0 ? { details } : {}),
     });
+
+    if ((ECG_REJECTIONS as readonly string[]).includes(code)) {
+      return new UnprocessableEntityException(
+        body(
+          'AI_INPUT_REJECTED',
+          "Le signal ECG a été refusé par le service d'analyse.",
+        ),
+      );
+    }
 
     switch (code) {
       case 'INVALID_IMAGE':
@@ -728,7 +1028,7 @@ export class AiAnalysisRunsService {
             "Le masque de segmentation n'a pas pu être enregistré.",
           ),
         );
-      case 'SERVICE_ERROR':
+      default:
         return new BadGatewayException(
           body(
             'AI_SERVICE_ERROR',
@@ -738,8 +1038,8 @@ export class AiAnalysisRunsService {
     }
   }
 
-  // maskPath and overlayPath stay server-side; the client gets hasMask,
-  // hasOverlay and their routes.
+  // maskPath, overlayPath and tracePath stay server-side; the client gets
+  // hasMask, hasOverlay, hasTrace and their routes.
   toRunResponse(run: RunWithDecider) {
     return {
       id: run.id,
@@ -751,6 +1051,7 @@ export class AiAnalysisRunsService {
       classificationWeightsSha256: run.classificationWeightsSha256,
       predictions: run.predictions,
       modelLabel: getModelLabel(run),
+      modelLabels: getModelLabels(run),
       magnification: run.magnification,
       malignancyScore: run.malignancyScore,
       decisionThreshold: run.decisionThreshold,
@@ -760,6 +1061,7 @@ export class AiAnalysisRunsService {
       segmentationWeightsSha256: run.segmentationWeightsSha256,
       hasMask: run.maskPath !== null,
       hasOverlay: Boolean(run.overlayPath),
+      hasTrace: Boolean(run.tracePath),
       maskAreaPx: run.maskAreaPx,
       maskAreaRatio: run.maskAreaRatio,
       nucleiFractions: run.nucleiFractions,
@@ -771,6 +1073,7 @@ export class AiAnalysisRunsService {
       requestedById: run.requestedById,
       decisionStatus: run.decisionStatus,
       decisionLabel: run.decisionLabel,
+      decisionLabels: getDecisionLabels(run.decisionLabels),
       decisionReason: run.decisionReason,
       decidedById: run.decidedById,
       decidedByName: run.decidedBy ? deciderName(run.decidedBy) : null,

@@ -19,6 +19,7 @@ import { AiServiceClient } from './ai-service.client';
 import { CreateAiAnalysisRunDto } from './dto/create-ai-analysis-run.dto';
 import { DecideAiAnalysisRunDto } from './dto/decide-ai-analysis-run.dto';
 import { AiAnalysisReportsService } from './report/ai-analysis-reports.service';
+import { CardioEvaluationService } from './report/cardio-evaluation';
 
 // Same guards as the patient record the runs belong to.
 @Controller('patients/:id/ai-analysis-runs')
@@ -128,16 +129,51 @@ export class AiAnalysisRunsController {
     response.setHeader('X-Content-Type-Options', 'nosniff');
     response.end(overlay.png);
   }
+
+  // The trace of an ECG analysis (JSON: rate, unit, samples per lead); same
+  // headers and scope check as /mask.
+  @Get(':runId/ecg-trace')
+  async ecgTrace(
+    @CurrentUser() user: AuthenticatedUserPayload,
+    @Param('id') id: string,
+    @Param('runId') runId: string,
+    @Res() response: Response,
+  ) {
+    const trace = await this.runsService.getEcgTrace(user, id, runId);
+
+    response.setHeader('Content-Type', 'application/json; charset=utf-8');
+    response.setHeader('Content-Length', String(trace.json.length));
+    response.setHeader(
+      'Content-Disposition',
+      `inline; filename="${encodeURIComponent(trace.fileName)}"`,
+    );
+    response.setHeader('Cache-Control', 'private, no-store');
+    response.setHeader('X-Content-Type-Options', 'nosniff');
+    response.end(trace.json);
+  }
 }
 
 @Controller('ai-models')
 @UseGuards(JwtAuthGuard, RolesGuard, VerifiedAccountGuard)
 export class AiModelsController {
-  constructor(private readonly aiServiceClient: AiServiceClient) {}
+  constructor(
+    private readonly aiServiceClient: AiServiceClient,
+    private readonly cardioEvaluationService: CardioEvaluationService,
+  ) {}
 
   // Relays GET /models of the inference service; the token never leaves.
   @Get('status')
   status() {
     return this.aiServiceClient.getStatus();
+  }
+
+  // The measured performance of the ECG model for these weights: the
+  // service's own evaluation, else the training notebook's (model card);
+  // null when neither describes them.
+  @Get('cardio-ecg/evaluation/:weightsSha256')
+  async cardioEvaluation(@Param('weightsSha256') weightsSha256: string) {
+    return {
+      evaluation: await this.cardioEvaluationService.find(weightsSha256),
+    };
   }
 }

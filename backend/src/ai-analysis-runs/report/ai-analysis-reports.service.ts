@@ -24,6 +24,8 @@ import { PatientFileStorageService } from '../../patients/documents/patient-file
 import { PatientAuditService } from '../../patients/patient-audit.service';
 import { PatientsService } from '../../patients/patients.service';
 import { PrismaService } from '../../prisma/prisma.service';
+import { getDecisionLabels, getModelLabels } from '../ai-analysis-runs.service';
+import { ECG_CLASSES, type EcgClass } from '../ai-service.client';
 import { AiReportRenderer } from './ai-report-renderer';
 import {
   type EvaluationReport,
@@ -35,6 +37,7 @@ import {
   type ReportPerson,
   type ReportStructure,
 } from './ai-report-template';
+import { CardioEvaluationService } from './cardio-evaluation';
 import { readImageSize } from './image-size';
 import {
   type BreakhisEvaluation,
@@ -211,6 +214,64 @@ type NucleiFractionsJson = {
   nucleusTypes: Record<string, number | null>;
 };
 
+const isRecord = (value: unknown): value is Record<string, unknown> =>
+  typeof value === 'object' && value !== null && !Array.isArray(value);
+const isClassRecord = (value: unknown): value is Record<EcgClass, number> =>
+  isRecord(value) &&
+  ECG_CLASSES.every((label) => typeof value[label] === 'number');
+
+/** What a cardiology run stored in `predictions`; null for any other shape. */
+export function readEcgPredictions(run: {
+  pipeline: string;
+  predictions: unknown;
+}): ReportInput['run']['ecg'] {
+  const positive = getModelLabels(run);
+  const stored = run.predictions;
+  if (
+    !positive ||
+    !isRecord(stored) ||
+    !isClassRecord(stored.probabilities) ||
+    !isClassRecord(stored.thresholds) ||
+    typeof stored.windows !== 'number' ||
+    typeof stored.inputSamplingRate !== 'number' ||
+    typeof stored.durationSeconds !== 'number' ||
+    typeof stored.configSha256 !== 'string'
+  ) {
+    return null;
+  }
+  return {
+    configSha256: stored.configSha256,
+    durationSeconds: stored.durationSeconds,
+    inputSamplingRate: stored.inputSamplingRate,
+    positive,
+    probabilities: stored.probabilities,
+    thresholds: stored.thresholds,
+    windows: stored.windows,
+  };
+}
+
+/** Lead II of a stored trace (JSON of the run); null when unreadable. */
+export function readLeadII(
+  data: Buffer,
+): { samplingRate: number; leadII: number[] } | null {
+  try {
+    const trace = JSON.parse(data.toString('utf8')) as unknown;
+    if (!isRecord(trace) || !isRecord(trace.leads)) return null;
+    const leadII = trace.leads.II;
+    if (
+      typeof trace.samplingRate !== 'number' ||
+      trace.samplingRate <= 0 ||
+      !Array.isArray(leadII) ||
+      !leadII.every((value) => typeof value === 'number')
+    ) {
+      return null;
+    }
+    return { leadII, samplingRate: trace.samplingRate };
+  } catch {
+    return null;
+  }
+}
+
 function isNucleiFractions(value: unknown): value is NucleiFractionsJson {
   if (typeof value !== 'object' || value === null) return false;
   const fractions = value as Record<string, unknown>;
@@ -239,6 +300,7 @@ export class AiAnalysisReportsService {
   private readonly logger = new Logger(AiAnalysisReportsService.name);
   private readonly evaluationReportPath: string;
   private readonly pathologyEvaluationDir: string;
+  private readonly cardioEvaluation: CardioEvaluationService;
   private fonts: Promise<ReportInput['fonts']> | null = null;
 
   constructor(
@@ -259,6 +321,7 @@ export class AiAnalysisReportsService {
       configService.get<string>('AI_PATHOLOGY_EVALUATION_DIR') ??
         '../ai-service/evaluation',
     );
+    this.cardioEvaluation = new CardioEvaluationService(configService);
   }
 
   async getReport(
@@ -406,12 +469,18 @@ export class AiAnalysisReportsService {
     editedAt: Date,
   ): Promise<ReportInput> {
     const decisionStatus = run.decisionStatus;
-    // A validated nuclei map has no label: it was reviewed and accepted.
-    const labelRequired = run.pipeline !== 'pathology-nuclei';
+    const cardio = run.pipeline === 'cardio-ecg';
+    // A validated nuclei map has no label: it was reviewed and accepted. An
+    // ECG keeps a set of classes, possibly empty, instead of one label.
+    const decisionLabels = cardio
+      ? getDecisionLabels(run.decisionLabels)
+      : null;
+    const labelRequired = run.pipeline !== 'pathology-nuclei' && !cardio;
     if (
       !run.decidedBy ||
       !run.decidedAt ||
       (labelRequired && !run.decisionLabel) ||
+      (cardio && !decisionLabels) ||
       (decisionStatus !== AiRunDecision.VALIDATED &&
         decisionStatus !== AiRunDecision.CORRECTED)
     ) {
@@ -428,6 +497,10 @@ export class AiAnalysisReportsService {
     const overlay = run.overlayPath
       ? await this.fileStorageService.readStoredFile(run.overlayPath)
       : null;
+    const traceFile = run.tracePath
+      ? await this.fileStorageService.readStoredFile(run.tracePath)
+      : null;
+    const leadII = traceFile ? readLeadII(traceFile) : null;
 
     return {
       breakhisEvaluation:
@@ -437,7 +510,14 @@ export class AiAnalysisReportsService {
               run.classificationWeightsSha256,
             )
           : null,
+      cardioEvaluation: cardio
+        ? await this.cardioEvaluation.find(run.classificationWeightsSha256)
+        : null,
       decidedBy: toPerson(run.decidedBy),
+      ecgTrace:
+        traceFile && leadII
+          ? { ...leadII, sha256: createSha256Checksum(traceFile) }
+          : null,
       editedAt,
       evaluation:
         run.pipeline === 'brain' ? await this.readEvaluationReport() : null,
@@ -470,10 +550,12 @@ export class AiAnalysisReportsService {
         createdAt: run.createdAt,
         decidedAt: run.decidedAt,
         decisionLabel: run.decisionLabel,
+        decisionLabels,
         decisionReason: run.decisionReason,
         decisionStatus,
         decisionThreshold: run.decisionThreshold,
         durationMs: run.durationMs,
+        ecg: cardio ? readEcgPredictions(run) : null,
         id: run.id,
         magnification: run.magnification,
         malignancyScore: run.malignancyScore,
@@ -484,6 +566,7 @@ export class AiAnalysisReportsService {
           ? run.nucleiFractions
           : null,
         pipeline: run.pipeline,
+        // The ECG's predictions are an object, read into `ecg`.
         predictions: Array.isArray(run.predictions)
           ? (run.predictions as { label: string; probability: number }[])
           : [],

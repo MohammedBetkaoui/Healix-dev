@@ -40,9 +40,12 @@ Cinq conteneurs applicatifs, plus celui des sauvegardes, décrits par
     Caddy.
 - **Fichiers montés depuis le dépôt ou l'hôte, en lecture seule :**
   - les poids des modèles (`AI_MODELS_DIR`), jamais copiés dans une image ;
+    le backend lit dans ce dossier la seule carte du modèle ECG
+    (`cardio-ecg-resnet1d-ptbxl.json`, `AI_CARDIO_MODEL_CARD_PATH`) ;
   - les rapports d'évaluation `ai-service/evaluation/` : `brain-latest.json`
-    (`AI_EVALUATION_REPORT_PATH`) et `pathology-*.json`
-    (`AI_PATHOLOGY_EVALUATION_DIR`), cités par les comptes rendus PDF ;
+    (`AI_EVALUATION_REPORT_PATH`), `pathology-*.json`
+    (`AI_PATHOLOGY_EVALUATION_DIR`) et `cardio-latest.json`
+    (`AI_CARDIO_EVALUATION_PATH`), cités par les comptes rendus PDF ;
   - la configuration de Caddy (`caddy/`).
 - **Sauvegardes** : le dossier de l'hôte `BACKUP_DIR`, où écrit le service
   `backup` (section 8).

@@ -27,8 +27,10 @@ function reportInput(overrides: Partial<ReportInput> = {}): ReportInput {
       speciality: 'Radiologie',
     },
     breakhisEvaluation: null,
+    cardioEvaluation: null,
     editedAt: new Date('2026-10-09T15:30:00Z'),
     evaluation: EVALUATION,
+    ecgTrace: null,
     fonts: {
       bold: Buffer.from('b'),
       regular: Buffer.from('r'),
@@ -81,6 +83,8 @@ function reportInput(overrides: Partial<ReportInput> = {}): ReportInput {
       modelDecision: null,
       nucleiFractions: null,
       tileCount: null,
+      ecg: null,
+      decisionLabels: null,
     },
     sourceDocument: {
       checksum: 'c'.repeat(64),
