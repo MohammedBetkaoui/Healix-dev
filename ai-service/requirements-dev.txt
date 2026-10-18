@@ -296,6 +296,8 @@ pydantic-core==2.46.5
     # via
     #   -r requirements.txt
     #   pydantic
+pydicom==3.0.1
+    # via -r requirements.txt
 pygments==2.21.0
     # via
     #   -r requirements.txt

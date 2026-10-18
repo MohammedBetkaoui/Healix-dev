@@ -17,13 +17,13 @@ os.environ.setdefault("OPENCV_IO_MAX_IMAGE_PIXELS", str(_settings.max_image_pixe
 # TensorFlow's C++ start-up notices (oneDNN, CPU features) left out of the logs.
 os.environ.setdefault("TF_CPP_MIN_LOG_LEVEL", "1")
 
+from .cardio_seg_input import CardioSegInputError  # noqa: E402
+from .cardio_seg_pipeline import analyze_cardio_seg  # noqa: E402
 from .ecg_input import EcgInputError  # noqa: E402
 from .ecg_pipeline import analyze_ecg  # noqa: E402
+from .label_maps import ImageDimensionsTooLarge, ImageTooSmall  # noqa: E402
 from .models import ModelRegistry, load_service_registry  # noqa: E402
 from .pathology_pipeline import (  # noqa: E402
-    NUCLEI_TILE,
-    ImageDimensionsTooLarge,
-    ImageTooSmall,
     InvalidMagnification,
     analyze_breast,
     analyze_nuclei,
@@ -78,13 +78,15 @@ def create_app(settings: Settings | None = None, registry: ModelRegistry | None 
         except InvalidMagnification as error:
             raise HTTPException(status_code=422, detail={"code": "invalid_magnification"}) from error
         except ImageTooSmall as error:
-            raise HTTPException(status_code=422, detail={"code": "image_too_small", "minSide": NUCLEI_TILE}) from error
+            raise HTTPException(
+                status_code=422, detail={"code": "image_too_small", "minSide": error.min_side}
+            ) from error
         except ImageDimensionsTooLarge as error:
             raise HTTPException(
-                status_code=422, detail={"code": "image_dimensions_too_large", "maxSide": settings.nuclei_max_side}
+                status_code=422, detail={"code": "image_dimensions_too_large", "maxSide": error.max_side}
             ) from error
-        except EcgInputError as error:
-            # ecg_*: a refused signal, with what the user needs to fix it.
+        except (EcgInputError, CardioSegInputError) as error:
+            # ecg_*, cardio_seg_*: a refused input, with what the user needs to fix it.
             raise HTTPException(status_code=422, detail={"code": error.code, **error.details}) from error
         except ModelNotLoaded as error:
             raise HTTPException(status_code=503, detail={"code": "model_not_loaded"}) from error
@@ -107,6 +109,12 @@ def create_app(settings: Settings | None = None, registry: ModelRegistry | None 
         return run(
             lambda: analyze_nuclei(data, app.state.registry, settings.max_image_pixels, settings.nuclei_max_side)
         )
+
+    # One short-axis cine MRI slice: PNG/JPEG (grey) or a single-frame DICOM.
+    @app.post("/analyze/cardio/segmentation-mri", dependencies=[Depends(require_token)])
+    def cardio_segmentation_mri(image: UploadFile = File(...)) -> dict:
+        data = read_image(image)
+        return run(lambda: analyze_cardio_seg(data, app.state.registry, settings.max_image_pixels))
 
     # A 12-lead signal file (CSV/TXT, or WFDB in a .zip), never an image.
     # samplingRate: required for a CSV (Hz); unit: mV (default) or uV.

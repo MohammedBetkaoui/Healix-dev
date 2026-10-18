@@ -2,3 +2,7 @@
 # (a CRLF shell script fails with "not found").
 *.sh text eol=lf
 Dockerfile text eol=lf
+
+# Model cards copied as test fixtures: compared byte for byte (and by
+# SHA-256) with the cards next to the weights, never converted.
+ai-service/tests/fixtures/**/model-card.json -text

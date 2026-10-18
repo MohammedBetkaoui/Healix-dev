@@ -16,11 +16,8 @@ Preprocessing as in the training notebooks (see README):
 
 from __future__ import annotations
 
-import base64
-import json
 import logging
 import math
-import re
 import time
 from pathlib import Path
 
@@ -28,6 +25,12 @@ import cv2
 import numpy as np
 import tensorflow as tf
 
+from .label_maps import (
+    check_sides,
+    load_palette,
+    overlay_lut,
+    png_base64,
+)
 from .models import ModelRegistry
 from .pathology_models import BREAST_CLASSIFIER_ID, NUCLEI_CLASSES, NUCLEI_SEGMENTER_ID
 from .pipeline import ModelNotLoaded
@@ -55,40 +58,16 @@ NUCLEI_PALETTE_FILE = Path(__file__).with_name("nuclei_palette.json")
 
 def load_nuclei_palette(path: Path = NUCLEI_PALETTE_FILE) -> dict[str, str]:
     """{type: "#RRGGBB"} for exactly the five nucleus types; ValueError otherwise."""
-    palette = json.loads(path.read_text(encoding="utf-8"))
-    if not isinstance(palette, dict) or set(palette) != set(NUCLEI_CLASSES[1:]):
-        raise ValueError(f"{path.name}: expected one colour for each of {', '.join(NUCLEI_CLASSES[1:])}.")
-    for name, colour in palette.items():
-        if not isinstance(colour, str) or not re.fullmatch(r"#[0-9A-Fa-f]{6}", colour):
-            raise ValueError(f"{path.name}: {name} is not a #RRGGBB colour.")
-    return palette
+    return load_palette(path, NUCLEI_CLASSES[1:])
 
 
 NUCLEI_PALETTE = load_nuclei_palette()
-
-
-def _overlay_lut(palette: dict[str, str]) -> np.ndarray:
-    """(6, 4) BGRA rows by class index, as OpenCV encodes them; background fully transparent."""
-    lut = np.zeros((len(NUCLEI_CLASSES), 4), dtype=np.uint8)
-    for index, name in enumerate(NUCLEI_CLASSES[1:], start=1):
-        red, green, blue = (int(palette[name][offset : offset + 2], 16) for offset in (1, 3, 5))
-        lut[index] = (blue, green, red, 255)
-    return lut
-
-
-NUCLEI_OVERLAY_LUT = _overlay_lut(NUCLEI_PALETTE)
+# (6, 4) BGRA rows by class index; background fully transparent.
+NUCLEI_OVERLAY_LUT = overlay_lut(NUCLEI_PALETTE, NUCLEI_CLASSES[1:])
 
 
 class InvalidMagnification(Exception):
     """magnification missing or not one of 40, 100, 200, 400 (HTTP 422)."""
-
-
-class ImageTooSmall(Exception):
-    """A side under 256 px: the segmenter has no tile to work on (HTTP 422)."""
-
-
-class ImageDimensionsTooLarge(Exception):
-    """A side over the configured maximum (HTTP 422)."""
 
 
 def _loaded(registry: ModelRegistry, model_id: str):
@@ -177,10 +156,8 @@ def nuclei_input(rgb: np.ndarray) -> np.ndarray:
 
 
 def check_nuclei_size(height: int, width: int, max_side: int) -> None:
-    if min(height, width) < NUCLEI_TILE:
-        raise ImageTooSmall()
-    if max(height, width) > max_side:
-        raise ImageDimensionsTooLarge()
+    """Under 256 px the segmenter has no tile to work on."""
+    check_sides(height, width, NUCLEI_TILE, max_side)
 
 
 def tile_grid(height: int, width: int) -> tuple[int, int]:
@@ -249,13 +226,6 @@ def overlay_rgba(labels: np.ndarray) -> np.ndarray:
     return NUCLEI_OVERLAY_LUT[labels]
 
 
-def _png_base64(image: np.ndarray, what: str) -> str:
-    encoded, png = cv2.imencode(".png", image)
-    if not encoded:
-        raise RuntimeError(f"PNG encoding of the {what} failed.")
-    return base64.b64encode(png.tobytes()).decode("ascii")
-
-
 def analyze_nuclei(data: bytes, registry: ModelRegistry, max_pixels: int, max_side: int) -> dict:
     started = time.perf_counter()
     image = decode_image(data, max_pixels)
@@ -264,8 +234,8 @@ def analyze_nuclei(data: bytes, registry: ModelRegistry, max_pixels: int, max_si
     entry = _loaded(registry, NUCLEI_SEGMENTER_ID)
 
     labels, tiles = segment_nuclei_rgb(_to_rgb(image), entry)
-    label_map = _png_base64(labels, "label map")
-    overlay = _png_base64(overlay_rgba(labels), "overlay")
+    label_map = png_base64(labels, "label map")
+    overlay = png_base64(overlay_rgba(labels), "overlay")
     duration = round((time.perf_counter() - started) * 1000)
     logger.info("Nuclei segmentation: %s tile(s), %s ms.", tiles, duration)
     return {

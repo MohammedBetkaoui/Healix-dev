@@ -14,16 +14,13 @@ match leaves the model unloaded, never half-loaded.
 from __future__ import annotations
 
 import json
-import logging
 from dataclasses import dataclass
 from pathlib import Path
 
 import torch
 from torch import nn
 
-from .models import LoadedModel, sha256_of
-
-logger = logging.getLogger(__name__)
+from .models import InvalidModelCard, LoadedModel, load_model_with_card
 
 ECG_MODEL_ID = "cardio-ecg-resnet1d-ptbxl-superdiagnostic"
 
@@ -109,10 +106,6 @@ class EcgSpec:
 ECG_SPEC = EcgSpec(ECG_MODEL_ID, "cardio-ecg-resnet1d-ptbxl.pt", "cardio-ecg-resnet1d-ptbxl.json")
 
 
-class InvalidModelCard(Exception):
-    """The model card is unreadable or does not describe this model."""
-
-
 def read_model_card(path: Path, spec: EcgSpec = ECG_SPEC) -> dict:
     """The card, checked for what the pipeline reads; InvalidModelCard otherwise."""
     try:
@@ -164,50 +157,11 @@ def read_model_card(path: Path, spec: EcgSpec = ECG_SPEC) -> dict:
 
 
 def load_ecg_model(models_dir: Path, spec: EcgSpec = ECG_SPEC) -> LoadedModel:
-    path = models_dir / spec.file_name
-    config_path = models_dir / spec.config_file
-    entry = LoadedModel(spec=spec, config_file=spec.config_file)
-
-    if not path.is_file():
-        entry.error = "weights_missing"
-        logger.warning("Model %s not loaded: %s not found.", spec.model_id, path)
-        return entry
-    entry.weights_sha256 = sha256_of(path)
-
-    if not config_path.is_file():
-        entry.error = "config_missing"
-        logger.warning("Model %s not loaded: %s not found.", spec.model_id, config_path)
-        return entry
-    entry.config_sha256 = sha256_of(config_path)
-    try:
-        config = read_model_card(config_path, spec)
-    except InvalidModelCard as error:
-        entry.error = "config_invalid"
-        logger.error("Model %s not loaded: %s: %s", spec.model_id, spec.config_file, error)
-        return entry
-
-    # The card was written for these weights only.
-    if config["sha256"] != entry.weights_sha256:
-        entry.error = "weights_sha256_mismatch"
-        logger.error(
-            "Model %s not loaded: weights sha256 %s, the card expects %s.",
-            spec.model_id,
-            entry.weights_sha256,
-            config["sha256"],
-        )
-        return entry
-    entry.config = config
-
-    try:
-        checkpoint = torch.load(path, map_location="cpu", weights_only=True)
-        module = HealixDzECGNet(n_leads=len(config["leads"]), n_classes=len(config["classes"]), dropout=config["dropout"])
-        module.load_state_dict(checkpoint["model_state"], strict=True)
-    except Exception as error:  # noqa: BLE001
-        entry.error = "load_failed"
-        logger.error("Model %s not loaded: strict load failed: %s", spec.model_id, error)
-        return entry
-
-    module.eval()
-    entry.module = module
-    logger.info("Model %s loaded (sha256 %s).", spec.model_id, entry.weights_sha256)
-    return entry
+    return load_model_with_card(
+        spec,
+        models_dir,
+        lambda path: read_model_card(path, spec),
+        lambda config: HealixDzECGNet(
+            n_leads=len(config["leads"]), n_classes=len(config["classes"]), dropout=config["dropout"]
+        ),
+    )

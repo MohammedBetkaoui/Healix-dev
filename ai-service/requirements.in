@@ -21,3 +21,6 @@ keras==3.13.2
 # Butterworth band-pass of the training notebook, reading WFDB records.
 scipy==1.18.1
 wfdb==4.3.1
+# Cardiology MRI segmentation (cardio-seg-acdc-unet-effb4): single-frame
+# DICOM short-axis slices (pixel data, MONOCHROME1, PixelSpacing).
+pydicom==3.0.1

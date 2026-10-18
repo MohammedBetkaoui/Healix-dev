@@ -1,0 +1,89 @@
+{
+  "id": "cardio-seg-acdc-unet-effb4",
+  "weights_file": "cardio-seg-acdc-unet-effb4.pt",
+  "sha256": "252fb672137d89835c6acc7f10d7c3c8873b8a3925eb1f2061fa51105e23901c",
+  "task": "segmentation sémantique, IRM ciné petit axe, une coupe 2D",
+  "architecture": {
+    "library": "segmentation-models-pytorch 0.5.0",
+    "class": "smp.Unet",
+    "encoder_name": "efficientnet-b4",
+    "encoder_weights_at_load": null,
+    "in_channels": 3,
+    "decoder_channels": [
+      256,
+      128,
+      64,
+      32,
+      16
+    ],
+    "classes": 4
+  },
+  "labels": {
+    "0": "fond",
+    "1": "ventricule gauche (cavité)",
+    "2": "ventricule droit (cavité)",
+    "3": "myocarde du VG"
+  },
+  "input": {
+    "image": "coupe IRM en niveaux de gris (2D)",
+    "to_uint8": "z-score sur les pixels > 0 (eps 1e-8), coupé à [-3, 3], puis (x+3)/6*255 en uint8",
+    "channels": "gris -> RGB (3 canaux identiques)",
+    "resize": "256 x 256, interpolation bilinéaire (cv2.INTER_LINEAR)",
+    "normalize": {
+      "mean": [
+        0.485,
+        0.456,
+        0.406
+      ],
+      "std": [
+        0.229,
+        0.224,
+        0.225
+      ],
+      "max_pixel_value": 255.0
+    }
+  },
+  "output": "argmax des 4 logits à 256 x 256, puis redimensionné à la taille d'origine (plus proche voisin)",
+  "training": {
+    "dataset": "ACDC (version prétraitée Kaggle anhoangvo/acdc-dataset)",
+    "split": "par patient, graine 42 : 70 % / 15 % / 15 %",
+    "test_patients": [
+      1,
+      19,
+      31,
+      33,
+      39,
+      40,
+      41,
+      62,
+      64,
+      66,
+      76,
+      84,
+      86,
+      96,
+      110,
+      120,
+      131,
+      132,
+      133,
+      134,
+      135,
+      142
+    ],
+    "best_epoch": 26,
+    "val_dice_2d": 0.8518896732873062
+  },
+  "test": {
+    "metric": "Dice 3D par volume (patient x phase), moyenne ± écart-type",
+    "LV": 0.9359060369014807,
+    "RV": 0.8926838530703312,
+    "MYO": 0.8807063422193003,
+    "LV_std": 0.04746258866067568,
+    "RV_std": 0.0787740943103416,
+    "MYO_std": 0.0325651686115926,
+    "mean": 0.903098744063704,
+    "n_volumes": 44.0,
+    "slice_mean_v1_style": 0.8568094362009755
+  }
+}

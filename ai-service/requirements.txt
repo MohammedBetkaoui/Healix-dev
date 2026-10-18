@@ -181,6 +181,8 @@ pydantic==2.13.5
     # via fastapi
 pydantic-core==2.46.5
     # via pydantic
+pydicom==3.0.1
+    # via -r requirements.in
 pygments==2.21.0
     # via rich
 pyparsing==3.3.3

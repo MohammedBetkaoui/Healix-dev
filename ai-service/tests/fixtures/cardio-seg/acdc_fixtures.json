@@ -1,0 +1,62 @@
+{
+  "model": "cardio-seg-acdc-unet-effb4",
+  "fixtures": [
+    {
+      "image": "acdc_p001_f01.png",
+      "expected_mask": "acdc_p001_f01_expected_mask.png",
+      "shape": [
+        256,
+        216
+      ],
+      "expected_pixels": {
+        "0": 52306,
+        "1": 1611,
+        "2": 498,
+        "3": 881
+      },
+      "dice_vs_ground_truth": {
+        "LV": 0.9644293226105785,
+        "RV": 0.8811881188118812,
+        "MYO": 0.8264556246466931
+      }
+    },
+    {
+      "image": "acdc_p001_f12.png",
+      "expected_mask": "acdc_p001_f12_expected_mask.png",
+      "shape": [
+        256,
+        216
+      ],
+      "expected_pixels": {
+        "0": 52621,
+        "1": 1325,
+        "2": 325,
+        "3": 1025
+      },
+      "dice_vs_ground_truth": {
+        "LV": 0.9712364587224505,
+        "RV": 0.743455497382199,
+        "MYO": 0.9039385206532181
+      }
+    },
+    {
+      "image": "acdc_p019_f01.png",
+      "expected_mask": "acdc_p019_f01_expected_mask.png",
+      "shape": [
+        256,
+        216
+      ],
+      "expected_pixels": {
+        "0": 51861,
+        "1": 1876,
+        "2": 661,
+        "3": 898
+      },
+      "dice_vs_ground_truth": {
+        "LV": 0.9707317073170731,
+        "RV": 0.9193798449612403,
+        "MYO": 0.8729641693811075
+      }
+    }
+  ]
+}
