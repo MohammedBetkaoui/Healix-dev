@@ -92,6 +92,15 @@ def structure_areas(labels: np.ndarray, spacing: tuple[float, float] | None) -> 
     }
 
 
+def display_uint8(pixels: np.ndarray) -> np.ndarray:
+    """The slice as analysed, its intensity range stretched to 0-255: what is
+    shown under the overlay (a DICOM cannot be shown as it is)."""
+    low, high = float(pixels.min()), float(pixels.max())
+    if high <= low:
+        return np.zeros(pixels.shape, dtype=np.uint8)
+    return np.round((pixels.astype(np.float32) - low) / (high - low) * 255).astype(np.uint8)
+
+
 def overlay_rgba(labels: np.ndarray) -> np.ndarray:
     """(H, W, 4) BGRA image (OpenCV order): each structure in its colour, background transparent."""
     return CARDIO_SEG_OVERLAY_LUT[labels]
@@ -113,6 +122,7 @@ def analyze_cardio_seg(data: bytes, registry: ModelRegistry, max_pixels: int) ->
         "configSha256": entry.config_sha256,
         "labelMapPng": png_base64(labels, "label map"),
         "overlayPng": png_base64(overlay_rgba(labels), "overlay"),
+        "slicePng": png_base64(display_uint8(slice_.pixels), "slice"),
         "structures": structures,
         "pixelSpacingMm": list(slice_.pixel_spacing_mm) if slice_.pixel_spacing_mm else None,
         "noStructureFound": all(area["pixels"] == 0 for area in structures.values()),

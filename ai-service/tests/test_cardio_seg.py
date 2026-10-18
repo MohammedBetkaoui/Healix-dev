@@ -149,6 +149,12 @@ def test_result_holds_the_overlay_and_the_model_identity_but_no_diagnosis(seg_re
     overlay = decode_png(result["overlayPng"])
     labels = decode_png(result["labelMapPng"])
     assert overlay.shape == (*labels.shape, 4)
+    # The slice as analysed, 8-bit grey: an 8-bit PNG using its full range comes back unchanged.
+    slice_png = decode_png(result["slicePng"])
+    source = fixture_pixels(fixture["image"]).astype(np.float32)
+    stretched = np.round((source - source.min()) / (source.max() - source.min()) * 255)
+    assert slice_png.shape == labels.shape and slice_png.dtype == np.uint8
+    assert np.array_equal(slice_png, stretched.astype(np.uint8))
     # Background transparent, each structure opaque in its palette colour (BGRA).
     assert (overlay[labels == 0][:, 3] == 0).all()
     for index, name in enumerate(STRUCTURES, start=1):
