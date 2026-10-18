@@ -120,5 +120,6 @@ def analyze_ecg(data: bytes, sampling_rate, unit, registry: ModelRegistry) -> di
         "inputSamplingRate": ecg.sampling_rate,
         "durationSeconds": round(ecg.duration_s, 3),
         "trace": trace_of(signal, config),
+        "traceSamplingRate": config["sampling_rate"],
         "durationMs": round((time.perf_counter() - started) * 1000),
     }

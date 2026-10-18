@@ -60,4 +60,4 @@ def test_a_partial_run_never_replaces_the_latest_report(tmp_path):
     partial = write_report({"run": "partial"}, tmp_path, "258e4e4de3c5", complete=False)
     assert complete.name.endswith("-258e4e4d.json")
     assert partial.name.endswith("-partial.json")
-    assert json.loads((tmp_path / LATEST_REPORT_NAME).read_text(encoding="utf-8")) == {"run": "full"}
+    assert json.loads((tmp_path / LATEST_REPORT_NAME).read_text(encoding="utf-8")) == {"file": complete.name, "run": "full"}

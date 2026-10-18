@@ -194,6 +194,8 @@ def write_report(
     day = (now or datetime.date.today()).isoformat()
     suffix = "" if complete else "-partial"
     path = output_dir / f"cardio-{day}-{sha256[:8]}{suffix}.json"
+    # Named inside, as the pathology reports: cardio-latest.json is a copy.
+    report = {"file": path.name, **report}
     path.write_text(json.dumps(report, indent=2, ensure_ascii=False) + "\n", encoding="utf-8")
     if complete:
         shutil.copyfile(path, output_dir / LATEST_REPORT_NAME)

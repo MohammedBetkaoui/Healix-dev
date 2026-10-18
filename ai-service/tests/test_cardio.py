@@ -131,6 +131,7 @@ def test_result_holds_thresholds_sorted_positives_and_an_unnormalized_trace(ecg_
     trace = result["trace"]
     assert list(trace) == LEADS
     assert all(len(values) == 1000 for values in trace.values())
+    assert result["traceSamplingRate"] == 100
     # Filtered, in mV (not z-scored): amplitudes of a real ECG, rounded to the µV.
     lead_ii = np.array(trace["II"])
     assert 0.3 < np.ptp(lead_ii) < 10
