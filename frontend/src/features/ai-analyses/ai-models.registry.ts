@@ -1,4 +1,11 @@
-import { type AiDatasetKey, type AiModel, type AiModelMetric, type AiPipeline, type AiPipelineId } from "./ai-analyses.types";
+import {
+  ecgClasses,
+  type AiDatasetKey,
+  type AiModel,
+  type AiModelMetric,
+  type AiPipeline,
+  type AiPipelineId,
+} from "./ai-analyses.types";
 import {
   brainClassificationEvaluation,
   brainClassLabels,
@@ -6,6 +13,7 @@ import {
   brainSegmentationEvaluation,
   type BrainSegmentationEvaluation,
 } from "./brain-evaluation";
+import { cardioNotebookEvaluation } from "./cardio-evaluation";
 import {
   breakhisEvaluation,
   pannukeEvaluation,
@@ -59,6 +67,7 @@ export const datasetSizes: Partial<Record<AiDatasetKey, number>> = {
   pituitaryTest: pituitary.testImages,
   breakhisTest: breakhisEvaluation.n,
   pannukeTest: pannukeEvaluationSource.images,
+  ptbxlTest: cardioNotebookEvaluation.nEcg,
 };
 
 export const aiModels = [
@@ -199,6 +208,48 @@ export const aiModels = [
     status: "documentation_pending",
   },
   // --- Cardiology ------------------------------------------------------------
+  {
+    id: "cardio-ecg-resnet1d-ptbxl-superdiagnostic",
+    module: "cardiology",
+    version: "1.0",
+    architecture: "ResNet1D-34",
+    task: "classification",
+    inputModality: "ecg12Lead",
+    // CSV/TXT with a header naming the 12 leads, or a WFDB record (.hea +
+    // .dat) zipped. Never a paper ECG, a PDF or a photograph.
+    acceptedFormats: ["csv", "txt", "zip"],
+    // Multi-label: each class against its own threshold (model card).
+    outputClasses: ecgClasses,
+    inputConstraints: null,
+    // The training notebook's test (PTB-XL fold 10), from the model card: not
+    // measured on the service yet (scripts/evaluate_cardio.py needs PTB-XL).
+    metrics: [
+      {
+        key: "ecgAucMacro",
+        value: cardioNotebookEvaluation.aucMacro,
+        ci95: null,
+        unit: "score",
+        approximate: false,
+        dataset: "ptbxlTest",
+        source: "notebook",
+      },
+    ],
+    classMetrics: ecgClasses.map((classKey) => ({
+      classKey,
+      precision: cardioNotebookEvaluation.perClass[classKey].ppv,
+      recall: cardioNotebookEvaluation.perClass[classKey].sensitivity,
+      recallCi95: null,
+      f1: cardioNotebookEvaluation.perClass[classKey].f1,
+      auc: cardioNotebookEvaluation.perClass[classKey].auc,
+    })),
+    classMetricsDataset: "ptbxlTest",
+    confusionMatrix: null,
+    evaluation: null,
+    trainingData: "PTB-XL 1.0.1",
+    knownLimitations: ["notCertified", "internalValidation", "ecgFiveSuperclasses", "ecgLowerHypSensitivity", "ecgDigitalSignalOnly"],
+    underrepresentedPopulations: null,
+    status: "available",
+  },
   {
     id: "cardiology-densenet121-chest-xray",
     module: "cardiology",
@@ -363,6 +414,13 @@ export const aiPipelines = [
     entryModelId: "pathology-unet-pannuke-segmentation",
     segmenterByClass: {},
   },
+  {
+    id: "cardio-ecg",
+    module: "cardiology",
+    kind: "single",
+    entryModelId: "cardio-ecg-resnet1d-ptbxl-superdiagnostic",
+    segmenterByClass: {},
+  },
 ] as const satisfies readonly AiPipeline[];
 
 /** The steps the hub lists for each chain (aiAnalyses.pipelines.<id>.steps.<step>). */
@@ -370,6 +428,7 @@ export const pipelineSteps: Readonly<Record<AiPipelineId, readonly string[]>> = 
   brain: ["classify", "segmentMeningioma", "segmentPituitary"],
   "pathology-breast": ["views", "threshold"],
   "pathology-nuclei": ["tiles", "classes"],
+  "cardio-ecg": ["windows", "filter", "classes"],
 };
 
 export function findModel(modelId: string | null | undefined): AiModel | undefined {

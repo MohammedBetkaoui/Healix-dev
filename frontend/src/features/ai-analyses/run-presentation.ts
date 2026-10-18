@@ -2,15 +2,29 @@
 
 import { isAxiosError } from "axios";
 
-import { type AiRunPrediction, type AiServiceStatus } from "./ai-analyses.types";
+import { type Locale } from "@/i18n";
 
-/** Descending probability, on a copy. */
-export function sortPredictions(predictions: readonly AiRunPrediction[]): AiRunPrediction[] {
-  return [...predictions].sort((a, b) => b.probability - a.probability);
+import {
+  type AiAnalysisRun,
+  type AiEcgPredictions,
+  type AiRunPrediction,
+  type AiServiceStatus,
+} from "./ai-analyses.types";
+
+type StoredPredictions = readonly AiRunPrediction[] | AiEcgPredictions | null | undefined;
+
+/** Descending probability, on a copy; none for the predictions of an ECG (an object). */
+export function sortPredictions(predictions: StoredPredictions): AiRunPrediction[] {
+  return Array.isArray(predictions) ? [...predictions].sort((a, b) => b.probability - a.probability) : [];
 }
 
-export function getTopLabel(predictions: readonly AiRunPrediction[] | null): string | null {
-  return predictions && predictions.length > 0 ? sortPredictions(predictions)[0].label : null;
+export function getTopLabel(predictions: StoredPredictions): string | null {
+  return sortPredictions(predictions)[0]?.label ?? null;
+}
+
+/** The probabilities, thresholds and positive classes of an ECG run; null otherwise. */
+export function getEcgPredictions(run: Pick<AiAnalysisRun, "pipeline" | "predictions">): AiEcgPredictions | null {
+  return run.pipeline === "cardio-ecg" && run.predictions && !Array.isArray(run.predictions) ? run.predictions : null;
 }
 
 export type LaunchState =
@@ -65,6 +79,19 @@ export const knownRunErrorCodes = [
   "IMAGE_TOO_LARGE",
   "IMAGE_TOO_SMALL",
   "IMAGE_DIMENSIONS_TOO_LARGE",
+  // A refused ECG signal (ai-service/app/ecg_input.py).
+  "ECG_UNSUPPORTED_FORMAT",
+  "ECG_UNSAFE_ARCHIVE",
+  "ECG_MISSING_LEADS",
+  "ECG_SAMPLING_RATE_REQUIRED",
+  "ECG_SAMPLING_RATE_INVALID",
+  "ECG_UNIT_INVALID",
+  "ECG_TOO_SHORT",
+  "ECG_TOO_LONG",
+  "ECG_NON_FINITE",
+  "ECG_FLAT_LEAD",
+  "ECG_AMPLITUDE_OUT_OF_RANGE",
+  "ECG_FILE_TOO_LARGE",
 ] as const;
 const KNOWN_RUN_ERRORS = new Set<string>(knownRunErrorCodes);
 
@@ -88,6 +115,9 @@ export const knownLaunchErrorCodes = [
   "AI_MAGNIFICATION_REQUIRED",
   "AI_MAGNIFICATION_NOT_SUPPORTED",
   "AI_MAGNIFICATION_UNEXPECTED",
+  "AI_SAMPLING_RATE_REQUIRED",
+  "AI_ECG_OPTIONS_UNEXPECTED",
+  "AI_UNSUPPORTED_DOCUMENT",
 ] as const;
 const KNOWN_LAUNCH_ERRORS = new Set<string>(knownLaunchErrorCodes);
 
@@ -96,4 +126,40 @@ export function getLaunchErrorKey(error: unknown): string | null {
   if (!isAxiosError(error)) return null;
   const code = (error.response?.data as { code?: unknown } | undefined)?.code;
   return typeof code === "string" && KNOWN_LAUNCH_ERRORS.has(code) ? code : null;
+}
+
+export type EcgRejection = {
+  /** A known ECG_* code (aiAnalyses.ecg.rejections.<code>). */
+  code: (typeof knownRunErrorCodes)[number];
+  details: Record<string, unknown>;
+};
+
+/**
+ * A signal the service refused (422 AI_INPUT_REJECTED, reason ECG_*): the
+ * wizard says why and stays open, so the rate or the unit can be fixed.
+ */
+export function getEcgRejection(error: unknown): EcgRejection | null {
+  if (!isAxiosError(error)) return null;
+  const body = error.response?.data as { code?: unknown; reason?: unknown; details?: unknown } | undefined;
+  if (body?.code !== "AI_INPUT_REJECTED" || typeof body.reason !== "string" || !body.reason.startsWith("ECG_")) {
+    return null;
+  }
+  if (!KNOWN_RUN_ERRORS.has(body.reason)) return null;
+  const details = body.details && typeof body.details === "object" ? (body.details as Record<string, unknown>) : {};
+  return { code: body.reason as EcgRejection["code"], details };
+}
+
+const leadList = (value: unknown) =>
+  Array.isArray(value) ? value.filter((lead) => typeof lead === "string").join(", ") : "";
+
+/** The values a rejection message names: leads, durations, limits. */
+export function ecgRejectionParams(details: Record<string, unknown>, locale: Locale): Record<string, string> {
+  const number = new Intl.NumberFormat(locale === "ar" ? "ar-DZ" : "fr-DZ", { maximumFractionDigits: 1 });
+  const format = (value: unknown) => (typeof value === "number" ? number.format(value) : "");
+  return {
+    duration: format(details.durationSeconds),
+    leads: leadList(details.missing) || leadList(details.leads),
+    max: format(details.maxSeconds ?? details.max),
+    min: format(details.minSeconds ?? details.min),
+  };
 }

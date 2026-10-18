@@ -18,6 +18,7 @@ import {
   brainEvaluationSource,
   brainSegmentationEvaluation,
 } from "./brain-evaluation";
+import { cardioNotebookEvaluation } from "./cardio-evaluation";
 import {
   breakhisEvaluation,
   pannukeEvaluation,
@@ -50,6 +51,18 @@ const notebookMetrics = [
     unit: "score",
     approximate: false,
     dataset: "gliomaValidation",
+    ci95: null,
+    source: "notebook",
+  },
+  {
+    // The training notebook's test, from the model card: not measured on the
+    // service yet (evaluate_cardio.py needs PTB-XL).
+    modelId: "cardio-ecg-resnet1d-ptbxl-superdiagnostic",
+    key: "ecgAucMacro",
+    value: cardioNotebookEvaluation.aucMacro,
+    unit: "score",
+    approximate: false,
+    dataset: "ptbxlTest",
     ci95: null,
     source: "notebook",
   },
@@ -207,6 +220,7 @@ describe("aiModels registry", () => {
       "brain-unet-meningioma-segmentation": "available",
       "brain-unet-pituitary-segmentation": "available",
       "brain-flair-segmentation": "documentation_pending",
+      "cardio-ecg-resnet1d-ptbxl-superdiagnostic": "available",
       "cardiology-densenet121-chest-xray": "available",
       "cardiology-acdc-segmentation": "in_design",
       "cardiology-ct-heart-segmentation": "in_design",
@@ -262,12 +276,14 @@ describe("aiModels registry", () => {
     expect(findLaunchableModel(undefined)).toBeUndefined();
   });
 
-  it("launches three chains, each from its entry model, and maps every legacy component to its chain", () => {
+  it("launches four chains, each from its entry model, and maps every legacy component to its chain", () => {
     expect(aiPipelines.map((pipeline) => [pipeline.id, pipeline.kind, pipeline.entryModelId])).toEqual([
       ["brain", "routed", "brain-efficientnetb4-tumor-classification"],
       ["pathology-breast", "single", "pathology-breakhis-classification"],
       ["pathology-nuclei", "single", "pathology-unet-pannuke-segmentation"],
+      ["cardio-ecg", "single", "cardio-ecg-resnet1d-ptbxl-superdiagnostic"],
     ]);
+    expect(getPipelineRole("cardio-ecg-resnet1d-ptbxl-superdiagnostic")).toMatchObject({ role: "entry", pipeline: { id: "cardio-ecg" } });
     expect(findPipeline("brain")?.entryModelId).toBe("brain-efficientnetb4-tumor-classification");
     expect(findPipeline("unknown")).toBeUndefined();
     expect(getPipelineRole("brain-efficientnetb4-tumor-classification")?.role).toBe("entry");
@@ -296,6 +312,33 @@ describe("aiModels registry", () => {
       }),
     );
     expect(classifier?.confusionMatrix).toEqual(brainClassificationEvaluation.confusionMatrix);
+  });
+
+  it("describes the ECG model as its card does: a multi-label signal classifier, notebook figures only", () => {
+    const ecg = aiModels.find((model) => model.id === "cardio-ecg-resnet1d-ptbxl-superdiagnostic");
+
+    expect(ecg).toMatchObject({
+      acceptedFormats: ["csv", "txt", "zip"],
+      architecture: "ResNet1D-34",
+      classMetricsDataset: "ptbxlTest",
+      confusionMatrix: null,
+      evaluation: null,
+      inputModality: "ecg12Lead",
+      module: "cardiology",
+      outputClasses: ["NORM", "MI", "STTC", "CD", "HYP"],
+      task: "classification",
+    });
+    expect(ecg?.metrics?.every((metric) => metric.source === "notebook")).toBe(true);
+    expect(ecg?.classMetrics?.map((metric) => [metric.classKey, metric.auc, metric.recall])).toEqual(
+      (["NORM", "MI", "STTC", "CD", "HYP"] as const).map((label) => [
+        label,
+        cardioNotebookEvaluation.perClass[label].auc,
+        cardioNotebookEvaluation.perClass[label].sensitivity,
+      ]),
+    );
+    expect(ecg?.knownLimitations).toEqual(
+      expect.arrayContaining(["notCertified", "ecgFiveSuperclasses", "ecgLowerHypSensitivity", "ecgDigitalSignalOnly"]),
+    );
   });
 
   it("lists every model as not certified", () => {

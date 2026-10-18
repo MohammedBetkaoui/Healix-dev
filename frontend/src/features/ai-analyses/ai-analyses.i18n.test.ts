@@ -42,6 +42,13 @@ function registryKeys() {
     for (const limitation of model.knownLimitations) keys.add(`aiAnalyses.limitations.${limitation}`);
   }
   for (const pipeline of aiPipelines) {
+    for (const field of ["documentTitle", "documentHint", "qualityTitle", "qualityHint", "readingTitle"]) {
+      keys.add(`aiAnalyses.wizard.workspace.pipelines.${pipeline.id}.${field}`);
+    }
+    keys.add(`aiAnalyses.wizard.workspace.readingPlaceholders.${pipeline.id}`);
+    for (const field of ["title", "description", "input", "output"]) {
+      keys.add(`aiAnalyses.hub.analyses.${pipeline.id}.${field}`);
+    }
     keys.add(`aiAnalyses.pipelines.${pipeline.id}.name`);
     keys.add(`aiAnalyses.pipelines.${pipeline.id}.description`);
     keys.add(`aiAnalyses.pipelines.${pipeline.id}.launch`);
@@ -54,6 +61,16 @@ function registryKeys() {
       keys.add(`aiAnalyses.decision.${family ? `${family}OptionHints` : "optionHints"}.${decision}`);
     }
   }
+  for (const state of ["checking", "online", "offline", "unknown"]) keys.add(`aiAnalyses.hub.service.${state}`);
+  for (const state of ["ready", "partial", "unavailable", "unchecked"]) keys.add(`aiAnalyses.hub.availability.${state}`);
+  for (const step of ["choose", "prepare", "read"]) keys.add(`aiAnalyses.hub.journey.${step}`);
+  for (const step of ["patient", "document", "review"]) keys.add(`aiAnalyses.hub.preparation.${step}`);
+  for (const step of ["patient", "image", "mri", "signal", "slide", "quality", "reading"]) {
+    keys.add(`aiAnalyses.wizard.steps.${step}`);
+    keys.add(`aiAnalyses.wizard.workspace.stepHints.${step}`);
+  }
+  for (const state of ["idle", "loading", "signed", "missing", "error"]) keys.add(`aiAnalyses.wizard.workspace.consent.${state}`);
+  for (const state of ["waiting", "checking", "passed", "failed", "incomplete"]) keys.add(`aiAnalyses.wizard.workspace.checkState.${state}`);
   for (const state of ["loading", "status_error", "service_unavailable", "service_not_configured", "service_unauthorized", "service_error", "model_not_loaded"]) {
     keys.add(`aiAnalyses.wizard.reading.launchStates.${state}`);
   }

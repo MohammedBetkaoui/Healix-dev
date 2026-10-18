@@ -21,7 +21,12 @@ type UploadPatientDocumentModalProps = {
   t: TranslationFunction;
 };
 
-const allDocumentTypes: readonly PatientDocumentType[] = ["PRESCRIPTION", "MEDICAL_REPORT", "MEDICAL_IMAGE", "DICOM"];
+const allDocumentTypes: readonly PatientDocumentType[] = ["PRESCRIPTION", "MEDICAL_REPORT", "MEDICAL_IMAGE", "DICOM", "ECG_SIGNAL"];
+
+// An ECG signal is a CSV/TXT table or a zipped WFDB record, and only an
+// ECG_SIGNAL document takes these files (the backend checks it again).
+const ecgExtensions = ".csv,.txt,.zip";
+const documentExtensions = ".pdf,.jpg,.jpeg,.png,.dcm";
 
 const fieldClass = "h-[42px] rounded-[var(--radius-sm)] border-[var(--border)] bg-[var(--surface)] text-sm text-[var(--text-primary)] shadow-none placeholder:text-[var(--text-muted)] focus:border-[var(--accent)] focus:ring-2 focus:ring-[var(--accent-soft)]";
 const labelClass = "text-[.8rem] font-medium text-[var(--text-primary)]";
@@ -167,7 +172,11 @@ function UploadPatientDocumentDialog({
                         <p className="break-all text-sm font-medium text-[var(--text-primary)]">
                           {file ? <bdi>{file.name}</bdi> : t("patients.modal.uploadDocument.dragHint")}
                         </p>
-                        <p className="clinical-caption mt-1">{t("patients.modal.uploadDocument.acceptedFormats")}</p>
+                        <p className="clinical-caption mt-1">
+                          {documentType === "ECG_SIGNAL"
+                            ? t("patients.modal.uploadDocument.acceptedFormatsEcg")
+                            : t("patients.modal.uploadDocument.acceptedFormats")}
+                        </p>
                         <p className="clinical-caption mt-1">{t("patients.modal.uploadDocument.maxSize")}</p>
                       </div>
                     </div>
@@ -176,7 +185,7 @@ function UploadPatientDocumentDialog({
                         ref={inputRef}
                         id={ids.file}
                         type="file"
-                        accept=".pdf,.jpg,.jpeg,.png,.dcm"
+                        accept={documentType === "ECG_SIGNAL" ? ecgExtensions : documentExtensions}
                         className="hidden"
                         onChange={(event) => selectFile(event.target.files?.item(0) ?? null)}
                       />

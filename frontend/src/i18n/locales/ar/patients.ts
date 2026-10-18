@@ -72,7 +72,7 @@ export const patientsAr = {
     grant: "منح",
     update: "تحديث",
   },
-  documents: { DICOM: "ملف DICOM", MEDICAL_IMAGE: "صورة طبية", MEDICAL_REPORT: "تقرير طبي", PRESCRIPTION: "وصفة PDF" },
+  documents: { ECG_SIGNAL: "إشارة تخطيط قلب", DICOM: "ملف DICOM", MEDICAL_IMAGE: "صورة طبية", MEDICAL_REPORT: "تقرير طبي", PRESCRIPTION: "وصفة PDF" },
   actions: {
     addDocument: "إضافة وثيقة",
     aiAnalysis: "تحليل بالذكاء الاصطناعي",
@@ -130,6 +130,7 @@ export const patientsAr = {
       changeFile: "تغيير الملف",
       dragHint: "اسحب ملفاً وأفلته هنا، أو انقر للتصفح.",
       acceptedFormats: "PDF أو JPG أو PNG أو DICOM (.dcm)",
+      acceptedFormatsEcg: "CSV أو TXT أو ZIP لتسجيل WFDB ‏(.hea + .dat)",
       maxSize: "20 ميغابايت كحد أقصى",
       submit: "إضافة الوثيقة",
       submitting: "جارٍ الإرسال…",

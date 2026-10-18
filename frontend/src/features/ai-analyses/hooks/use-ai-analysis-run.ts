@@ -2,7 +2,13 @@
 
 import { useQuery } from "@tanstack/react-query";
 
-import { getAiAnalysisRun, getAiAnalysisRunMask, getAiAnalysisRunOverlay } from "../ai-analysis-runs.api";
+import {
+  getAiAnalysisRun,
+  getAiAnalysisRunEcgTrace,
+  getAiAnalysisRunMask,
+  getAiAnalysisRunOverlay,
+  getCardioEvaluation,
+} from "../ai-analysis-runs.api";
 
 const RUNNING_POLL_MS = 3_000;
 
@@ -24,6 +30,29 @@ export function useAiAnalysisRunMask(patientId: string, runId: string, options: 
     gcTime: 0,
     queryFn: () => getAiAnalysisRunMask(patientId, runId),
     queryKey: ["patients", "ai-analysis-run-mask", patientId, runId],
+    retry: false,
+    staleTime: Number.POSITIVE_INFINITY,
+  });
+}
+
+// The trace of an ECG run (JSON, 12 leads). Same lifetime as the mask.
+export function useAiAnalysisRunEcgTrace(patientId: string, runId: string, options: { enabled: boolean }) {
+  return useQuery({
+    enabled: options.enabled && Boolean(patientId) && Boolean(runId),
+    gcTime: 0,
+    queryFn: () => getAiAnalysisRunEcgTrace(patientId, runId),
+    queryKey: ["patients", "ai-analysis-run-ecg-trace", patientId, runId],
+    retry: false,
+    staleTime: Number.POSITIVE_INFINITY,
+  });
+}
+
+// The ECG model's figures for the weights of a run: they do not change.
+export function useCardioEvaluation(weightsSha256: string | null) {
+  return useQuery({
+    enabled: Boolean(weightsSha256),
+    queryFn: () => getCardioEvaluation(weightsSha256 as string),
+    queryKey: ["ai-models", "cardio-ecg", "evaluation", weightsSha256],
     retry: false,
     staleTime: Number.POSITIVE_INFINITY,
   });

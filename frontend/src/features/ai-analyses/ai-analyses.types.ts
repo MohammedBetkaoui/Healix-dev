@@ -126,7 +126,7 @@ export type AiModel = {
 // Pipelines
 // ---------------------------------------------------------------------------
 
-export const aiPipelineIds = ["brain", "pathology-breast", "pathology-nuclei"] as const;
+export const aiPipelineIds = ["brain", "pathology-breast", "pathology-nuclei", "cardio-ecg"] as const;
 export type AiPipelineId = (typeof aiPipelineIds)[number];
 
 /**
@@ -151,6 +151,64 @@ export type AiMagnification = (typeof aiMagnifications)[number];
 /** The nuclei segmentation's types, in its output order (background excluded). */
 export const nucleusTypes = ["neoplastic", "inflammatory", "connective", "dead", "epithelial"] as const;
 export type NucleusType = (typeof nucleusTypes)[number];
+
+/** The 5 superclasses of PTB-XL the ECG model gives, in its output order (multi-label). */
+export const ecgClasses = ["NORM", "MI", "STTC", "CD", "HYP"] as const;
+export type EcgClass = (typeof ecgClasses)[number];
+
+/** The 12 leads, in the model card's order. */
+export const ecgLeads = ["I", "II", "III", "aVR", "aVL", "aVF", "V1", "V2", "V3", "V4", "V5", "V6"] as const;
+export type EcgLead = (typeof ecgLeads)[number];
+
+/** Sampling rates offered for a CSV signal; any integer from 100 to 1000 Hz is accepted. */
+export const ecgSamplingRatePresets = [100, 250, 500, 1000] as const;
+export const ECG_MIN_SAMPLING_RATE = 100;
+export const ECG_MAX_SAMPLING_RATE = 1000;
+export const ecgUnits = ["mV", "uV"] as const;
+export type EcgUnit = (typeof ecgUnits)[number];
+
+/** What a cardio-ecg run stores in `predictions` (backend EcgPredictions). */
+export type AiEcgPredictions = {
+  /** Sigmoid per class, averaged over the windows: independent, they do not sum to 1. */
+  probabilities: Record<EcgClass, number>;
+  thresholds: Record<EcgClass, number>;
+  /** Classes at or above their threshold, by decreasing probability. */
+  positive: EcgClass[];
+  windows: number;
+  inputSamplingRate: number;
+  durationSeconds: number;
+  /** SHA-256 of the model card. */
+  configSha256: string;
+};
+
+/** GET .../ecg-trace: the first 10 s, band-pass filtered, not normalized. */
+export type AiEcgTrace = {
+  samplingRate: number;
+  unit: "mV";
+  leads: Record<EcgLead, number[]>;
+};
+
+/** GET /ai-models/cardio-ecg/evaluation/:sha: the figures of these weights. */
+export type CardioEvaluation = {
+  /** service: measured on the service itself; notebook: the training notebook's, from the model card. */
+  source: "service" | "notebook";
+  file: string;
+  generatedAt: string | null;
+  weightsSha256: string;
+  nEcg: number;
+  aucMacro: number;
+  perClass: Record<
+    EcgClass,
+    {
+      auc: number;
+      threshold: number;
+      sensitivity: number | null;
+      specificity: number | null;
+      ppv: number | null;
+      f1: number | null;
+    }
+  >;
+};
 
 export type AiNucleiFractions = {
   /** Share of all the pixels, 0 to 1. */
@@ -185,10 +243,14 @@ export type AiAnalysisRun = {
   status: AiAnalysisRunStatus;
   classificationModelId: string | null;
   classificationWeightsSha256: string | null;
-  /** Brain only: descending, as returned by the service; null unless SUCCEEDED. */
-  predictions: AiRunPrediction[] | null;
-  /** The model's answer the physician decides on: the brain top class, the BreakHis result; null for a nuclei map. */
+  /** Brain: descending, as returned by the service; ECG: probabilities, thresholds, positive classes; null unless SUCCEEDED. */
+  predictions: AiRunPrediction[] | AiEcgPredictions | null;
+  /** The model's answer the physician decides on: the brain top class, the BreakHis result; null for a nuclei map and an ECG. */
   modelLabel: string | null;
+  /** ECG: the model's positive classes (possibly none), in class order; null for the other chains. */
+  modelLabels: EcgClass[] | null;
+  /** ECG: the trace is served by GET .../ecg-trace. */
+  hasTrace: boolean;
   /** Pathology: slide magnification (40 for the nuclei segmentation). */
   magnification: number | null;
   /** BreakHis: mean of the 4 view scores, 0 to 1. A score, never a probability. */
@@ -221,6 +283,8 @@ export type AiAnalysisRun = {
   decisionStatus: AiRunDecision | null;
   /** The label the physician retained: the model's answer (VALIDATED), the corrected one (CORRECTED); null when REJECTED, and for a validated nuclei map. */
   decisionLabel: string | null;
+  /** ECG: the classes the physician kept (possibly none); null otherwise and when REJECTED. */
+  decisionLabels: EcgClass[] | null;
   decisionReason: string | null;
   decidedById: string | null;
   /** As shown: "Dr <name>" for a physician (formatPhysicianName, backend), the name as typed for anyone else. */
