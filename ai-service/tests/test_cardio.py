@@ -384,3 +384,14 @@ def test_models_lists_the_ecg_model_with_its_sha256_and_the_endpoint_answers(ecg
     assert response.json()["positive"] == ["NORM"]
     assert refused.status_code == 422
     assert refused.json()["detail"] == {"code": "ecg_missing_leads", "missing": ["V6"]}
+
+
+def test_the_committed_model_card_is_the_deployed_one():
+    # fixtures/ecg/model-card.json: the frontend copies its test figures
+    # (notebook source) from it; it must be the card of the weights.
+    committed = FIXTURES_DIR / "model-card.json"
+    assert read_model_card(committed)["sha256"] == json.loads(committed.read_text(encoding="utf-8"))["sha256"]
+    deployed = MODELS_DIR / ECG_SPEC.config_file
+    if not deployed.is_file():
+        pytest.skip(f"model card not found in {MODELS_DIR}")
+    assert committed.read_bytes() == deployed.read_bytes()
