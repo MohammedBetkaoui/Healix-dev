@@ -33,6 +33,7 @@ import {
   AiServiceClient,
   AiServiceError,
   type AiServiceFailure,
+  type CardioSegAnalysisResult,
   ECG_CLASSES,
   ECG_REJECTIONS,
   type EcgAnalysisResult,
@@ -52,8 +53,40 @@ import {
   ECG_NORMAL_CLASS,
 } from './dto/decide-ai-analysis-run.dto';
 
-// The inference service decodes PNG and JPEG only (no DICOM).
+// The inference service decodes PNG and JPEG; the cardiac MRI chain also
+// reads a single-frame DICOM.
 const SUPPORTED_IMAGE_TYPES = new Set(['image/png', 'image/jpeg']);
+const DICOM_MIME_TYPE = 'application/dicom';
+
+// Chains whose result is a map to review: validated or rejected, never
+// corrected to a class.
+export const MAP_PIPELINES: ReadonlySet<string> = new Set([
+  'pathology-nuclei',
+  'cardio-seg-mri',
+]);
+
+/** A DICOM document: declared so, or a .dcm sent without a MIME type. */
+export function isDicomDocument(document: {
+  documentType: string;
+  mimeType: string;
+  originalName: string;
+}): boolean {
+  return (
+    document.documentType === PatientDocumentType.DICOM ||
+    document.mimeType === DICOM_MIME_TYPE ||
+    (!document.mimeType && document.originalName.toLowerCase().endsWith('.dcm'))
+  );
+}
+
+/** What a cardiac MRI run stores in `predictions`: the areas, never an image. */
+export type CardioSegPredictions = Pick<
+  CardioSegAnalysisResult,
+  | 'configSha256'
+  | 'noStructureFound'
+  | 'pixelSpacingMm'
+  | 'source'
+  | 'structures'
+>;
 // A CSV/TXT signal (stored as text/csv or text/plain) carries no sampling
 // rate; a zipped WFDB record has it in its header.
 const ECG_TEXT_TYPES = new Set(['text/csv', 'text/plain']);
@@ -183,7 +216,11 @@ export function checkMagnification(
   pipeline: AiPipeline,
   magnification: number | null | undefined,
 ): number | null {
-  if (pipeline === 'brain' || pipeline === 'cardio-ecg') {
+  if (
+    pipeline === 'brain' ||
+    pipeline === 'cardio-ecg' ||
+    pipeline === 'cardio-seg-mri'
+  ) {
     if (magnification != null) {
       throw new BadRequestException({
         code: 'AI_MAGNIFICATION_UNEXPECTED',
@@ -236,7 +273,10 @@ type FinishData = Partial<
   >
 > & {
   errorCode?: RunErrorCode;
-  predictions?: { label: string; probability: number }[] | EcgPredictions;
+  predictions?:
+    | { label: string; probability: number }[]
+    | EcgPredictions
+    | CardioSegPredictions;
   ttaScores?: number[];
   nucleiFractions?: NucleiFractions;
   status: AiAnalysisRunStatus;
@@ -281,7 +321,16 @@ export class AiAnalysisRunsService {
           'Seul un document de type « Signal ECG » peut être analysé par cette chaîne.',
       });
     }
-    if (!ecg && !SUPPORTED_IMAGE_TYPES.has(document.mimeType)) {
+    const mri = dto.pipeline === 'cardio-seg-mri';
+    const dicom = mri && isDicomDocument(document);
+    if (mri && !dicom && !SUPPORTED_IMAGE_TYPES.has(document.mimeType)) {
+      throw new UnprocessableEntityException({
+        code: 'AI_UNSUPPORTED_DOCUMENT',
+        message:
+          'Seules une image PNG ou JPEG, ou un DICOM, peuvent être analysés par cette chaîne.',
+      });
+    }
+    if (!ecg && !mri && !SUPPORTED_IMAGE_TYPES.has(document.mimeType)) {
       throw new UnprocessableEntityException({
         code: 'AI_UNSUPPORTED_DOCUMENT',
         message: 'Seules les images PNG ou JPEG peuvent être analysées.',
@@ -337,7 +386,8 @@ export class AiAnalysisRunsService {
 
     const file = {
       image,
-      mimeType: document.mimeType,
+      // A .dcm may be stored without a MIME type.
+      mimeType: dicom ? DICOM_MIME_TYPE : document.mimeType,
       name: document.originalName,
     };
     switch (dto.pipeline) {
@@ -345,6 +395,8 @@ export class AiAnalysisRunsService {
         return this.runBreast(user, run, file, magnification as number);
       case 'pathology-nuclei':
         return this.runNuclei(user, run, file);
+      case 'cardio-seg-mri':
+        return this.runCardioSeg(user, run, file);
       case 'cardio-ecg':
         // A WFDB header gives its own rate and unit: sent for text only.
         return this.runEcg(
@@ -444,31 +496,10 @@ export class AiAnalysisRunsService {
     const result = await this.analyze(user, run.id, () =>
       this.aiServiceClient.analyzeNuclei(file.image, file.name, file.mimeType),
     );
-    const { patientId } = run;
-
-    let maskPath: string | null = null;
-    let overlayPath: string;
-    try {
-      ({ localPath: maskPath } = await this.fileStorageService.storeAiMask({
-        patientId,
-        png: result.labelMapPng,
-        runId: run.id,
-      }));
-      ({ localPath: overlayPath } =
-        await this.fileStorageService.storeAiOverlay({
-          patientId,
-          png: result.overlayPng,
-          runId: run.id,
-        }));
-    } catch {
-      // No half-stored result: the label map goes with its overlay.
-      if (maskPath) await this.fileStorageService.deleteLocalFile(maskPath);
-      await this.finish(user, run.id, {
-        errorCode: 'MASK_STORAGE_FAILED',
-        status: AiAnalysisRunStatus.FAILED,
-      });
-      throw this.toHttpError('MASK_STORAGE_FAILED', run.id);
-    }
+    const { maskPath, overlayPath } = await this.storeMapImages(user, run, {
+      labelMapPng: result.labelMapPng,
+      overlayPng: result.overlayPng,
+    });
 
     const ratio = 1 - result.classFractions.background;
     const completed = await this.finish(user, run.id, {
@@ -485,6 +516,100 @@ export class AiAnalysisRunsService {
       tileCount: result.tileCount,
     });
     return this.toRunResponse(completed);
+  }
+
+  // Cardiac MRI: the class map (maskPath), its colour overlay (overlayPath)
+  // and the slice as analysed (slicePath); the areas in `predictions`. The
+  // "segmented area" is every pixel of the three structures.
+  private async runCardioSeg(
+    user: AuthenticatedUserPayload,
+    run: AiAnalysisRun,
+    file: { image: Buffer; mimeType: string; name: string },
+  ) {
+    const result = await this.analyze(user, run.id, () =>
+      this.aiServiceClient.analyzeCardioSeg(
+        file.image,
+        file.name,
+        file.mimeType,
+      ),
+    );
+    const { maskPath, overlayPath, slicePath } = await this.storeMapImages(
+      user,
+      run,
+      {
+        labelMapPng: result.labelMapPng,
+        overlayPng: result.overlayPng,
+        slicePng: result.slicePng,
+      },
+    );
+
+    const pixels = Object.values(result.structures).reduce(
+      (sum, area) => sum + area.pixels,
+      0,
+    );
+    const completed = await this.finish(user, run.id, {
+      durationMs: result.durationMs,
+      maskAreaPx: pixels,
+      maskAreaRatio: pixels / (result.imageWidth * result.imageHeight),
+      maskPath,
+      overlayPath,
+      predictions: {
+        configSha256: result.configSha256,
+        noStructureFound: result.noStructureFound,
+        pixelSpacingMm: result.pixelSpacingMm,
+        source: result.source,
+        structures: result.structures,
+      },
+      segmentationModelId: result.modelId,
+      segmentationWeightsSha256: result.weightsSha256,
+      slicePath,
+      status: AiAnalysisRunStatus.SUCCEEDED,
+    });
+    return this.toRunResponse(completed);
+  }
+
+  // The images of a segmentation map, all stored or none: on a failure the
+  // stored ones are removed and the run FAILED (MASK_STORAGE_FAILED).
+  private async storeMapImages(
+    user: AuthenticatedUserPayload,
+    run: AiAnalysisRun,
+    images: { labelMapPng: Buffer; overlayPng: Buffer; slicePng?: Buffer },
+  ): Promise<{
+    maskPath: string;
+    overlayPath: string;
+    slicePath: string | null;
+  }> {
+    const storage = this.fileStorageService;
+    const stored: string[] = [];
+    const store = async (kind: 'mask' | 'overlay' | 'slice', png: Buffer) => {
+      const input = { patientId: run.patientId, png, runId: run.id };
+      const { localPath } =
+        kind === 'mask'
+          ? await storage.storeAiMask(input)
+          : kind === 'overlay'
+            ? await storage.storeAiOverlay(input)
+            : await storage.storeAiSlice(input);
+      stored.push(localPath);
+      return localPath;
+    };
+    try {
+      return {
+        maskPath: await store('mask', images.labelMapPng),
+        overlayPath: await store('overlay', images.overlayPng),
+        slicePath: images.slicePng
+          ? await store('slice', images.slicePng)
+          : null,
+      };
+    } catch {
+      for (const path of stored) {
+        await this.fileStorageService.deleteLocalFile(path);
+      }
+      await this.finish(user, run.id, {
+        errorCode: 'MASK_STORAGE_FAILED',
+        status: AiAnalysisRunStatus.FAILED,
+      });
+      throw this.toHttpError('MASK_STORAGE_FAILED', run.id);
+    }
   }
 
   // A 12-lead ECG: the probabilities per class, the thresholds and the
@@ -626,10 +751,10 @@ export class AiAnalysisRunsService {
       });
     }
 
-    const isNuclei = run.pipeline === 'pathology-nuclei';
+    const isMap = MAP_PIPELINES.has(run.pipeline);
     const modelLabel = getModelLabel(run);
 
-    if (!isNuclei && !modelLabel) {
+    if (!isMap && !modelLabel) {
       throw new ConflictException({
         code: 'AI_RUN_NOT_DECIDABLE',
         message: "Cette analyse n'a pas de résultat de classification.",
@@ -643,11 +768,11 @@ export class AiAnalysisRunsService {
       });
     }
 
-    if (isNuclei && dto.status === AiRunDecision.CORRECTED) {
+    if (isMap && dto.status === AiRunDecision.CORRECTED) {
       throw new BadRequestException({
         code: 'AI_CORRECTION_NOT_APPLICABLE',
         message:
-          'Une carte de segmentation des noyaux se valide ou se rejette ; elle ne se corrige pas.',
+          'Une carte de segmentation se valide ou se rejette ; elle ne se corrige pas.',
       });
     }
 
@@ -691,7 +816,7 @@ export class AiAnalysisRunsService {
       { decisionLabel },
       {
         agreesWithModel:
-          dto.status === AiRunDecision.REJECTED || isNuclei
+          dto.status === AiRunDecision.REJECTED || isMap
             ? null
             : decisionLabel === modelLabel,
         decisionLabel,
@@ -898,6 +1023,24 @@ export class AiAnalysisRunsService {
     };
   }
 
+  // The slice a cardiac MRI segmentation analysed (8-bit PNG).
+  async getSlice(
+    user: AuthenticatedUserPayload,
+    patientId: string,
+    runId: string,
+  ) {
+    const run = await this.getRunInScope(user, patientId, runId);
+
+    if (!run.slicePath) {
+      throw new NotFoundException('Coupe introuvable.');
+    }
+
+    return {
+      fileName: `coupe-${run.id}.png`,
+      png: await this.fileStorageService.readStoredFile(run.slicePath),
+    };
+  }
+
   // The trace of an ECG analysis: the first 10 s, filtered, in mV, per lead.
   async getEcgTrace(
     user: AuthenticatedUserPayload,
@@ -992,6 +1135,8 @@ export class AiAnalysisRunsService {
       case 'IMAGE_TOO_LARGE':
       case 'IMAGE_TOO_SMALL':
       case 'IMAGE_DIMENSIONS_TOO_LARGE':
+      case 'CARDIO_SEG_NOT_GRAYSCALE':
+      case 'CARDIO_SEG_MULTIFRAME':
         return new UnprocessableEntityException(
           body(
             'AI_INPUT_REJECTED',
@@ -1038,8 +1183,8 @@ export class AiAnalysisRunsService {
     }
   }
 
-  // maskPath, overlayPath and tracePath stay server-side; the client gets
-  // hasMask, hasOverlay, hasTrace and their routes.
+  // maskPath, overlayPath, tracePath and slicePath stay server-side; the
+  // client gets hasMask, hasOverlay, hasTrace, hasSlice and their routes.
   toRunResponse(run: RunWithDecider) {
     return {
       id: run.id,
@@ -1062,6 +1207,7 @@ export class AiAnalysisRunsService {
       hasMask: run.maskPath !== null,
       hasOverlay: Boolean(run.overlayPath),
       hasTrace: Boolean(run.tracePath),
+      hasSlice: Boolean(run.slicePath),
       maskAreaPx: run.maskAreaPx,
       maskAreaRatio: run.maskAreaRatio,
       nucleiFractions: run.nucleiFractions,

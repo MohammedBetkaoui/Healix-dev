@@ -70,6 +70,63 @@ export function HealixSpecialtyArtwork({ pipeline, className }: HealixSpecialtyA
         </g>
       )}
 
+      {pipeline === "cardio-seg-mri" && (
+        <g>
+          {/* Transverse thorax and soft-tissue landmarks of a cine-MRI slice. */}
+          <path
+            d="M43 79c0-31 31-52 77-52s77 21 77 52c0 33-30 55-77 55S43 112 43 79Z"
+            fill="currentColor"
+            fillOpacity="0.025"
+            strokeOpacity="0.2"
+            strokeWidth="0.8"
+          />
+          <path d="M54 75c2-21 17-35 38-39-13 11-19 26-17 43 1 15 7 28 18 40-22-4-38-20-39-44ZM186 75c-2-21-17-35-38-39 13 11 19 26 17 43-1 15-7 28-18 40 22-4 38-20 39-44Z" fill="currentColor" fillOpacity="0.035" stroke="none" />
+          <path d="M82 53c11-14 29-20 47-16 19 4 34 17 40 35 6 19-1 40-17 51-17 11-39 11-56 1-16-10-25-28-22-46 1-9 4-18 8-25Z" fill="currentColor" fillOpacity="0.055" strokeOpacity="0.18" strokeWidth="0.75" />
+
+          {/* Right ventricle: the thinner crescent wrapping the anterior LV wall. */}
+          <path
+            d="M122 49c15-7 34-3 44 9 11 13 12 30 4 43-6 9-15 15-27 17 7-7 11-15 12-24 2-15-4-29-15-38-5-4-11-6-18-7Z"
+            fill="#0072B2"
+            fillOpacity="0.17"
+            stroke="#0072B2"
+            strokeOpacity="0.82"
+            strokeWidth="1.35"
+          />
+          <path d="M143 61c10 7 16 18 15 30-1 8-4 15-9 21 11-4 18-10 21-19 4-11 0-23-8-30-5-5-12-7-19-7" stroke="#0072B2" strokeOpacity="0.4" strokeWidth="0.75" />
+
+          {/* LV myocardium, rendered as an irregular muscular ring. */}
+          <path
+            d="M88 59c11-12 29-16 44-9 16 7 26 23 25 39-1 17-12 32-28 38-16 6-35 1-45-12-11-13-13-31-6-46 2-4 5-7 10-10Zm13 14c-7 7-8 19-3 28 5 9 16 14 26 11 11-3 18-12 18-23 0-10-6-20-16-24-9-4-19-1-25 8Z"
+            fill="#009E73"
+            fillOpacity="0.17"
+            fillRule="evenodd"
+            clipRule="evenodd"
+            stroke="#009E73"
+            strokeOpacity="0.82"
+            strokeWidth="1.4"
+          />
+
+          {/* LV blood pool and papillary muscles. */}
+          <path
+            d="M102 73c6-8 16-11 25-7 10 4 16 13 15 24 0 10-7 19-17 22-10 3-21-2-26-11-5-9-4-21 3-28Z"
+            fill="#D55E00"
+            fillOpacity="0.18"
+            stroke="#D55E00"
+            strokeOpacity="0.86"
+            strokeWidth="1.35"
+          />
+          <path d="M112 86c3-3 7-2 8 2 1 3-2 6-5 6-4 0-6-5-3-8ZM126 96c3-2 7 0 7 4 0 3-3 5-6 4-4-1-5-6-1-8Z" fill="currentColor" fillOpacity="0.2" stroke="none" />
+
+          {/* Septum, surrounding fat and posterior vertebra. */}
+          <g opacity="0.32" strokeWidth="0.75">
+            <path d="M141 61c5 8 8 17 7 27-1 12-6 22-15 29" />
+            <path d="M77 68c-5 14-3 30 6 42M168 51c10 8 16 19 18 31" />
+          </g>
+          <ellipse cx="119" cy="126" rx="9" ry="6" fill="currentColor" fillOpacity="0.07" strokeOpacity="0.2" strokeWidth="0.7" />
+          <circle cx="119" cy="126" r="2.2" fill="currentColor" fillOpacity="0.16" stroke="none" />
+        </g>
+      )}
+
       {pipeline === "pathology-breast" && (
         <g>
           <path d="M39 54c10-20 23-22 36-14 9 5 17 4 28-4 16-12 31-11 45 1 9 8 18 11 29 9 16-3 27 5 28 19 1 12-9 20-7 31 3 15-6 26-21 27-15 1-22 13-39 10-12-2-17-11-29-11-15 1-22 12-38 5-12-5-9-18-20-26-17-12-24-30-12-47Z" fill="currentColor" fillOpacity="0.035" />

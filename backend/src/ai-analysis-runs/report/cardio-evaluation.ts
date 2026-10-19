@@ -5,16 +5,25 @@
 // the training notebook's test figures, from the model card next to the
 // weights, marked as such. Neither describes other weights: then no figure.
 
-import { Injectable, Logger } from '@nestjs/common';
+import { Injectable } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
-import { readFile } from 'node:fs/promises';
-import { resolve } from 'node:path';
 
 import {
   CARDIO_ECG_MODEL_ID,
   ECG_CLASSES,
   type EcgClass,
 } from '../ai-service.client';
+import {
+  type EvaluationIdentity,
+  type EvaluationPaths,
+  evaluationPaths,
+  findEvaluation,
+  isNumber,
+  isRecord,
+  isSha256,
+  ModelEvaluationFinder,
+  numberOrNull,
+} from './model-evaluation';
 
 export type CardioClassMetrics = {
   auc: number;
@@ -25,28 +34,12 @@ export type CardioClassMetrics = {
   f1: number | null;
 };
 
-export type CardioEvaluation = {
-  /** service: measured on the service itself; notebook: the training notebook's test, from the model card. */
-  source: 'service' | 'notebook';
-  /** The report file (service), or the model card's file. */
-  file: string;
-  /** When the service's evaluation ran; null for the notebook's figures. */
-  generatedAt: string | null;
-  weightsSha256: string;
+export type CardioEvaluation = EvaluationIdentity & {
   /** PTB-XL fold 10: ECG of the test set. */
   nEcg: number;
   aucMacro: number;
   perClass: Record<EcgClass, CardioClassMetrics>;
 };
-
-const isRecord = (value: unknown): value is Record<string, unknown> =>
-  typeof value === 'object' && value !== null && !Array.isArray(value);
-const isNumber = (value: unknown): value is number =>
-  typeof value === 'number' && Number.isFinite(value);
-const numberOrNull = (value: unknown): number | null =>
-  isNumber(value) ? value : null;
-const isSha256 = (value: unknown): value is string =>
-  typeof value === 'string' && /^[0-9a-f]{64}$/.test(value);
 
 function perClassOf(
   value: unknown,
@@ -133,59 +126,40 @@ export function parseModelCardEvaluation(
   };
 }
 
-async function readJson(path: string): Promise<unknown> {
-  try {
-    return JSON.parse(await readFile(path, 'utf8')) as unknown;
-  } catch {
-    return null; // Missing or unreadable: describes nothing.
-  }
-}
-
 /**
  * The service's evaluation of these weights, else the notebook's; null when
  * neither describes them.
  */
-export async function findCardioEvaluation(
-  paths: { evaluation: string; modelCard: string },
+export function findCardioEvaluation(
+  paths: EvaluationPaths,
   weightsSha256: string | null,
 ): Promise<CardioEvaluation | null> {
-  if (!weightsSha256) return null;
-  const service = parseServiceEvaluation(await readJson(paths.evaluation));
-  if (service?.weightsSha256 === weightsSha256) return service;
-  const card = parseModelCardEvaluation(
-    await readJson(paths.modelCard),
-    paths.modelCard.split(/[\\/]/).pop() ?? paths.modelCard,
+  return findEvaluation(
+    paths,
+    weightsSha256,
+    parseServiceEvaluation,
+    parseModelCardEvaluation,
   );
-  return card?.weightsSha256 === weightsSha256 ? card : null;
 }
 
 @Injectable()
-export class CardioEvaluationService {
-  private readonly logger = new Logger(CardioEvaluationService.name);
-  private readonly paths: { evaluation: string; modelCard: string };
-
+export class CardioEvaluationService extends ModelEvaluationFinder<CardioEvaluation> {
   constructor(configService: ConfigService) {
-    this.paths = {
-      evaluation: resolve(
-        process.cwd(),
-        configService.get<string>('AI_CARDIO_EVALUATION_PATH') ??
+    super(
+      CardioEvaluationService.name,
+      evaluationPaths(
+        configService,
+        [
+          'AI_CARDIO_EVALUATION_PATH',
           '../ai-service/evaluation/cardio-latest.json',
-      ),
-      modelCard: resolve(
-        process.cwd(),
-        configService.get<string>('AI_CARDIO_MODEL_CARD_PATH') ??
+        ],
+        [
+          'AI_CARDIO_MODEL_CARD_PATH',
           '../models/cardio-ecg-resnet1d-ptbxl.json',
+        ],
       ),
-    };
-  }
-
-  async find(weightsSha256: string | null): Promise<CardioEvaluation | null> {
-    const evaluation = await findCardioEvaluation(this.paths, weightsSha256);
-    if (!evaluation) {
-      this.logger.warn(
-        `No cardio evaluation of weights ${weightsSha256 ?? '(none)'} (${this.paths.evaluation}, ${this.paths.modelCard}).`,
-      );
-    }
-    return evaluation;
+      parseServiceEvaluation,
+      parseModelCardEvaluation,
+    );
   }
 }

@@ -30,12 +30,14 @@ type AcquisitionSettingsProps = {
   ecg?: EcgReadingInput;
   magnification: AiMagnification | null;
   he40xConfirmed: boolean;
+  shortAxisConfirmed: boolean;
   onMagnificationChange: (value: AiMagnification) => void;
   onHe40xChange: (confirmed: boolean) => void;
+  onShortAxisChange: (confirmed: boolean) => void;
   t: TranslationFunction;
 };
 
-export function AcquisitionSettings({ pipelineId, ecg, magnification, he40xConfirmed, onMagnificationChange, onHe40xChange, t }: AcquisitionSettingsProps) {
+export function AcquisitionSettings({ pipelineId, ecg, magnification, he40xConfirmed, shortAxisConfirmed, onMagnificationChange, onHe40xChange, onShortAxisChange, t }: AcquisitionSettingsProps) {
   const id = useId();
   if (pipelineId === "brain") return null;
 
@@ -63,6 +65,23 @@ export function AcquisitionSettings({ pipelineId, ecg, magnification, he40xConfi
             <span>{t("aiAnalyses.wizard.reading.he40x.label")}</span>
           </label>
           <p id={`${id}-he-hint`} className="ai-wizard-field-hint">{t("aiAnalyses.wizard.reading.he40x.hint")}</p>
+        </div>
+      ) : null}
+      {pipelineId === "cardio-seg-mri" ? (
+        <div>
+          <label className="ai-acquisition-confirmation" data-selected={shortAxisConfirmed}>
+            <input
+              type="checkbox"
+              required
+              checked={shortAxisConfirmed}
+              aria-describedby={`${id}-short-axis-hint`}
+              onChange={(event) => onShortAxisChange(event.target.checked)}
+            />
+            <span>{t("aiAnalyses.wizard.reading.shortAxis.label")}</span>
+          </label>
+          <p id={`${id}-short-axis-hint`} className="ai-wizard-field-hint">
+            {t("aiAnalyses.wizard.reading.shortAxis.hint")}
+          </p>
         </div>
       ) : null}
       {pipelineId === "cardio-ecg" && ecg ? (

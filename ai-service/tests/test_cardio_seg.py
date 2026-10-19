@@ -211,8 +211,8 @@ def test_to_uint8_zscores_the_pixels_above_zero_only():
     values = image[image > 0]
     expected = ((np.clip((values - values.mean()) / (values.std() + 1e-8), -3, 3) + 3) / 6 * 255).astype(np.uint8)
     assert np.array_equal(out[image > 0], expected)
-    # No pixel above 0: nothing is z-scored.
-    assert (to_uint8(np.zeros((3, 3), dtype=np.float32)) == 127).all()
+    # No pixel above 0: the image stays empty, as the model card requires.
+    assert (to_uint8(np.zeros((3, 3), dtype=np.float32)) == 0).all()
 
 
 def test_areas_are_in_mm2_only_with_a_spacing():

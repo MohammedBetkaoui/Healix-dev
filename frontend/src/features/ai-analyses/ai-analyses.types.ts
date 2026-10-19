@@ -30,6 +30,7 @@ export type AiOutputClassKey = keyof AiAnalysesCopy["classes"];
 export type AiMetricKey = keyof AiAnalysesCopy["metrics"];
 export type AiLimitationKey = keyof AiAnalysesCopy["limitations"];
 export type AiDatasetKey = keyof AiAnalysesCopy["datasets"];
+export type AiStatusNoteKey = keyof AiAnalysesCopy["statusNotes"];
 
 /** 95 % interval [lower, upper], in the unit of its value. */
 export type AiInterval = readonly [number, number];
@@ -120,13 +121,15 @@ export type AiModel = {
   /** Not documented for any model yet: shown as "non renseigné". */
   underrepresentedPopulations: null;
   status: AiModelStatus;
+  /** Optional, model-specific explanation shown when there is no launch path. */
+  statusNote?: AiStatusNoteKey;
 };
 
 // ---------------------------------------------------------------------------
 // Pipelines
 // ---------------------------------------------------------------------------
 
-export const aiPipelineIds = ["brain", "pathology-breast", "pathology-nuclei", "cardio-ecg"] as const;
+export const aiPipelineIds = ["brain", "pathology-breast", "pathology-nuclei", "cardio-ecg", "cardio-seg-mri"] as const;
 export type AiPipelineId = (typeof aiPipelineIds)[number];
 
 /**
@@ -217,6 +220,33 @@ export type AiNucleiFractions = {
   nucleusTypes: Record<NucleusType, number | null>;
 };
 
+/** Structures of the ACDC model, in class-index order 1, 2, 3. */
+export const cardioSegStructures = ["LV", "RV", "MYO"] as const;
+export type CardioSegStructure = (typeof cardioSegStructures)[number];
+
+export type CardioSegArea = { pixels: number; areaMm2: number | null };
+
+/** What a cardio-seg-mri run stores in `predictions`. */
+export type AiCardioSegPredictions = {
+  configSha256: string;
+  noStructureFound: boolean;
+  pixelSpacingMm: [number, number] | null;
+  source: "image" | "dicom";
+  structures: Record<CardioSegStructure, CardioSegArea>;
+};
+
+/** GET /ai-models/cardio-seg/evaluation/:sha. */
+export type CardioSegEvaluation = {
+  source: "service" | "notebook";
+  file: string;
+  generatedAt: string | null;
+  weightsSha256: string;
+  nVolumes: number;
+  testPatients: number;
+  meanDice: number;
+  perClass: Record<CardioSegStructure, { mean: number; std: number | null }>;
+};
+
 // ---------------------------------------------------------------------------
 // Analysis run (GET/POST /patients/:id/ai-analysis-runs)
 // ---------------------------------------------------------------------------
@@ -244,7 +274,7 @@ export type AiAnalysisRun = {
   classificationModelId: string | null;
   classificationWeightsSha256: string | null;
   /** Brain: descending, as returned by the service; ECG: probabilities, thresholds, positive classes; null unless SUCCEEDED. */
-  predictions: AiRunPrediction[] | AiEcgPredictions | null;
+  predictions: AiRunPrediction[] | AiEcgPredictions | AiCardioSegPredictions | null;
   /** The model's answer the physician decides on: the brain top class, the BreakHis result; null for a nuclei map and an ECG. */
   modelLabel: string | null;
   /** ECG: the model's positive classes (possibly none), in class order; null for the other chains. */
@@ -267,6 +297,8 @@ export type AiAnalysisRun = {
   tileCount: number | null;
   /** PanNuke: a colour overlay is served by GET .../overlay. */
   hasOverlay: boolean;
+  /** Cardiac MRI: the analysed 8-bit slice is served by GET .../slice. */
+  hasSlice: boolean;
   segmentationModelId: string | null;
   segmentationWeightsSha256: string | null;
   hasMask: boolean;

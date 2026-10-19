@@ -83,6 +83,12 @@ export const aiAnalysesAr = {
         input: "إشارة تخطيط قلب بـ12 اشتقاقًا: CSV أو TXT أو أرشيف WFDB. يجب تحديد التردد والوحدة للملفات النصية.",
         output: "رسم تخطيط القلب ودرجات كل مجموعة تشخيصية، لمقارنتها بقراءتك.",
       },
+      "cardio-seg-mri": {
+        title: "تجزئة الرنين المغناطيسي القلبي",
+        description: "تحديد البطين الأيسر والبطين الأيمن وعضلة القلب في مقطع سينمائي بالمحور القصير.",
+        input: "مقطع رنين مغناطيسي سينمائي بالمحور القصير: PNG أو JPEG أو DICOM أحادي الصورة.",
+        output: "تراكب ومساحات البنى الثلاث، بالملم² عندما يوفر DICOM تباعد البكسلات.",
+      },
       "pathology-breast": {
         title: "التصنيف النسيجي للثدي",
         description: "مساعدة في التمييز بين الأنسجة الحميدة والخبيثة على صورة H&E.",
@@ -124,6 +130,8 @@ export const aiAnalysesAr = {
     documentation_pending:
       "غير قابل للإطلاق: توثيق هذا النموذج (التقييم وشروط الاستخدام) قيد الانتظار.",
     noPipeline: "لا توجد بعد سلسلة تحليل موصولة بهذا النموذج.",
+    chestXrayNotRetained: "لم يُعتمد: الدقة 65.9٪.",
+    ctLeftAtriumInsufficient: "Dice يساوي 0.77 على 4 مرضى: أداء غير كافٍ، غير مقترح.",
   },
   tasks: {
     classification: "تصنيف",
@@ -153,6 +161,7 @@ export const aiAnalysesAr = {
     leftVentricle: "البطين الأيسر (LV)",
     rightVentricle: "البطين الأيمن (RV)",
     myocardium: "عضلة القلب (MYO)",
+    leftAtrium: "الأذين الأيسر",
     benign: "حميد",
     malignant: "خبيث",
     neoplastic: "ورمي",
@@ -225,6 +234,12 @@ export const aiAnalysesAr = {
       "لا يتعرف إلا على 5 فئات كبرى: قد لا يُشار إلى اضطراب في النظم أو إلى شذوذ آخر بوصفه كذلك.",
     ecgLowerHypSensitivity: "حساسية أضعف للتضخم: نحو نصف الحالات فقط تم التعرف عليها في الاختبار.",
     ecgDigitalSignalOnly: "إشارة رقمية فقط (CSV أو TXT أو WFDB): لا يُقرأ التخطيط الورقي أو PDF أو المصوَّر.",
+    chestXrayNotRetained: "لم يُعتمد: الدقة 65.9٪.",
+    ctLeftAtriumInsufficient: "Dice يساوي 0.77 على 4 مرضى: أداء غير كافٍ، غير مقترح.",
+    cardioSegSingleSlice: "مقطع منفرد: لا يمكن حساب الحجم أو الكسر القذفي.",
+    cardioSegAcdcPopulation: "مجموعة ACDC من مركز واحد ومن سكان أوروبيين.",
+    cardioSegShortAxisOnly:
+      "الصورة التي ليست مقطع رنين مغناطيسي سينمائي بالمحور القصير تعطي نتيجة بلا قيمة سريرية.",
   },
   models: {
     "brain-efficientnetb4-tumor-classification": {
@@ -253,14 +268,14 @@ export const aiAnalysesAr = {
       intendedUse:
         "المساعدة على تصنيف صور أشعة الصدر: طبيعي أو تضخم القلب أو انصباب أو وذمة.",
     },
-    "cardiology-acdc-segmentation": {
-      name: "ACDC (LV + RV + MYO)",
+    "cardio-seg-acdc-unet-effb4": {
+      name: "U-Net EfficientNet-B4 ACDC",
       intendedUse:
-        "مُخطَّط: تجزئة البطين الأيسر والبطين الأيمن وعضلة القلب في الرنين المغناطيسي القلبي السينمائي.",
+        "المساعدة على تجزئة البطين الأيسر والبطين الأيمن وعضلة القلب في مقطع رنين مغناطيسي سينمائي بالمحور القصير.",
     },
     "cardiology-ct-heart-segmentation": {
-      name: "CT Heart",
-      intendedUse: "مُخطَّط: تجزئة القلب في التصوير المقطعي.",
+      name: "التصوير المقطعي — الأذين الأيسر",
+      intendedUse: "استكشاف تجزئة الأذين الأيسر في التصوير المقطعي القلبي.",
     },
     "pathology-breakhis-classification": {
       name: "EfficientNetB0 BreakHis",
@@ -339,6 +354,17 @@ export const aiAnalysesAr = {
         classes: "احتمال كل فئة، بمتوسط النوافذ ومقارنته بعتبتها",
       },
       launch: "تحليل تخطيط قلب",
+    },
+    "cardio-seg-mri": {
+      name: "الرنين القلبي — التجزئة",
+      description:
+        "تجزئة دلالية للبطين الأيسر والبطين الأيمن وعضلة القلب في مقطع سينمائي بالمحور القصير. لا يسمح المقطع المنفرد بحساب الحجم أو الكسر القذفي.",
+      steps: {
+        normalize: "تطبيع المقطع وفق بطاقة النموذج",
+        segment: "التجزئة إلى خلفية وبطين أيسر وبطين أيمن وعضلة القلب",
+        measure: "قياس المساحات بالبكسل أو بالملم² عند توفر التباعد",
+      },
+      launch: "تجزئة المقطع القلبي",
     },
   },
   sheet: {
@@ -461,6 +487,7 @@ export const aiAnalysesAr = {
       readingPlaceholders: {
         brain: "قراءتك للمقطع والعناصر التي تريد مقارنتها بالنموذج…",
         "cardio-ecg": "قراءتك لتخطيط القلب الأصلي والنقاط التي تريد مقارنتها…",
+        "cardio-seg-mri": "قراءتك للمقطع القلبي قبل عرض التجزئة…",
         "pathology-breast": "انطباعك عن شريحة الثدي قبل الاطلاع على درجة النموذج…",
         "pathology-nuclei": "ملاحظاتك عن الكثافة الخلوية والأنواع الخلوية الغالبة…",
       },
@@ -478,6 +505,13 @@ export const aiAnalysesAr = {
           qualityTitle: "فحص الإشارة ومعطيات اقتنائها",
           qualityHint: "تحقق من الاشتقاقات وحدّد التردد والوحدة لملفات CSV أو TXT.",
           readingTitle: "تحضير قراءة تخطيط القلب",
+        },
+        "cardio-seg-mri": {
+          documentTitle: "اختيار مقطع الرنين المغناطيسي القلبي",
+          documentHint: "اختر مقطعًا سينمائيًا بالمحور القصير: PNG أو JPEG أو DICOM أحادي الصورة.",
+          qualityTitle: "فحص المقطع القلبي",
+          qualityHint: "تحقق من الصيغة والأبعاد وأكّد أنه مقطع سينمائي بالمحور القصير.",
+          readingTitle: "قراءة المقطع قبل التجزئة",
         },
         "pathology-breast": {
           documentTitle: "اختيار صورة شريحة الثدي",
@@ -632,6 +666,8 @@ export const aiAnalysesAr = {
           "اختياري. دوّنوا قراءتكم للصورة (الكثافة الخلوية، الأنواع الخلوية الغالبة) قبل رؤية خريطة النموذج؛ تُحفظ مع التحليل.",
         "cardio-ecg":
           "اختياري. دوّنوا قراءتكم للتخطيط (النظم، التوصيل، القطعة ST، التضخم) قبل رؤية احتمالات النموذج؛ تُحفظ مع التحليل.",
+        "cardio-seg-mri":
+          "اختياري. دوّنوا قراءتكم للمقطع قبل رؤية الحدود المقترحة؛ تُحفظ مع التحليل.",
       },
       characters: "{count} / {max} حرف",
       launch: "إطلاق التحليل",
@@ -656,6 +692,11 @@ export const aiAnalysesAr = {
         label: "صورة H&E ملتقطة بتكبير 40×",
         hint: "إلزامي: دُرِّب النموذج على صور H&E بتكبير 40×؛ مع تكبير آخر تكون مساحاته خاطئة.",
         required: "أكّدوا أن الصورة H&E ملتقطة بتكبير 40× لإطلاق التحليل.",
+      },
+      shortAxis: {
+        label: "هذا مقطع رنين مغناطيسي سينمائي بالمحور القصير",
+        hint: "إلزامي: لا ينطبق النموذج إلا على هذا النوع من المقاطع القلبية.",
+        required: "أكّدوا أن الصورة مقطع رنين مغناطيسي سينمائي بالمحور القصير لإطلاق التحليل.",
       },
       launchErrors: {
         AI_MAGNIFICATION_REQUIRED: "حدّدوا تكبير الصورة.",
@@ -692,6 +733,8 @@ export const aiAnalysesAr = {
       IMAGE_TOO_LARGE: "تتجاوز الصورة الحجم الأقصى المقبول.",
       IMAGE_TOO_SMALL: "الصورة أصغر من الحجم الأدنى الذي يقبله هذا النموذج.",
       IMAGE_DIMENSIONS_TOO_LARGE: "تتجاوز الصورة الأبعاد القصوى التي يقبلها هذا النموذج.",
+      CARDIO_SEG_NOT_GRAYSCALE: "الصورة ملونة بوضوح: اختر مقطع رنين مغناطيسي بتدرج رمادي.",
+      CARDIO_SEG_MULTIFRAME: "يحتوي ملف DICOM على عدة صور. لا تُقبل إلا ملفات DICOM أحادية الصورة.",
       ECG_UNSUPPORTED_FORMAT: "تعذرت قراءة الملف كإشارة تخطيط قلب (CSV أو TXT أو تسجيل WFDB مضغوط).",
       ECG_UNSAFE_ARCHIVE: "رُفض الأرشيف: تسجيل WFDB واحد فقط (.hea و.dat)، دون مجلد.",
       ECG_MISSING_LEADS: "تنقص اشتقاقات: الاشتقاقات الـ12 كلها ضرورية.",
@@ -743,6 +786,29 @@ export const aiAnalysesAr = {
       auc: "AUC",
       sensitivity: "الحساسية",
       specificity: "النوعية",
+    },
+    cardioSeg: {
+      imageHint: "افحص المقطع والتراكب؛ اضبط الشفافية أو أخفِ بنية.",
+      sliceName: "مقطع-رنين-قلبي.png",
+      structuresLegend: "البنى المعروضة",
+      structuresHint: "لكل بنية لون مميز؛ ألغ تحديدها لإخفائها.",
+      recolourError: "تعذر ترشيح التراكب: تبقى الخريطة الكاملة معروضة.",
+      recolouring: "جارٍ تحديث التراكب…",
+      surfacesTitle: "المساحات المجزأة",
+      noStructure: "لم تُكتشف أي من البنى الثلاث في هذا المقطع.",
+      structure: "البنية",
+      pixels: "البكسلات",
+      areaMm2: "المساحة (مم²)",
+      mm2Note: "تباعد البكسلات: {row} × {column} مم.",
+      pixelNote: "المساحة بالبكسلات: استورد ملف DICOM للحصول على ملم².",
+      metricsTitle: "أداء النموذج",
+      metricsLoading: "جارٍ تحميل الأداء…",
+      metricsNone: "الأداء غير متاح لبصمة هذه الأوزان.",
+      metricsService: "تقييم الخدمة بتاريخ {date} على {volumes} حجمًا من {patients} مريضًا لم يرهم النموذج.",
+      metricsNotebook: "مقاييس بطاقة النموذج على {volumes} حجمًا من {patients} مريضًا لم يرهم النموذج.",
+      dice3d: "Dice ثلاثي الأبعاد",
+      meanDice: "متوسط Dice ثلاثي الأبعاد: {value}",
+      singleSliceWarning: "مساعدة على اتخاذ القرار، مقطع منفرد: لا يوجد كسر قذفي.",
     },
     image: "الصورة المحللة",
     imageBadge: "النتيجة المرئية",

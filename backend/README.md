@@ -33,7 +33,7 @@ $ npm install
 
 ### AI analysis chains
 
-`POST /api/patients/:id/ai-analysis-runs` starts one of three independent
+`POST /api/patients/:id/ai-analysis-runs` starts one of five independent
 chains (`pipeline`), never run one after the other:
 
 | `pipeline` | Service endpoint | `magnification` |
@@ -41,6 +41,8 @@ chains (`pipeline`), never run one after the other:
 | `brain` | `/analyze/brain` | refused (400 `AI_MAGNIFICATION_UNEXPECTED`) |
 | `pathology-breast` | `/analyze/pathology/breast-classification` (BreakHis) | required: 40, 100, 200 or 400 (400 `AI_MAGNIFICATION_REQUIRED`) |
 | `pathology-nuclei` | `/analyze/pathology/nuclei-segmentation` (PanNuke) | required, 40 only: a 40x H&E image (400 `AI_MAGNIFICATION_NOT_SUPPORTED`) |
+| `cardio-ecg` | `/analyze/cardio/ecg` | refused; ECG rate/unit fields apply |
+| `cardio-seg-mri` | `/analyze/cardio/segmentation-mri` | refused; PNG/JPEG or single-frame DICOM |
 
 Every answer of the service is checked before anything is stored; any
 inconsistency is `502 AI_SERVICE_ERROR` (run `FAILED`, nothing stored):
@@ -58,13 +60,19 @@ inconsistency is `502 AI_SERVICE_ERROR` (run `FAILED`, nothing stored):
   label map is stored as the mask (`maskPath`), the colour overlay next to it
   (`ai-masks/<runId>-overlay.png`, `overlayPath`); `maskAreaRatio` is
   1 - background, `maskAreaPx` that share of the image. No nucleus count.
+- **cardiac MRI**: model id plus weights/card SHA-256, the one-channel class
+  map and RGBA overlay, per-structure pixel counts and optional mm² areas,
+  pixel spacing and `noStructureFound`. The map and overlay use the existing
+  `maskPath`/`overlayPath`; the displayable analysed slice is stored separately.
 
 The response adds `modelLabel` (the brain's top class, the BreakHis result,
 `null` for the nuclei map), `magnification`, `malignancyScore`,
 `decisionThreshold`, `ttaScores`, `modelDecision`, `nucleiFractions`,
-`tileCount` and `hasOverlay`; the stored paths stay on the server.
+`tileCount`, `hasOverlay` and `hasSlice`; the stored paths stay on the server.
 `GET /api/patients/:id/ai-analysis-runs/:runId/overlay` serves the overlay
 (same headers as `/mask`, 404 without one).
+`GET /api/patients/:id/ai-analysis-runs/:runId/slice` serves the analysed
+cardiac MRI slice with the same workspace/patient/run checks.
 
 An image the service refuses (`invalid_image`, a side under 256 px or over its
 maximum for the nuclei segmentation, too large) makes the run
@@ -81,6 +89,8 @@ chain:
 - `pathology-nuclei`: validate the map (reviewed and accepted:
   `decisionLabel` stays null) or reject it; a correction answers
   `400 AI_CORRECTION_NOT_APPLICABLE`.
+- `cardio-seg-mri`: validate or reject the map; correction is likewise
+  refused with `400 AI_CORRECTION_NOT_APPLICABLE`.
 
 A label of another chain answers `400 AI_CORRECTED_LABEL_INVALID`. A brain or
 breast run without a result answers `409 AI_RUN_NOT_DECIDABLE`. The audit
@@ -112,8 +122,8 @@ loads nothing from the network: the Inter font (SIL OFL 1.1, in
 `assets/fonts/inter/`) and the images are embedded.
 
 The report quotes the measured performance from the evaluation reports of
-`ai-service/scripts/evaluate_brain.py`, `evaluate_pathology.py` and
-`evaluate_cardio.py`:
+`ai-service/scripts/evaluate_brain.py`, `evaluate_pathology.py`,
+`evaluate_cardio.py` and `evaluate_cardio_seg.py`:
 
 | Variable | Default |
 | --- | --- |
@@ -121,6 +131,8 @@ The report quotes the measured performance from the evaluation reports of
 | `AI_PATHOLOGY_EVALUATION_DIR` | `../ai-service/evaluation` (from the backend folder) |
 | `AI_CARDIO_EVALUATION_PATH` | `../ai-service/evaluation/cardio-latest.json` (from the backend folder) |
 | `AI_CARDIO_MODEL_CARD_PATH` | `../models/cardio-ecg-resnet1d-ptbxl.json` (from the backend folder) |
+| `AI_CARDIO_SEG_EVALUATION_PATH` | `../ai-service/evaluation/cardio-seg-latest.json` (from the backend folder) |
+| `AI_CARDIO_SEG_MODEL_CARD_PATH` | `../models/cardio-seg-acdc-unet-effb4.json` (from the backend folder) |
 
 Brain: when the report is missing, or describes other classifier weights than
 those of the analysis, the report prints "Performances non mesurées pour cette
@@ -138,6 +150,11 @@ Cardiology (`report/cardio-evaluation.ts`, also served by
 service itself), otherwise the `test` figures of the model card when its
 SHA-256 is the run's own, printed as the training notebook's; otherwise no
 figure.
+
+Cardiac MRI segmentation (`report/cardio-seg-evaluation.ts`, also served by
+`GET /ai-models/cardio-seg/evaluation/:weightsSha256`): the matching complete
+`cardio-seg-latest.json`, otherwise the matching model card figures explicitly
+marked as notebook/card values; otherwise no figure.
 
 ### Cardiology (ECG 12 leads)
 
@@ -168,6 +185,21 @@ figure.
   the decision, lead II drawn as vectors on ECG paper (25 mm/s, 10 mm/mV, two
   strips of 5 s, 1 mV calibration), the model and the SHA-256 of its weights
   and card, the decision-support mention. No urgency, no course of action.
+
+### Cardiology (single-slice cine MRI)
+
+- **Documents**: `IMAGE` documents in PNG/JPEG or DICOM `.dcm`; an empty MIME
+  type is accepted for `.dcm` after signature validation.
+- **Run**: `pipeline: "cardio-seg-mri"`; the usual workspace, patient and
+  diagnostic-AI consent checks apply. The audit event records no result.
+- **Result**: the class map and overlay are served by the existing `/mask` and
+  `/overlay` routes; `/slice` serves the grayscale slice used for display.
+  `predictions` contains structure areas, optional pixel spacing and
+  `noStructureFound`.
+- **Decision/report**: only `VALIDATED` and `REJECTED`. The PDF shows the slice
+  plus overlay and legend, the areas, decision, model SHA-256 and matching
+  evaluation source, with the explicit isolated-slice/no-ejection-fraction
+  warning.
 
 The histopathology report ("Compte rendu d'analyse histopathologique assistée
 par IA") keeps the template, the CR-IA numbering and the SHA-256 freezing:

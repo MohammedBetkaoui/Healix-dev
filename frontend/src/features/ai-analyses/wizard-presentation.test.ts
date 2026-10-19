@@ -5,6 +5,7 @@ const acquisition = {
   pipelineId: "brain" as const,
   magnification: null,
   he40xConfirmed: false,
+  shortAxisConfirmed: false,
   isArchive: false,
   samplingRate: null,
   rateChoice: null,
@@ -26,6 +27,11 @@ describe("model-specific acquisition prerequisites", () => {
   it("requires the nuclei confirmation even if another magnification was set", () => {
     expect(getAcquisitionIssue({ ...acquisition, pipelineId: "pathology-nuclei", magnification: 40 })).toBe("he40x");
     expect(getAcquisitionIssue({ ...acquisition, pipelineId: "pathology-nuclei", he40xConfirmed: true })).toBeNull();
+  });
+
+  it("requires an explicit short-axis cine MRI confirmation", () => {
+    expect(getAcquisitionIssue({ ...acquisition, pipelineId: "cardio-seg-mri" })).toBe("shortAxis");
+    expect(getAcquisitionIssue({ ...acquisition, pipelineId: "cardio-seg-mri", shortAxisConfirmed: true })).toBeNull();
   });
 
   it("distinguishes a missing ECG frequency from an invalid custom entry", () => {

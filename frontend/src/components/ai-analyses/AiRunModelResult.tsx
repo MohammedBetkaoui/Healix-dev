@@ -27,7 +27,7 @@ type AiRunModelResultProps = {
 export function AiRunModelResult({ empty, figureClassName, locale, run, t }: AiRunModelResultProps) {
   const figure = cn("font-[family-name:var(--font-auth-mono)] tabular-nums", figureClassName);
 
-  if (run.pipeline === "pathology-nuclei") {
+  if (run.pipeline === "pathology-nuclei" || run.pipeline === "cardio-seg-mri") {
     return <>{run.status === "SUCCEEDED" ? t("aiAnalyses.record.nucleiMap") : empty}</>;
   }
 

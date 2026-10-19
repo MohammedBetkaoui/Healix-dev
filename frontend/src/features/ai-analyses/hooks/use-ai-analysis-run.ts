@@ -7,7 +7,9 @@ import {
   getAiAnalysisRunEcgTrace,
   getAiAnalysisRunMask,
   getAiAnalysisRunOverlay,
+  getAiAnalysisRunSlice,
   getCardioEvaluation,
+  getCardioSegEvaluation,
 } from "../ai-analysis-runs.api";
 
 const RUNNING_POLL_MS = 3_000;
@@ -58,6 +60,16 @@ export function useCardioEvaluation(weightsSha256: string | null) {
   });
 }
 
+export function useCardioSegEvaluation(weightsSha256: string | null) {
+  return useQuery({
+    enabled: Boolean(weightsSha256),
+    queryFn: () => getCardioSegEvaluation(weightsSha256 as string),
+    queryKey: ["ai-models", "cardio-seg", "evaluation", weightsSha256],
+    retry: false,
+    staleTime: Number.POSITIVE_INFINITY,
+  });
+}
+
 // The colour overlay of a nuclei map (PNG). Same lifetime as the mask.
 export function useAiAnalysisRunOverlay(patientId: string, runId: string, options: { enabled: boolean }) {
   return useQuery({
@@ -65,6 +77,17 @@ export function useAiAnalysisRunOverlay(patientId: string, runId: string, option
     gcTime: 0,
     queryFn: () => getAiAnalysisRunOverlay(patientId, runId),
     queryKey: ["patients", "ai-analysis-run-overlay", patientId, runId],
+    retry: false,
+    staleTime: Number.POSITIVE_INFINITY,
+  });
+}
+
+export function useAiAnalysisRunSlice(patientId: string, runId: string, options: { enabled: boolean }) {
+  return useQuery({
+    enabled: options.enabled && Boolean(patientId) && Boolean(runId),
+    gcTime: 0,
+    queryFn: () => getAiAnalysisRunSlice(patientId, runId),
+    queryKey: ["patients", "ai-analysis-run-slice", patientId, runId],
     retry: false,
     staleTime: Number.POSITIVE_INFINITY,
   });

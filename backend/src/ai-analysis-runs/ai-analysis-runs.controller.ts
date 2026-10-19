@@ -20,6 +20,7 @@ import { CreateAiAnalysisRunDto } from './dto/create-ai-analysis-run.dto';
 import { DecideAiAnalysisRunDto } from './dto/decide-ai-analysis-run.dto';
 import { AiAnalysisReportsService } from './report/ai-analysis-reports.service';
 import { CardioEvaluationService } from './report/cardio-evaluation';
+import { CardioSegEvaluationService } from './report/cardio-seg-evaluation';
 
 // Same guards as the patient record the runs belong to.
 @Controller('patients/:id/ai-analysis-runs')
@@ -130,6 +131,29 @@ export class AiAnalysisRunsController {
     response.end(overlay.png);
   }
 
+  // The slice a cardiac MRI segmentation analysed (8-bit PNG): the image
+  // under its overlay, whatever the source (a DICOM cannot be shown as it
+  // is). Same headers as /mask.
+  @Get(':runId/slice')
+  async slice(
+    @CurrentUser() user: AuthenticatedUserPayload,
+    @Param('id') id: string,
+    @Param('runId') runId: string,
+    @Res() response: Response,
+  ) {
+    const slice = await this.runsService.getSlice(user, id, runId);
+
+    response.setHeader('Content-Type', 'image/png');
+    response.setHeader('Content-Length', String(slice.png.length));
+    response.setHeader(
+      'Content-Disposition',
+      `inline; filename="${encodeURIComponent(slice.fileName)}"`,
+    );
+    response.setHeader('Cache-Control', 'private, no-store');
+    response.setHeader('X-Content-Type-Options', 'nosniff');
+    response.end(slice.png);
+  }
+
   // The trace of an ECG analysis (JSON: rate, unit, samples per lead); same
   // headers and scope check as /mask.
   @Get(':runId/ecg-trace')
@@ -159,6 +183,7 @@ export class AiModelsController {
   constructor(
     private readonly aiServiceClient: AiServiceClient,
     private readonly cardioEvaluationService: CardioEvaluationService,
+    private readonly cardioSegEvaluationService: CardioSegEvaluationService,
   ) {}
 
   // Relays GET /models of the inference service; the token never leaves.
@@ -174,6 +199,15 @@ export class AiModelsController {
   async cardioEvaluation(@Param('weightsSha256') weightsSha256: string) {
     return {
       evaluation: await this.cardioEvaluationService.find(weightsSha256),
+    };
+  }
+
+  // The measured performance of the cardiac MRI segmentation model for these
+  // weights: the service's own evaluation, else the notebook's (model card).
+  @Get('cardio-seg/evaluation/:weightsSha256')
+  async cardioSegEvaluation(@Param('weightsSha256') weightsSha256: string) {
+    return {
+      evaluation: await this.cardioSegEvaluationService.find(weightsSha256),
     };
   }
 }

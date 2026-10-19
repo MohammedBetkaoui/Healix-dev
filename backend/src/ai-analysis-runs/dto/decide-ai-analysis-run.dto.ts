@@ -24,13 +24,15 @@ import { type AiPipeline } from './create-ai-analysis-run.dto';
 
 // What a physician may correct to, per chain: a class the model gives, or
 // one it does not know ("other"). The nuclei segmentation is a map to review
-// (validated or rejected), never corrected to a class. The ECG is
+// (validated or rejected), never corrected to a class, and so is the cardiac
+// MRI segmentation. The ECG is
 // multi-label: corrected to a set of classes (correctedLabels), not to one.
 export const CORRECTION_LABELS: Readonly<
   Record<AiPipeline, readonly string[]>
 > = {
   brain: [...BRAIN_LABELS, 'other'],
   'cardio-ecg': [],
+  'cardio-seg-mri': [],
   'pathology-breast': [...BREAST_DECISIONS, 'other'],
   'pathology-nuclei': [],
 };

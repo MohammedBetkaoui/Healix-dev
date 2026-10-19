@@ -221,9 +221,9 @@ describe("aiModels registry", () => {
       "brain-unet-pituitary-segmentation": "available",
       "brain-flair-segmentation": "documentation_pending",
       "cardio-ecg-resnet1d-ptbxl-superdiagnostic": "available",
-      "cardiology-densenet121-chest-xray": "available",
-      "cardiology-acdc-segmentation": "in_design",
-      "cardiology-ct-heart-segmentation": "in_design",
+      "cardiology-densenet121-chest-xray": "exploring",
+      "cardio-seg-acdc-unet-effb4": "available",
+      "cardiology-ct-heart-segmentation": "exploring",
       "pathology-breakhis-classification": "available",
       "pathology-unet-pannuke-segmentation": "available",
     });
@@ -269,19 +269,20 @@ describe("aiModels registry", () => {
     expect(findLaunchableModel("brain-efficientnetb4-tumor-classification")?.status).toBe("available");
     expect(findLaunchableModel("brain-unet-meningioma-segmentation")).toBeUndefined();
     expect(findLaunchableModel("brain-unet-pituitary-segmentation")).toBeUndefined();
-    expect(findLaunchableModel("cardiology-acdc-segmentation")).toBeUndefined();
+    expect(findLaunchableModel("cardio-seg-acdc-unet-effb4")?.status).toBe("available");
     expect(findLaunchableModel("pathology-breakhis-classification")?.status).toBe("available");
     expect(findLaunchableModel("pathology-unet-pannuke-segmentation")?.status).toBe("available");
     expect(findLaunchableModel("unknown-model")).toBeUndefined();
     expect(findLaunchableModel(undefined)).toBeUndefined();
   });
 
-  it("launches four chains, each from its entry model, and maps every legacy component to its chain", () => {
+  it("launches five chains, each from its entry model, and maps every legacy component to its chain", () => {
     expect(aiPipelines.map((pipeline) => [pipeline.id, pipeline.kind, pipeline.entryModelId])).toEqual([
       ["brain", "routed", "brain-efficientnetb4-tumor-classification"],
       ["pathology-breast", "single", "pathology-breakhis-classification"],
       ["pathology-nuclei", "single", "pathology-unet-pannuke-segmentation"],
       ["cardio-ecg", "single", "cardio-ecg-resnet1d-ptbxl-superdiagnostic"],
+      ["cardio-seg-mri", "single", "cardio-seg-acdc-unet-effb4"],
     ]);
     expect(getPipelineRole("cardio-ecg-resnet1d-ptbxl-superdiagnostic")).toMatchObject({ role: "entry", pipeline: { id: "cardio-ecg" } });
     expect(findPipeline("brain")?.entryModelId).toBe("brain-efficientnetb4-tumor-classification");
@@ -289,6 +290,7 @@ describe("aiModels registry", () => {
     expect(getPipelineRole("brain-efficientnetb4-tumor-classification")?.role).toBe("entry");
     expect(getPipelineRole("pathology-breakhis-classification")).toMatchObject({ role: "entry", pipeline: { id: "pathology-breast" } });
     expect(getPipelineRole("pathology-unet-pannuke-segmentation")).toMatchObject({ role: "entry", pipeline: { id: "pathology-nuclei" } });
+    expect(getPipelineRole("cardio-seg-acdc-unet-effb4")).toMatchObject({ role: "entry", pipeline: { id: "cardio-seg-mri" } });
     expect(getPipelineRole("cardiology-densenet121-chest-xray")).toBeNull();
     expect(getPipelineRole("brain-unet-meningioma-segmentation")?.role).toBe("segmenter");
     expect(getPipelineRole("brain-unet-pituitary-segmentation")?.role).toBe("segmenter");

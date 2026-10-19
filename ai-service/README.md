@@ -206,6 +206,32 @@ by a similar amount, and the model is sensitive near the threshold; the test
 allows 0.1 for classes within 0.05 of their threshold and compares the
 positive classes only away from it.
 
+## Cardiology — MRI segmentation
+
+`cardio-seg-acdc-unet-effb4` segments one short-axis cine-MRI slice into
+background, left-ventricular cavity (`LV`), right-ventricular cavity (`RV`)
+and left-ventricular myocardium (`MYO`). Its protected endpoint is
+`POST /analyze/cardio/segmentation-mri`, multipart field `image`.
+
+The model card `models/cardio-seg-acdc-unet-effb4.json` is the only source of
+truth for the architecture, preprocessing, labels, test patients and test
+metrics. The service checks the weights against the card's SHA-256 before
+loading them and exposes both the weights and card hashes through `/models`.
+Inference is float32 on CPU and serialized with the model's own lock.
+
+Accepted inputs are grayscale PNG/JPEG images and single-frame DICOM files.
+Clearly coloured images and multi-frame DICOM files are refused. DICOM
+`MONOCHROME1` pixels are inverted before preprocessing; `PixelSpacing`, when
+present and valid, is used to report areas in mm². Each side must be between
+64 and 1024 pixels.
+
+The response contains a one-channel class-map PNG, a transparent RGBA overlay,
+the displayable analysed slice, the per-structure pixel count and optional
+area in mm², pixel spacing, `noStructureFound`, and the model/weights/card
+identifiers. It deliberately contains no diagnosis, volume or ejection
+fraction: a single slice cannot provide them. Overlay colours live in
+`app/cardio_seg_palette.json` and are validated at startup.
+
 ## Install
 
 Python 3.12. Versions are pinned to training: torch 2.10.0, timm 1.0.25
@@ -228,7 +254,7 @@ uv pip install --python .venv -r requirements-dev.txt \
 | Variable | Default | |
 | --- | --- | --- |
 | `AI_SERVICE_TOKEN` | *(empty: every protected call refused)* | Shared secret, sent by the backend as `X-Service-Token` |
-| `AI_MODELS_DIR` | `<repo>/models` | Folder holding the `.pth` and `.keras` files and `breakhis_inference_config.json` |
+| `AI_MODELS_DIR` | `<repo>/models` | Folder holding the model weights, model cards and `breakhis_inference_config.json` |
 | `AI_SERVICE_HOST` | `127.0.0.1` | |
 | `AI_SERVICE_PORT` | `8001` | |
 | `AI_MAX_IMAGE_BYTES` | `20971520` (20 MB) | Larger uploads (images and ECG files): 413 |
@@ -249,8 +275,8 @@ All routes but `/health` require `X-Service-Token` (constant-time comparison).
 
 - `GET /health` → `{ "status": "ok" }`
 - `GET /models` → `{ "models": [{ modelId, file, loaded, weightsSha256, error }] }`:
-  the three brain models, the two pathology ones, then the ECG model; the
-  BreakHis classifier and the ECG model also have `config: { file, sha256 }`.
+  the three brain models, the two pathology ones, the ECG model and the
+  cardiac MRI model; card-backed models also have `config: { file, sha256 }`.
 - `POST /analyze/brain` (multipart, field `image`, PNG or JPEG) →
 
 ```json
@@ -346,6 +372,14 @@ band-pass filtered, **not** normalised, in mV rounded to the µV: what the
 interface draws. 503 `model_not_loaded` without the model; the ECG refusals
 are listed under *Cardiology pipeline*.
 
+- `POST /analyze/cardio/segmentation-mri` (multipart: `image`, grayscale
+  PNG/JPEG or single-frame DICOM) → `{ modelId, weightsSha256, configSha256,
+  labelMapPng, overlayPng, slicePng, structures, pixelSpacingMm,
+  noStructureFound, source, imageWidth, imageHeight, durationMs }`.
+  `labelMapPng` contains class indices 0–3. `areaMm2` is `null` without valid
+  DICOM pixel spacing. The endpoint returns 503 `model_not_loaded` when the
+  model is unavailable.
+
 Errors, on every endpoint: 401 token, 413 too large, 422 `invalid_image`
 (not a decodable PNG/JPEG), 503 `model_not_loaded` (the classifier, for
 `/analyze/brain`). Pathology only, 422: `invalid_magnification` (missing, or
@@ -359,8 +393,8 @@ not 40, 100, 200 or 400), `image_too_small` (`minSide`: 256),
 ```
 
 Tests that need the weights read `AI_MODELS_DIR` (default `../models`) and
-are skipped when the files are absent (`tests/test_cardio.py`: the ECG
-weights and card). Routing is tested with stand-in
+are skipped when the files are absent (`tests/test_cardio.py` and
+`tests/test_cardio_seg.py`). Routing is tested with stand-in
 modules, independently of the weights; so are the pathology pipelines (test-time
 augmentation, threshold, tiling and rebuilt label map), and the Keras loading
 with tiny models saved by the tests.
@@ -628,7 +662,7 @@ path.
 - The notebooks ran on GPU: small numerical differences with this CPU run are
   possible.
 
-## Cardiology evaluation
+## Cardiology evaluation — ECG
 
 `scripts/evaluate_cardio.py` replays the service's own ECG code
 (`app.ecg_pipeline.predict`: windows, band-pass, z-score, inference, mean of
@@ -676,3 +710,26 @@ the figures shown today are the notebook's.
 - The 5 superclasses only: no rhythm statement, no measurement (intervals,
   axis).
 - The notebook ran on GPU: small numerical differences are possible.
+
+## Cardiology evaluation — MRI segmentation
+
+Do not run this evaluation without the complete preprocessed ACDC dataset.
+The command replays every `patientXXX_frameYY_slice_Z.h5` file (`image` and
+`label` keys) belonging to the model card's test patients:
+
+```powershell
+cd <repository>\ai-service
+.\.venv\Scripts\python.exe -m scripts.evaluate_cardio_seg --acdc C:\datasets\ACDC_preprocessed
+```
+
+Before any inference, the script groups slices by patient and phase and stops
+unless their volume count matches the model card. It remaps the original ACDC
+labels to the service's `LV`, `RV`, `MYO` order, runs each slice through the
+production preprocessing/inference path, and computes 3D Dice per volume at
+256 × 256. A structure absent from both prediction and reference has a `NaN`
+Dice and is excluded from that structure's mean and standard deviation.
+
+Reports are written as `evaluation/cardio-seg-<date>-<sha8>.json` and copied
+to `evaluation/cardio-seg-latest.json`. Exit code 1 means the measured mean
+differs from the model card beyond its allowed tolerance; exit code 2 means
+the dataset or model is unavailable or the expected test split was not found.

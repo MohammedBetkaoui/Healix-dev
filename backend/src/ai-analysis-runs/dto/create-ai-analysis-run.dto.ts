@@ -18,12 +18,13 @@ import {
   type EcgUnit,
 } from '../ai-service.client';
 
-// Four independent chains, never run one after the other.
+// Five independent chains, never run one after the other.
 export const AI_PIPELINES = [
   'brain',
   'pathology-breast',
   'pathology-nuclei',
   'cardio-ecg',
+  'cardio-seg-mri',
 ] as const;
 export type AiPipeline = (typeof AI_PIPELINES)[number];
 

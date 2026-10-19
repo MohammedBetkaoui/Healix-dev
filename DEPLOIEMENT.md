@@ -40,12 +40,14 @@ Cinq conteneurs applicatifs, plus celui des sauvegardes, décrits par
     Caddy.
 - **Fichiers montés depuis le dépôt ou l'hôte, en lecture seule :**
   - les poids des modèles (`AI_MODELS_DIR`), jamais copiés dans une image ;
-    le backend lit dans ce dossier la seule carte du modèle ECG
-    (`cardio-ecg-resnet1d-ptbxl.json`, `AI_CARDIO_MODEL_CARD_PATH`) ;
+    le backend lit dans ce dossier les cartes des modèles cardiologiques
+    (`cardio-ecg-resnet1d-ptbxl.json`, `AI_CARDIO_MODEL_CARD_PATH`, et
+    `cardio-seg-acdc-unet-effb4.json`, `AI_CARDIO_SEG_MODEL_CARD_PATH`) ;
   - les rapports d'évaluation `ai-service/evaluation/` : `brain-latest.json`
     (`AI_EVALUATION_REPORT_PATH`), `pathology-*.json`
     (`AI_PATHOLOGY_EVALUATION_DIR`) et `cardio-latest.json`
-    (`AI_CARDIO_EVALUATION_PATH`), cités par les comptes rendus PDF ;
+    (`AI_CARDIO_EVALUATION_PATH`) et `cardio-seg-latest.json`
+    (`AI_CARDIO_SEG_EVALUATION_PATH`), cités par les comptes rendus PDF ;
   - la configuration de Caddy (`caddy/`).
 - **Sauvegardes** : le dossier de l'hôte `BACKUP_DIR`, où écrit le service
   `backup` (section 8).
@@ -95,6 +97,7 @@ Les fichiers lus par le service :
 | `EfficientNetB0_BreakHis_phase2.keras` | `c8cbd905cc039ed4775c98043e04d357bcfcaf971c4b9cc592a3600f97348e6b` |
 | `breakhis_inference_config.json` | `ea0646849ab49e9ce148f902895693f6a304f2e329d9cb2e591fe07c8025f552` |
 | `pannuke_unet_efficientnetb0_phase2_best.keras` | `02b26d77988f7aa38a15f39e7ba9a7a8946380563e26d1ca705c805d688bbf3c` |
+| `cardio-seg-acdc-unet-effb4.pt` | `252fb672137d89835c6acc7f10d7c3c8873b8a3925eb1f2061fa51105e23901c` |
 
 `breakhis_inference_config.json` est le fichier `inference_config.json` du
 notebook BreakHis (`notebooks/breakhis-classification-efficientnetb0.ipynb`),

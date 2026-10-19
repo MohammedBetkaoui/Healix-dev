@@ -40,6 +40,7 @@ function registryKeys() {
     }
     if (model.classMetricsDataset) keys.add(`aiAnalyses.datasets.${model.classMetricsDataset}`);
     for (const limitation of model.knownLimitations) keys.add(`aiAnalyses.limitations.${limitation}`);
+    if ("statusNote" in model && model.statusNote) keys.add(`aiAnalyses.statusNotes.${model.statusNote}`);
   }
   for (const pipeline of aiPipelines) {
     for (const field of ["documentTitle", "documentHint", "qualityTitle", "qualityHint", "readingTitle"]) {
@@ -56,7 +57,7 @@ function registryKeys() {
     keys.add(`aiAnalyses.wizard.reading.impressionHints.${pipeline.id}`);
     // Decision options of the chain: a nuclei map has its own wording.
     for (const decision of getDecisionOptions(pipeline.id)) {
-      const family = pipeline.id === "pathology-nuclei" ? "nuclei" : "";
+      const family = pipeline.id === "pathology-nuclei" || pipeline.id === "cardio-seg-mri" ? "nuclei" : "";
       keys.add(`aiAnalyses.decision.${family ? `${family}Options` : "options"}.${decision}`);
       keys.add(`aiAnalyses.decision.${family ? `${family}OptionHints` : "optionHints"}.${decision}`);
     }

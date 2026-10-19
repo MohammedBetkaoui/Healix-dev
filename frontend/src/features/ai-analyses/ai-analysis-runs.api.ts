@@ -13,6 +13,7 @@ import {
   type AiRunsSummary,
   type AiServiceStatus,
   type CardioEvaluation,
+  type CardioSegEvaluation,
   type EcgClass,
   type EcgUnit,
 } from "./ai-analyses.types";
@@ -157,9 +158,25 @@ export async function getCardioEvaluation(weightsSha256: string): Promise<Cardio
   return response.data.evaluation;
 }
 
+/** The figures of the cardiac MRI model for these weights (service, else model card). */
+export async function getCardioSegEvaluation(weightsSha256: string): Promise<CardioSegEvaluation | null> {
+  const response = await apiClient.get<{ evaluation: CardioSegEvaluation | null }>(
+    `/ai-models/cardio-seg/evaluation/${encodeURIComponent(weightsSha256)}`,
+  );
+  return response.data.evaluation;
+}
+
 /** The colour overlay of a nuclei map (PNG, background transparent). */
 export async function getAiAnalysisRunOverlay(patientId: string, runId: string): Promise<Blob> {
   const response = await apiClient.get<Blob>(`/patients/${patientId}/ai-analysis-runs/${runId}/overlay`, {
+    responseType: "blob",
+  });
+  return response.data;
+}
+
+/** The cardiac MRI slice as analysed, converted to an 8-bit PNG. */
+export async function getAiAnalysisRunSlice(patientId: string, runId: string): Promise<Blob> {
+  const response = await apiClient.get<Blob>(`/patients/${patientId}/ai-analysis-runs/${runId}/slice`, {
     responseType: "blob",
   });
   return response.data;

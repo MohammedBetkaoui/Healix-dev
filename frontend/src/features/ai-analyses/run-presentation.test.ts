@@ -3,6 +3,7 @@ import { AxiosError, AxiosHeaders, type AxiosResponse } from "axios";
 import { type AiServiceStatus } from "./ai-analyses.types";
 import {
   getFailedRunId,
+  getCardioSegPredictions,
   getLaunchErrorKey,
   getLaunchState,
   getRunErrorKey,
@@ -94,8 +95,26 @@ describe("run helpers", () => {
     expect(getRunErrorKey("RUN_INTERRUPTED")).toBe("RUN_INTERRUPTED");
     expect(getRunErrorKey("IMAGE_TOO_SMALL")).toBe("IMAGE_TOO_SMALL");
     expect(getRunErrorKey("IMAGE_DIMENSIONS_TOO_LARGE")).toBe("IMAGE_DIMENSIONS_TOO_LARGE");
+    expect(getRunErrorKey("CARDIO_SEG_NOT_GRAYSCALE")).toBe("CARDIO_SEG_NOT_GRAYSCALE");
+    expect(getRunErrorKey("CARDIO_SEG_MULTIFRAME")).toBe("CARDIO_SEG_MULTIFRAME");
     expect(getRunErrorKey("SOMETHING_NEW")).toBe("unknown");
     expect(getRunErrorKey(null)).toBe("unknown");
+  });
+
+  it("reads cardiac segmentation areas only from the matching pipeline", () => {
+    const predictions = {
+      configSha256: "c".repeat(64),
+      noStructureFound: false,
+      pixelSpacingMm: [1.5, 1.5] as [number, number],
+      source: "dicom" as const,
+      structures: {
+        LV: { pixels: 100, areaMm2: 225 },
+        RV: { pixels: 80, areaMm2: 180 },
+        MYO: { pixels: 60, areaMm2: 135 },
+      },
+    };
+    expect(getCardioSegPredictions({ pipeline: "cardio-seg-mri", predictions })).toEqual(predictions);
+    expect(getCardioSegPredictions({ pipeline: "brain", predictions })).toBeNull();
   });
 
   it("reads the recorded run id from a failed POST", () => {

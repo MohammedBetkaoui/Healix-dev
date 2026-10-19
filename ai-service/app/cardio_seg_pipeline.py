@@ -2,7 +2,7 @@
 
 1. to_uint8: the pixels > 0 are z-scored with their own mean and standard
    deviation (eps 1e-8); the others keep their value. Clipped to [-3, 3],
-   then (x + 3) / 6 * 255 as uint8: a background left at 0 becomes 127.
+   then (x + 3) / 6 * 255 as uint8. A wholly empty image stays at 0.
 2. Grey -> RGB (3 identical channels), resized to the card's size with
    cv2.INTER_LINEAR, / max_pixel_value, then the card's mean and std: what
    albumentations' Resize and Normalize did in training.
@@ -47,9 +47,10 @@ def to_uint8(pixels: np.ndarray) -> np.ndarray:
     """As the notebook (ACDCDataset): z-score of the pixels > 0, clip, then 0-255."""
     image = pixels.astype(np.float32, copy=True)
     foreground = image > 0
-    if foreground.sum() > 0:
-        values = image[foreground]
-        image[foreground] = (values - values.mean()) / (values.std() + ZSCORE_EPS)
+    if not foreground.any():
+        return np.zeros(image.shape, dtype=np.uint8)
+    values = image[foreground]
+    image[foreground] = (values - values.mean()) / (values.std() + ZSCORE_EPS)
     image = np.clip(image, -3, 3)
     return ((image + 3) / 6 * 255).clip(0, 255).astype(np.uint8)
 

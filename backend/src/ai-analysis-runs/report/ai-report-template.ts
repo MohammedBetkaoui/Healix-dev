@@ -11,6 +11,9 @@
 import { createSha256Checksum } from '../../common/utils/checksum.util';
 import { formatPhysicianName } from '../../common/utils/physician-name';
 import {
+  CARDIO_SEG_STRUCTURES,
+  type CardioSegArea,
+  type CardioSegStructure,
   ECG_CLASSES,
   NUCLEUS_TYPES,
   type EcgClass,
@@ -27,6 +30,8 @@ import {
   UNCERTAINTY_THRESHOLD,
 } from './ai-report-rules';
 import { type CardioEvaluation } from './cardio-evaluation';
+import { CARDIO_SEG_PALETTE } from './cardio-seg-palette';
+import { type CardioSegEvaluation } from './cardio-seg-evaluation';
 import { NUCLEI_PALETTE } from './nuclei-palette';
 import {
   type BreakhisEvaluation,
@@ -75,6 +80,13 @@ export const ECG_CLASS_NAMES: Record<EcgClass, string> = {
   STTC: 'Trouble ST/T',
 };
 
+// The cardiac MRI structures, named in French.
+export const CARDIO_SEG_NAMES: Record<CardioSegStructure, string> = {
+  LV: 'Cavité du ventricule gauche (VG)',
+  RV: 'Cavité du ventricule droit (VD)',
+  MYO: 'Myocarde du ventricule gauche',
+};
+
 // Too rare in training and in test: its share is shown, flagged.
 const UNRELIABLE_NUCLEUS_TYPES: readonly NucleusType[] = ['dead'];
 
@@ -102,6 +114,8 @@ const MODEL_NAMES: Record<string, string> = {
     'EfficientNet-B0 BreakHis (classification bénin / malin)',
   'pathology-unet-pannuke-segmentation':
     'U-Net EfficientNet-B0 PanNuke (segmentation des noyaux)',
+  'cardio-seg-acdc-unet-effb4':
+    'U-Net EfficientNet-B4 ACDC (segmentation VG / VD / myocarde)',
   'cardio-ecg-resnet1d-ptbxl-superdiagnostic':
     'ResNet1D-34 PTB-XL (classification multi-label de l’ECG 12 dérivations)',
 };
@@ -195,6 +209,16 @@ export type ReportInput = {
     } | null;
     /** The classes the physician kept on an ECG (possibly none); null otherwise. */
     decisionLabels: EcgClass[] | null;
+    /** Cardiac MRI segmentation (absent for the other chains). */
+    cardioSeg?: {
+      structures: Record<CardioSegStructure, CardioSegArea>;
+      /** (row, column) in mm; null for an image. */
+      pixelSpacingMm: [number, number] | null;
+      noStructureFound: boolean;
+      source: 'image' | 'dicom';
+      /** SHA-256 of the model card. */
+      configSha256: string;
+    } | null;
   };
   requestedBy: ReportPerson;
   decidedBy: ReportPerson;
@@ -210,6 +234,10 @@ export type ReportInput = {
   mask: { data: Buffer; sha256: string } | null;
   /** Colour overlay of a nuclei segmentation. */
   overlay: { data: Buffer; sha256: string } | null;
+  /** Cardiac MRI: the slice as analysed (8-bit PNG), under the overlay. */
+  slice?: { data: Buffer; sha256: string } | null;
+  /** Cardiac MRI: the service's evaluation of these weights, else the notebook's, or null. */
+  cardioSegEvaluation?: CardioSegEvaluation | null;
   /** Lead II of the stored ECG trace (first 10 s, filtered, mV), as drawn. */
   ecgTrace: { samplingRate: number; leadII: number[]; sha256: string } | null;
   /** Cardiology: the service's evaluation of these weights, else the notebook's, or null. */
@@ -548,9 +576,12 @@ function results(input: ReportInput, evaluationApplies: boolean): string {
 </section>`;
 }
 
+// Chains whose result is a map to review: validated, never corrected.
+const MAP_PIPELINES = new Set(['pathology-nuclei', 'cardio-seg-mri']);
+
 function conclusion(input: ReportInput): string {
   const { run } = input;
-  const nuclei = run.pipeline === 'pathology-nuclei';
+  const nuclei = MAP_PIPELINES.has(run.pipeline);
   const verdict = nuclei
     ? 'Carte de segmentation relue et acceptée'
     : run.decisionStatus === 'CORRECTED'
@@ -1072,6 +1103,146 @@ function ecgLegal(input: ReportInput): string {
 </section>`;
 }
 
+// --- Cardiac MRI segmentation ------------------------------------------------
+
+function cardioSegApplies(input: ReportInput): boolean {
+  return evaluationMatchesWeights(
+    input.run.segmentationWeightsSha256,
+    input.cardioSegEvaluation?.weightsSha256 ?? null,
+  );
+}
+
+const area = new Intl.NumberFormat('fr-FR', { maximumFractionDigits: 1 });
+
+function cardioSegTechnique(input: ReportInput): string {
+  const { run, sourceDocument } = input;
+  const seg = run.cardioSeg ?? null;
+  const dimensions =
+    sourceDocument.width && sourceDocument.height
+      ? `${integer.format(sourceDocument.width)} × ${integer.format(sourceDocument.height)} pixels`
+      : 'Non déterminées';
+  const spacing = seg?.pixelSpacingMm
+    ? `${decimals(3).format(seg.pixelSpacingMm[0])} × ${decimals(3).format(seg.pixelSpacingMm[1])} mm (DICOM)`
+    : 'Inconnu : image PNG ou JPEG, ou DICOM sans espacement';
+  const duration =
+    run.durationMs === null
+      ? 'Non renseignée'
+      : `${new Intl.NumberFormat('fr-FR', { maximumFractionDigits: 1 }).format(run.durationMs / 1000)} s`;
+  const model = run.segmentationModelId
+    ? `${escapeHtml(MODEL_NAMES[run.segmentationModelId] ?? run.segmentationModelId)}<br /><span class="sha">Poids SHA-256 : ${escapeHtml(run.segmentationWeightsSha256 ?? '—')}</span>${seg ? `<br /><span class="sha">Carte du modèle SHA-256 : ${escapeHtml(seg.configSha256)}</span>` : ''}`
+    : 'Non renseigné';
+  return `<section>
+  <h2>Technique</h2>
+  <table class="facts">
+    ${row('Document analysé', escapeHtml(sourceDocument.originalName))}
+    ${row("Date d'import", formatDateTime(sourceDocument.createdAt))}
+    ${row('Coupe', `${seg?.source === 'dicom' ? 'DICOM mono-image' : 'Image PNG ou JPEG'}, ${dimensions} (déclarée coupe d’IRM ciné en petit axe lors de la demande)`)}
+    ${row('Espacement des pixels', spacing)}
+    ${row("Chaîne d'analyse", 'Segmentation sémantique d’une coupe : normalisation des intensités, analyse à 256 × 256 pixels, carte ramenée à la taille de la coupe')}
+    ${row('Modèle utilisé', model)}
+    ${row('Durée de traitement', duration)}
+  </table>
+</section>`;
+}
+
+function cardioSegFigures(input: ReportInput): string {
+  const { slice, overlay, sourceDocument } = input;
+  if (!slice) return '';
+  const width = sourceDocument.width ?? 256;
+  const height = sourceDocument.height ?? 256;
+  const sliceUri = `data:image/png;base64,${slice.data.toString('base64')}`;
+  return `<div class="figures">
+    <figure>
+      <div class="slice" style="aspect-ratio: ${width} / ${height}"><img src="${sliceUri}" alt="" /></div>
+      <figcaption><strong>Figure 1</strong> — Coupe analysée</figcaption>
+    </figure>
+    ${
+      overlay
+        ? `<figure>
+      <div class="slice" style="aspect-ratio: ${width} / ${height}">
+        <img src="${sliceUri}" alt="" />
+        <svg viewBox="0 0 ${width} ${height}" preserveAspectRatio="none" aria-hidden="true">
+          <image href="data:image/png;base64,${overlay.data.toString('base64')}" x="0" y="0" width="${width}" height="${height}" preserveAspectRatio="none" />
+        </svg>
+      </div>
+      <figcaption><strong>Figure 2</strong> — Même coupe, structures segmentées</figcaption>
+    </figure>`
+        : ''
+    }
+  </div>`;
+}
+
+function cardioSegResults(input: ReportInput): string {
+  const seg = input.run.cardioSeg ?? null;
+  const withMm2 = Boolean(seg?.pixelSpacingMm);
+  const legend = CARDIO_SEG_STRUCTURES.map(
+    (name) =>
+      `<li><span class="swatch" style="background:${CARDIO_SEG_PALETTE[name]}"></span>${escapeHtml(CARDIO_SEG_NAMES[name])}</li>`,
+  ).join('');
+  const rows = seg
+    ? CARDIO_SEG_STRUCTURES.map((name) => {
+        const surface = seg.structures[name];
+        return `<tr><td>${escapeHtml(CARDIO_SEG_NAMES[name])}</td><td class="num">${integer.format(surface.pixels)}</td>${withMm2 ? `<td class="num">${surface.areaMm2 === null ? '—' : `${area.format(surface.areaMm2)} mm²`}</td>` : ''}</tr>`;
+      }).join('\n      ')
+    : '';
+  return `<section>
+  <h2>Résultats</h2>
+  <table class="grid">
+    <thead><tr><th scope="col">Structure</th><th scope="col" class="num">Pixels</th>${withMm2 ? '<th scope="col" class="num">Surface</th>' : ''}</tr></thead>
+    <tbody>
+      ${rows}
+    </tbody>
+  </table>
+  <p class="note">${withMm2 ? 'Surfaces sur cette seule coupe, calculées avec l’espacement des pixels du DICOM.' : 'Surfaces en pixels : l’espacement des pixels n’est connu que pour un DICOM ; aucune surface en mm² n’est donnée.'}</p>
+  ${seg?.noStructureFound ? '<div class="notice"><strong>Aucune structure trouvée</strong>Le modèle n’a trouvé ni le ventricule gauche, ni le ventricule droit, ni le myocarde sur cette coupe.</div>' : ''}
+  ${cardioSegFigures(input)}
+  <ul class="legend">${legend}</ul>
+  <ul class="limits">
+    <li>Coupe isolée : pas de fraction d’éjection, pas de volume.</li>
+    <li>Une image qui n’est pas une coupe d’IRM ciné en petit axe donne un résultat sans valeur.</li>
+  </ul>
+</section>`;
+}
+
+function cardioSegPerformances(input: ReportInput): string {
+  const evaluation = input.cardioSegEvaluation ?? null;
+  if (!cardioSegApplies(input) || !evaluation) {
+    return `<section class="small">
+  <h2>Performances de référence</h2>
+  <p>${notMeasured(input.run.segmentationWeightsSha256)}</p>
+</section>`;
+  }
+  const dice = (value: { mean: number; std: number | null }) =>
+    value.std === null
+      ? decimals(3).format(value.mean)
+      : `${decimals(3).format(value.mean)} ± ${decimals(3).format(value.std)}`;
+  const perClass = CARDIO_SEG_STRUCTURES.map(
+    (name) =>
+      `${escapeHtml(CARDIO_SEG_NAMES[name])} : ${dice(evaluation.perClass[name])}`,
+  ).join(' ; ');
+  const source =
+    evaluation.source === 'service'
+      ? `Mesurées le ${formatDate(new Date(evaluation.generatedAt as string))} par le service d'analyse lui-même (même prétraitement, même inférence) sur ${integer.format(evaluation.nVolumes)} volumes de ${integer.format(evaluation.testPatients)} patients ACDC jamais vus à l'entraînement (rapport ${escapeHtml(evaluation.file)}).`
+      : `Mesures du notebook d'entraînement sur ${integer.format(evaluation.nVolumes)} volumes de ${integer.format(evaluation.testPatients)} patients ACDC jamais vus à l'entraînement, reprises de la carte du modèle (${escapeHtml(evaluation.file)}) : non mesurées sur le service d'analyse lui-même.`;
+  return `<section class="small">
+  <h2>Performances de référence</h2>
+  <p>${source} Dice 3D par volume (moyenne ± écart-type) : ${perClass} ; moyenne ${decimals(3).format(evaluation.meanDice)}.</p>
+</section>`;
+}
+
+function cardioSegLegal(): string {
+  const limitations = [
+    "Métriques issues d'une validation interne sur ACDC (un seul centre, une population européenne) : performances à confirmer sur les IRM de votre établissement.",
+    'Coupe isolée : pas de fraction d’éjection, pas de volume ventriculaire.',
+    "Une image qui n'est pas une coupe d'IRM ciné en petit axe donne un résultat sans valeur.",
+  ];
+  return `<section class="small">
+  <h2>Mentions légales</h2>
+  <p>Aide à la décision. Ce compte rendu ne constitue pas un diagnostic à lui seul et ne remplace pas l'avis d'un médecin. Modèle non certifié comme dispositif médical.</p>
+  <ul>${limitations.map((item) => `<li>${escapeHtml(item)}</li>`).join('')}</ul>
+</section>`;
+}
+
 const STYLES = `
 *{box-sizing:border-box}
 html{-webkit-print-color-adjust:exact;print-color-adjust:exact}
@@ -1127,11 +1298,14 @@ const TITLES: Record<string, string> = {
   brain:
     "COMPTE RENDU D'ANALYSE D'IMAGERIE ASSISTÉE PAR INTELLIGENCE ARTIFICIELLE",
   'cardio-ecg': "Compte rendu d'électrocardiogramme analysé par IA",
+  'cardio-seg-mri': "Compte rendu d'IRM cardiaque analysée par IA",
 };
 
 const SUBTITLES: Record<string, string> = {
   brain: 'Imagerie cérébrale (IRM)',
   'cardio-ecg': 'Cardiologie — ECG 12 dérivations, 5 superclasses (PTB-XL)',
+  'cardio-seg-mri':
+    'Cardiologie — IRM ciné petit axe, segmentation VG / VD / myocarde',
 };
 
 const PATHOLOGY_SUBTITLES: Record<string, string> = {
@@ -1159,6 +1333,13 @@ function evaluationIdentity(
             sha256: input.breakhisEvaluation.weightsSha256,
           }
         : null;
+    case 'cardio-seg-mri':
+      return cardioSegApplies(input) && input.cardioSegEvaluation
+        ? {
+            file: input.cardioSegEvaluation.file,
+            sha256: input.cardioSegEvaluation.weightsSha256,
+          }
+        : null;
     case 'cardio-ecg':
       return cardioApplies(input) && input.cardioEvaluation
         ? {
@@ -1181,6 +1362,7 @@ export function buildReportDocument(input: ReportInput): ReportDocument {
   const pipeline = input.run.pipeline;
   const brain = pipeline === 'brain';
   const cardio = pipeline === 'cardio-ecg';
+  const mri = pipeline === 'cardio-seg-mri';
   const evaluationApplies =
     brain &&
     evaluationMatchesWeights(
@@ -1207,6 +1389,7 @@ export function buildReportDocument(input: ReportInput): ReportDocument {
         evaluation: evaluationIdentity(input, evaluationApplies),
         maskSha256: input.mask?.sha256 ?? null,
         overlaySha256: input.overlay?.sha256 ?? null,
+        sliceSha256: input.slice?.sha256 ?? null,
         patient: input.patient,
         reportNumber: input.reportNumber,
         requestedBy: input.requestedBy,
@@ -1232,14 +1415,14 @@ export function buildReportDocument(input: ReportInput): ReportDocument {
 </div>
 ${identification(input)}
 ${indication(input)}
-${cardio ? ecgTechnique(input) : technique(input)}
-${brain ? results(input, evaluationApplies) : cardio ? ecgResults(input) : pipeline === 'pathology-breast' ? breastResults(input) : nucleiResults(input)}
+${cardio ? ecgTechnique(input) : mri ? cardioSegTechnique(input) : technique(input)}
+${brain ? results(input, evaluationApplies) : cardio ? ecgResults(input) : mri ? cardioSegResults(input) : pipeline === 'pathology-breast' ? breastResults(input) : nucleiResults(input)}
 <div class="closing">
 ${conclusion(input)}
 ${signature(input, contentSha256)}
 </div>
-${brain ? performances(input, evaluationApplies) : cardio ? ecgPerformances(input) : pipeline === 'pathology-breast' ? breastPerformances(input) : nucleiPerformances(input)}
-${brain ? legal(input, evaluationApplies) : cardio ? ecgLegal(input) : pathologyLegal(input)}
+${brain ? performances(input, evaluationApplies) : cardio ? ecgPerformances(input) : mri ? cardioSegPerformances(input) : pipeline === 'pathology-breast' ? breastPerformances(input) : nucleiPerformances(input)}
+${brain ? legal(input, evaluationApplies) : cardio ? ecgLegal(input) : mri ? cardioSegLegal() : pathologyLegal(input)}
 </body>
 </html>`;
 

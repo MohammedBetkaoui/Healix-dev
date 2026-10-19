@@ -13,6 +13,7 @@ import { AiRunsOverviewService } from './overview/ai-runs-overview.service';
 import { AiAnalysisReportsService } from './report/ai-analysis-reports.service';
 import { AiReportRenderer } from './report/ai-report-renderer';
 import { CardioEvaluationService } from './report/cardio-evaluation';
+import { CardioSegEvaluationService } from './report/cardio-seg-evaluation';
 
 @Module({
   imports: [PrismaModule, PatientsModule],
@@ -28,6 +29,7 @@ import { CardioEvaluationService } from './report/cardio-evaluation';
     AiReportRenderer,
     AiRunsOverviewService,
     CardioEvaluationService,
+    CardioSegEvaluationService,
   ],
 })
 export class AiAnalysisRunsModule {}

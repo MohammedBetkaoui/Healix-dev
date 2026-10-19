@@ -4,6 +4,7 @@
 // its type's name, never alone.
 
 import { nucleusTypes, type NucleusType } from "./ai-analyses.types";
+import { colorizeIndexedLabelMap, type RgbaPixels } from "./label-map-palette";
 
 export const NUCLEI_PALETTE: Readonly<Record<NucleusType, string>> = {
   neoplastic: "#D55E00",
@@ -18,14 +19,7 @@ export function nucleusClassIndex(type: NucleusType): number {
   return nucleusTypes.indexOf(type) + 1;
 }
 
-/** The pixels of a canvas: RGBA, row by row (an ImageData, or a copy of one). */
-export type RgbaPixels = { data: Uint8ClampedArray; width: number; height: number };
-
-const rgb = (hex: string): [number, number, number] => [
-  Number.parseInt(hex.slice(1, 3), 16),
-  Number.parseInt(hex.slice(3, 5), 16),
-  Number.parseInt(hex.slice(5, 7), 16),
-];
+export type { RgbaPixels } from "./label-map-palette";
 
 /**
  * Recolours the label map (GET .../mask: one channel, the class index 0-5 of
@@ -34,19 +28,5 @@ const rgb = (hex: string): [number, number, number] => [
  * every other pixel (background, hidden types) transparent. Pure: a new array.
  */
 export function colorizeLabelMap(imageData: RgbaPixels, visibleClasses: ReadonlySet<NucleusType>): RgbaPixels {
-  // Lookup by class index: [r, g, b, a] or null (transparent).
-  const colours = [null, ...nucleusTypes.map((type) => (visibleClasses.has(type) ? rgb(NUCLEI_PALETTE[type]) : null))];
-  const source = imageData.data;
-  const data = new Uint8ClampedArray(source.length);
-  for (let offset = 0; offset < source.length; offset += 4) {
-    // A grey PNG decodes with r = g = b = its value: the red channel is the index.
-    const colour = colours[source[offset]] ?? null;
-    if (colour) {
-      data[offset] = colour[0];
-      data[offset + 1] = colour[1];
-      data[offset + 2] = colour[2];
-      data[offset + 3] = 255;
-    }
-  }
-  return { data, height: imageData.height, width: imageData.width };
+  return colorizeIndexedLabelMap(imageData, nucleusTypes, NUCLEI_PALETTE, visibleClasses);
 }

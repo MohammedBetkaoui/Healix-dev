@@ -43,10 +43,12 @@ const decisionIcons = {
 
 // A nuclei map is validated or rejected as a map, an ECG keeps a set of
 // classes: their options have their own words.
+const isMapPipeline = (pipeline: AiPipelineId) =>
+  pipeline === "pathology-nuclei" || pipeline === "cardio-seg-mri";
 const optionKey = (pipeline: AiPipelineId, status: AiRunDecision) =>
-  pipeline === "pathology-nuclei" ? `aiAnalyses.decision.nucleiOptions.${status}` : `aiAnalyses.decision.options.${status}`;
+  isMapPipeline(pipeline) ? `aiAnalyses.decision.nucleiOptions.${status}` : `aiAnalyses.decision.options.${status}`;
 const optionHintKey = (pipeline: AiPipelineId, status: AiRunDecision) =>
-  pipeline === "pathology-nuclei"
+  isMapPipeline(pipeline)
     ? `aiAnalyses.decision.nucleiOptionHints.${status}`
     : pipeline === "cardio-ecg"
       ? `aiAnalyses.decision.ecgOptionHints.${status}`
@@ -72,7 +74,7 @@ function retainedText(
     return labels && labels.length > 0 ? ecgClassesText(labels, t) : t("aiAnalyses.decision.noClassRetained");
   }
   if (label) return t(`aiAnalyses.classes.${label}`);
-  if (pipeline === "pathology-nuclei" && status === "VALIDATED") return t("aiAnalyses.decision.mapAccepted");
+  if (isMapPipeline(pipeline) && status === "VALIDATED") return t("aiAnalyses.decision.mapAccepted");
   return t("aiAnalyses.decision.noRetainedLabel");
 }
 

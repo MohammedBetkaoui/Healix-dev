@@ -90,6 +90,7 @@ export function AiAnalysisWizardPage({ accountType, initialPatientId, pipelineId
   // (nuclei); no default, the physician states it for each image.
   const [magnification, setMagnification] = useState<AiMagnification | null>(null);
   const [he40xConfirmed, setHe40xConfirmed] = useState(false);
+  const [shortAxisConfirmed, setShortAxisConfirmed] = useState(false);
   // ECG (CSV/TXT): the sampling rate and unit the physician states; no
   // default rate, the file does not say it.
   const [rateChoice, setRateChoice] = useState<number | "other" | null>(null);
@@ -149,11 +150,13 @@ export function AiAnalysisWizardPage({ accountType, initialPatientId, pipelineId
       });
   const samplingRate =
     rateChoice === null ? null : rateChoice === "other" ? parseSamplingRate(otherRate) : rateChoice;
-  const acquisitionIssue = getAcquisitionIssue({ pipelineId, magnification, he40xConfirmed, isArchive, samplingRate, rateChoice, otherRate });
+  const acquisitionIssue = getAcquisitionIssue({ pipelineId, magnification, he40xConfirmed, shortAxisConfirmed, isArchive, samplingRate, rateChoice, otherRate });
   const acquisitionBlocker = acquisitionIssue === "magnification"
     ? t("aiAnalyses.wizard.reading.magnification.required")
     : acquisitionIssue === "he40x"
       ? t("aiAnalyses.wizard.reading.he40x.required")
+      : acquisitionIssue === "shortAxis"
+        ? t("aiAnalyses.wizard.reading.shortAxis.required")
       : acquisitionIssue === "samplingRateInvalid"
         ? t("aiAnalyses.wizard.ecg.samplingRate.invalid", { min: ECG_MIN_SAMPLING_RATE, max: ECG_MAX_SAMPLING_RATE })
         : acquisitionIssue === "samplingRate"
@@ -191,6 +194,7 @@ export function AiAnalysisWizardPage({ accountType, initialPatientId, pipelineId
       setImpression("");
       setMagnification(null);
       setHe40xConfirmed(false);
+      setShortAxisConfirmed(false);
       resetSignalInput();
     }
   };
@@ -202,6 +206,7 @@ export function AiAnalysisWizardPage({ accountType, initialPatientId, pipelineId
       setImpression("");
       setMagnification(null);
       setHe40xConfirmed(false);
+      setShortAxisConfirmed(false);
       resetSignalInput();
     }
   };
@@ -287,6 +292,8 @@ export function AiAnalysisWizardPage({ accountType, initialPatientId, pipelineId
     ? [t("aiAnalyses.wizard.reading.magnification.option", { value: magnification })]
     : pipelineId === "pathology-nuclei" && he40xConfirmed
       ? [t("aiAnalyses.wizard.reading.he40x.label")]
+      : pipelineId === "cardio-seg-mri" && shortAxisConfirmed
+        ? [t("aiAnalyses.wizard.reading.shortAxis.label")]
       : isEcg && isArchive
         ? [t("aiAnalyses.wizard.workspace.wfdbSettings")]
         : isEcg && samplingRate
@@ -301,7 +308,7 @@ export function AiAnalysisWizardPage({ accountType, initialPatientId, pipelineId
   const qualityState = !selectedDocument || stepIndex < 2 ? "waiting"
     : report.checks.some((check) => check.status === "pending") ? "checking"
       : !report.canContinue ? "failed" : acquisitionIssue ? "incomplete" : "passed";
-  const documentStep = pipelineId === "brain" ? "mri" : isEcg ? "signal" : "slide";
+  const documentStep = pipelineId === "brain" || pipelineId === "cardio-seg-mri" ? "mri" : isEcg ? "signal" : "slide";
   const displaySteps = ["patient", documentStep, "quality", "reading"];
   const stepTitle = step === "patient" ? t("aiAnalyses.wizard.patient.title")
     : step === "image" ? t(`aiAnalyses.wizard.workspace.pipelines.${pipelineId}.documentTitle`)
@@ -426,9 +433,10 @@ export function AiAnalysisWizardPage({ accountType, initialPatientId, pipelineId
 
               {step === "quality" ? <>
                 <QualityStep copy={isEcg ? "signal" : "image"} onChooseAnother={() => goTo(1)} report={report} t={t} />
-                <AcquisitionSettings pipelineId={pipelineId} ecg={ecgInput} magnification={magnification} he40xConfirmed={he40xConfirmed}
+                <AcquisitionSettings pipelineId={pipelineId} ecg={ecgInput} magnification={magnification} he40xConfirmed={he40xConfirmed} shortAxisConfirmed={shortAxisConfirmed}
                   onMagnificationChange={(value) => { createRunMutation.reset(); setMagnification(value); }}
-                  onHe40xChange={(value) => { createRunMutation.reset(); setHe40xConfirmed(value); }} t={t} />
+                  onHe40xChange={(value) => { createRunMutation.reset(); setHe40xConfirmed(value); }}
+                  onShortAxisChange={(value) => { createRunMutation.reset(); setShortAxisConfirmed(value); }} t={t} />
               </> : null}
 
               {step === "reading" && selectedDocument ? (

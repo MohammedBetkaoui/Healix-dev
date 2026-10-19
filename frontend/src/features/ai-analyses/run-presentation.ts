@@ -6,12 +6,13 @@ import { type Locale } from "@/i18n";
 
 import {
   type AiAnalysisRun,
+  type AiCardioSegPredictions,
   type AiEcgPredictions,
   type AiRunPrediction,
   type AiServiceStatus,
 } from "./ai-analyses.types";
 
-type StoredPredictions = readonly AiRunPrediction[] | AiEcgPredictions | null | undefined;
+type StoredPredictions = readonly AiRunPrediction[] | AiEcgPredictions | AiCardioSegPredictions | null | undefined;
 
 /** Descending probability, on a copy; none for the predictions of an ECG (an object). */
 export function sortPredictions(predictions: StoredPredictions): AiRunPrediction[] {
@@ -24,7 +25,16 @@ export function getTopLabel(predictions: StoredPredictions): string | null {
 
 /** The probabilities, thresholds and positive classes of an ECG run; null otherwise. */
 export function getEcgPredictions(run: Pick<AiAnalysisRun, "pipeline" | "predictions">): AiEcgPredictions | null {
-  return run.pipeline === "cardio-ecg" && run.predictions && !Array.isArray(run.predictions) ? run.predictions : null;
+  const stored = run.predictions;
+  return run.pipeline === "cardio-ecg" && stored && !Array.isArray(stored) && "probabilities" in stored ? stored : null;
+}
+
+/** The areas and spacing of a cardiac MRI segmentation; null otherwise. */
+export function getCardioSegPredictions(
+  run: Pick<AiAnalysisRun, "pipeline" | "predictions">,
+): AiCardioSegPredictions | null {
+  const stored = run.predictions;
+  return run.pipeline === "cardio-seg-mri" && stored && !Array.isArray(stored) && "structures" in stored ? stored : null;
 }
 
 export type LaunchState =
@@ -92,6 +102,8 @@ export const knownRunErrorCodes = [
   "ECG_FLAT_LEAD",
   "ECG_AMPLITUDE_OUT_OF_RANGE",
   "ECG_FILE_TOO_LARGE",
+  "CARDIO_SEG_NOT_GRAYSCALE",
+  "CARDIO_SEG_MULTIFRAME",
 ] as const;
 const KNOWN_RUN_ERRORS = new Set<string>(knownRunErrorCodes);
 

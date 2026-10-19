@@ -4,7 +4,8 @@
 
 Plateforme clinique pour établissements de santé et médecins en Algérie, avec
 une aide à la décision par IA en imagerie cérébrale, en histopathologie et en
-cardiologie (ECG 12 dérivations). Les modèles ne sont pas certifiés comme
+cardiologie (ECG 12 dérivations et segmentation d’une coupe d’IRM ciné en
+petit axe). Les modèles ne sont pas certifiés comme
 dispositifs médicaux.
 
 | Composant | Dossier | Technologie |
@@ -34,6 +35,11 @@ dispositifs médicaux.
   `ai-service/scripts/evaluate_cardio.py` n'a pas été lancé sur PTB-XL. Le
   modèle MIT-BIH et les ECG papier, PDF, photo ou DICOM ne sont pas pris en
   charge.
+- **Cardiologie IA (IRM)** : une coupe ciné en petit axe, en PNG/JPEG niveaux
+  de gris ou DICOM mono-image, est segmentée en cavités VG/VD et myocarde du
+  VG. L’interface affiche la superposition et les surfaces (mm² lorsque le
+  DICOM fournit `PixelSpacing`), puis le médecin valide ou rejette. Cette aide
+  sur coupe isolée ne calcule ni volume ni fraction d’éjection.
 - Les pages Laboratoire et Dossiers médicaux tournent sur des données
   fictives : un build de production ne les montre qu'avec
   `NEXT_PUBLIC_ENABLE_DEMO_MODULES=true` (`ENABLE_DEMO_MODULES` en Docker,

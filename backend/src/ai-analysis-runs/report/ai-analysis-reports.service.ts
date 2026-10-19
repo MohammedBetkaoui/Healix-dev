@@ -24,8 +24,16 @@ import { PatientFileStorageService } from '../../patients/documents/patient-file
 import { PatientAuditService } from '../../patients/patient-audit.service';
 import { PatientsService } from '../../patients/patients.service';
 import { PrismaService } from '../../prisma/prisma.service';
-import { getDecisionLabels, getModelLabels } from '../ai-analysis-runs.service';
-import { ECG_CLASSES, type EcgClass } from '../ai-service.client';
+import {
+  getDecisionLabels,
+  getModelLabels,
+  MAP_PIPELINES,
+} from '../ai-analysis-runs.service';
+import {
+  CARDIO_SEG_STRUCTURES,
+  ECG_CLASSES,
+  type EcgClass,
+} from '../ai-service.client';
 import { AiReportRenderer } from './ai-report-renderer';
 import {
   type EvaluationReport,
@@ -38,6 +46,7 @@ import {
   type ReportStructure,
 } from './ai-report-template';
 import { CardioEvaluationService } from './cardio-evaluation';
+import { CardioSegEvaluationService } from './cardio-seg-evaluation';
 import { readImageSize } from './image-size';
 import {
   type BreakhisEvaluation,
@@ -220,6 +229,51 @@ const isClassRecord = (value: unknown): value is Record<EcgClass, number> =>
   isRecord(value) &&
   ECG_CLASSES.every((label) => typeof value[label] === 'number');
 
+/** What a cardiac MRI run stored in `predictions`; null for any other shape. */
+export function readCardioSegPredictions(run: {
+  pipeline: string;
+  predictions: unknown;
+}): ReportInput['run']['cardioSeg'] {
+  const stored = run.predictions;
+  if (
+    run.pipeline !== 'cardio-seg-mri' ||
+    !isRecord(stored) ||
+    !isRecord(stored.structures) ||
+    typeof stored.noStructureFound !== 'boolean' ||
+    typeof stored.configSha256 !== 'string' ||
+    (stored.source !== 'image' && stored.source !== 'dicom')
+  ) {
+    return null;
+  }
+  const structures = stored.structures;
+  const areas = CARDIO_SEG_STRUCTURES.map((name) => structures[name]);
+  if (
+    !areas.every(
+      (area) =>
+        isRecord(area) &&
+        typeof area.pixels === 'number' &&
+        (area.areaMm2 === null || typeof area.areaMm2 === 'number'),
+    )
+  ) {
+    return null;
+  }
+  const spacing = stored.pixelSpacingMm;
+  return {
+    configSha256: stored.configSha256,
+    noStructureFound: stored.noStructureFound,
+    pixelSpacingMm:
+      Array.isArray(spacing) &&
+      spacing.length === 2 &&
+      spacing.every((value) => typeof value === 'number')
+        ? [spacing[0], spacing[1]]
+        : null,
+    source: stored.source,
+    structures: Object.fromEntries(
+      CARDIO_SEG_STRUCTURES.map((name, index) => [name, areas[index]]),
+    ) as NonNullable<ReportInput['run']['cardioSeg']>['structures'],
+  };
+}
+
 /** What a cardiology run stored in `predictions`; null for any other shape. */
 export function readEcgPredictions(run: {
   pipeline: string;
@@ -301,6 +355,7 @@ export class AiAnalysisReportsService {
   private readonly evaluationReportPath: string;
   private readonly pathologyEvaluationDir: string;
   private readonly cardioEvaluation: CardioEvaluationService;
+  private readonly cardioSegEvaluation: CardioSegEvaluationService;
   private fonts: Promise<ReportInput['fonts']> | null = null;
 
   constructor(
@@ -322,6 +377,7 @@ export class AiAnalysisReportsService {
         '../ai-service/evaluation',
     );
     this.cardioEvaluation = new CardioEvaluationService(configService);
+    this.cardioSegEvaluation = new CardioSegEvaluationService(configService);
   }
 
   async getReport(
@@ -470,12 +526,13 @@ export class AiAnalysisReportsService {
   ): Promise<ReportInput> {
     const decisionStatus = run.decisionStatus;
     const cardio = run.pipeline === 'cardio-ecg';
-    // A validated nuclei map has no label: it was reviewed and accepted. An
-    // ECG keeps a set of classes, possibly empty, instead of one label.
+    const mri = run.pipeline === 'cardio-seg-mri';
+    // A validated map (nuclei, cardiac MRI) has no label: it was reviewed and
+    // accepted. An ECG keeps a set of classes, possibly empty, instead of one.
     const decisionLabels = cardio
       ? getDecisionLabels(run.decisionLabels)
       : null;
-    const labelRequired = run.pipeline !== 'pathology-nuclei' && !cardio;
+    const labelRequired = !MAP_PIPELINES.has(run.pipeline) && !cardio;
     if (
       !run.decidedBy ||
       !run.decidedAt ||
@@ -490,7 +547,11 @@ export class AiAnalysisReportsService {
     const image = await this.fileStorageService.readStoredFile(
       run.sourceDocument.localPath,
     );
-    const size = readImageSize(image);
+    const slice = run.slicePath
+      ? await this.fileStorageService.readStoredFile(run.slicePath)
+      : null;
+    // A DICOM slice has no image size of its own: the analysed slice's.
+    const size = readImageSize(slice ?? image);
     const mask = run.maskPath
       ? await this.fileStorageService.readStoredFile(run.maskPath)
       : null;
@@ -513,6 +574,9 @@ export class AiAnalysisReportsService {
       cardioEvaluation: cardio
         ? await this.cardioEvaluation.find(run.classificationWeightsSha256)
         : null,
+      cardioSegEvaluation: mri
+        ? await this.cardioSegEvaluation.find(run.segmentationWeightsSha256)
+        : null,
       decidedBy: toPerson(run.decidedBy),
       ecgTrace:
         traceFile && leadII
@@ -523,6 +587,9 @@ export class AiAnalysisReportsService {
         run.pipeline === 'brain' ? await this.readEvaluationReport() : null,
       fonts: await this.loadFonts(),
       mask: mask ? { data: mask, sha256: createSha256Checksum(mask) } : null,
+      slice: slice
+        ? { data: slice, sha256: createSha256Checksum(slice) }
+        : null,
       overlay: overlay
         ? { data: overlay, sha256: createSha256Checksum(overlay) }
         : null,
@@ -555,6 +622,7 @@ export class AiAnalysisReportsService {
         decisionStatus,
         decisionThreshold: run.decisionThreshold,
         durationMs: run.durationMs,
+        cardioSeg: mri ? readCardioSegPredictions(run) : null,
         ecg: cardio ? readEcgPredictions(run) : null,
         id: run.id,
         magnification: run.magnification,

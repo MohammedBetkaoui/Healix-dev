@@ -258,7 +258,9 @@ export function LatestRetainedAiRun({ accountType, locale, patientId, t }: Lates
 
   const displayed = latest ? getDisplayedLabel(latest) : null;
   // A validated nuclei map retains no class: the map itself is what was kept.
-  const isMap = latest?.pipeline === "pathology-nuclei" && latest.decisionStatus === "VALIDATED";
+  const isMap =
+    (latest?.pipeline === "pathology-nuclei" || latest?.pipeline === "cardio-seg-mri") &&
+    latest.decisionStatus === "VALIDATED";
   if (!latest || latest.decisionStatus === null || latest.decisionStatus === "REJECTED" || (displayed?.source !== "physician" && !isMap)) {
     return <p className="mt-1 text-sm font-medium text-[var(--ink)]">{t("aiAnalyses.record.latest.none")}</p>;
   }

@@ -72,6 +72,12 @@ const ECG_MAX_DURATION_S = 60;
 // A 10 s trace at 1 kHz at most.
 const ECG_MAX_TRACE_SAMPLES = 10_000;
 
+// Cardiac MRI segmentation (ai-service/app/cardio_seg_*.py): one short-axis
+// cine slice, 3 structures by class index 1, 2, 3 (model card).
+export const CARDIO_SEG_MODEL_ID = 'cardio-seg-acdc-unet-effb4';
+export const CARDIO_SEG_STRUCTURES = ['LV', 'RV', 'MYO'] as const;
+export type CardioSegStructure = (typeof CARDIO_SEG_STRUCTURES)[number];
+
 export const AI_SERVICE_TIMEOUT_MS = 60_000;
 const STATUS_TIMEOUT_MS = 5_000;
 const PNG_SIGNATURE = Buffer.from([
@@ -159,6 +165,40 @@ export type EcgAnalysisResult = {
   durationMs: number;
 };
 
+export type CardioSegArea = {
+  pixels: number;
+  /** null without a pixel spacing (a PNG/JPEG, or a DICOM without PixelSpacing). */
+  areaMm2: number | null;
+};
+
+export type CardioSegAnalysisResult = {
+  modelId: string;
+  weightsSha256: string;
+  /** SHA-256 of the model card the service read. */
+  configSha256: string;
+  /** One channel, the class index (0-3) of each pixel. */
+  labelMapPng: Buffer;
+  /** RGBA, each structure in its colour, background transparent. */
+  overlayPng: Buffer;
+  /** The slice as analysed, 8-bit grey: what the overlay is drawn on. */
+  slicePng: Buffer;
+  structures: Record<CardioSegStructure, CardioSegArea>;
+  /** (row, column) in mm; null for an image. */
+  pixelSpacingMm: [number, number] | null;
+  noStructureFound: boolean;
+  source: 'image' | 'dicom';
+  imageWidth: number;
+  imageHeight: number;
+  durationMs: number;
+};
+
+// Why the service refused an MRI slice, beyond the image refusals.
+export const CARDIO_SEG_REJECTIONS = [
+  'CARDIO_SEG_NOT_GRAYSCALE',
+  'CARDIO_SEG_MULTIFRAME',
+] as const;
+export type CardioSegRejection = (typeof CARDIO_SEG_REJECTIONS)[number];
+
 // Why the service refused an ECG file (ai-service/app/ecg_input.py).
 export const ECG_REJECTIONS = [
   'ECG_UNSUPPORTED_FORMAT',
@@ -178,6 +218,7 @@ export type EcgRejection = (typeof ECG_REJECTIONS)[number];
 
 export type AiServiceFailure =
   | EcgRejection
+  | CardioSegRejection
   | 'SERVICE_NOT_CONFIGURED'
   | 'SERVICE_UNAVAILABLE'
   | 'SERVICE_TIMEOUT'
@@ -196,6 +237,7 @@ export const INPUT_REJECTIONS: readonly AiServiceFailure[] = [
   'IMAGE_TOO_SMALL',
   'IMAGE_DIMENSIONS_TOO_LARGE',
   ...ECG_REJECTIONS,
+  ...CARDIO_SEG_REJECTIONS,
 ];
 
 /** What a refusal says about the input (missing leads, duration...), never a signal value. */
@@ -632,6 +674,10 @@ export function ecgRejection(code: unknown): AiServiceFailure {
 
 const DETAIL_KEYS = [
   'accepted',
+  'channelSpread',
+  'frames',
+  'maxSide',
+  'minSide',
   'duplicateLead',
   'durationSeconds',
   'leads',
@@ -668,6 +714,112 @@ export function rejectionDetails(body: unknown): RejectionDetails {
     }
   }
   return details;
+}
+
+/** The MRI slice refusals (cardio_seg_*), then the image ones. */
+export function cardioSegRejection(code: unknown): AiServiceFailure {
+  const upper = typeof code === 'string' ? code.toUpperCase() : '';
+  return (CARDIO_SEG_REJECTIONS as readonly string[]).includes(upper)
+    ? (upper as CardioSegRejection)
+    : pathologyRejection(code);
+}
+
+function parseArea(value: unknown, withSpacing: boolean): CardioSegArea {
+  if (
+    !isRecord(value) ||
+    !Number.isInteger(value.pixels) ||
+    (value.pixels as number) < 0 ||
+    (withSpacing
+      ? !isFiniteBetween(value.areaMm2, 0, Number.MAX_SAFE_INTEGER)
+      : value.areaMm2 !== null)
+  ) {
+    throw invalid('surface');
+  }
+  return {
+    areaMm2: withSpacing ? (value.areaMm2 as number) : null,
+    pixels: value.pixels as number,
+  };
+}
+
+/**
+ * Validates POST /analyze/cardio/segmentation-mri: the 3 structures, mm²
+ * exactly when a pixel spacing is given, the pixels within the slice, the
+ * three images PNG. Anything else is a service error, never stored.
+ */
+export function parseCardioSegAnalysis(body: unknown): CardioSegAnalysisResult {
+  if (!isRecord(body)) throw invalid('forme');
+  if (body.modelId !== CARDIO_SEG_MODEL_ID) throw invalid('modèle');
+  if (!isSha256(body.weightsSha256)) throw invalid('empreinte');
+  if (!isSha256(body.configSha256)) throw invalid('empreinte de la carte');
+
+  const images = [body.labelMapPng, body.overlayPng, body.slicePng];
+  if (!images.every((image) => typeof image === 'string'))
+    throw invalid('images');
+  const [labelMapPng, overlayPng, slicePng] = images.map((image) =>
+    Buffer.from(image, 'base64'),
+  );
+  if (![labelMapPng, overlayPng, slicePng].every(isPng))
+    throw invalid('images non PNG');
+
+  if (
+    !isPositiveInteger(body.imageWidth) ||
+    !isPositiveInteger(body.imageHeight)
+  ) {
+    throw invalid('dimensions');
+  }
+  const spacing: unknown = body.pixelSpacingMm;
+  if (
+    spacing !== null &&
+    !(
+      Array.isArray(spacing) &&
+      spacing.length === 2 &&
+      spacing.every(
+        (value) => isFiniteBetween(value, 0, 1000) && (value as number) > 0,
+      )
+    )
+  ) {
+    throw invalid('espacement des pixels');
+  }
+  const rawStructures = body.structures;
+  if (
+    !isRecord(rawStructures) ||
+    Object.keys(rawStructures).length !== CARDIO_SEG_STRUCTURES.length
+  ) {
+    throw invalid('structures');
+  }
+  const structures = Object.fromEntries(
+    CARDIO_SEG_STRUCTURES.map((name) => [
+      name,
+      parseArea(rawStructures[name], spacing !== null),
+    ]),
+  ) as Record<CardioSegStructure, CardioSegArea>;
+  const total = CARDIO_SEG_STRUCTURES.reduce(
+    (sum, name) => sum + structures[name].pixels,
+    0,
+  );
+  if (total > body.imageWidth * body.imageHeight) throw invalid('surfaces');
+  if (body.noStructureFound !== (total === 0))
+    throw invalid('absence de structure');
+  if (body.source !== 'image' && body.source !== 'dicom')
+    throw invalid('source');
+  if (!isFiniteBetween(body.durationMs, 0, Number.MAX_SAFE_INTEGER))
+    throw invalid('durée');
+
+  return {
+    configSha256: body.configSha256,
+    durationMs: Math.round(body.durationMs as number),
+    imageHeight: body.imageHeight,
+    imageWidth: body.imageWidth,
+    labelMapPng,
+    modelId: CARDIO_SEG_MODEL_ID,
+    noStructureFound: total === 0,
+    overlayPng,
+    pixelSpacingMm: spacing === null ? null : [spacing[0], spacing[1]],
+    slicePng,
+    source: body.source,
+    structures,
+    weightsSha256: body.weightsSha256,
+  };
 }
 
 const detailCode = (body: unknown): unknown =>
@@ -727,6 +879,21 @@ export class AiServiceClient {
       pathologyRejection,
     );
     return parseNucleiAnalysis(body);
+  }
+
+  /** One short-axis MRI slice: PNG/JPEG, or a single-frame DICOM. */
+  async analyzeCardioSeg(
+    image: Buffer,
+    fileName: string,
+    mimeType: string,
+  ): Promise<CardioSegAnalysisResult> {
+    const body = await this.postFile(
+      '/analyze/cardio/segmentation-mri',
+      { data: image, fileName, mimeType },
+      {},
+      cardioSegRejection,
+    );
+    return parseCardioSegAnalysis(body);
   }
 
   /**

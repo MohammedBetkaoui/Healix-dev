@@ -27,6 +27,7 @@ export const correctionLabels = {
   "pathology-breast": ["benign", "malignant", "other"],
   "pathology-nuclei": [],
   "cardio-ecg": [],
+  "cardio-seg-mri": [],
 } as const satisfies Record<AiPipelineId, readonly AiOutputClassKey[]>;
 
 /** Every class a decision may retain, whatever the chain. */
@@ -54,7 +55,9 @@ const sameLabels = (a: readonly string[], b: readonly string[]) =>
 
 /** The decisions a chain offers: a nuclei map is validated or rejected, never corrected. */
 export function getDecisionOptions(pipeline: AiPipelineId): readonly AiRunDecision[] {
-  return pipeline === "pathology-nuclei" ? ["VALIDATED", "REJECTED"] : aiRunDecisions;
+  return pipeline === "pathology-nuclei" || pipeline === "cardio-seg-mri"
+    ? ["VALIDATED", "REJECTED"]
+    : aiRunDecisions;
 }
 
 export const DECISION_REASON_MIN_LENGTH = 5;
@@ -94,7 +97,9 @@ export function getModelLabels(run: ModelAnswerFields): EcgClass[] | null {
   if (run.pipeline !== "cardio-ecg") return null;
   if (run.modelLabels) return sortEcgLabels(run.modelLabels);
   const stored = run.predictions;
-  return stored && !Array.isArray(stored) ? sortEcgLabels(stored.positive) : null;
+  return stored && !Array.isArray(stored) && "positive" in stored
+    ? sortEcgLabels(stored.positive)
+    : null;
 }
 
 /** notApplicable: a nuclei map, which has no class to agree with. */

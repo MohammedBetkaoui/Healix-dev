@@ -266,30 +266,39 @@ export const aiModels = [
     confusionMatrix: null,
     evaluation: null,
     trainingData: null,
-    knownLimitations: ["notCertified", "closedSet", "undocumentedPerformance"],
+    knownLimitations: ["notCertified", "closedSet", "chestXrayNotRetained"],
     underrepresentedPopulations: null,
-    status: "available",
+    status: "exploring",
+    statusNote: "chestXrayNotRetained",
   },
   {
-    id: "cardiology-acdc-segmentation",
+    id: "cardio-seg-acdc-unet-effb4",
     module: "cardiology",
-    version: null,
-    architecture: null,
+    version: "1.0",
+    architecture: "U-Net (encodeur EfficientNet-B4)",
     task: "segmentation",
     // ACDC is the cine-MRI cardiac segmentation dataset.
     inputModality: "cardiacCineMri",
-    acceptedFormats: null,
+    acceptedFormats: ["png", "jpeg", "dcm"],
     outputClasses: ["leftVentricle", "rightVentricle", "myocardium"],
-    inputConstraints: null,
+    inputConstraints: { minSide: 64, maxSide: 1024 },
+    // The card stays the single source of truth for the numerical figures.
+    // The result page fetches them from the backend for the run's exact SHA.
     metrics: null,
     classMetrics: null,
     classMetricsDataset: null,
     confusionMatrix: null,
     evaluation: null,
     trainingData: "ACDC",
-    knownLimitations: ["notCertified", "undocumentedPerformance"],
+    knownLimitations: [
+      "notCertified",
+      "internalValidation",
+      "cardioSegSingleSlice",
+      "cardioSegAcdcPopulation",
+      "cardioSegShortAxisOnly",
+    ],
     underrepresentedPopulations: null,
-    status: "in_design",
+    status: "available",
   },
   {
     id: "cardiology-ct-heart-segmentation",
@@ -299,7 +308,7 @@ export const aiModels = [
     task: "segmentation",
     inputModality: "cardiacCt",
     acceptedFormats: null,
-    outputClasses: [],
+    outputClasses: ["leftAtrium"],
     inputConstraints: null,
     metrics: null,
     classMetrics: null,
@@ -307,9 +316,10 @@ export const aiModels = [
     confusionMatrix: null,
     evaluation: null,
     trainingData: null,
-    knownLimitations: ["notCertified", "undocumentedPerformance"],
+    knownLimitations: ["notCertified", "ctLeftAtriumInsufficient"],
     underrepresentedPopulations: null,
-    status: "in_design",
+    status: "exploring",
+    statusNote: "ctLeftAtriumInsufficient",
   },
   // --- Pathology -------------------------------------------------------------
   {
@@ -421,6 +431,13 @@ export const aiPipelines = [
     entryModelId: "cardio-ecg-resnet1d-ptbxl-superdiagnostic",
     segmenterByClass: {},
   },
+  {
+    id: "cardio-seg-mri",
+    module: "cardiology",
+    kind: "single",
+    entryModelId: "cardio-seg-acdc-unet-effb4",
+    segmenterByClass: {},
+  },
 ] as const satisfies readonly AiPipeline[];
 
 /** The steps the hub lists for each chain (aiAnalyses.pipelines.<id>.steps.<step>). */
@@ -429,6 +446,7 @@ export const pipelineSteps: Readonly<Record<AiPipelineId, readonly string[]>> = 
   "pathology-breast": ["views", "threshold"],
   "pathology-nuclei": ["tiles", "classes"],
   "cardio-ecg": ["windows", "filter", "classes"],
+  "cardio-seg-mri": ["normalize", "segment", "measure"],
 };
 
 export function findModel(modelId: string | null | undefined): AiModel | undefined {

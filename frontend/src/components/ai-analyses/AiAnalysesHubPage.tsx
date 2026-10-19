@@ -236,7 +236,10 @@ export function AiAnalysesHubPage({ accountType }: AiAnalysesHubPageProps) {
                     const pipelineRole = role?.role === "entry"
                       ? role.pipeline.kind === "routed" ? t("aiAnalyses.card.pipelineRole.entry") : t("aiAnalyses.card.pipelineRole.single", { pipeline: t(`aiAnalyses.pipelines.${role.pipeline.id}.name`) })
                       : role?.role === "segmenter" ? t("aiAnalyses.card.pipelineRole.segmenter", { class: t(`aiAnalyses.classes.${role.classKey}`) }) : undefined;
-                    const unavailableReason = model.status === "requires_multisequence" ? t("aiAnalyses.statusNotes.requires_multisequence") : model.status === "documentation_pending" ? t("aiAnalyses.statusNotes.documentation_pending") : t("aiAnalyses.statusNotes.noPipeline");
+                    const statusNote = "statusNote" in model ? model.statusNote : undefined;
+                    const unavailableReason = statusNote
+                      ? t(`aiAnalyses.statusNotes.${statusNote}`)
+                      : model.status === "requires_multisequence" ? t("aiAnalyses.statusNotes.requires_multisequence") : model.status === "documentation_pending" ? t("aiAnalyses.statusNotes.documentation_pending") : t("aiAnalyses.statusNotes.noPipeline");
                     return <li key={model.id}><AiModelCard locale={locale} model={model} onOpenSheet={() => setSheetModelId(model.id)} pipelineRole={pipelineRole} unavailableReason={pipelineRole ? undefined : unavailableReason} t={t} /></li>;
                   })}</ul>
                 </section>

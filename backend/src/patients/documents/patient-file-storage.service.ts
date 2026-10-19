@@ -132,6 +132,24 @@ export class PatientFileStorageService {
     );
   }
 
+  // The slice a cardiac MRI segmentation analysed (8-bit PNG), next to its
+  // class map: patients/<patientId>/ai-masks/<runId>-slice.png.
+  storeAiSlice(input: {
+    patientId: string;
+    png: Buffer;
+    runId: string;
+  }): Promise<{ checksum: string; localPath: string }> {
+    return this.storeAiFile(
+      input.patientId,
+      input.png,
+      `${input.runId}-slice.png`,
+      {
+        log: 'Failed to store an AI MRI slice.',
+        message: 'Une erreur est survenue lors du stockage de la coupe.',
+      },
+    );
+  }
+
   // The ECG trace of a cardiology run (JSON, the first 10 s filtered), with
   // the other files of the runs: patients/<patientId>/ai-masks/<runId>-ecg-trace.json.
   storeAiEcgTrace(input: {

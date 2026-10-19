@@ -976,6 +976,9 @@ model AiAnalysisRun {
   // thresholds, the classes above them, the windows and the input's rate and
   // duration; tracePath the first 10 s filtered (JSON, mV at 100 Hz), as drawn.
   tracePath                   String?             @map("trace_path") @db.VarChar(512)
+  // Cardiac MRI segmentation: the slice as analysed (8-bit PNG), shown under
+  // the overlay: a DICOM source cannot be shown as it is.
+  slicePath                   String?             @map("slice_path") @db.VarChar(512)
   clinicianImpression         String?             @map("clinician_impression") @db.Text
   errorCode                   String?             @map("error_code") @db.VarChar(60)
   durationMs                  Int?                @map("duration_ms")

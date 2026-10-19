@@ -15,6 +15,7 @@ import {
   useAiAnalysisRun,
   useAiAnalysisRunMask,
   useAiAnalysisRunOverlay,
+  useAiAnalysisRunSlice,
 } from "@/features/ai-analyses/hooks/use-ai-analysis-run";
 import { limitationParams } from "@/features/ai-analyses/format-ai-metric";
 import { getEcgPredictions, getRunErrorKey, shortSha256 } from "@/features/ai-analyses/run-presentation";
@@ -34,6 +35,7 @@ import { AiRunDecisionBadge, AiRunDecisionPanel } from "./AiRunDecisionPanel";
 import { AiRunReportSection } from "./AiRunReportSection";
 import { BrainResult } from "./BrainResult";
 import { BreastResult } from "./BreastResult";
+import { CardioSegResult } from "./CardioSegResult";
 import { EcgResult } from "./EcgResult";
 import { NucleiResult } from "./NucleiResult";
 
@@ -78,12 +80,18 @@ export function AiAnalysisRunPage({ accountType, patientId, runId }: AiAnalysisR
   const sourceDocument = (documentsQuery.data ?? []).find((document) => document.id === run?.sourceDocumentId) ?? null;
   // An ECG's source is a signal file: its trace is fetched by EcgResult.
   const imageQuery = usePatientDocumentView(patientId, run?.sourceDocumentId ?? null, {
-    enabled: run?.status === "SUCCEEDED" && run.pipeline !== "cardio-ecg",
+    enabled:
+      run?.status === "SUCCEEDED" &&
+      run.pipeline !== "cardio-ecg" &&
+      run.pipeline !== "cardio-seg-mri",
   });
   // The brain mask is shown at once; a nuclei map shows its colour overlay
   // (its label map is fetched by NucleiResult, only to hide types).
   const maskQuery = useAiAnalysisRunMask(patientId, runId, { enabled: run?.hasMask === true && run.pipeline === "brain" });
   const overlayQuery = useAiAnalysisRunOverlay(patientId, runId, { enabled: run?.hasOverlay === true });
+  const sliceQuery = useAiAnalysisRunSlice(patientId, runId, {
+    enabled: run?.hasSlice === true && run.pipeline === "cardio-seg-mri",
+  });
 
   const verificationRequired = [
     runQuery.error,
@@ -92,6 +100,7 @@ export function AiAnalysisRunPage({ accountType, patientId, runId }: AiAnalysisR
     imageQuery.error,
     maskQuery.error,
     overlayQuery.error,
+    sliceQuery.error,
   ].some(isVerificationRequiredError);
 
   const shellProps = accountType === "ESTABLISHMENT"
@@ -180,6 +189,16 @@ export function AiAnalysisRunPage({ accountType, patientId, runId }: AiAnalysisR
       <>
         {run.pipeline === "cardio-ecg" ? (
           <EcgResult locale={locale} patientId={patientId} run={run} t={t} />
+        ) : run.pipeline === "cardio-seg-mri" ? (
+          <CardioSegResult
+            locale={locale}
+            overlayBlob={overlayQuery.data}
+            patientId={patientId}
+            run={run}
+            sliceBlob={sliceQuery.data}
+            sliceError={sliceQuery.isError || !run.hasSlice}
+            t={t}
+          />
         ) : run.pipeline === "pathology-breast" ? (
           <BreastResult {...imageProps} run={run} />
         ) : run.pipeline === "pathology-nuclei" ? (
@@ -213,6 +232,19 @@ export function AiAnalysisRunPage({ accountType, patientId, runId }: AiAnalysisR
                 </>
               ) : run.pipeline === "cardio-ecg" ? (
                 <EcgTraceability decimal={decimal} run={run} t={t} />
+              ) : run.pipeline === "cardio-seg-mri" ? (
+                <>
+                  <dt className="text-[var(--text-secondary)]">{t("aiAnalyses.run.model")}</dt>
+                  <dd className="break-words">
+                    {segmenter ? t(`aiAnalyses.models.${segmenter.id}.name`) : run.segmentationModelId ?? t("aiAnalyses.run.none")}
+                  </dd>
+                  <dt className="text-[var(--text-secondary)]">{t("aiAnalyses.run.weights")}</dt>
+                  <dd>
+                    <bdi dir="ltr" className="font-[var(--font-auth-mono)]">
+                      {shortSha256(run.segmentationWeightsSha256) ?? t("aiAnalyses.run.none")}
+                    </bdi>
+                  </dd>
+                </>
               ) : (
                 // One model per pathology chain: the classifier (breast) or the segmenter (nuclei).
                 <>

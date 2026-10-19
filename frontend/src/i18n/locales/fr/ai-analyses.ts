@@ -83,6 +83,12 @@ export const aiAnalysesFr = {
         input: "Un signal ECG 12 dérivations : CSV, TXT ou archive WFDB. Fréquence et unité à renseigner pour les fichiers texte.",
         output: "Tracé ECG et scores par famille diagnostique, à confronter à votre lecture.",
       },
+      "cardio-seg-mri": {
+        title: "Segmentation d’IRM cardiaque",
+        description: "Délimitation du VG, du VD et du myocarde sur une coupe ciné en petit axe.",
+        input: "Une coupe d’IRM ciné en petit axe : PNG, JPEG ou DICOM mono-image.",
+        output: "Superposition et surfaces des trois structures, en mm² lorsque le DICOM fournit l’espacement des pixels.",
+      },
       "pathology-breast": {
         title: "Classification histologique du sein",
         description: "Aide à la distinction entre tissus bénins et malins sur une image H&E.",
@@ -124,6 +130,8 @@ export const aiAnalysesFr = {
     documentation_pending:
       "Non lançable : la documentation de ce modèle (évaluation, conditions d’utilisation) est en attente.",
     noPipeline: "Aucune chaîne d’analyse n’est encore branchée pour ce modèle.",
+    chestXrayNotRetained: "Non retenu : exactitude 65,9 %.",
+    ctLeftAtriumInsufficient: "Dice 0,77 sur 4 patients : performances insuffisantes, non proposé.",
   },
   tasks: {
     classification: "Classification",
@@ -153,6 +161,7 @@ export const aiAnalysesFr = {
     leftVentricle: "Ventricule gauche (VG)",
     rightVentricle: "Ventricule droit (VD)",
     myocardium: "Myocarde (MYO)",
+    leftAtrium: "Oreillette gauche",
     benign: "Bénin",
     malignant: "Malin",
     neoplastic: "Néoplasique",
@@ -226,6 +235,12 @@ export const aiAnalysesFr = {
     ecgLowerHypSensitivity: "Sensibilité plus faible pour l’hypertrophie : environ la moitié des cas reconnus sur le test.",
     ecgDigitalSignalOnly:
       "Signal numérique uniquement (CSV, TXT ou WFDB) : un ECG papier, PDF ou photographié n’est pas lu.",
+    chestXrayNotRetained: "Non retenu : exactitude 65,9 %.",
+    ctLeftAtriumInsufficient: "Dice 0,77 sur 4 patients : performances insuffisantes, non proposé.",
+    cardioSegSingleSlice: "Coupe isolée : aucun volume ni fraction d’éjection ne peut être calculé.",
+    cardioSegAcdcPopulation: "Jeu ACDC monocentrique, constitué d’une population européenne.",
+    cardioSegShortAxisOnly:
+      "Une image qui n’est pas une coupe d’IRM ciné en petit axe donne un résultat sans valeur clinique.",
   },
   models: {
     "brain-efficientnetb4-tumor-classification": {
@@ -254,14 +269,14 @@ export const aiAnalysesFr = {
       intendedUse:
         "Aide à la classification de radiographies thoraciques : normal, cardiomégalie, épanchement ou œdème.",
     },
-    "cardiology-acdc-segmentation": {
-      name: "ACDC (VG + VD + MYO)",
+    "cardio-seg-acdc-unet-effb4": {
+      name: "U-Net EfficientNet-B4 ACDC",
       intendedUse:
-        "Prévu : segmentation du ventricule gauche, du ventricule droit et du myocarde sur IRM cardiaque ciné.",
+        "Aide à la segmentation du ventricule gauche, du ventricule droit et du myocarde sur une coupe d’IRM ciné en petit axe.",
     },
     "cardiology-ct-heart-segmentation": {
-      name: "CT Heart",
-      intendedUse: "Prévu : segmentation cardiaque sur scanner.",
+      name: "Scanner — oreillette gauche",
+      intendedUse: "Exploration de la segmentation de l’oreillette gauche sur scanner cardiaque.",
     },
     "pathology-breakhis-classification": {
       name: "EfficientNetB0 BreakHis",
@@ -340,6 +355,17 @@ export const aiAnalysesFr = {
         classes: "Probabilité de chaque classe, moyennée sur les fenêtres et comparée à son seuil",
       },
       launch: "Analyser un ECG",
+    },
+    "cardio-seg-mri": {
+      name: "IRM cardiaque — segmentation",
+      description:
+        "Segmentation sémantique du VG, du VD et du myocarde sur une coupe d’IRM ciné en petit axe. La coupe isolée ne permet ni volume ni fraction d’éjection.",
+      steps: {
+        normalize: "Normalisation de la coupe selon la fiche du modèle",
+        segment: "Segmentation en fond, VG, VD et myocarde",
+        measure: "Mesure des surfaces en pixels ou en mm² si l’espacement est connu",
+      },
+      launch: "Segmenter la coupe cardiaque",
     },
   },
   sheet: {
@@ -462,6 +488,7 @@ export const aiAnalysesFr = {
       readingPlaceholders: {
         brain: "Votre lecture de la coupe et les éléments à confronter au modèle…",
         "cardio-ecg": "Votre lecture de l’ECG source et les points à comparer…",
+        "cardio-seg-mri": "Votre lecture de la coupe cardiaque avant d’afficher la segmentation…",
         "pathology-breast": "Votre impression sur la lame de sein avant le score du modèle…",
         "pathology-nuclei": "Vos observations sur la cellularité et les types cellulaires dominants…",
       },
@@ -479,6 +506,13 @@ export const aiAnalysesFr = {
           qualityTitle: "Vérifier le signal et son acquisition",
           qualityHint: "Vérifiez les dérivations et renseignez la fréquence et l’unité pour un fichier CSV ou TXT.",
           readingTitle: "Préparer la lecture de l’ECG",
+        },
+        "cardio-seg-mri": {
+          documentTitle: "Choisir la coupe d’IRM cardiaque",
+          documentHint: "Sélectionnez une coupe ciné en petit axe : PNG, JPEG ou DICOM mono-image.",
+          qualityTitle: "Vérifier la coupe cardiaque",
+          qualityHint: "Contrôlez le format, les dimensions et confirmez qu’il s’agit bien d’une coupe ciné en petit axe.",
+          readingTitle: "Lire la coupe avant la segmentation",
         },
         "pathology-breast": {
           documentTitle: "Choisir l’image de la lame de sein",
@@ -634,6 +668,8 @@ export const aiAnalysesFr = {
           "Facultatif. Notez votre lecture de l’image (cellularité, types cellulaires dominants) avant de voir la carte du modèle ; elle est enregistrée avec l’analyse.",
         "cardio-ecg":
           "Facultatif. Notez votre lecture du tracé (rythme, conduction, segment ST, hypertrophie) avant de voir les probabilités du modèle ; elle est enregistrée avec l’analyse.",
+        "cardio-seg-mri":
+          "Facultatif. Notez votre lecture de la coupe avant de voir les contours proposés ; elle est enregistrée avec l’analyse.",
       },
       characters: "{count} / {max} caractères",
       launch: "Lancer l’analyse",
@@ -658,6 +694,11 @@ export const aiAnalysesFr = {
         label: "Image H&E acquise à 40×",
         hint: "Obligatoire : le modèle a été entraîné sur des images H&E à 40× ; à un autre grossissement, ses surfaces sont faussées.",
         required: "Confirmez que l’image est une H&E acquise à 40× pour lancer l’analyse.",
+      },
+      shortAxis: {
+        label: "Il s’agit d’une coupe d’IRM ciné en petit axe",
+        hint: "Obligatoire : le modèle n’est applicable qu’à ce type de coupe cardiaque.",
+        required: "Confirmez qu’il s’agit d’une coupe d’IRM ciné en petit axe pour lancer l’analyse.",
       },
       launchErrors: {
         AI_MAGNIFICATION_REQUIRED: "Indiquez le grossissement de l’image.",
@@ -694,6 +735,8 @@ export const aiAnalysesFr = {
       IMAGE_TOO_LARGE: "L’image dépasse la taille maximale acceptée.",
       IMAGE_TOO_SMALL: "L’image est plus petite que la taille minimale acceptée par ce modèle.",
       IMAGE_DIMENSIONS_TOO_LARGE: "L’image dépasse les dimensions maximales acceptées par ce modèle.",
+      CARDIO_SEG_NOT_GRAYSCALE: "L’image est franchement colorée : sélectionnez une coupe d’IRM en niveaux de gris.",
+      CARDIO_SEG_MULTIFRAME: "Ce DICOM contient plusieurs images. Seuls les DICOM mono-image sont acceptés.",
       ECG_UNSUPPORTED_FORMAT: "Le fichier n’a pas pu être lu comme un signal ECG (CSV, TXT ou enregistrement WFDB zippé).",
       ECG_UNSAFE_ARCHIVE: "L’archive a été refusée : un seul enregistrement WFDB (.hea et .dat), sans dossier.",
       ECG_MISSING_LEADS: "Il manque des dérivations : les 12 sont nécessaires.",
@@ -745,6 +788,29 @@ export const aiAnalysesFr = {
       auc: "AUC",
       sensitivity: "Sensibilité",
       specificity: "Spécificité",
+    },
+    cardioSeg: {
+      imageHint: "Examinez la coupe et la superposition ; réglez son opacité ou masquez une structure.",
+      sliceName: "coupe-irm-cardiaque.png",
+      structuresLegend: "Structures affichées",
+      structuresHint: "Chaque structure a une couleur distincte ; décochez-la pour la masquer.",
+      recolourError: "Impossible de filtrer la superposition : la carte complète reste affichée.",
+      recolouring: "Mise à jour de la superposition…",
+      surfacesTitle: "Surfaces segmentées",
+      noStructure: "Aucune des trois structures n’a été détectée sur cette coupe.",
+      structure: "Structure",
+      pixels: "Pixels",
+      areaMm2: "Surface (mm²)",
+      mm2Note: "Espacement des pixels : {row} × {column} mm.",
+      pixelNote: "Surface en pixels : importez le DICOM pour des mm².",
+      metricsTitle: "Performance du modèle",
+      metricsLoading: "Chargement des performances…",
+      metricsNone: "Performances indisponibles pour l’empreinte de ces poids.",
+      metricsService: "Évaluation du service du {date}, sur {volumes} volumes de {patients} patients jamais vus.",
+      metricsNotebook: "Métriques de la fiche modèle, sur {volumes} volumes de {patients} patients jamais vus.",
+      dice3d: "Dice 3D",
+      meanDice: "Dice 3D moyen : {value}",
+      singleSliceWarning: "Aide à la décision, coupe isolée : pas de fraction d’éjection.",
     },
     image: "Image analysée",
     imageBadge: "Résultat visuel",

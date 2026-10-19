@@ -50,6 +50,8 @@ const breastRun = (overrides: Partial<AiAnalysisRun> = {}) =>
   run({ modelDecision: "malignant", modelLabel: "malignant", pipeline: "pathology-breast", predictions: null, ...overrides });
 const nucleiRun = (overrides: Partial<AiAnalysisRun> = {}) =>
   run({ pipeline: "pathology-nuclei", predictions: null, ...overrides });
+const cardioSegRun = (overrides: Partial<AiAnalysisRun> = {}) =>
+  run({ pipeline: "cardio-seg-mri", predictions: null, ...overrides });
 
 const axiosError = (status: number, data: unknown) => {
   const config = { headers: new AxiosHeaders() };
@@ -166,6 +168,7 @@ describe("physician / model agreement", () => {
     expect(getDecisionAgreement(breastRun({ decisionLabel: "benign", decisionStatus: "CORRECTED" }))).toBe("disagrees");
     expect(getDecisionAgreement(nucleiRun({ decisionStatus: "VALIDATED" }))).toBe("notApplicable");
     expect(getDecisionAgreement(nucleiRun({ decisionStatus: "REJECTED" }))).toBe("rejected");
+    expect(getDecisionAgreement(cardioSegRun({ decisionStatus: "VALIDATED" }))).toBe("notApplicable");
   });
 });
 
@@ -237,6 +240,7 @@ describe("decision draft", () => {
     expect(getCorrectionOptions("brain", null)).toEqual([...correctionLabels.brain]);
     expect(getCorrectionOptions("pathology-breast", "malignant")).toEqual(["benign", "other"]);
     expect(getCorrectionOptions("pathology-nuclei", null)).toEqual([]);
+    expect(getCorrectionOptions("cardio-seg-mri", null)).toEqual([]);
   });
 
   it("knows every class a decision may retain, once", () => {
@@ -245,14 +249,18 @@ describe("decision draft", () => {
     );
   });
 
-  it("offers no correction for a nuclei map", () => {
+  it("offers no correction for segmentation maps", () => {
     expect(getDecisionOptions("brain")).toEqual(["VALIDATED", "CORRECTED", "REJECTED"]);
     expect(getDecisionOptions("pathology-breast")).toEqual(["VALIDATED", "CORRECTED", "REJECTED"]);
     expect(getDecisionOptions("pathology-nuclei")).toEqual(["VALIDATED", "REJECTED"]);
+    expect(getDecisionOptions("cardio-seg-mri")).toEqual(["VALIDATED", "REJECTED"]);
     expect(validateDecisionDraft(draft({ correctedLabel: "other", reason: "Carte floue.", status: "CORRECTED" }), null, "pathology-nuclei")).toEqual({
       status: "required",
     });
     expect(validateDecisionDraft(draft({ status: "VALIDATED" }), null, "pathology-nuclei")).toEqual({});
+    expect(validateDecisionDraft(draft({ correctedLabel: "other", reason: "Contours faux.", status: "CORRECTED" }), null, "cardio-seg-mri")).toEqual({
+      status: "required",
+    });
   });
 
   it("takes a breast correction among the breast classes only", () => {

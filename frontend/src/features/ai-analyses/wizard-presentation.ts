@@ -1,12 +1,18 @@
 import { type AiMagnification, type AiPipelineId } from "./ai-analyses.types";
 import { type LaunchState } from "./run-presentation";
 
-export type AcquisitionIssue = "magnification" | "he40x" | "samplingRate" | "samplingRateInvalid";
+export type AcquisitionIssue =
+  | "magnification"
+  | "he40x"
+  | "shortAxis"
+  | "samplingRate"
+  | "samplingRateInvalid";
 
 export function getAcquisitionIssue(input: {
   pipelineId: AiPipelineId;
   magnification: AiMagnification | null;
   he40xConfirmed: boolean;
+  shortAxisConfirmed: boolean;
   isArchive: boolean;
   samplingRate: number | null;
   rateChoice: number | "other" | null;
@@ -14,6 +20,7 @@ export function getAcquisitionIssue(input: {
 }): AcquisitionIssue | null {
   if (input.pipelineId === "pathology-breast" && input.magnification === null) return "magnification";
   if (input.pipelineId === "pathology-nuclei" && !input.he40xConfirmed) return "he40x";
+  if (input.pipelineId === "cardio-seg-mri" && !input.shortAxisConfirmed) return "shortAxis";
   if (input.pipelineId === "cardio-ecg" && !input.isArchive && input.samplingRate === null) {
     return input.rateChoice === "other" && input.otherRate.trim() !== "" ? "samplingRateInvalid" : "samplingRate";
   }
