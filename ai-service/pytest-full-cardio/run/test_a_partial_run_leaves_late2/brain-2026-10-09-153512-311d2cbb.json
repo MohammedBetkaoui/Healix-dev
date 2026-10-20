@@ -1,0 +1,21 @@
+{
+  "pipeline": "brain",
+  "classification": {
+    "status": "ok",
+    "accuracy": {
+      "value": 0.955
+    }
+  },
+  "segmentation": {
+    "status": "stopped",
+    "classes": {
+      "meningioma": {
+        "status": "ok"
+      },
+      "pituitary": {
+        "status": "ok"
+      }
+    }
+  },
+  "file": "brain-2026-10-09-153512-311d2cbb.json"
+}

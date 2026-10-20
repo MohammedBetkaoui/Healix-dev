@@ -1,0 +1,14 @@
+relative_path,tumor_label,task,is_mask
+segmentation_task\train\masks\me_a.png,meningioma,segmentation,True
+segmentation_task\train\images\me_b.jpg,meningioma,segmentation,False
+segmentation_task\test\images\me_test.jpg,meningioma,segmentation,False
+segmentation_task\train\images\me_a.jpg,meningioma,segmentation,False
+segmentation_task\train\images\me_empty.jpg,meningioma,segmentation,False
+segmentation_task\train\images\me_nomask.jpg,meningioma,segmentation,False
+segmentation_task\train\images\me_gone.jpg,meningioma,segmentation,False
+segmentation_task\train\masks\me_b.png,meningioma,segmentation,True
+segmentation_task\train\masks\me_empty.png,meningioma,segmentation,True
+segmentation_task\test\masks\me_test.png,meningioma,segmentation,True
+segmentation_task\train\images\pi_a.jpg,pituitary,segmentation,False
+segmentation_task\train\masks\pi_a.png,pituitary,segmentation,True
+classification_task\train\meningioma\me_cls.jpg,meningioma,classification,False

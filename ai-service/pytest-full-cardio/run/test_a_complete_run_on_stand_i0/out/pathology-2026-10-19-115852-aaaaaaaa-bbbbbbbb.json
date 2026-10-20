@@ -1,0 +1,573 @@
+{
+  "schemaVersion": 1,
+  "pipeline": "pathology",
+  "generatedAt": "2026-10-19T10:58:49+00:00",
+  "method": {
+    "inference": "app.pathology_pipeline.analyze_breast and analyze_nuclei, from the image bytes (PNG for the PanNuke patches and mosaics): the service's code, CPU",
+    "breakhis": "test-time augmentation original, flip_left_right, flip_up_down, flip_left_right_and_up_down; mean of the sigmoid outputs; decision score >= threshold of breakhis_inference_config.json",
+    "pannuke": "one pass at 256 x 256; larger images in tiles overlapping by 32 px, mirrored borders, centre kept (16 px margins dropped)",
+    "bootstrap": {
+      "draws": 1000,
+      "seed": 42,
+      "unit": "patient",
+      "interval": "percentile 2.5-97.5"
+    }
+  },
+  "weights": {
+    "pathology-breakhis-classification": {
+      "file": "EfficientNetB0_BreakHis_phase2.keras",
+      "sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      "loaded": true,
+      "config": {
+        "file": "breakhis_inference_config.json",
+        "sha256": null
+      }
+    },
+    "pathology-unet-pannuke-segmentation": {
+      "file": "pannuke_unet_efficientnetb0_phase2_best.keras",
+      "sha256": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+      "loaded": true
+    }
+  },
+  "versions": {
+    "python": "3.12.13",
+    "tensorflow": "2.20.0",
+    "keras": "3.13.2",
+    "opencv": "4.14.0",
+    "numpy": "2.5.3",
+    "scikitLearn": "1.9.1",
+    "pandas": "3.0.6"
+  },
+  "breakhis": {
+    "dataset": {
+      "name": "BreakHis v1 (BreaKHis_v1), patient-level test split of the notebook",
+      "folder": "BreaKHis_v1",
+      "testPatients": [
+        "14-11031",
+        "14-12773",
+        "14-14946",
+        "14-15704",
+        "14-16456",
+        "14-19854C",
+        "14-21978AB",
+        "14-22704",
+        "14-2773",
+        "14-29315EF",
+        "14-3909",
+        "14-4372",
+        "14-9146"
+      ],
+      "testImages": {
+        "total": 13,
+        "benign": 4,
+        "malignant": 9
+      },
+      "unreadable": []
+    },
+    "threshold": 0.13,
+    "status": "ok",
+    "n": 13,
+    "accuracy": 1.0,
+    "sensitivity": 1.0,
+    "specificity": 1.0,
+    "precision": 1.0,
+    "f1": 1.0,
+    "aucRoc": 1.0,
+    "aucPr": 1.0,
+    "confusionMatrix": [
+      [
+        4,
+        0
+      ],
+      [
+        0,
+        9
+      ]
+    ],
+    "bootstrap": {
+      "unit": "patient",
+      "draws": 1000,
+      "seed": 42,
+      "interval": "percentile 2.5-97.5",
+      "accuracy": {
+        "ci95": [
+          1.0,
+          1.0
+        ],
+        "draws": 1000
+      },
+      "sensitivity": {
+        "ci95": [
+          1.0,
+          1.0
+        ],
+        "draws": 1000
+      },
+      "specificity": {
+        "ci95": [
+          1.0,
+          1.0
+        ],
+        "draws": 995
+      },
+      "precision": {
+        "ci95": [
+          1.0,
+          1.0
+        ],
+        "draws": 1000
+      },
+      "f1": {
+        "ci95": [
+          1.0,
+          1.0
+        ],
+        "draws": 1000
+      },
+      "aucRoc": {
+        "ci95": [
+          1.0,
+          1.0
+        ],
+        "draws": 995
+      },
+      "aucPr": {
+        "ci95": [
+          1.0,
+          1.0
+        ],
+        "draws": 995
+      }
+    },
+    "byMagnification": {
+      "40": {
+        "n": 13,
+        "accuracy": 1.0,
+        "sensitivity": 1.0,
+        "specificity": 1.0,
+        "precision": 1.0,
+        "f1": 1.0,
+        "aucRoc": 1.0,
+        "aucPr": 1.0,
+        "confusionMatrix": [
+          [
+            4,
+            0
+          ],
+          [
+            0,
+            9
+          ]
+        ]
+      }
+    },
+    "byPatient": [
+      {
+        "patient": "14-11031",
+        "label": "malignant",
+        "images": 1,
+        "meanScore": 0.7843137383460999,
+        "majorityDecision": "malignant",
+        "majorityCorrect": true,
+        "imageAccuracy": 1.0
+      },
+      {
+        "patient": "14-12773",
+        "label": "malignant",
+        "images": 1,
+        "meanScore": 0.7843137383460999,
+        "majorityDecision": "malignant",
+        "majorityCorrect": true,
+        "imageAccuracy": 1.0
+      },
+      {
+        "patient": "14-14946",
+        "label": "malignant",
+        "images": 1,
+        "meanScore": 0.7843137383460999,
+        "majorityDecision": "malignant",
+        "majorityCorrect": true,
+        "imageAccuracy": 1.0
+      },
+      {
+        "patient": "14-15704",
+        "label": "malignant",
+        "images": 1,
+        "meanScore": 0.7843137383460999,
+        "majorityDecision": "malignant",
+        "majorityCorrect": true,
+        "imageAccuracy": 1.0
+      },
+      {
+        "patient": "14-16456",
+        "label": "malignant",
+        "images": 1,
+        "meanScore": 0.7843137383460999,
+        "majorityDecision": "malignant",
+        "majorityCorrect": true,
+        "imageAccuracy": 1.0
+      },
+      {
+        "patient": "14-19854C",
+        "label": "benign",
+        "images": 1,
+        "meanScore": 0.0784313753247261,
+        "majorityDecision": "benign",
+        "majorityCorrect": true,
+        "imageAccuracy": 1.0
+      },
+      {
+        "patient": "14-21978AB",
+        "label": "benign",
+        "images": 1,
+        "meanScore": 0.0784313753247261,
+        "majorityDecision": "benign",
+        "majorityCorrect": true,
+        "imageAccuracy": 1.0
+      },
+      {
+        "patient": "14-22704",
+        "label": "benign",
+        "images": 1,
+        "meanScore": 0.0784313753247261,
+        "majorityDecision": "benign",
+        "majorityCorrect": true,
+        "imageAccuracy": 1.0
+      },
+      {
+        "patient": "14-2773",
+        "label": "malignant",
+        "images": 1,
+        "meanScore": 0.7843137383460999,
+        "majorityDecision": "malignant",
+        "majorityCorrect": true,
+        "imageAccuracy": 1.0
+      },
+      {
+        "patient": "14-29315EF",
+        "label": "benign",
+        "images": 1,
+        "meanScore": 0.0784313753247261,
+        "majorityDecision": "benign",
+        "majorityCorrect": true,
+        "imageAccuracy": 1.0
+      },
+      {
+        "patient": "14-3909",
+        "label": "malignant",
+        "images": 1,
+        "meanScore": 0.7843137383460999,
+        "majorityDecision": "malignant",
+        "majorityCorrect": true,
+        "imageAccuracy": 1.0
+      },
+      {
+        "patient": "14-4372",
+        "label": "malignant",
+        "images": 1,
+        "meanScore": 0.7843137383460999,
+        "majorityDecision": "malignant",
+        "majorityCorrect": true,
+        "imageAccuracy": 1.0
+      },
+      {
+        "patient": "14-9146",
+        "label": "malignant",
+        "images": 1,
+        "meanScore": 0.7843137383460999,
+        "majorityDecision": "malignant",
+        "majorityCorrect": true,
+        "imageAccuracy": 1.0
+      }
+    ],
+    "patientLevel": {
+      "patients": 13,
+      "majorityCorrect": 13
+    },
+    "notebookReported": {
+      "accuracy": 0.8819,
+      "aucRoc": 0.9392,
+      "confusionMatrix": [
+        [
+          262,
+          85
+        ],
+        [
+          74,
+          925
+        ]
+      ],
+      "note": "Phase 2 + TTA at threshold 0.13 on the 13 test patients (cell 20 of the notebook, on GPU)"
+    },
+    "comparison": {
+      "accuracy": {
+        "service": 1.0,
+        "notebook": 0.8819,
+        "difference": 0.11809999999999998
+      },
+      "aucRoc": {
+        "service": 1.0,
+        "notebook": 0.9392,
+        "difference": 0.060799999999999965
+      },
+      "confusionMatrixIdentical": false
+    },
+    "durationSeconds": 2.7
+  },
+  "pannuke": {
+    "status": "ok",
+    "dataset": {
+      "name": "PanNuke, Fold 3 (the notebook's test fold)",
+      "folder": "fold_3",
+      "images": 9,
+      "patchesNotExactlyUint8": 0
+    },
+    "reference": "mask channels 0-4 > 0 -> class c + 1; pixels under several channels -> 255, left out; others background",
+    "pooling": "pixel counts pooled over the whole fold (not a mean per image)",
+    "perClass": {
+      "background": {
+        "dice": 1.0,
+        "iou": 1.0,
+        "truePixels": 412604,
+        "predictedPixels": 412604
+      },
+      "neoplastic": {
+        "dice": 1.0,
+        "iou": 1.0,
+        "truePixels": 35364,
+        "predictedPixels": 35364
+      },
+      "inflammatory": {
+        "dice": 1.0,
+        "iou": 1.0,
+        "truePixels": 35291,
+        "predictedPixels": 35291
+      },
+      "connective": {
+        "dice": 1.0,
+        "iou": 1.0,
+        "truePixels": 35690,
+        "predictedPixels": 35690
+      },
+      "dead": {
+        "dice": 1.0,
+        "iou": 1.0,
+        "truePixels": 35298,
+        "predictedPixels": 35298
+      },
+      "epithelial": {
+        "dice": 1.0,
+        "iou": 1.0,
+        "truePixels": 35577,
+        "predictedPixels": 35577
+      }
+    },
+    "nucleiMeanDice": 1.0,
+    "pixels": 589824,
+    "byTissue": {
+      "Breast": {
+        "images": 5,
+        "perClass": {
+          "background": {
+            "dice": 1.0,
+            "iou": 1.0,
+            "truePixels": 229195,
+            "predictedPixels": 229195
+          },
+          "neoplastic": {
+            "dice": 1.0,
+            "iou": 1.0,
+            "truePixels": 19654,
+            "predictedPixels": 19654
+          },
+          "inflammatory": {
+            "dice": 1.0,
+            "iou": 1.0,
+            "truePixels": 19642,
+            "predictedPixels": 19642
+          },
+          "connective": {
+            "dice": 1.0,
+            "iou": 1.0,
+            "truePixels": 19872,
+            "predictedPixels": 19872
+          },
+          "dead": {
+            "dice": 1.0,
+            "iou": 1.0,
+            "truePixels": 19463,
+            "predictedPixels": 19463
+          },
+          "epithelial": {
+            "dice": 1.0,
+            "iou": 1.0,
+            "truePixels": 19854,
+            "predictedPixels": 19854
+          }
+        },
+        "nucleiMeanDice": 1.0,
+        "pixels": 327680
+      },
+      "Colon": {
+        "images": 4,
+        "perClass": {
+          "background": {
+            "dice": 1.0,
+            "iou": 1.0,
+            "truePixels": 183409,
+            "predictedPixels": 183409
+          },
+          "neoplastic": {
+            "dice": 1.0,
+            "iou": 1.0,
+            "truePixels": 15710,
+            "predictedPixels": 15710
+          },
+          "inflammatory": {
+            "dice": 1.0,
+            "iou": 1.0,
+            "truePixels": 15649,
+            "predictedPixels": 15649
+          },
+          "connective": {
+            "dice": 1.0,
+            "iou": 1.0,
+            "truePixels": 15818,
+            "predictedPixels": 15818
+          },
+          "dead": {
+            "dice": 1.0,
+            "iou": 1.0,
+            "truePixels": 15835,
+            "predictedPixels": 15835
+          },
+          "epithelial": {
+            "dice": 1.0,
+            "iou": 1.0,
+            "truePixels": 15723,
+            "predictedPixels": 15723
+          }
+        },
+        "nucleiMeanDice": 1.0,
+        "pixels": 262144
+      }
+    },
+    "notebookReported": {
+      "dice": {
+        "background": 0.9625,
+        "neoplastic": 0.7119,
+        "inflammatory": 0.6239,
+        "connective": 0.56,
+        "dead": 0.3056,
+        "epithelial": 0.623
+      },
+      "nucleiMeanDice": 0.5649,
+      "note": "Cell 10 of the notebook evaluates val_dataset.take(316): Fold 2, the validation fold (the one phase2_best was selected on), not Fold 3. A gap with the Fold 3 figures is expected."
+    },
+    "tiling": {
+      "method": "2 x 2 mosaics of consecutive Fold 3 patches (512 x 512), segmented through the service's large-image path, compared with the 4 patches segmented one by one",
+      "mosaics": 2,
+      "patchesUsed": 8,
+      "tilesPerMosaic": [
+        9
+      ],
+      "agreementWithPerPatch": {
+        "pixelShare": 1.0,
+        "dicePerClass": {
+          "background": 1.0,
+          "neoplastic": 1.0,
+          "inflammatory": 1.0,
+          "connective": 1.0,
+          "dead": 1.0,
+          "epithelial": 1.0
+        }
+      },
+      "tiledVsReference": {
+        "perClass": {
+          "background": {
+            "dice": 1.0,
+            "iou": 1.0,
+            "truePixels": 366905,
+            "predictedPixels": 366905
+          },
+          "neoplastic": {
+            "dice": 1.0,
+            "iou": 1.0,
+            "truePixels": 31322,
+            "predictedPixels": 31322
+          },
+          "inflammatory": {
+            "dice": 1.0,
+            "iou": 1.0,
+            "truePixels": 31339,
+            "predictedPixels": 31339
+          },
+          "connective": {
+            "dice": 1.0,
+            "iou": 1.0,
+            "truePixels": 31649,
+            "predictedPixels": 31649
+          },
+          "dead": {
+            "dice": 1.0,
+            "iou": 1.0,
+            "truePixels": 31463,
+            "predictedPixels": 31463
+          },
+          "epithelial": {
+            "dice": 1.0,
+            "iou": 1.0,
+            "truePixels": 31610,
+            "predictedPixels": 31610
+          }
+        },
+        "nucleiMeanDice": 1.0,
+        "pixels": 524288
+      },
+      "perPatchVsReferenceOnSamePatches": {
+        "perClass": {
+          "background": {
+            "dice": 1.0,
+            "iou": 1.0,
+            "truePixels": 366905,
+            "predictedPixels": 366905
+          },
+          "neoplastic": {
+            "dice": 1.0,
+            "iou": 1.0,
+            "truePixels": 31322,
+            "predictedPixels": 31322
+          },
+          "inflammatory": {
+            "dice": 1.0,
+            "iou": 1.0,
+            "truePixels": 31339,
+            "predictedPixels": 31339
+          },
+          "connective": {
+            "dice": 1.0,
+            "iou": 1.0,
+            "truePixels": 31649,
+            "predictedPixels": 31649
+          },
+          "dead": {
+            "dice": 1.0,
+            "iou": 1.0,
+            "truePixels": 31463,
+            "predictedPixels": 31463
+          },
+          "epithelial": {
+            "dice": 1.0,
+            "iou": 1.0,
+            "truePixels": 31610,
+            "predictedPixels": 31610
+          }
+        },
+        "nucleiMeanDice": 1.0,
+        "pixels": 524288
+      }
+    },
+    "durationSeconds": 0.4
+  },
+  "file": "pathology-2026-10-19-115852-aaaaaaaa-bbbbbbbb.json"
+}

@@ -1,0 +1,16 @@
+{
+  "pipeline": "brain",
+  "classification": null,
+  "segmentation": {
+    "status": "ok",
+    "classes": {
+      "meningioma": {
+        "status": "ok"
+      },
+      "pituitary": {
+        "status": "ok"
+      }
+    }
+  },
+  "file": "brain-2026-10-09-153012-311d2cbb-2.json"
+}

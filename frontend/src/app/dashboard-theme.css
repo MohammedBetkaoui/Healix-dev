@@ -357,6 +357,21 @@
 .clinical-theme .clinical-figure { font-family: var(--font-auth-mono), ui-monospace, monospace; font-variant-numeric: tabular-nums; }
 .clinical-theme .operational-metrics[data-count="3"] { grid-template-columns: repeat(3, minmax(0, 1fr)); }
 .clinical-theme .attention-count { font-size: 1.1rem; font-weight: 600; min-width: 24px; text-align: center; }
+
+@media print {
+  body * { visibility: hidden !important; }
+  .prescription-print-root,
+  .prescription-print-root * { visibility: visible !important; }
+  .prescription-print-root {
+    position: absolute !important;
+    inset: 0 !important;
+    width: 210mm !important;
+    max-width: none !important;
+    min-height: 297mm !important;
+    margin: 0 !important;
+    box-shadow: none !important;
+  }
+}
 .clinical-theme .patient-flow { display: grid; gap: 14px; padding: 0 20px 20px; }
 .clinical-theme .flow-step { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 6px 12px; font-size: .8rem; }
 .clinical-theme .flow-track { grid-column: 1 / -1; height: 4px; border-radius: 2px; overflow: hidden; background: var(--surface-muted); }
