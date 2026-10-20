@@ -2,6 +2,7 @@ import {
   type FieldErrors,
   type UseFormRegister,
 } from "react-hook-form";
+import { CheckCircle2, ClipboardCheck, Files, MinusCircle } from "lucide-react";
 
 import { FormErrorMessage } from "@/components/auth/register/FormErrorMessage";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -59,13 +60,16 @@ export function DoctorSubmissionStep({
 
   return (
     <section className="space-y-6">
-      <div className="rounded-xl border border-border/80 bg-card p-6 shadow-sm">
-        <div className="mb-5">
-          <h2 className="text-lg font-semibold text-foreground">
+      <div className="surface-section overflow-hidden">
+        <div className="flex items-center gap-3 border-b border-border bg-[var(--surface-muted)] px-5 py-4 sm:px-6">
+          <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-md border border-[var(--success-line)] bg-[var(--medical-soft)] text-[var(--medical)]">
+            <ClipboardCheck className="h-4 w-4" />
+          </span>
+          <h2 className="text-base font-semibold text-foreground">
             {t("doctorVerification.submission.summaryTitle")}
           </h2>
         </div>
-        <div className="grid gap-4 md:grid-cols-3">
+        <div className="grid gap-px bg-[var(--border)] sm:grid-cols-2 lg:grid-cols-3">
           {[
             {
               done: sectionCompletion.identity,
@@ -95,23 +99,31 @@ export function DoctorSubmissionStep({
           ].map((item) => (
             <div
               key={item.label}
-              className="rounded-xl border border-border bg-muted/70 p-4"
+              className="flex items-center gap-3 bg-[var(--surface)] px-5 py-4"
             >
-              <p className="text-sm text-muted-foreground">{item.label}</p>
-              <p className="mt-2 text-sm font-semibold text-foreground">
-                {item.value ??
-                  (item.done
-                    ? t("doctorVerification.submission.completed")
-                    : t("doctorVerification.submission.incomplete"))}
-              </p>
+              <span className={item.done ? "text-[var(--success-ink)]" : "text-muted-foreground"}>
+                {item.done ? <CheckCircle2 className="h-4 w-4" /> : <MinusCircle className="h-4 w-4" />}
+              </span>
+              <div className="min-w-0">
+                <p className="text-xs leading-5 text-muted-foreground">{item.label}</p>
+                <p className="mt-0.5 text-sm font-semibold text-foreground">
+                  {item.value ??
+                    (item.done
+                      ? t("doctorVerification.submission.completed")
+                      : t("doctorVerification.submission.incomplete"))}
+                </p>
+              </div>
             </div>
           ))}
         </div>
 
-        <div className="mt-5 rounded-xl border border-border bg-card p-4">
-          <p className="text-sm font-semibold text-foreground">
-            {t("doctorVerification.submission.missingDocuments")}
-          </p>
+        <div className="border-t border-border px-5 py-4 sm:px-6">
+          <div className="flex items-center gap-2">
+            <Files className="h-4 w-4 text-[var(--medical)]" />
+            <p className="text-sm font-semibold text-foreground">
+              {t("doctorVerification.submission.missingDocuments")}
+            </p>
+          </div>
           {missingRequiredDocuments.length > 0 ? (
             <ul className="mt-3 list-inside list-disc space-y-1 text-sm text-muted-foreground">
               {missingRequiredDocuments.map((document) => (
@@ -126,16 +138,16 @@ export function DoctorSubmissionStep({
         </div>
       </div>
 
-      <section className="rounded-xl border border-border/80 bg-card p-6 shadow-sm">
-        <div className="mb-5">
-          <h2 className="text-lg font-semibold text-foreground">
+      <section className="surface-section overflow-hidden">
+        <div className="border-b border-border bg-[var(--surface-muted)] px-5 py-4 sm:px-6">
+          <h2 className="text-base font-semibold text-foreground">
             {t("doctorVerification.documents.title")}
           </h2>
           <p className="mt-1 text-sm leading-6 text-muted-foreground">
             {t("doctorVerification.documents.subtitle")}
           </p>
         </div>
-        <div className="grid gap-4 xl:grid-cols-2">
+        <div className="grid gap-4 p-5 sm:p-6 xl:grid-cols-2">
           {documents.map((document) => {
             const state = documentStates[document.type];
             const fieldError = errors[document.fieldName]?.message as
@@ -181,7 +193,7 @@ export function DoctorSubmissionStep({
           })}
         </div>
 
-        <div className="mt-5 rounded-xl border border-border bg-muted/70 p-4">
+        <div className="border-t border-border bg-[var(--medical-soft)] px-5 py-4 sm:px-6">
           <div className="flex items-start gap-3">
             <Checkbox
               id="confirmAuthenticity"

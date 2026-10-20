@@ -5,11 +5,14 @@ import { Button } from "@/components/ui/button";
 type VerificationSubmitPanelProps = {
   completedInfoCount: number;
   documentsAddedCount: number;
+  documentsLabel: string;
+  documentsTotalCount: number;
   infoTotalCount: number;
   isLoading: boolean;
   isReady: boolean;
   onSubmit: () => void;
   statusLabel: string;
+  statusTitle: string;
   submitLabel: string;
   submittingLabel: string;
   title: string;
@@ -18,50 +21,59 @@ type VerificationSubmitPanelProps = {
 export function VerificationSubmitPanel({
   completedInfoCount,
   documentsAddedCount,
+  documentsLabel,
+  documentsTotalCount,
   infoTotalCount,
   isLoading,
   isReady,
   onSubmit,
   statusLabel,
+  statusTitle,
   submitLabel,
   submittingLabel,
   title,
 }: VerificationSubmitPanelProps) {
   return (
-    <section className="rounded-xl border border-border/80 bg-card p-6 shadow-sm">
-      <div className="flex flex-col gap-5 lg:flex-row lg:items-end lg:justify-between">
-        <div className="grid flex-1 gap-4 sm:grid-cols-3">
-          <div className="rounded-xl border border-border bg-muted/70 p-4">
-            <span className="flex h-10 w-10 items-center justify-center rounded-full bg-card text-muted-foreground shadow-sm">
+    <section className="surface-section sticky bottom-4 z-10 overflow-hidden bg-[var(--surface)]/95 p-4 backdrop-blur sm:p-5">
+      <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
+        <div className="grid flex-1 gap-px overflow-hidden rounded-md border border-border bg-[var(--border)] sm:grid-cols-3">
+          <div className="flex items-center gap-3 bg-[var(--surface-muted)] px-4 py-3">
+            <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-md border border-border bg-[var(--surface)] text-[var(--medical)]">
               <FileText className="h-4 w-4" />
             </span>
-            <p className="mt-4 text-sm text-muted-foreground">{title}</p>
-            <p className="mt-1 text-2xl font-semibold text-foreground">
-              {completedInfoCount}/{infoTotalCount}
-            </p>
+            <div>
+              <p className="text-xs text-muted-foreground">{title}</p>
+              <p className="mt-0.5 text-base font-semibold tabular-nums text-foreground">
+                {completedInfoCount}/{infoTotalCount}
+              </p>
+            </div>
           </div>
-          <div className="rounded-xl border border-border bg-muted/70 p-4">
-            <span className="flex h-10 w-10 items-center justify-center rounded-full bg-card text-muted-foreground shadow-sm">
+          <div className="flex items-center gap-3 bg-[var(--surface-muted)] px-4 py-3">
+            <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-md border border-border bg-[var(--surface)] text-[var(--medical)]">
               <Files className="h-4 w-4" />
             </span>
-            <p className="mt-4 text-sm text-muted-foreground">Documents</p>
-            <p className="mt-1 text-2xl font-semibold text-foreground">
-              {documentsAddedCount}/5
-            </p>
+            <div>
+              <p className="text-xs text-muted-foreground">{documentsLabel}</p>
+              <p className="mt-0.5 text-base font-semibold tabular-nums text-foreground">
+                {documentsAddedCount}/{documentsTotalCount}
+              </p>
+            </div>
           </div>
-          <div className="rounded-xl border border-border bg-muted/70 p-4">
-            <span className="flex h-10 w-10 items-center justify-center rounded-full bg-card text-muted-foreground shadow-sm">
+          <div className="flex items-center gap-3 bg-[var(--surface-muted)] px-4 py-3">
+            <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-md border border-border bg-[var(--surface)] text-[var(--medical)]">
               <CheckCircle2 className="h-4 w-4" />
             </span>
-            <p className="mt-4 text-sm text-muted-foreground">Statut</p>
-            <p className="mt-1 text-lg font-semibold text-foreground">{statusLabel}</p>
+            <div>
+              <p className="text-xs text-muted-foreground">{statusTitle}</p>
+              <p className="mt-0.5 text-sm font-semibold text-foreground">{statusLabel}</p>
+            </div>
           </div>
         </div>
 
         <Button
           type="button"
           size="lg"
-          className="rounded-full px-6"
+          className="min-h-11 w-full rounded-md px-6 lg:w-auto"
           disabled={!isReady || isLoading}
           onClick={onSubmit}
         >

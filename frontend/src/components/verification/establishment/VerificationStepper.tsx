@@ -1,3 +1,5 @@
+import { Check } from "lucide-react";
+
 import { cn } from "@/lib/utils";
 
 type VerificationStepperProps = {
@@ -12,10 +14,10 @@ export function VerificationStepper({
   steps,
 }: VerificationStepperProps) {
   return (
-    <section className="rounded-xl border border-border/80 bg-card p-5 shadow-sm">
+    <section className="surface-section overflow-hidden" aria-label={steps.join(", ")}>
       <div
         className={cn(
-          "grid gap-4 md:grid-cols-4",
+          "grid gap-px bg-[var(--border)] sm:grid-cols-2 lg:grid-cols-4",
           direction === "rtl" && "text-right",
         )}
       >
@@ -25,32 +27,33 @@ export function VerificationStepper({
           const isCompleted = stepNumber < activeStep;
 
           return (
-            <div key={step} className="relative flex items-center gap-3">
-              {index < steps.length - 1 ? (
-                <span
-                  className={cn(
-                    "absolute top-5 hidden h-px bg-border md:block",
-                    direction === "rtl" ? "left-0 right-12" : "left-12 right-0",
-                  )}
-                  aria-hidden="true"
-                />
-              ) : null}
+            <div
+              key={step}
+              aria-current={isActive ? "step" : undefined}
+              className={cn(
+                "relative flex min-h-20 items-center gap-3 bg-[var(--surface)] px-4 py-3",
+                isActive && "bg-[var(--medical-soft)]",
+              )}
+            >
               <span
                 className={cn(
-                  "relative z-10 flex h-10 w-10 shrink-0 items-center justify-center rounded-full border text-sm font-semibold",
+                  "flex h-8 w-8 shrink-0 items-center justify-center rounded-md border text-xs font-semibold",
                   isCompleted
                     ? "border-[var(--success-line)] bg-[var(--success-soft)] text-[var(--success-ink)]"
                     : isActive
-                      ? "border-[var(--accent-line)] bg-secondary text-[var(--accent-dark)]"
-                      : "border-border bg-card text-muted-foreground",
+                      ? "border-[var(--medical)] bg-[var(--surface)] text-[var(--medical)]"
+                      : "border-border bg-[var(--surface-muted)] text-muted-foreground",
                 )}
               >
-                {stepNumber}
+                {isCompleted ? <Check className="h-4 w-4" /> : stepNumber}
               </span>
-              <div>
+              <div className="min-w-0">
+                <p className="text-[10px] font-semibold uppercase tracking-[0.08em] text-muted-foreground">
+                  {String(stepNumber).padStart(2, "0")}
+                </p>
                 <p
                   className={cn(
-                    "text-sm font-medium",
+                    "mt-1 text-sm font-medium leading-5",
                     isActive || isCompleted ? "text-foreground" : "text-muted-foreground",
                   )}
                 >

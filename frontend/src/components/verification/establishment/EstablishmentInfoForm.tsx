@@ -1,4 +1,5 @@
 import { type FieldErrors, type UseFormRegister } from "react-hook-form";
+import { Building2 } from "lucide-react";
 
 import { FormErrorMessage } from "@/components/auth/register/FormErrorMessage";
 import { Input } from "@/components/ui/input";
@@ -22,14 +23,17 @@ export function EstablishmentInfoForm({
   t,
 }: EstablishmentInfoFormProps) {
   return (
-    <section className="rounded-xl border border-border/80 bg-card p-6 shadow-sm">
-      <div className="mb-5">
-        <h2 className="text-lg font-semibold text-foreground">
+    <section className="verification-form surface-section overflow-hidden">
+      <div className="flex items-center gap-3 border-b border-border bg-[var(--surface-muted)] px-5 py-4 sm:px-6">
+        <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-md border border-[var(--success-line)] bg-[var(--medical-soft)] text-[var(--medical)]">
+          <Building2 className="h-4 w-4" />
+        </span>
+        <h2 className="text-base font-semibold text-foreground">
           {t("verification.stepper.establishmentInfo")}
         </h2>
       </div>
 
-      <div className="grid gap-4 md:grid-cols-2">
+      <div className="verification-field-grid grid gap-x-5 gap-y-5 p-5 sm:p-6 md:grid-cols-2">
         <div className="md:col-span-2">
           <Label htmlFor="verification-establishmentName">
             {t("verification.form.establishmentName")}

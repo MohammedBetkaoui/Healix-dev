@@ -13,3 +13,5 @@
 # Logs of local runs (ai-service/.runlogs, next dev...): never committed.
 .runlogs/
 *.log
+
+# pytest-full-cardio

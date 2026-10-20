@@ -1,4 +1,5 @@
 import { type FieldErrors } from "react-hook-form";
+import { Files } from "lucide-react";
 
 import {
   type DocumentUploadState,
@@ -33,17 +34,22 @@ export function RequiredDocumentsSection({
   t,
 }: RequiredDocumentsSectionProps) {
   return (
-    <section className="rounded-xl border border-border/80 bg-card p-6 shadow-sm">
-      <div className="mb-5">
-        <h2 className="text-lg font-semibold text-foreground">
-          {t("verification.documents.title")}
-        </h2>
-        <p className="mt-1 text-sm text-muted-foreground">
-          {t("verification.documents.subtitle")}
-        </p>
+    <section className="surface-section overflow-hidden">
+      <div className="flex items-start gap-3 border-b border-border bg-[var(--surface-muted)] px-5 py-4 sm:px-6">
+        <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-md border border-[var(--accent-line)] bg-[var(--accent-soft)] text-[var(--accent-dark)]">
+          <Files className="h-4 w-4" />
+        </span>
+        <div>
+          <h2 className="text-base font-semibold text-foreground">
+            {t("verification.documents.title")}
+          </h2>
+          <p className="mt-1 text-sm leading-6 text-muted-foreground">
+            {t("verification.documents.subtitle")}
+          </p>
+        </div>
       </div>
 
-      <div className="space-y-4">
+      <div className="grid gap-4 p-5 sm:p-6 xl:grid-cols-2">
         {documents.map((document) => {
           const state = documentStates[document.type];
           const fieldError = errors[document.fieldName];

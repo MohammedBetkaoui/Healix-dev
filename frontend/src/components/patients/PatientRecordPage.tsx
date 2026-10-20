@@ -28,6 +28,7 @@ import { AppointmentDetailsModal } from "@/components/appointments/AppointmentDe
 import { CreateAppointmentModal } from "@/components/appointments/CreateAppointmentModal";
 import { DashboardShell } from "@/components/dashboard/layout/DashboardShell";
 import { VerificationRequiredNotice } from "@/components/shared/VerificationRequiredNotice";
+import { PatientReportsSection } from "@/features/reports/components/PatientReportsSection";
 import { doctorNavSections, establishmentNavSections } from "@/components/dashboard/layout/navigation";
 import { StatusBadge } from "@/components/dashboard/shared/StatusBadge";
 import { Button } from "@/components/ui/button";
@@ -64,7 +65,7 @@ type PatientRecordPageProps = {
 type RecordTab =
   | "summary" | "timeline" | "consultations" | "diagnostics" | "allergies"
   | "medications" | "vitals" | "labs" | "imaging" | "documents"
-  | "notes" | "appointments" | "careTeam" | "consents" | "audit";
+  | "reports" | "notes" | "appointments" | "careTeam" | "consents" | "audit";
 
 const copy = {
   fr: {
@@ -101,7 +102,7 @@ const copy = {
     tabs: {
       summary: "Résumé", timeline: "Chronologie", consultations: "Consultations", diagnostics: "Diagnostics",
       allergies: "Allergies", medications: "Médicaments", vitals: "Constantes", labs: "Examens / Analyses",
-      imaging: "Imagerie / Pathologie", documents: "Documents", notes: "Notes", appointments: "Rendez-vous",
+      imaging: "Imagerie / Pathologie", documents: "Documents", reports: "Rapports associés", notes: "Notes", appointments: "Rendez-vous",
       careTeam: "Équipe médicale", consents: "Consentements", audit: "Audit",
     },
   },
@@ -139,7 +140,7 @@ const copy = {
     tabs: {
       summary: "الملخص", timeline: "التسلسل الزمني", consultations: "الاستشارات", diagnostics: "التشخيصات",
       allergies: "الحساسية", medications: "الأدوية", vitals: "المؤشرات", labs: "الفحوصات / التحاليل",
-      imaging: "التصوير / علم الأمراض", documents: "الوثائق", notes: "الملاحظات", appointments: "المواعيد",
+      imaging: "التصوير / علم الأمراض", documents: "الوثائق", reports: "التقارير المرتبطة", notes: "الملاحظات", appointments: "المواعيد",
       careTeam: "الفريق الطبي", consents: "الموافقات", audit: "التدقيق",
     },
   },
@@ -147,7 +148,7 @@ const copy = {
 
 const tabs: RecordTab[] = [
   "summary", "timeline", "consultations", "diagnostics", "allergies", "medications",
-  "vitals", "labs", "imaging", "documents", "notes", "appointments", "careTeam", "consents", "audit",
+  "vitals", "labs", "imaging", "reports", "documents", "notes", "appointments", "careTeam", "consents", "audit",
 ];
 
 // Local time, not UTC (toISOString), so the default date never shifts by a day.
@@ -369,6 +370,10 @@ export function PatientRecordPage({ accountType, initialTab, patientId }: Patien
           />
         ) : null}
 
+        {activeTab === "reports" ? (
+          <PatientReportsSection accountType={accountType} locale={locale} patientId={patientId} t={t} />
+        ) : null}
+
         {activeTab === "consultations" ? (
           <section className="surface-section border-t-2 border-t-[var(--medical)] p-5 sm:p-6">
             <div className="flex items-center gap-3"><Stethoscope className="h-5 w-5 text-[var(--medical)]" strokeWidth={1.7} /><h2 className="text-lg font-semibold text-[var(--ink)]">{localized.tabs.consultations}</h2></div>
@@ -468,7 +473,7 @@ export function PatientRecordPage({ accountType, initialTab, patientId }: Patien
           </section>
         ) : null}
 
-        {activeTab !== "summary" && activeTab !== "allergies" && activeTab !== "consultations" && activeTab !== "documents" && activeTab !== "imaging" && activeTab !== "consents" && activeTab !== "audit" && activeTab !== "appointments" && activeTab !== "notes" ? <EmptyTab label={localized.tabs[activeTab]} /> : null}
+        {activeTab !== "summary" && activeTab !== "allergies" && activeTab !== "consultations" && activeTab !== "documents" && activeTab !== "imaging" && activeTab !== "reports" && activeTab !== "consents" && activeTab !== "audit" && activeTab !== "appointments" && activeTab !== "notes" ? <EmptyTab label={localized.tabs[activeTab]} /> : null}
       </div>
 
       <div role="status" aria-live="polite">

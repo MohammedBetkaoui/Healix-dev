@@ -66,17 +66,17 @@ export function DoctorDocumentUploadCard({
   const inputRef = useRef<HTMLInputElement>(null);
 
   return (
-    <article className="rounded-xl border border-border/80 bg-card p-5 shadow-sm">
+    <article className="flex min-w-0 flex-col rounded-lg border border-border bg-[var(--surface)] p-4">
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div className="min-w-0">
           <div className="flex flex-wrap items-center gap-2">
-            <h3 className="text-base font-semibold text-foreground">{title}</h3>
+            <h3 className="text-sm font-semibold text-foreground">{title}</h3>
             <span
               className={cn(
-                "rounded-full px-2.5 py-1 text-xs font-medium",
+                "rounded-md border px-2 py-1 text-[11px] font-semibold",
                 requirementTone === "warning"
-                  ? "bg-[var(--warning-soft)] text-[var(--warning-ink)]"
-                  : "bg-muted text-muted-foreground",
+                  ? "border-[var(--warning-line)] bg-[var(--warning-soft)] text-[var(--warning-ink)]"
+                  : "border-border bg-[var(--surface-muted)] text-muted-foreground",
               )}
             >
               {requirementLabel}
@@ -89,10 +89,10 @@ export function DoctorDocumentUploadCard({
 
       <div
         className={cn(
-          "mt-4 rounded-xl border border-dashed px-4 py-5 transition",
+          "mt-4 flex flex-1 rounded-md border border-dashed px-4 py-4 transition-colors",
           error
             ? "border-[var(--danger-line)] bg-[var(--danger-soft)]/50"
-            : "border-border bg-muted/60 hover:border-[var(--accent-line)] hover:bg-secondary/40",
+            : "border-[var(--border-strong)] bg-[var(--surface-muted)] hover:border-[var(--medical)] hover:bg-[var(--medical-soft)]",
         )}
         onDragOver={(event) => event.preventDefault()}
         onDrop={(event) => {
@@ -100,16 +100,16 @@ export function DoctorDocumentUploadCard({
           onFileSelect(event.dataTransfer.files.item(0));
         }}
       >
-        <div className="flex flex-col items-start gap-4 sm:flex-row sm:items-center sm:justify-between">
-          <div className="flex items-start gap-3">
-            <span className="flex h-11 w-11 items-center justify-center rounded-full bg-card text-muted-foreground shadow-sm">
+        <div className="flex w-full flex-col items-start gap-4 sm:flex-row sm:items-center sm:justify-between">
+          <div className="flex min-w-0 items-start gap-3">
+            <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-md border border-border bg-[var(--surface)] text-[var(--medical)]">
               {fileName ? (
                 <FileUp className="h-5 w-5" />
               ) : (
                 <UploadCloud className="h-5 w-5" />
               )}
             </span>
-            <div>
+            <div className="min-w-0">
               <p className="break-all text-sm font-medium text-foreground">
                 {fileName ?? uploadHint}
               </p>
@@ -120,7 +120,7 @@ export function DoctorDocumentUploadCard({
               ) : null}
             </div>
           </div>
-          <div className="flex shrink-0 flex-wrap gap-2">
+          <div className="flex w-full shrink-0 flex-wrap gap-2 sm:w-auto sm:justify-end">
             <input
               ref={inputRef}
               type="file"
@@ -133,7 +133,7 @@ export function DoctorDocumentUploadCard({
             <Button
               type="button"
               variant="outline"
-              className="rounded-full px-4"
+              className="min-h-9 flex-1 rounded-md px-4 sm:flex-none"
               onClick={() => inputRef.current?.click()}
             >
               {fileName ? replaceLabel : selectLabel}
@@ -143,7 +143,7 @@ export function DoctorDocumentUploadCard({
               <Button
                 type="button"
                 variant="outline"
-                className="rounded-full px-4"
+                className="min-h-9 flex-1 rounded-md px-4 sm:flex-none"
                 disabled={isDeleting}
                 onClick={onDelete}
               >

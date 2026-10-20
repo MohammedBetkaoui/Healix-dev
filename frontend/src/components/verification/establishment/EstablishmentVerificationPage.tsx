@@ -504,8 +504,8 @@ export function EstablishmentVerificationPage() {
         </div>
       ) : null}
 
-      <section className="space-y-6">
-        <div>
+      <section className="workspace-stack">
+        <div className="max-w-4xl border-s-2 border-s-[var(--medical)] ps-4">
           <p className="text-sm text-muted-foreground">{t("verification.page.subtitle")}</p>
         </div>
 
@@ -584,7 +584,7 @@ export function EstablishmentVerificationPage() {
               ]}
             />
 
-            <div id="verification-info-section" className="space-y-6">
+            <div id="verification-info-section" className="verification-form space-y-6">
           {isPrefillLoading ? (
             <div
               className="flex items-center gap-2 rounded-2xl border border-[var(--accent-line)] bg-secondary/70 px-4 py-3 text-sm text-[var(--accent-dark)]"
@@ -638,6 +638,8 @@ export function EstablishmentVerificationPage() {
           <VerificationSubmitPanel
             completedInfoCount={infoCompletedCount}
             documentsAddedCount={documentsAddedCount}
+            documentsLabel={t("verification.documents.title")}
+            documentsTotalCount={requiredDocuments.length}
             infoTotalCount={requiredInfoFieldCount}
             isLoading={isSubmittingRequest}
             isReady={isReadyToSubmit}
@@ -647,6 +649,7 @@ export function EstablishmentVerificationPage() {
                 ? t("verification.submit.ready")
                 : t("verification.submit.incomplete")
             }
+            statusTitle={t("verification.status.current")}
             submitLabel={
               canEditSubmittedRequest
                 ? t("verification.submit.updateButton")
@@ -660,13 +663,13 @@ export function EstablishmentVerificationPage() {
             title={t("verification.submit.infoCompleted")}
           />
 
-          <section className="rounded-xl border border-[var(--accent-line)] bg-secondary/50 p-6 shadow-sm">
+          <section className="verification-context surface-section bg-[var(--medical-soft)] p-5 sm:p-6">
             <div className="flex items-start gap-4">
-              <span className="flex h-12 w-12 shrink-0 items-center justify-center rounded-full bg-card text-[var(--accent-dark)] shadow-sm">
-                <ShieldCheck className="h-5 w-5" />
+              <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-md border border-[var(--success-line)] bg-[var(--surface)] text-[var(--medical)]">
+                <ShieldCheck className="h-4 w-4" />
               </span>
               <div>
-                <h2 className="text-lg font-semibold text-foreground">
+                <h2 className="text-base font-semibold text-foreground">
                   {status === "PENDING_VERIFICATION"
                     ? t("verification.status.pendingTitle")
                     : t("verification.status.current")}

@@ -516,6 +516,24 @@
 .clinical-theme .compact-actions a:hover { background: var(--surface-muted); }
 .clinical-theme .compact-actions svg { color: var(--medical); flex-shrink: 0; }
 .clinical-theme .workspace-status { padding: 18px 20px; border-inline-start: 2px solid var(--official); }
+.clinical-theme .verification-form :is(input, select, textarea) {
+  border-color: var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--surface);
+  box-shadow: none;
+}
+.clinical-theme .verification-form :is(input, select, textarea):hover:not(:disabled) { border-color: var(--border-strong); }
+.clinical-theme .verification-form :is(input, select, textarea):focus {
+  border-color: var(--medical);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--medical) 14%, transparent);
+}
+.clinical-theme .verification-form label { color: var(--text-primary); font-size: .75rem; font-weight: 600; }
+.clinical-theme .verification-field-grid > * { min-width: 0; }
+.clinical-theme .verification-context { border-inline-start: 2px solid var(--medical); }
+.clinical-theme .verification-security { border-inline-start: 2px solid var(--official); }
+.clinical-theme .verification-warning { border-inline-start: 2px solid var(--warning); }
+.clinical-theme .verification-progress-track { overflow: hidden; height: 4px; border-radius: 999px; background: var(--surface-muted); }
+.clinical-theme .verification-progress-track > span { display: block; height: 100%; border-radius: inherit; background: var(--medical); transition: width 180ms ease; }
 .clinical-theme [dir="rtl"] .clinical-directional, .clinical-theme[dir="rtl"] .clinical-directional { transform: scaleX(-1); }
 .clinical-theme[lang="ar"] { letter-spacing: normal; }
 .clinical-theme[lang="ar"] .clinical-nav-row { font-size: .9rem; min-height: 42px; }

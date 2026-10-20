@@ -10,14 +10,14 @@ export function DoctorVerificationSecurityNotice({
   title,
 }: DoctorVerificationSecurityNoticeProps) {
   return (
-    <section className="rounded-xl border border-border/80 bg-card p-6 shadow-sm">
-      <div className="flex items-start gap-4">
-        <span className="flex h-12 w-12 shrink-0 items-center justify-center rounded-full bg-secondary text-[var(--accent-dark)]">
-          <LockKeyhole className="h-5 w-5" />
+    <section className="verification-security surface-section overflow-hidden bg-[var(--official-soft)] px-5 py-4">
+      <div className="flex items-start gap-3">
+        <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-md border border-[var(--warning-line)] bg-[var(--surface)] text-[var(--official)]">
+          <LockKeyhole className="h-4 w-4" />
         </span>
         <div>
-          <h2 className="text-lg font-semibold text-foreground">{title}</h2>
-          <p className="mt-2 text-sm leading-6 text-muted-foreground">{text}</p>
+          <h2 className="text-sm font-semibold text-foreground">{title}</h2>
+          <p className="mt-1 text-sm leading-6 text-muted-foreground">{text}</p>
         </div>
       </div>
     </section>

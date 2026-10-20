@@ -16,22 +16,22 @@ export function PendingVerificationNotice({
   title,
 }: PendingVerificationNoticeProps) {
   return (
-    <section className="rounded-xl border border-[var(--warning-line)] bg-[var(--warning-soft)] p-6 shadow-sm">
+    <section className="verification-warning surface-section overflow-hidden bg-[var(--warning-soft)] p-5 sm:p-6">
       <div className="flex flex-col gap-5 lg:flex-row lg:items-center lg:justify-between">
         <div className="flex items-start gap-4">
-          <span className="flex h-12 w-12 shrink-0 items-center justify-center rounded-full bg-card text-[var(--warning-ink)] shadow-sm">
+          <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-md border border-[var(--warning-line)] bg-[var(--surface)] text-[var(--warning-ink)]">
             <Clock3 className="h-5 w-5" />
           </span>
           <div>
-            <h2 className="text-lg font-semibold text-foreground">{title}</h2>
-            <p className="mt-2 max-w-4xl text-sm leading-6 text-muted-foreground">
+            <h2 className="text-base font-semibold text-foreground">{title}</h2>
+            <p className="mt-1 max-w-4xl text-sm leading-6 text-muted-foreground">
               {description}
             </p>
           </div>
         </div>
         <Button
           type="button"
-          className="w-full rounded-full px-5 lg:w-auto"
+          className="w-full rounded-md px-5 lg:w-auto"
           onClick={onEdit}
         >
           <PencilLine className="h-4 w-4" />

@@ -37,7 +37,7 @@ export function DoctorVerificationNavigation({
   const NextIcon = direction === "rtl" ? ArrowLeft : ArrowRight;
 
   return (
-    <section className="sticky bottom-4 z-10 rounded-xl border border-border/80 bg-card/92 p-4 shadow-sm backdrop-blur">
+    <section className="surface-section sticky bottom-4 z-10 bg-[var(--surface)]/95 p-4 backdrop-blur">
       <div
         className={cn(
           "flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between",
@@ -46,7 +46,7 @@ export function DoctorVerificationNavigation({
         <Button
           type="button"
           variant="outline"
-          className="rounded-full"
+          className="min-h-10 w-full rounded-md sm:w-auto"
           disabled={isFirstStep}
           onClick={onPrevious}
         >
@@ -56,7 +56,7 @@ export function DoctorVerificationNavigation({
         {isLastStep ? (
           <Button
             type="button"
-            className="rounded-full px-6"
+            className="min-h-10 w-full rounded-md px-6 sm:w-auto"
             disabled={submitDisabled || isSubmitting}
             onClick={onSubmit}
           >
@@ -70,7 +70,7 @@ export function DoctorVerificationNavigation({
             )}
           </Button>
         ) : (
-          <Button type="button" className="rounded-full px-6" onClick={onNext}>
+          <Button type="button" className="min-h-10 w-full rounded-md px-6 sm:w-auto" onClick={onNext}>
             {nextLabel}
             <NextIcon className="h-4 w-4" />
           </Button>

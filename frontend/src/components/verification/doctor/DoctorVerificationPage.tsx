@@ -1023,10 +1023,12 @@ export function DoctorVerificationPage() {
         </div>
       ) : null}
 
-      <section className="space-y-6">
-        <p className="text-sm leading-6 text-muted-foreground">
-          {t("doctorVerification.page.subtitle")}
-        </p>
+      <section className="workspace-stack">
+        <div className="max-w-4xl border-s-2 border-s-[var(--medical)] ps-4">
+          <p className="text-sm leading-6 text-muted-foreground">
+            {t("doctorVerification.page.subtitle")}
+          </p>
+        </div>
 
         <DoctorVerificationStatusCard
           modeLabel={t("doctorVerification.status.modeBadge")}
@@ -1103,9 +1105,9 @@ export function DoctorVerificationPage() {
               t={t}
             />
 
-            <div className="rounded-xl border border-[var(--accent-line)] bg-secondary/50 p-5 text-sm leading-6 text-muted-foreground shadow-sm">
+            <div className="verification-context surface-section bg-[var(--medical-soft)] px-5 py-4 text-sm leading-6 text-muted-foreground">
           <div className="flex items-start gap-3">
-            <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-card text-[var(--accent-dark)] shadow-sm">
+            <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-md border border-[var(--success-line)] bg-[var(--surface)] text-[var(--medical)]">
               <Info className="h-4 w-4" />
             </span>
             <p>{t("doctorVerification.page.contextNotice")}</p>
@@ -1142,7 +1144,7 @@ export function DoctorVerificationPage() {
 
         <form
           id="doctor-verification-form"
-          className="space-y-6"
+          className="verification-form space-y-6"
           onSubmit={(event) => event.preventDefault()}
         >
           {stepContent[activeStepIndex]}
@@ -1153,13 +1155,13 @@ export function DoctorVerificationPage() {
           />
 
           {displayStatus === "PENDING_VERIFICATION" ? (
-            <section className="rounded-xl border border-[var(--accent-line)] bg-secondary/50 p-6 shadow-sm">
+            <section className="verification-context surface-section bg-[var(--medical-soft)] p-5 sm:p-6">
               <div className="flex items-start gap-4">
-                <span className="flex h-12 w-12 shrink-0 items-center justify-center rounded-full bg-card text-[var(--accent-dark)] shadow-sm">
-                  <ShieldCheck className="h-5 w-5" />
+                <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-md border border-[var(--success-line)] bg-[var(--surface)] text-[var(--medical)]">
+                  <ShieldCheck className="h-4 w-4" />
                 </span>
                 <div>
-                  <h2 className="text-lg font-semibold text-foreground">
+                  <h2 className="text-base font-semibold text-foreground">
                     {t("doctorVerification.status.pendingTitle")}
                   </h2>
                   <p className="mt-2 text-sm leading-6 text-muted-foreground">

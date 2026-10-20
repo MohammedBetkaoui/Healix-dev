@@ -10,3 +10,5 @@ datasets/
 # Evaluation: only the JSON reports (no image, no patient data).
 evaluation/*
 !evaluation/*.json
+pytest-full-cardio
+
