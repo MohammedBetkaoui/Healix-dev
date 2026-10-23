@@ -7,12 +7,16 @@ import {
   Injectable,
   InternalServerErrorException,
   NotFoundException,
+  Optional,
   ServiceUnavailableException,
   UnprocessableEntityException,
 } from '@nestjs/common';
 import {
   AiAnalysisRunStatus,
   AiRunDecision,
+  NotificationCategory,
+  NotificationResourceType,
+  NotificationSeverity,
   PatientDocumentType,
   type Prisma,
   type AiAnalysisRun,
@@ -28,6 +32,7 @@ import { PatientFileStorageService } from '../patients/documents/patient-file-st
 import { PatientAuditService } from '../patients/patient-audit.service';
 import { PatientsService } from '../patients/patients.service';
 import { PrismaService } from '../prisma/prisma.service';
+import { NotificationProducerService } from '../notifications/notification-producer.service';
 import {
   AI_SERVICE_TIMEOUT_MS,
   AiServiceClient,
@@ -290,6 +295,8 @@ export class AiAnalysisRunsService {
     private readonly fileStorageService: PatientFileStorageService,
     private readonly patientAuditService: PatientAuditService,
     private readonly aiServiceClient: AiServiceClient,
+    @Optional()
+    private readonly notificationProducer?: NotificationProducerService,
   ) {}
 
   async create(
@@ -1102,6 +1109,25 @@ export class AiAnalysisRunsService {
         status: run.status,
       },
     );
+
+    if (
+      run.status === AiAnalysisRunStatus.SUCCEEDED ||
+      run.status === AiAnalysisRunStatus.FAILED
+    ) {
+      const succeeded = run.status === AiAnalysisRunStatus.SUCCEEDED;
+      await this.notificationProducer?.create({
+        userId: run.requestedById,
+        category: NotificationCategory.AI_ANALYSIS,
+        type: succeeded ? 'AI_ANALYSIS_SUCCEEDED' : 'AI_ANALYSIS_FAILED',
+        severity: succeeded
+          ? NotificationSeverity.SUCCESS
+          : NotificationSeverity.WARNING,
+        resourceType: NotificationResourceType.AI_ANALYSIS_RUN,
+        resourceId: run.id,
+        data: { analysisRunId: run.id, pipeline: run.pipeline },
+        dedupeKey: `analysis-${succeeded ? 'ready' : 'failed'}:${run.id}:${run.requestedById}`,
+      });
+    }
 
     return run;
   }

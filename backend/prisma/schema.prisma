@@ -322,6 +322,92 @@ enum ClinicalNoteSource {
   MESSAGING
 }
 
+enum NotificationCategory {
+  APPOINTMENT
+  PATIENT
+  AI_ANALYSIS
+  REPORT
+  PRESCRIPTION
+  MESSAGING
+  VERIFICATION
+  SUBSCRIPTION
+  PAYMENT
+  TEAM
+  SECURITY
+  SYSTEM
+}
+
+enum NotificationSeverity {
+  INFO
+  SUCCESS
+  WARNING
+  CRITICAL
+}
+
+enum NotificationResourceType {
+  APPOINTMENT
+  PATIENT
+  AI_ANALYSIS_RUN
+  AI_REPORT
+  PRESCRIPTION
+  CONVERSATION
+  VERIFICATION_REQUEST
+  PAYMENT
+  SUBSCRIPTION
+  DOCTOR_PROFILE
+  USER
+  SYSTEM
+}
+
+enum PrescriptionStatus {
+  DRAFT
+  PENDING_VALIDATION
+  VALIDATED
+  CANCELED
+}
+
+enum PrescriptionType {
+  STANDARD
+  REGULATED
+  PSYCHOTROPIC
+  NARCOTIC
+}
+
+enum PrescriptionRegulatoryCategory {
+  STANDARD
+  REGULATED
+  PSYCHOTROPIC
+  NARCOTIC
+}
+
+enum PharmaceuticalForm {
+  TABLET
+  CAPSULE
+  ORAL_SOLUTION
+  INJECTABLE
+  EYE_DROPS
+  OINTMENT
+  INHALER
+  OTHER
+}
+
+enum AdministrationRoute {
+  ORAL
+  IV
+  IM
+  SC
+  CUTANEOUS
+  OPHTHALMIC
+  INHALED
+  OTHER
+}
+
+enum VerificationState {
+  YES
+  NO
+  UNKNOWN
+}
+
 model User {
   id                  String        @id @default(cuid())
   fullName            String        @map("full_name") @db.VarChar(120)
@@ -341,34 +427,40 @@ model User {
   createdAt           DateTime      @default(now()) @map("created_at")
   updatedAt           DateTime      @updatedAt @map("updated_at")
 
-  establishment                Establishment?
-  doctorProfile                DoctorProfile?
-  refreshTokens                RefreshToken[]
-  passwordResetTokens          PasswordResetToken[]
-  auditLogs                    AuditLog[]
-  verificationRequests         VerificationRequest[]     @relation("VerificationRequestUser")
-  reviewedVerificationRequests VerificationRequest[]     @relation("VerificationReviewedBy")
-  subscriptions                Subscription[]            @relation("SubscriptionUser")
-  payments                     Payment[]                 @relation("PaymentUser")
-  reviewedPayments             Payment[]                 @relation("PaymentReviewedBy")
-  recordedPatientConsents      PatientConsent[]
-  uploadedPatientDocuments     PatientDocument[]
-  requestedPatientAiAnalyses   PatientAiAnalysis[]
-  requestedAiAnalysisRuns      AiAnalysisRun[]           @relation("AiAnalysisRunRequestedBy")
-  decidedAiAnalysisRuns        AiAnalysisRun[]           @relation("AiAnalysisRunDecidedBy")
-  generatedAiAnalysisReports   AiAnalysisReport[]        @relation("AiAnalysisReportGeneratedBy")
-  createdAppointments          Appointment[]
-  workspaceMemberships         WorkspaceMembership[]
-  createdConversations         Conversation[]            @relation("ConversationCreatedBy")
-  conversationParticipations   ConversationParticipant[]
-  sentMessages                 Message[]                 @relation("MessageSender")
-  blocksMade                   UserBlock[]               @relation("UserBlocker")
-  blocksReceived               UserBlock[]               @relation("UserBlocked")
-  uploadedMessageAttachments   MessageAttachment[]
-  messageAcks                  MessageAck[]
-  filedClinicalNotes           PatientClinicalNote[]
-  caseConversationViews        CaseConversationView[]
-  readMarks                    ConversationReadMark[]
+  establishment                  Establishment?
+  doctorProfile                  DoctorProfile?
+  refreshTokens                  RefreshToken[]
+  passwordResetTokens            PasswordResetToken[]
+  auditLogs                      AuditLog[]
+  verificationRequests           VerificationRequest[]     @relation("VerificationRequestUser")
+  reviewedVerificationRequests   VerificationRequest[]     @relation("VerificationReviewedBy")
+  subscriptions                  Subscription[]            @relation("SubscriptionUser")
+  payments                       Payment[]                 @relation("PaymentUser")
+  reviewedPayments               Payment[]                 @relation("PaymentReviewedBy")
+  recordedPatientConsents        PatientConsent[]
+  uploadedPatientDocuments       PatientDocument[]
+  requestedPatientAiAnalyses     PatientAiAnalysis[]
+  requestedAiAnalysisRuns        AiAnalysisRun[]           @relation("AiAnalysisRunRequestedBy")
+  decidedAiAnalysisRuns          AiAnalysisRun[]           @relation("AiAnalysisRunDecidedBy")
+  generatedAiAnalysisReports     AiAnalysisReport[]        @relation("AiAnalysisReportGeneratedBy")
+  createdAppointments            Appointment[]
+  workspaceMemberships           WorkspaceMembership[]
+  createdConversations           Conversation[]            @relation("ConversationCreatedBy")
+  conversationParticipations     ConversationParticipant[]
+  sentMessages                   Message[]                 @relation("MessageSender")
+  blocksMade                     UserBlock[]               @relation("UserBlocker")
+  blocksReceived                 UserBlock[]               @relation("UserBlocked")
+  uploadedMessageAttachments     MessageAttachment[]
+  messageAcks                    MessageAck[]
+  filedClinicalNotes             PatientClinicalNote[]
+  caseConversationViews          CaseConversationView[]
+  readMarks                      ConversationReadMark[]
+  notifications                  Notification[]
+  notificationPreferences        NotificationPreference[]
+  createdPrescriptions           Prescription[]            @relation("PrescriptionCreatedBy")
+  validatedPrescriptions         Prescription[]            @relation("PrescriptionValidatedBy")
+  canceledPrescriptions          Prescription[]            @relation("PrescriptionCanceledBy")
+  generatedPrescriptionDocuments PrescriptionDocument[]    @relation("PrescriptionDocumentGeneratedBy")
 
   @@map("users")
 }
@@ -417,6 +509,7 @@ model DoctorProfile {
   consultations       PatientConsultation[]
   appointments        Appointment[]
   ownedWorkspace      Workspace?            @relation("PrivatePracticeWorkspaceOwner")
+  prescriptions       Prescription[]
 
   @@index([establishmentId])
   @@map("doctor_profiles")
@@ -471,6 +564,7 @@ model Patient {
   appointments   Appointment[]
   conversations  Conversation[]
   clinicalNotes  PatientClinicalNote[]
+  prescriptions  Prescription[]
 
   @@index([establishmentId])
   @@index([doctorProfileId])
@@ -492,6 +586,8 @@ model Workspace {
   memberships        WorkspaceMembership[]
   patients           Patient[]
   conversations      Conversation[]
+  notifications      Notification[]
+  prescriptions      Prescription[]
 
   @@index([type])
   @@index([establishmentId])
@@ -557,30 +653,33 @@ model PatientConsultation {
   patient       Patient        @relation(fields: [patientId], references: [id], onDelete: Cascade)
   doctorProfile DoctorProfile? @relation(fields: [doctorProfileId], references: [id], onDelete: SetNull)
   appointment   Appointment?   @relation(fields: [appointmentId], references: [id], onDelete: SetNull)
+  prescriptions Prescription[]
 
   @@index([patientId])
   @@map("patient_consultations")
 }
 
 model PatientDocument {
-  id           String              @id @default(cuid())
-  patientId    String              @map("patient_id")
-  documentType PatientDocumentType @map("document_type")
-  originalName String              @map("original_name") @db.VarChar(255)
-  storedName   String              @map("stored_name") @db.VarChar(255)
-  mimeType     String              @map("mime_type") @db.VarChar(100)
-  size         Int
-  localPath    String              @map("local_path") @db.VarChar(500)
-  checksum     String?             @db.VarChar(128)
-  uploadedById String              @map("uploaded_by_id")
-  createdAt    DateTime            @default(now()) @map("created_at")
-  updatedAt    DateTime            @updatedAt @map("updated_at")
+  id             String              @id @default(cuid())
+  patientId      String              @map("patient_id")
+  documentType   PatientDocumentType @map("document_type")
+  originalName   String              @map("original_name") @db.VarChar(255)
+  storedName     String              @map("stored_name") @db.VarChar(255)
+  mimeType       String              @map("mime_type") @db.VarChar(100)
+  size           Int
+  localPath      String              @map("local_path") @db.VarChar(500)
+  checksum       String?             @db.VarChar(128)
+  uploadedById   String              @map("uploaded_by_id")
+  prescriptionId String?             @unique @map("prescription_id")
+  createdAt      DateTime            @default(now()) @map("created_at")
+  updatedAt      DateTime            @updatedAt @map("updated_at")
 
   patient            Patient             @relation(fields: [patientId], references: [id], onDelete: Cascade)
   uploadedBy         User                @relation(fields: [uploadedById], references: [id], onDelete: Restrict)
   aiAnalyses         PatientAiAnalysis[]
   aiAnalysisRuns     AiAnalysisRun[]
   messageAttachments MessageAttachment[]
+  prescription       Prescription?       @relation(fields: [prescriptionId], references: [id], onDelete: Restrict)
 
   @@index([patientId])
   @@map("patient_documents")
@@ -650,6 +749,153 @@ model AuditLog {
 
   @@index([userId])
   @@map("audit_logs")
+}
+
+// Internal medication reference. Sources are descriptive provenance only;
+// they do not imply ANPP/CNAS verification.
+model MedicationReference {
+  id                    String                         @id @default(cuid())
+  dci                   String                         @db.VarChar(160)
+  brandName             String?                        @map("brand_name") @db.VarChar(160)
+  strength              String                         @db.VarChar(120)
+  pharmaceuticalForm    PharmaceuticalForm             @map("pharmaceutical_form")
+  route                 AdministrationRoute
+  manufacturer          String?                        @db.VarChar(160)
+  regulatoryCategory    PrescriptionRegulatoryCategory @map("regulatory_category")
+  reimbursable          VerificationState              @default(UNKNOWN)
+  requiresPriorApproval VerificationState              @default(UNKNOWN) @map("requires_prior_approval")
+  source                String                         @db.VarChar(40)
+  sourceReference       String?                        @map("source_reference") @db.VarChar(191)
+  active                Boolean                        @default(true)
+  createdAt             DateTime                       @default(now()) @map("created_at")
+  updatedAt             DateTime                       @updatedAt @map("updated_at")
+
+  prescriptionItems PrescriptionItem[]
+
+  @@index([dci])
+  @@index([brandName])
+  @@index([active])
+  @@map("medication_references")
+}
+
+model Prescription {
+  id                        String             @id @default(cuid())
+  number                    String?            @unique @db.VarChar(20)
+  workspaceId               String             @map("workspace_id")
+  patientId                 String             @map("patient_id")
+  prescriberDoctorProfileId String             @map("prescriber_doctor_profile_id")
+  encounterId               String?            @map("encounter_id")
+  createdById               String             @map("created_by_id")
+  status                    PrescriptionStatus @default(DRAFT)
+  type                      PrescriptionType   @default(STANDARD)
+  prescribedAt              DateTime           @default(now()) @map("prescribed_at")
+  validUntil                DateTime?          @map("valid_until")
+  basedOnPrescriptionId     String?            @map("based_on_prescription_id")
+  validatedAt               DateTime?          @map("validated_at")
+  validatedById             String?            @map("validated_by_id")
+  canceledAt                DateTime?          @map("canceled_at")
+  canceledById              String?            @map("canceled_by_id")
+  cancellationReason        String?            @map("cancellation_reason") @db.Text
+  printedAt                 DateTime?          @map("printed_at")
+  printCount                Int                @default(0) @map("print_count")
+  regulatoryData            Json?              @map("regulatory_data")
+  patientSnapshot           Json?              @map("patient_snapshot")
+  prescriberSnapshot        Json?              @map("prescriber_snapshot")
+  organizationSnapshot      Json?              @map("organization_snapshot")
+  insuranceSnapshot         Json?              @map("insurance_snapshot")
+  clinicalContextSnapshot   Json?              @map("clinical_context_snapshot")
+  safetySnapshot            Json?              @map("safety_snapshot")
+  regulatorySnapshot        Json?              @map("regulatory_snapshot")
+  contentFingerprint        String?            @map("content_fingerprint") @db.Char(64)
+  createdAt                 DateTime           @default(now()) @map("created_at")
+  updatedAt                 DateTime           @updatedAt @map("updated_at")
+
+  workspace           Workspace             @relation(fields: [workspaceId], references: [id], onDelete: Restrict)
+  patient             Patient               @relation(fields: [patientId], references: [id], onDelete: Restrict)
+  prescriber          DoctorProfile         @relation(fields: [prescriberDoctorProfileId], references: [id], onDelete: Restrict)
+  encounter           PatientConsultation?  @relation(fields: [encounterId], references: [id], onDelete: SetNull)
+  createdBy           User                  @relation("PrescriptionCreatedBy", fields: [createdById], references: [id], onDelete: Restrict)
+  validatedBy         User?                 @relation("PrescriptionValidatedBy", fields: [validatedById], references: [id], onDelete: Restrict)
+  canceledBy          User?                 @relation("PrescriptionCanceledBy", fields: [canceledById], references: [id], onDelete: Restrict)
+  basedOnPrescription Prescription?         @relation("PrescriptionRenewals", fields: [basedOnPrescriptionId], references: [id], onDelete: Restrict)
+  renewals            Prescription[]        @relation("PrescriptionRenewals")
+  items               PrescriptionItem[]
+  document            PrescriptionDocument?
+  patientDocument     PatientDocument?
+
+  @@index([workspaceId])
+  @@index([patientId])
+  @@index([prescriberDoctorProfileId])
+  @@index([encounterId])
+  @@index([status])
+  @@index([type])
+  @@index([prescribedAt])
+  @@index([basedOnPrescriptionId])
+  @@map("prescriptions")
+}
+
+model PrescriptionItem {
+  id                  String                         @id @default(cuid())
+  prescriptionId      String                         @map("prescription_id")
+  position            Int
+  medicationId        String?                        @map("medication_id")
+  dci                 String                         @db.VarChar(160)
+  brandName           String?                        @map("brand_name") @db.VarChar(160)
+  strength            String                         @db.VarChar(120)
+  pharmaceuticalForm  PharmaceuticalForm             @map("pharmaceutical_form")
+  route               AdministrationRoute
+  manufacturer        String?                        @db.VarChar(160)
+  regulatoryCategory  PrescriptionRegulatoryCategory @map("regulatory_category")
+  dosePerIntake       String                         @map("dose_per_intake") @db.VarChar(255)
+  frequency           String                         @db.VarChar(255)
+  intakeMoment        String?                        @map("intake_moment") @db.VarChar(255)
+  durationDays        Int?                           @map("duration_days")
+  quantity            String                         @db.VarChar(255)
+  patientInstructions String?                        @map("patient_instructions") @db.Text
+  indication          String?                        @db.Text
+  asNeeded            Boolean                        @default(false) @map("as_needed")
+  renewalAllowed      Boolean                        @default(false) @map("renewal_allowed")
+  substitutionAllowed Boolean                        @default(true) @map("substitution_allowed")
+  createdAt           DateTime                       @default(now()) @map("created_at")
+  updatedAt           DateTime                       @updatedAt @map("updated_at")
+
+  prescription Prescription         @relation(fields: [prescriptionId], references: [id], onDelete: Cascade)
+  medication   MedicationReference? @relation(fields: [medicationId], references: [id], onDelete: SetNull)
+
+  @@unique([prescriptionId, position])
+  @@index([prescriptionId])
+  @@index([medicationId])
+  @@index([dci])
+  @@map("prescription_items")
+}
+
+model PrescriptionDocument {
+  id                 String   @id @default(cuid())
+  prescriptionId     String   @unique @map("prescription_id")
+  storedName         String   @map("stored_name") @db.VarChar(255)
+  localPath          String   @map("local_path") @db.VarChar(500)
+  mimeType           String   @default("application/pdf") @map("mime_type") @db.VarChar(100)
+  size               Int
+  checksum           String   @db.Char(64)
+  contentFingerprint String   @map("content_fingerprint") @db.Char(64)
+  generatedById      String   @map("generated_by_id")
+  generatedAt        DateTime @default(now()) @map("generated_at")
+
+  prescription Prescription @relation(fields: [prescriptionId], references: [id], onDelete: Restrict)
+  generatedBy  User         @relation("PrescriptionDocumentGeneratedBy", fields: [generatedById], references: [id], onDelete: Restrict)
+
+  @@index([generatedById])
+  @@map("prescription_documents")
+}
+
+model ClinicalDocumentSequence {
+  id        String @id @default(cuid())
+  type      String @db.VarChar(40)
+  year      Int
+  lastValue Int    @default(0) @map("last_value")
+
+  @@unique([type, year])
+  @@map("clinical_document_sequences")
 }
 
 model RefreshToken {
@@ -874,6 +1120,50 @@ model Subscription {
   @@index([planId])
   @@index([status])
   @@map("subscriptions")
+}
+
+// In-app attention signals only. Clinical detail stays on the protected
+// resource and is deliberately never copied into this table.
+model Notification {
+  id           String                    @id @default(cuid())
+  userId       String                    @map("user_id")
+  workspaceId  String?                   @map("workspace_id")
+  category     NotificationCategory
+  type         String                    @db.VarChar(100)
+  severity     NotificationSeverity      @default(INFO)
+  resourceType NotificationResourceType? @map("resource_type")
+  resourceId   String?                   @map("resource_id") @db.VarChar(191)
+  data         Json?
+  dedupeKey    String?                   @map("dedupe_key") @db.VarChar(191)
+  readAt       DateTime?                 @map("read_at")
+  archivedAt   DateTime?                 @map("archived_at")
+  createdAt    DateTime                  @default(now()) @map("created_at")
+  updatedAt    DateTime                  @updatedAt @map("updated_at")
+
+  user      User       @relation(fields: [userId], references: [id], onDelete: Cascade)
+  workspace Workspace? @relation(fields: [workspaceId], references: [id], onDelete: SetNull)
+
+  @@unique([userId, dedupeKey])
+  @@index([userId, createdAt])
+  @@index([userId, readAt])
+  @@index([workspaceId])
+  @@index([category])
+  @@index([resourceType, resourceId])
+  @@map("notifications")
+}
+
+model NotificationPreference {
+  id           String               @id @default(cuid())
+  userId       String               @map("user_id")
+  category     NotificationCategory
+  inAppEnabled Boolean              @default(true) @map("in_app_enabled")
+  createdAt    DateTime             @default(now()) @map("created_at")
+  updatedAt    DateTime             @updatedAt @map("updated_at")
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, category])
+  @@map("notification_preferences")
 }
 
 model Payment {

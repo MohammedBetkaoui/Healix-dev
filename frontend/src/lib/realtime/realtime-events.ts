@@ -1,10 +1,13 @@
 import { type QueryClient, type QueryKey } from "@tanstack/react-query";
 
 import { messagingKeys } from "@/features/messaging/messaging-query-keys";
+import { notificationKeys } from "@/features/notifications/notification-query-keys";
 
 // Mirrors backend/src/realtime/realtime.types.ts. The events carry
 // identifiers only: the client reads the data again in REST.
 export type RealtimeEventPayloads = {
+  "notification.created": { notificationId: string };
+  "notification.updated": { notificationId: string };
   "message.created": { conversationId: string; seq: number };
   "message.updated": { conversationId: string; messageId: string };
   "message.deleted": { conversationId: string; messageId: string };
@@ -17,6 +20,8 @@ export type RealtimeEventPayloads = {
 export type RealtimeEventName = keyof RealtimeEventPayloads;
 
 export const REALTIME_EVENTS = [
+  "notification.created",
+  "notification.updated",
   "message.created",
   "message.updated",
   "message.deleted",
@@ -45,6 +50,10 @@ export function queriesToInvalidate<Event extends RealtimeEventName>(
 ): QueryKey[] {
   if (event === "typing") {
     return [];
+  }
+
+  if (event === "notification.created" || event === "notification.updated") {
+    return [notificationKeys.all, notificationKeys.unreadCount];
   }
 
   const { conversationId } = payload as { conversationId: string };

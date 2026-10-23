@@ -15,6 +15,7 @@ export function useConversationActivity(conversationId: string, myUserId: string
   const [typingUntil, setTypingUntil] = useState<ReadonlyMap<string, number>>(() => new Map());
 
   useRealtimeSubscription((event, payload) => {
+    if (!("conversationId" in payload)) return;
     if (payload.conversationId !== conversationId) return;
 
     if (event === "read.updated") {

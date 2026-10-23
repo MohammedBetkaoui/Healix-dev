@@ -4,9 +4,15 @@ import {
   ForbiddenException,
   Injectable,
   NotFoundException,
+  Optional,
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
-import { type Prisma } from '@prisma/client';
+import {
+  NotificationCategory,
+  NotificationResourceType,
+  NotificationSeverity,
+  type Prisma,
+} from '@prisma/client';
 import { createReadStream, existsSync } from 'node:fs';
 import { resolve } from 'node:path';
 
@@ -21,6 +27,7 @@ import {
 import { VerificationDocumentStatus } from '../../common/enums/verification-document-status.enum';
 import { VerificationStatus } from '../../common/enums/verification-status.enum';
 import { PrismaService } from '../../prisma/prisma.service';
+import { NotificationProducerService } from '../../notifications/notification-producer.service';
 import {
   createPaginationMeta,
   getPagination,
@@ -55,6 +62,8 @@ export class AdminVerificationsService {
     private readonly prisma: PrismaService,
     private readonly auditLogsService: AuditLogsService,
     configService: ConfigService,
+    @Optional()
+    private readonly notificationProducer?: NotificationProducerService,
   ) {
     this.uploadRoot = resolve(
       process.cwd(),
@@ -216,6 +225,17 @@ export class AdminVerificationsService {
       );
     });
 
+    await this.notificationProducer?.create({
+      userId: request.userId,
+      category: NotificationCategory.VERIFICATION,
+      type: 'VERIFICATION_APPROVED',
+      severity: NotificationSeverity.SUCCESS,
+      resourceType: NotificationResourceType.VERIFICATION_REQUEST,
+      resourceId: request.id,
+      data: { verificationRequestId: request.id },
+      dedupeKey: `verification-approved:${request.id}`,
+    });
+
     return {
       message: 'Demande approuvée avec succès.',
       status: VerificationStatus.VERIFIED,
@@ -272,6 +292,17 @@ export class AdminVerificationsService {
         },
         transaction,
       );
+    });
+
+    await this.notificationProducer?.create({
+      userId: request.userId,
+      category: NotificationCategory.VERIFICATION,
+      type: 'VERIFICATION_REJECTED',
+      severity: NotificationSeverity.WARNING,
+      resourceType: NotificationResourceType.VERIFICATION_REQUEST,
+      resourceId: request.id,
+      data: { verificationRequestId: request.id },
+      dedupeKey: `verification-rejected:${request.id}`,
     });
 
     return {

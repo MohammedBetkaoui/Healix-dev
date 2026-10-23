@@ -18,8 +18,10 @@ import {
 } from './common/guards/app-throttler.guard';
 import { DashboardModule } from './dashboard/dashboard.module';
 import { MessagingModule } from './messaging/messaging.module';
+import { NotificationsModule } from './notifications/notifications.module';
 import { PatientsModule } from './patients/patients.module';
 import { PaymentsModule } from './payments/payments.module';
+import { PrescriptionsModule } from './prescriptions/prescriptions.module';
 import { SubscriptionsModule } from './subscriptions/subscriptions.module';
 import { VerificationModule } from './verification/verification.module';
 import { WorkspaceModule } from './workspaces/workspace.module';
@@ -49,6 +51,8 @@ import { WorkspaceModule } from './workspaces/workspace.module';
     AppointmentsModule,
     DashboardModule,
     MessagingModule,
+    NotificationsModule,
+    PrescriptionsModule,
     WorkspaceModule,
   ],
   controllers: [AppController],

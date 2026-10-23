@@ -173,8 +173,7 @@ const subscriptionPlans = [
     annualPrice: null,
     code: 'EST_CUSTOM',
     custom: true,
-    description:
-      'Pour hopital, reseau multi-sites ou integration specifique.',
+    description: 'Pour hopital, reseau multi-sites ou integration specifique.',
     features: [
       'Offre personnalisee',
       'Multi-sites',
@@ -187,6 +186,49 @@ const subscriptionPlans = [
     monthlyPrice: null,
     name: 'Custom',
     recommended: false,
+  },
+] as const;
+
+const demoMedications = [
+  {
+    id: 'demo-paracetamol-500-tablet',
+    dci: 'Paracétamol',
+    brandName: null,
+    strength: '500 mg',
+    pharmaceuticalForm: 'TABLET',
+    route: 'ORAL',
+    manufacturer: null,
+    regulatoryCategory: 'STANDARD',
+  },
+  {
+    id: 'demo-amoxicillin-1g-tablet',
+    dci: 'Amoxicilline',
+    brandName: null,
+    strength: '1 g',
+    pharmaceuticalForm: 'TABLET',
+    route: 'ORAL',
+    manufacturer: null,
+    regulatoryCategory: 'STANDARD',
+  },
+  {
+    id: 'demo-metformin-850-tablet',
+    dci: 'Metformine',
+    brandName: null,
+    strength: '850 mg',
+    pharmaceuticalForm: 'TABLET',
+    route: 'ORAL',
+    manufacturer: null,
+    regulatoryCategory: 'STANDARD',
+  },
+  {
+    id: 'demo-amlodipine-5-tablet',
+    dci: 'Amlodipine',
+    brandName: null,
+    strength: '5 mg',
+    pharmaceuticalForm: 'TABLET',
+    route: 'ORAL',
+    manufacturer: null,
+    regulatoryCategory: 'STANDARD',
   },
 ] as const;
 
@@ -300,11 +342,34 @@ async function seedSubscriptionPlans(): Promise<void> {
   }
 
   console.log('Subscription plans seed ready.');
+
+  for (const medication of demoMedications) {
+    await prisma.medicationReference.upsert({
+      where: { id: medication.id },
+      create: {
+        ...medication,
+        source: 'DEMO',
+        reimbursable: 'UNKNOWN',
+        requiresPriorApproval: 'UNKNOWN',
+      },
+      update: {
+        ...medication,
+        active: true,
+        source: 'DEMO',
+        reimbursable: 'UNKNOWN',
+        requiresPriorApproval: 'UNKNOWN',
+      },
+    });
+  }
+
+  console.log('Demo medication references ready.');
 }
 
 main()
   .catch((error) => {
-    console.error(error instanceof Error ? error.message : 'Admin seed failed.');
+    console.error(
+      error instanceof Error ? error.message : 'Admin seed failed.',
+    );
     process.exit(1);
   })
   .finally(async () => {

@@ -1,9 +1,10 @@
 "use client";
 
 import { useEffect, useRef } from "react";
-import { Bell, ChevronDown, Menu, ShieldCheck } from "lucide-react";
+import { ChevronDown, Menu, ShieldCheck } from "lucide-react";
 import Link from "next/link";
 import { LanguageSwitcher } from "@/components/shared/LanguageSwitcher";
+import { NotificationBell } from "@/features/notifications/components/NotificationBell";
 import { type Locale } from "@/i18n";
 import { type Direction, type TranslationFunction } from "@/lib/i18n";
 import { type DashboardNavSection, type DashboardUserSummary } from "@/types/dashboard";
@@ -61,15 +62,7 @@ export function DashboardHeader({ breadcrumbLabel, locale, onLocaleChange, onMen
         </div>
         <div className="min-w-0 flex-1"><WorkspaceSearch sections={navSections} t={t} /></div>
         <LanguageSwitcher locale={locale} onLocaleChange={onLocaleChange} t={t} variant="compact" />
-        <details className="relative shrink-0">
-          <summary className="clinical-icon-button" aria-label={t("dashboard.clinical.notifications")} title={t("dashboard.clinical.notifications")}>
-            <Bell size={18} strokeWidth={1.8} />
-          </summary>
-          <div className="clinical-popover">
-            <h2 className="mb-2 text-sm font-semibold">{t("dashboard.clinical.notifications")}</h2>
-            <p className="clinical-caption">{t("dashboard.clinical.notificationsNotice")}</p>
-          </div>
-        </details>
+        <NotificationBell account={user.accountType === "ESTABLISHMENT" ? "establishment" : "doctor"} locale={locale} t={t} />
         <details className="relative shrink-0">
           <summary className="clinical-icon-button gap-1" aria-label={t("dashboard.clinical.userMenu")} title={t("dashboard.clinical.userMenu")}>
             <span className="flex h-8 w-8 items-center justify-center rounded-md bg-[var(--medical-soft)] text-[.65rem] font-semibold text-[var(--medical)]">{user.initials}</span>

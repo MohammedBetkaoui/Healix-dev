@@ -3,6 +3,7 @@ import { ConfigModule } from '@nestjs/config';
 
 import { AuditLogsModule } from '../audit-logs/audit-logs.module';
 import { PrismaModule } from '../prisma/prisma.module';
+import { NotificationsModule } from '../notifications/notifications.module';
 import { SubscriptionsModule } from '../subscriptions/subscriptions.module';
 import { AdminPaymentsController } from './admin/admin-payments.controller';
 import { AdminPaymentsService } from './admin/admin-payments.service';
@@ -13,7 +14,13 @@ import { PaymentProofStorageService } from './proofs/payment-proof-storage.servi
 import { PaymentProofValidator } from './proofs/payment-proof-validator';
 
 @Module({
-  imports: [ConfigModule, PrismaModule, AuditLogsModule, SubscriptionsModule],
+  imports: [
+    ConfigModule,
+    PrismaModule,
+    AuditLogsModule,
+    SubscriptionsModule,
+    NotificationsModule,
+  ],
   controllers: [PaymentsController, AdminPaymentsController],
   providers: [
     AdminPaymentsService,

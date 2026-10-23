@@ -3,14 +3,21 @@ import {
   ForbiddenException,
   Injectable,
   NotFoundException,
+  Optional,
 } from '@nestjs/common';
-import { type Prisma } from '@prisma/client';
+import {
+  NotificationCategory,
+  NotificationResourceType,
+  NotificationSeverity,
+  type Prisma,
+} from '@prisma/client';
 
 import { type AuthenticatedUserPayload } from '../auth/types/authenticated-request.type';
 import { AppointmentStatus } from '../common/enums/appointment-status.enum';
 import { UserRole } from '../common/enums/user-role.enum';
 import { sanitizeTextInput } from '../common/utils/sanitize';
 import { PrismaService } from '../prisma/prisma.service';
+import { NotificationProducerService } from '../notifications/notification-producer.service';
 import { AppointmentAuditService } from './appointment-audit.service';
 import { CreateAppointmentDto } from './dto/create-appointment.dto';
 import { ListAppointmentsQueryDto } from './dto/list-appointments-query.dto';
@@ -28,9 +35,12 @@ const appointmentInclude = {
       lastName: true,
       firstNameAr: true,
       lastNameAr: true,
+      workspaceId: true,
     },
   },
-  doctorProfile: { select: { user: { select: { fullName: true } } } },
+  doctorProfile: {
+    select: { userId: true, user: { select: { fullName: true } } },
+  },
   consultation: { select: { id: true } },
 } as const;
 
@@ -43,6 +53,8 @@ export class AppointmentsService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly appointmentAuditService: AppointmentAuditService,
+    @Optional()
+    private readonly notificationProducer?: NotificationProducerService,
   ) {}
 
   async create(user: AuthenticatedUserPayload, dto: CreateAppointmentDto) {
@@ -84,6 +96,22 @@ export class AppointmentsService {
       appointment.id,
       { patientId: appointment.patientId, doctorProfileId },
     );
+
+    if (appointment.doctorProfile.userId !== user.sub) {
+      await this.notificationProducer?.create({
+        userId: appointment.doctorProfile.userId,
+        workspaceId: appointment.patient.workspaceId,
+        category: NotificationCategory.APPOINTMENT,
+        type: 'APPOINTMENT_CREATED',
+        resourceType: NotificationResourceType.APPOINTMENT,
+        resourceId: appointment.id,
+        data: {
+          appointmentId: appointment.id,
+          scheduledAt: appointment.scheduledAt.toISOString(),
+        },
+        dedupeKey: `appointment-created:${appointment.id}:${appointment.doctorProfile.userId}`,
+      });
+    }
 
     return this.toAppointmentResponse(appointment);
   }
@@ -200,6 +228,34 @@ export class AppointmentsService {
         appointment.id,
         { from: existing.scheduledAt, to: appointment.scheduledAt },
       );
+    }
+
+    const statusChanged = dto.status && dto.status !== existing.status;
+    const scheduleChanged =
+      dto.scheduledAt &&
+      new Date(dto.scheduledAt).getTime() !== existing.scheduledAt.getTime();
+    if (
+      appointment.doctorProfile.userId !== user.sub &&
+      (statusChanged || scheduleChanged)
+    ) {
+      const canceled = appointment.status === AppointmentStatus.CANCELED;
+      const type = canceled ? 'APPOINTMENT_CANCELED' : 'APPOINTMENT_UPDATED';
+      await this.notificationProducer?.create({
+        userId: appointment.doctorProfile.userId,
+        workspaceId: appointment.patient.workspaceId,
+        category: NotificationCategory.APPOINTMENT,
+        type,
+        severity: canceled
+          ? NotificationSeverity.WARNING
+          : NotificationSeverity.INFO,
+        resourceType: NotificationResourceType.APPOINTMENT,
+        resourceId: appointment.id,
+        data: {
+          appointmentId: appointment.id,
+          scheduledAt: appointment.scheduledAt.toISOString(),
+        },
+        dedupeKey: `appointment-change:${appointment.id}:${appointment.updatedAt.toISOString()}`,
+      });
     }
 
     return this.toAppointmentResponse(appointment);

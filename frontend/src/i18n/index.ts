@@ -8,6 +8,7 @@ import { loginAr } from "./locales/ar/login";
 import { landingAr } from "./locales/ar/landing";
 import { passwordResetAr } from "./locales/ar/password-reset";
 import { patientsAr } from "./locales/ar/patients";
+import { notificationsAr } from "./locales/ar/notifications";
 import { prescriptionsAr } from "./locales/ar/prescriptions";
 import { reportsAr } from "./locales/ar/reports";
 import { registerAr } from "./locales/ar/register";
@@ -23,6 +24,7 @@ import { loginFr } from "./locales/fr/login";
 import { landingFr } from "./locales/fr/landing";
 import { passwordResetFr } from "./locales/fr/password-reset";
 import { patientsFr } from "./locales/fr/patients";
+import { notificationsFr } from "./locales/fr/notifications";
 import { prescriptionsFr } from "./locales/fr/prescriptions";
 import { reportsFr } from "./locales/fr/reports";
 import { registerFr } from "./locales/fr/register";
@@ -46,6 +48,7 @@ export const dictionaries = {
     landing: landingFr,
     passwordReset: passwordResetFr,
     patients: patientsFr,
+    notifications: notificationsFr,
     prescriptions: prescriptionsFr,
     reports: reportsFr,
     register: registerFr,
@@ -63,6 +66,7 @@ export const dictionaries = {
     landing: landingAr,
     passwordReset: passwordResetAr,
     patients: patientsAr,
+    notifications: notificationsAr,
     prescriptions: prescriptionsAr,
     reports: reportsAr,
     register: registerAr,

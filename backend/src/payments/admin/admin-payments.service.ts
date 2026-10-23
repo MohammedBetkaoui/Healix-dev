@@ -3,7 +3,13 @@ import {
   ConflictException,
   Injectable,
   NotFoundException,
+  Optional,
 } from '@nestjs/common';
+import {
+  NotificationCategory,
+  NotificationResourceType,
+  NotificationSeverity,
+} from '@prisma/client';
 import { ConfigService } from '@nestjs/config';
 import { type Payment, type Prisma } from '@prisma/client';
 import { createReadStream, existsSync } from 'node:fs';
@@ -13,6 +19,7 @@ import { AuditLogsService } from '../../audit-logs/audit-logs.service';
 import { PaymentMethod } from '../../common/enums/payment-method.enum';
 import { PaymentStatus } from '../../common/enums/payment-status.enum';
 import { PrismaService } from '../../prisma/prisma.service';
+import { NotificationProducerService } from '../../notifications/notification-producer.service';
 import {
   createPaginationMeta,
   getPagination,
@@ -49,6 +56,8 @@ export class AdminPaymentsService {
     private readonly proofService: PaymentProofService,
     private readonly subscriptionsService: SubscriptionsService,
     configService: ConfigService,
+    @Optional()
+    private readonly notificationProducer?: NotificationProducerService,
   ) {
     this.uploadRoot = resolve(
       process.cwd(),
@@ -224,6 +233,17 @@ export class AdminPaymentsService {
       return updatedPayment;
     });
 
+    await this.notificationProducer?.create({
+      userId: result.userId,
+      category: NotificationCategory.PAYMENT,
+      type: 'PAYMENT_APPROVED',
+      severity: NotificationSeverity.SUCCESS,
+      resourceType: NotificationResourceType.PAYMENT,
+      resourceId: result.id,
+      data: { paymentId: result.id },
+      dedupeKey: `payment-approved:${result.id}`,
+    });
+
     return {
       message: 'Paiement approuve avec succes.',
       payment: this.paymentsService.toPublicPayment(result),
@@ -264,6 +284,17 @@ export class AdminPaymentsService {
       },
       userAgent: context.userAgent,
       userId: adminId,
+    });
+
+    await this.notificationProducer?.create({
+      userId: updatedPayment.userId,
+      category: NotificationCategory.PAYMENT,
+      type: 'PAYMENT_REJECTED',
+      severity: NotificationSeverity.WARNING,
+      resourceType: NotificationResourceType.PAYMENT,
+      resourceId: updatedPayment.id,
+      data: { paymentId: updatedPayment.id },
+      dedupeKey: `payment-rejected:${updatedPayment.id}`,
     });
 
     return {

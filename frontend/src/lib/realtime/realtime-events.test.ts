@@ -1,6 +1,7 @@
 import { QueryClient } from "@tanstack/react-query";
 
 import { messagingKeys } from "@/features/messaging/messaging-query-keys";
+import { notificationKeys } from "@/features/notifications/notification-query-keys";
 
 import { applyRealtimeEvent, queriesToInvalidate } from "./realtime-events";
 
@@ -52,6 +53,13 @@ describe("queriesToInvalidate", () => {
 
   it("changes no data on typing", () => {
     expect(queriesToInvalidate("typing", { conversationId, userId: "user-a" })).toEqual([]);
+  });
+
+  it("invalidates only notification data when a notification identifier arrives", () => {
+    expect(queriesToInvalidate("notification.created", { notificationId: "n-1" })).toEqual([
+      notificationKeys.all,
+      notificationKeys.unreadCount,
+    ]);
   });
 });
 

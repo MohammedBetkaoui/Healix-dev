@@ -21,7 +21,17 @@ export class AiReportRenderer implements OnModuleDestroy {
   private browser: Promise<Browser> | null = null;
 
   async render(
-    report: Pick<ReportDocument, 'html' | 'headerTemplate' | 'footerTemplate'>,
+    report: Pick<
+      ReportDocument,
+      'html' | 'headerTemplate' | 'footerTemplate'
+    > & {
+      margins?: {
+        bottom: string;
+        left: string;
+        right: string;
+        top: string;
+      };
+    },
   ): Promise<Buffer> {
     const browser = await this.getBrowser();
     const context = await browser.newContext();
@@ -37,7 +47,7 @@ export class AiReportRenderer implements OnModuleDestroy {
         footerTemplate: report.footerTemplate,
         format: 'A4',
         headerTemplate: report.headerTemplate,
-        margin: REPORT_PAGE_MARGINS,
+        margin: report.margins ?? REPORT_PAGE_MARGINS,
         printBackground: true,
       });
     } finally {

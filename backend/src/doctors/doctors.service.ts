@@ -1,8 +1,13 @@
 import { randomBytes } from 'node:crypto';
 
-import { Injectable, NotFoundException } from '@nestjs/common';
+import { Injectable, NotFoundException, Optional } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
-import { type DoctorProfile, type Prisma } from '@prisma/client';
+import {
+  NotificationCategory,
+  NotificationResourceType,
+  type DoctorProfile,
+  type Prisma,
+} from '@prisma/client';
 import * as bcrypt from 'bcrypt';
 
 import { AccountStatus } from '../common/enums/account-status.enum';
@@ -10,6 +15,7 @@ import { SubscriptionStatus } from '../common/enums/subscription-status.enum';
 import { UserRole } from '../common/enums/user-role.enum';
 import { VerificationStatus } from '../common/enums/verification-status.enum';
 import { PrismaService } from '../prisma/prisma.service';
+import { NotificationProducerService } from '../notifications/notification-producer.service';
 import { RealtimeService } from '../realtime/realtime.service';
 import { UsersService } from '../users/users.service';
 import { WorkspaceService } from '../workspaces/workspace.service';
@@ -60,6 +66,8 @@ export class DoctorsService {
     private readonly workspaceService: WorkspaceService,
     configService: ConfigService,
     private readonly realtime: RealtimeService,
+    @Optional()
+    private readonly notificationProducer?: NotificationProducerService,
   ) {
     this.saltRounds = this.parseSaltRounds(
       configService.get<string>('BCRYPT_SALT_ROUNDS'),
@@ -133,6 +141,21 @@ export class DoctorsService {
         return { user: createdUser, doctorProfile: createdDoctorProfile };
       },
     );
+
+    const workspace = await this.prisma.workspace.findUnique({
+      where: { establishmentId },
+      select: { id: true },
+    });
+    await this.notificationProducer?.create({
+      userId: user.id,
+      workspaceId: workspace?.id,
+      category: NotificationCategory.TEAM,
+      type: 'DOCTOR_ACCOUNT_CREATED',
+      resourceType: NotificationResourceType.DOCTOR_PROFILE,
+      resourceId: doctorProfile.id,
+      data: { doctorProfileId: doctorProfile.id },
+      dedupeKey: `doctor-account-created:${doctorProfile.id}`,
+    });
 
     return {
       doctorProfile: {

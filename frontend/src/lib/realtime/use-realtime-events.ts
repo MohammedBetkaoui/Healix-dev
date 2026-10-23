@@ -4,6 +4,7 @@ import { type QueryClient, useQueryClient } from "@tanstack/react-query";
 import { useEffect, useRef, useSyncExternalStore } from "react";
 
 import { messagingKeys } from "@/features/messaging/messaging-query-keys";
+import { notificationKeys } from "@/features/notifications/notification-query-keys";
 
 import { catchUpOpenConversations } from "./open-conversations";
 import { getRealtimeClient, type RealtimeListener } from "./realtime-client";
@@ -24,6 +25,7 @@ export function catchUp(queryClient: QueryClient): Promise<void> {
     queryKey: messagingKeys.conversationLists,
   });
   void queryClient.invalidateQueries({ queryKey: messagingKeys.unreadCount });
+  void queryClient.invalidateQueries({ queryKey: notificationKeys.all });
   return catchUpOpenConversations();
 }
 

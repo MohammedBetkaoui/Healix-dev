@@ -9,6 +9,7 @@ import { UnreadCountBadge } from "@/components/messaging/messaging-ui";
 import { HealixLogo } from "@/components/shared/HealixLogo";
 import { messagingCopy } from "@/features/messaging/messaging.copy";
 import { useUnreadCount } from "@/features/messaging/messaging.queries";
+import { useUnreadNotificationCount } from "@/features/notifications/hooks/useNotifications";
 
 import { useLogout } from "@/features/auth/hooks/use-logout";
 import { type Direction, type TranslationFunction, useStoredLocale } from "@/lib/i18n";
@@ -55,6 +56,8 @@ export function DashboardSidebar({ activeKey, direction, isCollapsed, isOpen, na
   // Kept current by the real-time events (useRealtimeEvents in the shell).
   const unreadCount = useUnreadCount().data?.total ?? 0;
   const unread = { count: unreadCount, label: messagingCopy[locale].list.unread(unreadCount) };
+  const notificationCount = useUnreadNotificationCount().data?.count ?? 0;
+  const notificationUnread = { count: notificationCount, label: t("notifications.unreadCount", { count: notificationCount }) };
   const asideRef = useRef<HTMLElement>(null);
   const CollapseIcon = isCollapsed ? PanelLeftOpen : PanelLeftClose;
   const logoutItem = navSections.flatMap((section) => section.items).find((item) => item.key === "logout");
@@ -132,7 +135,7 @@ export function DashboardSidebar({ activeKey, direction, isCollapsed, isOpen, na
               <h2 className={cn("clinical-nav-heading", isCollapsed && "lg:sr-only")}>{t(section.titleKey)}</h2>
               {section.items.filter((item) => item.key !== "logout").map((item) => (
                 <NavRow key={item.key} item={item} active={item.key === activeKey} collapsed={isCollapsed} onNavigate={onClose} t={t}
-                  unread={item.key === "messages" ? unread : undefined} />
+                  unread={item.key === "messages" ? unread : item.key === "notifications" ? notificationUnread : undefined} />
               ))}
             </section>
           ))}

@@ -30,6 +30,8 @@ export type CloseReason =
   | 'protocol_violation';
 
 export type RealtimeEventPayloads = {
+  'notification.created': { notificationId: string };
+  'notification.updated': { notificationId: string };
   'message.created': { conversationId: string; seq: number };
   'message.updated': { conversationId: string; messageId: string };
   'message.deleted': { conversationId: string; messageId: string };

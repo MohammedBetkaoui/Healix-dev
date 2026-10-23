@@ -4,11 +4,15 @@ import {
   InternalServerErrorException,
   Logger,
   NotFoundException,
+  Optional,
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import {
   AiAnalysisRunStatus,
   AiRunDecision,
+  NotificationCategory,
+  NotificationResourceType,
+  NotificationSeverity,
   Prisma,
   type AiAnalysisReport,
   UserRole,
@@ -24,6 +28,7 @@ import { PatientFileStorageService } from '../../patients/documents/patient-file
 import { PatientAuditService } from '../../patients/patient-audit.service';
 import { PatientsService } from '../../patients/patients.service';
 import { PrismaService } from '../../prisma/prisma.service';
+import { NotificationProducerService } from '../../notifications/notification-producer.service';
 import {
   getDecisionLabels,
   getModelLabels,
@@ -60,6 +65,7 @@ const FONT_DIRECTORY = resolve(process.cwd(), 'assets', 'fonts', 'inter');
 const MAX_NUMBER_ATTEMPTS = 5;
 
 const personSelect = {
+  id: true,
   fullName: true,
   role: true,
   doctorProfile: { select: { speciality: true } },
@@ -95,6 +101,7 @@ const runForReport = {
       hospitalRecordNumber: true,
       id: true,
       lastName: true,
+      workspaceId: true,
       workspace: {
         select: {
           establishment: { select: establishmentSelect },
@@ -365,6 +372,8 @@ export class AiAnalysisReportsService {
     private readonly patientAuditService: PatientAuditService,
     private readonly renderer: AiReportRenderer,
     configService: ConfigService,
+    @Optional()
+    private readonly notificationProducer?: NotificationProducerService,
   ) {
     this.evaluationReportPath = resolve(
       process.cwd(),
@@ -470,6 +479,21 @@ export class AiAnalysisReportsService {
           report.id,
           { reportNumber, runId: run.id, sha256 },
         );
+        await this.notificationProducer?.create({
+          userId: run.requestedBy.id,
+          workspaceId: run.patient.workspaceId,
+          category: NotificationCategory.REPORT,
+          type: 'AI_REPORT_AVAILABLE',
+          severity: NotificationSeverity.SUCCESS,
+          resourceType: NotificationResourceType.AI_REPORT,
+          resourceId: run.id,
+          data: {
+            analysisRunId: run.id,
+            reportId: report.id,
+            pipeline: run.pipeline,
+          },
+          dedupeKey: `ai-report-available:${report.id}:${run.requestedBy.id}`,
+        });
         return { fileName: `${reportNumber}.pdf`, pdf, reportNumber };
       } catch (error) {
         await this.fileStorageService.deleteLocalFile(localPath);

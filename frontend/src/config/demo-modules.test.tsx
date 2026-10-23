@@ -22,6 +22,10 @@ jest.mock("@/features/verification/hooks/use-establishment-verification-prefill"
 }));
 // The shell's unread badge and real-time connection (Messages).
 jest.mock("@/features/messaging/messaging.queries", () => ({ useUnreadCount: () => ({ data: undefined }) }));
+jest.mock("@/features/notifications/hooks/useNotifications", () => ({
+  useRecentNotifications: () => ({ data: undefined, isLoading: false }),
+  useUnreadNotificationCount: () => ({ data: undefined }),
+}));
 jest.mock("@/lib/realtime/use-realtime-events", () => ({ useRealtimeEvents: () => undefined }));
 
 const DEMO_ROUTES = ["/establishment/records", "/establishment/lab"];
