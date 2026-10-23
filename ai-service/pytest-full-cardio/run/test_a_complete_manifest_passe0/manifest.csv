@@ -1,2 +1,0 @@
-relative_path,tumor_label,task,is_mask
-segmentation_task\train\images\me_ok.jpg,meningioma,segmentation,False

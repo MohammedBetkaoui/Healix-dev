@@ -2,6 +2,8 @@
 # from AI_MODELS_DIR (see ai-service/README.md).
 /models/
 *.pth
+# Weights are never committed, and test fixtures do not contain any.
+*.pt
 *.keras
 
 # Docker deployment settings and secrets (template: .env.docker.example).
@@ -14,4 +16,6 @@
 .runlogs/
 *.log
 
-# pytest-full-cardio
+# Temporary pytest folders (--basetemp): never committed.
+ai-service/pytest-*/
+.pytest_cache/
