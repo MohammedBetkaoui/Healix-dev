@@ -8,8 +8,13 @@ import { JwtService } from '@nestjs/jwt';
 import { type RefreshToken, type User } from '@prisma/client';
 import { type Request, type Response } from 'express';
 import * as bcrypt from 'bcrypt';
+import { randomUUID } from 'node:crypto';
 
 import { AuditLogsService } from '../audit-logs/audit-logs.service';
+import {
+  hashRefreshToken,
+  refreshTokenMatches,
+} from '../auth/refresh-token-hash';
 import { AccountStatus } from '../common/enums/account-status.enum';
 import { UserRole } from '../common/enums/user-role.enum';
 import {
@@ -17,6 +22,7 @@ import {
   getAdminRefreshCookieOptions,
   getClearAdminCookieOptions,
 } from '../common/utils/cookie-options';
+import { jwtSecret } from '../common/security/jwt-secrets';
 import { type PublicAdmin, toPublicAdmin } from '../common/utils/public-user';
 import { normalizeEmail, trimInput } from '../common/utils/sanitize';
 import { PrismaService } from '../prisma/prisma.service';
@@ -84,12 +90,14 @@ export class AdminAuthService {
     this.saltRounds = this.parseSaltRounds(
       configService.get<string>('BCRYPT_SALT_ROUNDS'),
     );
-    this.accessTokenSecret =
-      configService.get<string>('ADMIN_JWT_ACCESS_SECRET') ??
-      'change_me_admin_access_secret';
-    this.refreshTokenSecret =
-      configService.get<string>('ADMIN_JWT_REFRESH_SECRET') ??
-      'change_me_admin_refresh_secret';
+    this.accessTokenSecret = jwtSecret(
+      configService,
+      'ADMIN_JWT_ACCESS_SECRET',
+    );
+    this.refreshTokenSecret = jwtSecret(
+      configService,
+      'ADMIN_JWT_REFRESH_SECRET',
+    );
     this.accessTokenExpiresIn =
       configService.get<string>('ADMIN_JWT_ACCESS_EXPIRES_IN') ?? '10m';
     this.refreshTokenExpiresIn =
@@ -164,7 +172,10 @@ export class AdminAuthService {
     try {
       const { accessToken, refreshToken, refreshTokenExpiresAt } =
         await this.createSignedTokens(authUser);
-      const refreshTokenHash = await this.hashSecret(refreshToken);
+      const refreshTokenHash = await hashRefreshToken(
+        refreshToken,
+        this.saltRounds,
+      );
 
       const session = await this.prisma.$transaction(async (transaction) => {
         await transaction.refreshToken.create({
@@ -264,7 +275,10 @@ export class AdminAuthService {
 
     const { accessToken, refreshToken, refreshTokenExpiresAt } =
       await this.createSignedTokens(authUser);
-    const refreshTokenHash = await this.hashSecret(refreshToken);
+    const refreshTokenHash = await hashRefreshToken(
+      refreshToken,
+      this.saltRounds,
+    );
 
     const session = await this.prisma.$transaction(async (transaction) => {
       await transaction.refreshToken.update({
@@ -433,6 +447,8 @@ export class AdminAuthService {
       }),
       this.jwtService.signAsync(refreshPayload, {
         expiresIn: Math.floor(this.refreshTokenMaxAgeMs / 1_000),
+        // Two logins in the same second would otherwise sign the same token.
+        jwtid: randomUUID(),
         secret: this.refreshTokenSecret,
       }),
     ]);
@@ -462,7 +478,10 @@ export class AdminAuthService {
     });
 
     for (const tokenRecord of activeTokens) {
-      const matches = await bcrypt.compare(refreshToken, tokenRecord.tokenHash);
+      const matches = await refreshTokenMatches(
+        refreshToken,
+        tokenRecord.tokenHash,
+      );
 
       if (matches) {
         return tokenRecord;
@@ -486,10 +505,6 @@ export class AdminAuthService {
     } catch {
       return null;
     }
-  }
-
-  private async hashSecret(secret: string): Promise<string> {
-    return bcrypt.hash(secret, this.saltRounds);
   }
 
   private setAdminCookies(

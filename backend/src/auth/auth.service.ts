@@ -17,6 +17,7 @@ import {
 } from '@prisma/client';
 import { type Request, type Response } from 'express';
 import * as bcrypt from 'bcrypt';
+import { randomUUID } from 'node:crypto';
 
 import { AuditLogsService } from '../audit-logs/audit-logs.service';
 import { AccountStatus } from '../common/enums/account-status.enum';
@@ -28,6 +29,7 @@ import {
   getClearCookieOptions,
   getRefreshCookieOptions,
 } from '../common/utils/cookie-options';
+import { jwtSecret } from '../common/security/jwt-secrets';
 import { toPublicUser, type PublicUser } from '../common/utils/public-user';
 import {
   normalizeEmail,
@@ -176,12 +178,8 @@ export class AuthService {
     this.saltRounds = this.parseSaltRounds(
       configService.get<string>('BCRYPT_SALT_ROUNDS'),
     );
-    this.accessTokenSecret =
-      configService.get<string>('JWT_ACCESS_SECRET') ??
-      'healixdz_access_secret_change_me';
-    this.refreshTokenSecret =
-      configService.get<string>('JWT_REFRESH_SECRET') ??
-      'healixdz_refresh_secret_change_me';
+    this.accessTokenSecret = jwtSecret(configService, 'JWT_ACCESS_SECRET');
+    this.refreshTokenSecret = jwtSecret(configService, 'JWT_REFRESH_SECRET');
     this.accessTokenExpiresIn =
       configService.get<string>('JWT_ACCESS_EXPIRES_IN') ?? '15m';
     this.refreshTokenExpiresIn =
@@ -698,6 +696,8 @@ export class AuthService {
       }),
       this.jwtService.signAsync(refreshPayload, {
         expiresIn: Math.floor(this.refreshTokenMaxAgeMs / 1_000),
+        // Two logins in the same second would otherwise sign the same token.
+        jwtid: randomUUID(),
         secret: this.refreshTokenSecret,
       }),
     ]);

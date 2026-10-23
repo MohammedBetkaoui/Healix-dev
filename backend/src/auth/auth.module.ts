@@ -4,6 +4,7 @@ import { JwtModule } from '@nestjs/jwt';
 import { PassportModule } from '@nestjs/passport';
 
 import { AuditLogsModule } from '../audit-logs/audit-logs.module';
+import { jwtSecret } from '../common/security/jwt-secrets';
 import { DoctorsModule } from '../doctors/doctors.module';
 import { EstablishmentsModule } from '../establishments/establishments.module';
 import { MailModule } from '../mail/mail.module';
@@ -19,17 +20,19 @@ import { PasswordResetService } from './password-reset/password-reset.service';
 import { AccessTokenStrategy } from './strategies/access-token.strategy';
 import { RefreshTokenStrategy } from './strategies/refresh-token.strategy';
 
+// Exported to be tested: in production this is where a weak secret stops the
+// startup.
+export const userJwtModuleOptions = (configService: ConfigService) => ({
+  secret: jwtSecret(configService, 'JWT_ACCESS_SECRET'),
+});
+
 @Module({
   imports: [
     ConfigModule,
     PassportModule.register({ defaultStrategy: 'jwt-access' }),
     JwtModule.registerAsync({
       inject: [ConfigService],
-      useFactory: (configService: ConfigService) => ({
-        secret:
-          configService.get<string>('JWT_ACCESS_SECRET') ??
-          'healixdz_access_secret_change_me',
-      }),
+      useFactory: userJwtModuleOptions,
     }),
     PrismaModule,
     UsersModule,
