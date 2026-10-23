@@ -67,6 +67,7 @@ export function toPrescriptionResponse(prescription: PrescriptionDetail) {
   const prescriberSnapshot = record(prescription.prescriberSnapshot);
   const safety = record(prescription.safetySnapshot);
   const regulatory = record(prescription.regulatorySnapshot);
+  const insuranceSnapshot = record(prescription.insuranceSnapshot);
   const frozen =
     prescription.status !== PrescriptionStatus.DRAFT &&
     prescription.status !== PrescriptionStatus.PENDING_VALIDATION;
@@ -165,7 +166,14 @@ export function toPrescriptionResponse(prescription: PrescriptionDetail) {
     printCount: prescription.printCount,
     documentAvailable: Boolean(prescription.document),
     insurance: frozen
-      ? record(prescription.insuranceSnapshot)
+      ? {
+          organization: insuranceSnapshot?.organization ?? null,
+          maskedInsuredNumber: mask(
+            typeof insuranceSnapshot?.insuredNumber === 'string'
+              ? insuranceSnapshot.insuredNumber
+              : null,
+          ),
+        }
       : {
           organization: prescription.patient.insurance,
           maskedInsuredNumber: mask(prescription.patient.insuredNumber),

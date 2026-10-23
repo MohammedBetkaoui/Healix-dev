@@ -8,12 +8,11 @@ import { type TranslationFunction } from "@/lib/i18n";
 import { prescriptionStatusTranslationKeys, prescriptionTypeTranslationKeys } from "../prescriptions.copy";
 import {
   type Medication,
-  type Practitioner,
-  type PrescriptionPatient,
+  type PrescriptionListItem,
   type PrescriptionStatus,
   type PrescriptionType,
 } from "../types/prescription.types";
-import { getPatientDisplayName } from "../utils/prescription-format";
+import { formatDoctorName, getPatientDisplayName } from "../utils/prescription-format";
 
 export type PrescriptionFilterState = {
   medicationId: string;
@@ -31,8 +30,8 @@ type PrescriptionFiltersProps = {
   medications: Medication[];
   onChange: (filters: PrescriptionFilterState) => void;
   onReset: () => void;
-  patients: PrescriptionPatient[];
-  practitioners: Practitioner[];
+  patients: Array<PrescriptionListItem["patient"]>;
+  practitioners: Array<PrescriptionListItem["prescriber"]>;
   resultCount: number;
   t: TranslationFunction;
 };
@@ -51,7 +50,7 @@ function FilterFields({ filters, locale, medications, onChange, patients, practi
       </Select>
       <Select aria-label={t("prescriptions.filters.prescriber")} value={filters.prescriberId} onChange={(event) => update("prescriberId", event.target.value)}>
         <option value="">{t("prescriptions.filters.allPrescribers")}</option>
-        {practitioners.map((practitioner) => <option key={practitioner.id} value={practitioner.id}>Dr. {practitioner.firstName} {practitioner.lastName}</option>)}
+        {practitioners.map((practitioner) => <option key={practitioner.id} value={practitioner.id}>{formatDoctorName(practitioner.fullName)}</option>)}
       </Select>
       <Select aria-label={t("prescriptions.filters.patient")} value={filters.patientId} onChange={(event) => update("patientId", event.target.value)}>
         <option value="">{t("prescriptions.filters.allPatients")}</option>
@@ -111,4 +110,3 @@ export function PrescriptionFilters(props: PrescriptionFiltersProps) {
     </section>
   );
 }
-

@@ -1,14 +1,7 @@
-import { type Locale } from "@/i18n";
-
 import {
-  type LocalizedText,
   type PrescriptionStatus,
   type PrescriptionType,
 } from "./types/prescription.types";
-
-export function localize(value: LocalizedText, locale: Locale) {
-  return value[locale];
-}
 
 export const prescriptionStatusTranslationKeys: Record<
   PrescriptionStatus,
