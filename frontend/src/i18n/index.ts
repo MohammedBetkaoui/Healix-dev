@@ -2,6 +2,7 @@ import { adminAuthAr } from "./locales/ar/admin-auth";
 import { aiAnalysesAr } from "./locales/ar/ai-analyses";
 import { adminAr } from "./locales/ar/admin";
 import { commonAr } from "./locales/ar/common";
+import { consultationsAr } from "./locales/ar/consultations";
 import { dashboardAr } from "./locales/ar/dashboard";
 import { doctorVerificationAr } from "./locales/ar/doctor-verification";
 import { loginAr } from "./locales/ar/login";
@@ -18,6 +19,7 @@ import { adminAuthFr } from "./locales/fr/admin-auth";
 import { aiAnalysesFr } from "./locales/fr/ai-analyses";
 import { adminFr } from "./locales/fr/admin";
 import { commonFr } from "./locales/fr/common";
+import { consultationsFr } from "./locales/fr/consultations";
 import { dashboardFr } from "./locales/fr/dashboard";
 import { doctorVerificationFr } from "./locales/fr/doctor-verification";
 import { loginFr } from "./locales/fr/login";
@@ -42,6 +44,7 @@ export const dictionaries = {
     adminAuth: adminAuthFr,
     aiAnalyses: aiAnalysesFr,
     common: commonFr,
+    consultations: consultationsFr,
     dashboard: dashboardFr,
     doctorVerification: doctorVerificationFr,
     login: loginFr,
@@ -60,6 +63,7 @@ export const dictionaries = {
     adminAuth: adminAuthAr,
     aiAnalyses: aiAnalysesAr,
     common: commonAr,
+    consultations: consultationsAr,
     dashboard: dashboardAr,
     doctorVerification: doctorVerificationAr,
     login: loginAr,

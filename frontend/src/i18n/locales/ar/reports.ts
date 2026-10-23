@@ -288,6 +288,7 @@ export const reportsAr = {
     saveDraft: "حفظ المسودة",
     finalize: "إنهاء التقرير",
     contentRequired: "أدخل قسماً واحداً على الأقل أو الخلاصة لإنهاء التقرير.",
+    forConsultation: "تقرير مرتبط بالاستشارة: {consultation}",
     fields: {
       reason: "السبب",
       context: "السياق",

@@ -17,7 +17,8 @@ type CreateConsultationModalProps = {
   isOpen: boolean;
   locale: Locale;
   onClose: () => void;
-  onCreated: () => void;
+  /** The id of the consultation just recorded. */
+  onCreated: (consultationId: string) => void;
   patientId: string;
 };
 
@@ -174,8 +175,8 @@ export function CreateConsultationModal({
         },
       },
       {
-        onSuccess: () => {
-          onCreated();
+        onSuccess: (consultation) => {
+          onCreated(consultation.id);
           closeModal();
         },
       },

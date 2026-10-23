@@ -22,6 +22,7 @@ jest.mock("@/features/notifications/hooks/useNotifications", () => ({
 }));
 jest.mock("@/lib/realtime/use-realtime-events", () => ({ useRealtimeEvents: () => undefined }));
 
+jest.mock("next/navigation", () => ({ useSearchParams: () => new URLSearchParams() }));
 jest.mock("../hooks/use-prescriptions", () => ({
   usePrescriptionFilterOptions: () => ({ data: { patients: [], prescribers: [] } }),
   usePrescriptions: jest.fn(),

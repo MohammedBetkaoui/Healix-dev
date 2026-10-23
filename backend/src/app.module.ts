@@ -12,6 +12,7 @@ import { AdminModule } from './admin/admin.module';
 import { AiAnalysisRunsModule } from './ai-analysis-runs/ai-analysis-runs.module';
 import { AppointmentsModule } from './appointments/appointments.module';
 import { AuthModule } from './auth/auth.module';
+import { ConsultationsModule } from './consultations/consultations.module';
 import {
   AppThrottlerGuard,
   DEFAULT_THROTTLE_ANON_LIMIT,
@@ -55,6 +56,7 @@ import { WorkspaceModule } from './workspaces/workspace.module';
     NotificationsModule,
     PrescriptionsModule,
     ReportsModule,
+    ConsultationsModule,
     WorkspaceModule,
   ],
   controllers: [AppController],

@@ -11,6 +11,8 @@ import {
   importReport,
   updateReport,
 } from "../api/reports.api";
+import { consultationKeys } from "@/features/consultations/consultation-query-keys";
+
 import { reportKeys } from "../report-query-keys";
 import { type ClinicalReport, type CreateReportInput, type ImportReportInput, type UpdateReportInput } from "../types/report.types";
 
@@ -24,6 +26,8 @@ function useRefreshReports() {
       queryClient.invalidateQueries({ queryKey: reportKeys.lists }),
       queryClient.invalidateQueries({ queryKey: reportKeys.patients }),
       queryClient.invalidateQueries({ queryKey: reportKeys.stats }),
+      // A report written from a consultation shows in its detail.
+      queryClient.invalidateQueries({ queryKey: consultationKeys.all }),
       ...(report
         ? [
             queryClient.invalidateQueries({ queryKey: reportKeys.detail(report.id) }),

@@ -1,6 +1,7 @@
 "use client";
 
 import { AlertTriangle, CheckCircle2, ShieldCheck } from "lucide-react";
+import { useSearchParams } from "next/navigation";
 import { useEffect, useMemo, useState } from "react";
 
 import { DashboardShell } from "@/components/dashboard/layout/DashboardShell";
@@ -66,7 +67,9 @@ export function PrescriptionsPage({ accountType }: PrescriptionsPageProps) {
   const { capabilities } = usePrescriptionCapabilities();
   const [filters, setFilters] = useState<PrescriptionFilterState>(initialFilters);
   const [page, setPage] = useState(1);
-  const [detail, setDetail] = useState<DetailState | null>(null);
+  // A link from another page (a consultation, a notification) opens a prescription.
+  const requestedPrescription = useSearchParams()?.get("prescription") ?? null;
+  const [detail, setDetail] = useState<DetailState | null>(requestedPrescription ? { id: requestedPrescription } : null);
   const [builder, setBuilder] = useState<BuilderState | null>(null);
   const [notice, setNotice] = useState<Notice | null>(null);
   const renew = useRenewPrescription();

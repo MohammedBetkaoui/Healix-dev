@@ -38,8 +38,17 @@ import { PrescriptionReview } from "./PrescriptionReview";
 
 export type BuilderResult = { prescription: Prescription; validated: boolean };
 
+/** Opened from a consultation: the patient and the consultation are given, not chosen. */
+export type PrescriptionContext = {
+  encounterId: string;
+  encounterLabel: string;
+  patient: { id: string; label: string };
+};
+
 type NewPrescriptionDrawerProps = {
   capabilities: PrescriptionCapabilities;
+  /** The patient and the consultation the prescription is written for (they cannot be changed). */
+  context?: PrescriptionContext;
   /** A draft to continue (edit, or a renewal just created by the API). */
   draft?: Prescription;
   locale: Locale;
@@ -53,7 +62,7 @@ type PatientChoice = { id: string; label: string };
 const patientLabel = (patient: Parameters<typeof getPatientDisplayName>[0] & { hospitalRecordNumber: string | null }, locale: Locale) =>
   `${getPatientDisplayName(patient, locale)}${patient.hospitalRecordNumber ? ` · ${patient.hospitalRecordNumber}` : ""}`;
 
-export function NewPrescriptionDrawer({ capabilities, draft, locale, onClose, onDone, t }: NewPrescriptionDrawerProps) {
+export function NewPrescriptionDrawer({ capabilities, context: given, draft, locale, onClose, onDone, t }: NewPrescriptionDrawerProps) {
   const listId = useId();
   const create = useCreatePrescription();
   const update = useUpdatePrescription();
@@ -61,9 +70,9 @@ export function NewPrescriptionDrawer({ capabilities, draft, locale, onClose, on
   const validate = useValidatePrescription();
   const prescriber = usePrescriberContext(capabilities.canCreatePrescription);
 
-  const [patient, setPatient] = useState<PatientChoice | null>(() => draft ? { id: draft.patient.id, label: patientLabel(draft.patient, locale) } : null);
+  const [patient, setPatient] = useState<PatientChoice | null>(() => draft ? { id: draft.patient.id, label: patientLabel(draft.patient, locale) } : (given?.patient ?? null));
   const [patientQuery, setPatientQuery] = useState(patient?.label ?? "");
-  const [encounterId, setEncounterId] = useState(draft?.encounter?.id ?? "");
+  const [encounterId, setEncounterId] = useState(draft?.encounter?.id ?? given?.encounterId ?? "");
   const [items, setItems] = useState<ItemDraft[]>(() => draft ? draft.items.map((item) => itemFromPrescription(nextItemKey(), item)) : []);
   const [acknowledged, setAcknowledged] = useState(draft?.regulatoryDetails?.acknowledgement === true);
   const [carnetReference, setCarnetReference] = useState(draft?.regulatoryDetails?.carnetReference ?? "");
@@ -164,8 +173,8 @@ export function NewPrescriptionDrawer({ capabilities, draft, locale, onClose, on
           <div className="grid items-start gap-5 lg:grid-cols-[minmax(280px,.82fr)_minmax(420px,1.45fr)_minmax(280px,.82fr)]">
             <section className="space-y-4">
               <h3 className="text-sm font-semibold">{t("prescriptions.builder.areas.patient")}</h3>
-              <label className="block"><span className="mb-1.5 block text-[.68rem] font-medium text-[var(--text-secondary)]">{t("prescriptions.builder.searchPatient")} *</span><span className="relative block"><Search className="pointer-events-none absolute start-3 top-1/2 -translate-y-1/2 text-[var(--text-muted)]" size={15} aria-hidden="true" /><Input className="h-10 rounded-[var(--radius-sm)] ps-9 text-[.76rem] shadow-none" list={listId} value={patientQuery} disabled={Boolean(savedId)} onBlur={() => setPatientQuery(patient?.label ?? "")} onChange={(event) => { const value = event.target.value; setPatientQuery(value); const match = candidates.find((candidate) => patientLabel(candidate, locale) === value); if (match) { setPatient({ id: match.id, label: value }); setEncounterId(""); } }} /></span><datalist id={listId}>{candidates.map((candidate) => <option key={candidate.id} value={patientLabel(candidate, locale)} />)}</datalist>{patientSearch.isError ? <span className="mt-1 block text-[.64rem] text-[var(--danger-ink)]" role="alert">{t("prescriptions.states.searchError")}</span> : null}</label>
-              <label className="block"><span className="mb-1.5 block text-[.68rem] font-medium text-[var(--text-secondary)]">{t("prescriptions.builder.associatedConsultation")}</span><Select className="h-10 rounded-[var(--radius-sm)] text-[.76rem] shadow-none" value={encounterId} onChange={(event) => setEncounterId(event.target.value)}><option value="">{t("prescriptions.builder.noEncounter")}</option>{(context.data?.encounters ?? []).map((encounter) => <option key={encounter.id} value={encounter.id}>{formatPrescriptionDate(encounter.date, locale)} — {encounter.label}</option>)}</Select></label>
+              <label className="block"><span className="mb-1.5 block text-[.68rem] font-medium text-[var(--text-secondary)]">{t("prescriptions.builder.searchPatient")} *</span><span className="relative block"><Search className="pointer-events-none absolute start-3 top-1/2 -translate-y-1/2 text-[var(--text-muted)]" size={15} aria-hidden="true" /><Input className="h-10 rounded-[var(--radius-sm)] ps-9 text-[.76rem] shadow-none" list={listId} value={patientQuery} disabled={Boolean(savedId) || Boolean(given)} onBlur={() => setPatientQuery(patient?.label ?? "")} onChange={(event) => { const value = event.target.value; setPatientQuery(value); const match = candidates.find((candidate) => patientLabel(candidate, locale) === value); if (match) { setPatient({ id: match.id, label: value }); setEncounterId(""); } }} /></span><datalist id={listId}>{candidates.map((candidate) => <option key={candidate.id} value={patientLabel(candidate, locale)} />)}</datalist>{patientSearch.isError ? <span className="mt-1 block text-[.64rem] text-[var(--danger-ink)]" role="alert">{t("prescriptions.states.searchError")}</span> : null}</label>
+              <label className="block"><span className="mb-1.5 block text-[.68rem] font-medium text-[var(--text-secondary)]">{t("prescriptions.builder.associatedConsultation")}</span><Select className="h-10 rounded-[var(--radius-sm)] text-[.76rem] shadow-none" value={encounterId} disabled={Boolean(given)} onChange={(event) => setEncounterId(event.target.value)}><option value="">{t("prescriptions.builder.noEncounter")}</option>{given && !(context.data?.encounters ?? []).some((encounter) => encounter.id === given.encounterId) ? <option value={given.encounterId}>{given.encounterLabel}</option> : null}{(context.data?.encounters ?? []).map((encounter) => <option key={encounter.id} value={encounter.id}>{formatPrescriptionDate(encounter.date, locale)} — {encounter.label}</option>)}</Select></label>
               <PatientContextCard context={context.data} errorKey={context.isError ? getPrescriptionErrorKey(context.error) : undefined} isLoading={context.isLoading} locale={locale} t={t} />
               <InsuranceContext maskedInsuredNumber={insurance?.maskedInsuredNumber ?? null} organization={insurance?.insurance ?? null} priorApproval={priorApproval} reimbursable={reimbursable} t={t} />
             </section>

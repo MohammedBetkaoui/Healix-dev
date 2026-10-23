@@ -20,10 +20,19 @@ import { ReportActionError } from "./ReportStateViews";
 
 export type ReportDraftResult = { finalized: boolean; report: ClinicalReport };
 
+/** Opened from a consultation: the patient and the consultation are given, not chosen. */
+export type ReportContext = {
+  encounterId: string;
+  encounterLabel: string;
+  patient: PatientChoice;
+};
+
 const categories: WrittenReportCategory[] = ["CONSULTATION_NOTE", "RADIOLOGY", "LABORATORY_RESULT", "OTHER_CLINICAL"];
 
 type CreateReportDrawerProps = {
   capabilities: ReportCapabilities;
+  /** The patient and the consultation the report is written for (the category starts as a consultation note). */
+  context?: ReportContext;
   /** A draft to continue (or an amendment just started by the API). */
   draft?: ClinicalReport;
   locale: Locale;
@@ -34,11 +43,11 @@ type CreateReportDrawerProps = {
 
 // A written report: saved as a draft, then finalized (PDF, number, frozen
 // content). A draft can be edited as long as it is not finalized.
-export function CreateReportDrawer({ capabilities, draft, locale, onClose, onDone, t }: CreateReportDrawerProps) {
+export function CreateReportDrawer({ capabilities, context, draft, locale, onClose, onDone, t }: CreateReportDrawerProps) {
   const create = useCreateReport();
   const update = useUpdateReport();
   const finalize = useFinalizeReport();
-  const [patient, setPatient] = useState<PatientChoice | null>(() => draft ? { id: draft.patient.id, label: patientChoiceLabel(draft.patient, locale) } : null);
+  const [patient, setPatient] = useState<PatientChoice | null>(() => draft ? { id: draft.patient.id, label: patientChoiceLabel(draft.patient, locale) } : (context?.patient ?? null));
   const [category, setCategory] = useState<WrittenReportCategory>(() => (draft && categories.includes(draft.category as WrittenReportCategory) ? (draft.category as WrittenReportCategory) : "CONSULTATION_NOTE"));
   const [form, setForm] = useState<ReportFormValues>(() => (draft ? formFromReport(draft) : emptyReportForm));
   const [savedId, setSavedId] = useState<string | null>(draft?.id ?? null);
@@ -53,7 +62,7 @@ export function CreateReportDrawer({ capabilities, draft, locale, onClose, onDon
   const persist = async () => {
     const body = { category, conclusion: form.conclusion.trim() || null, sections: sectionsFromForm(form), title: form.title.trim() };
     if (savedId) return update.mutateAsync({ id: savedId, input: body });
-    return create.mutateAsync({ ...body, conclusion: body.conclusion ?? undefined, patientId: (patient as PatientChoice).id });
+    return create.mutateAsync({ ...body, conclusion: body.conclusion ?? undefined, encounterId: context?.encounterId, patientId: (patient as PatientChoice).id });
   };
 
   const run = async (finalizeNow: boolean) => {
@@ -75,7 +84,8 @@ export function CreateReportDrawer({ capabilities, draft, locale, onClose, onDon
     <DrawerShell busy={busy} onClose={onClose} title={draft?.replaces ? t("reports.create.amendTitle", { version: draft.version }) : draft ? t("reports.create.editTitle") : t("reports.create.title")} t={t}>
       <div className="mb-4 rounded-[var(--radius-sm)] border border-dashed border-[var(--border-strong)] bg-[var(--surface-muted)] p-3 text-[0.7rem] leading-5 text-[var(--text-secondary)]">{t("reports.create.notice")}</div>
       <div className="grid gap-4 sm:grid-cols-2">
-        <ReportPatientPicker disabled={Boolean(savedId)} locale={locale} onChange={setPatient} t={t} value={patient} />
+        <ReportPatientPicker disabled={Boolean(savedId) || Boolean(context)} locale={locale} onChange={setPatient} t={t} value={patient} />
+        {context ? <p className="rounded-[var(--radius-sm)] border border-[var(--accent-line)] bg-[var(--accent-soft)] px-3 py-2 text-[0.7rem] text-[var(--accent-dark)] sm:col-span-2">{t("reports.create.forConsultation", { consultation: context.encounterLabel })}</p> : null}
         <label><span className="mb-1.5 block text-[0.7rem] font-semibold text-[var(--text-secondary)]">{t("reports.create.category")}</span><Select value={category} onChange={(event) => setCategory(event.target.value as WrittenReportCategory)}>{categories.map((value) => <option key={value} value={value}>{t(reportCategoryKeys[value])}</option>)}</Select></label>
         <label className="sm:col-span-2"><span className="mb-1.5 block text-[0.7rem] font-semibold text-[var(--text-secondary)]">{t("reports.create.reportTitle")} *</span><Input maxLength={200} value={form.title} onChange={(event) => setField("title", event.target.value)} placeholder={t("reports.create.titlePlaceholder")} /></label>
         {REPORT_SECTION_FIELDS.map((key) => <label key={key} className={key === "recommendations" ? "sm:col-span-2" : ""}><span className="mb-1.5 block text-[0.7rem] font-semibold text-[var(--text-secondary)]">{t(`reports.create.fields.${key}`)}</span><Textarea className="min-h-24" maxLength={8000} value={form[key]} onChange={(event) => setField(key, event.target.value)} /></label>)}

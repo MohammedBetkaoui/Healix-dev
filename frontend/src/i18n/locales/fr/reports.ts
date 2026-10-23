@@ -288,6 +288,7 @@ export const reportsFr = {
     saveDraft: "Enregistrer le brouillon",
     finalize: "Finaliser",
     contentRequired: "Renseignez au moins une section ou la conclusion pour finaliser.",
+    forConsultation: "Rapport rattaché à la consultation : {consultation}",
     fields: {
       reason: "Motif",
       context: "Contexte",

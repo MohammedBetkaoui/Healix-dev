@@ -12,6 +12,8 @@ import {
   updatePrescription,
   validatePrescription,
 } from "../api/prescriptions.api";
+import { consultationKeys } from "@/features/consultations/consultation-query-keys";
+
 import { prescriptionKeys } from "../prescription-query-keys";
 import {
   type CreatePrescriptionInput,
@@ -28,6 +30,8 @@ function useRefreshPrescriptions() {
     Promise.all([
       queryClient.invalidateQueries({ queryKey: prescriptionKeys.lists }),
       queryClient.invalidateQueries({ queryKey: prescriptionKeys.stats }),
+      // A prescription written from a consultation shows in its detail.
+      queryClient.invalidateQueries({ queryKey: consultationKeys.all }),
       ...(prescription
         ? [
             queryClient.invalidateQueries({ queryKey: prescriptionKeys.detail(prescription.id) }),

@@ -13,7 +13,6 @@ import {
   HeartPulse,
   History,
   LockKeyhole,
-  MapPin,
   Pill,
   ShieldCheck,
   Stethoscope,
