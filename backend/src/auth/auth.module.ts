@@ -49,5 +49,7 @@ import { RefreshTokenStrategy } from './strategies/refresh-token.strategy';
     PasswordResetService,
     PasswordResetCleanupScheduler,
   ],
+  // The account settings hash a new password like the registration does.
+  exports: [AuthService],
 })
 export class AuthModule {}

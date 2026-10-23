@@ -7,6 +7,7 @@ import { ThrottlerModule } from '@nestjs/throttler';
 
 import { AppController } from './app.controller';
 import { AppService } from './app.service';
+import { AccountModule } from './account/account.module';
 import { AdminAuthModule } from './admin-auth/admin-auth.module';
 import { AdminModule } from './admin/admin.module';
 import { AiAnalysisRunsModule } from './ai-analysis-runs/ai-analysis-runs.module';
@@ -57,6 +58,7 @@ import { WorkspaceModule } from './workspaces/workspace.module';
     PrescriptionsModule,
     ReportsModule,
     ConsultationsModule,
+    AccountModule,
     WorkspaceModule,
   ],
   controllers: [AppController],

@@ -44,6 +44,7 @@ import { WorkspaceService } from '../workspaces/workspace.service';
 import { LoginDto, type LoginAccountType } from './dto/login.dto';
 import { RegisterEstablishmentDto } from './dto/register-establishment.dto';
 import { RegisterIndependentDoctorDto } from './dto/register-independent-doctor.dto';
+import { hashRefreshToken, refreshTokenMatches } from './refresh-token-hash';
 import { type AuthenticatedUserPayload } from './types/authenticated-request.type';
 
 type PrismaExecutor = PrismaService | Prisma.TransactionClient;
@@ -242,7 +243,10 @@ export class AuthService {
     try {
       const { accessToken, refreshToken, refreshTokenExpiresAt } =
         await this.createSignedTokens(authUser);
-      const refreshTokenHash = await this.hashSecret(refreshToken);
+      const refreshTokenHash = await hashRefreshToken(
+        refreshToken,
+        this.saltRounds,
+      );
 
       const session = await this.prisma.$transaction(async (transaction) => {
         await transaction.refreshToken.create({
@@ -328,7 +332,10 @@ export class AuthService {
 
     const { accessToken, refreshToken, refreshTokenExpiresAt } =
       await this.createSignedTokens(authUser);
-    const refreshTokenHash = await this.hashSecret(refreshToken);
+    const refreshTokenHash = await hashRefreshToken(
+      refreshToken,
+      this.saltRounds,
+    );
 
     const session = await this.prisma.$transaction(async (transaction) => {
       await transaction.refreshToken.update({
@@ -708,10 +715,6 @@ export class AuthService {
     return bcrypt.hash(password, this.saltRounds);
   }
 
-  private async hashSecret(secret: string): Promise<string> {
-    return bcrypt.hash(secret, this.saltRounds);
-  }
-
   private setAuthCookies(
     response: Response,
     accessToken: string,
@@ -755,7 +758,10 @@ export class AuthService {
     });
 
     for (const tokenRecord of activeTokens) {
-      const matches = await bcrypt.compare(refreshToken, tokenRecord.tokenHash);
+      const matches = await refreshTokenMatches(
+        refreshToken,
+        tokenRecord.tokenHash,
+      );
 
       if (matches) {
         return tokenRecord;

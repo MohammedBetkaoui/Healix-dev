@@ -1,4 +1,5 @@
 import { adminAuthAr } from "./locales/ar/admin-auth";
+import { accountAr } from "./locales/ar/account";
 import { aiAnalysesAr } from "./locales/ar/ai-analyses";
 import { adminAr } from "./locales/ar/admin";
 import { commonAr } from "./locales/ar/common";
@@ -16,6 +17,7 @@ import { registerAr } from "./locales/ar/register";
 import { subscriptionAr } from "./locales/ar/subscription";
 import { verificationAr } from "./locales/ar/verification";
 import { adminAuthFr } from "./locales/fr/admin-auth";
+import { accountFr } from "./locales/fr/account";
 import { aiAnalysesFr } from "./locales/fr/ai-analyses";
 import { adminFr } from "./locales/fr/admin";
 import { commonFr } from "./locales/fr/common";
@@ -40,6 +42,7 @@ export const defaultLocale: Locale = "fr";
 
 export const dictionaries = {
   fr: {
+    account: accountFr,
     admin: adminFr,
     adminAuth: adminAuthFr,
     aiAnalyses: aiAnalysesFr,
@@ -59,6 +62,7 @@ export const dictionaries = {
     verification: verificationFr,
   },
   ar: {
+    account: accountAr,
     admin: adminAr,
     adminAuth: adminAuthAr,
     aiAnalyses: aiAnalysesAr,

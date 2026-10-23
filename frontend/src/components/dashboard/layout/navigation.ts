@@ -60,7 +60,7 @@ export const establishmentNavSections: DashboardNavSection[] = [
     items: [
       { href: "/establishment/verification", icon: BadgeCheck, key: "verification", labelKey: "dashboard.sidebar.establishment.verification" },
       { href: "/establishment/subscription", icon: CreditCard, key: "subscription", labelKey: "dashboard.sidebar.establishment.subscription" },
-      { href: "#settings", icon: Settings, key: "settings", labelKey: "dashboard.sidebar.establishment.settings" },
+      { href: "/establishment/settings", icon: Settings, key: "settings", labelKey: "dashboard.sidebar.establishment.settings" },
       { href: "/login", icon: LogOut, key: "logout", labelKey: "dashboard.sidebar.establishment.logout" },
     ],
   },
@@ -170,7 +170,7 @@ export const doctorNavSections: DashboardNavSection[] = [
         labelKey: "dashboard.sidebar.doctor.subscription",
       },
       {
-        href: "#settings",
+        href: "/doctor/settings",
         icon: Settings,
         key: "settings",
         labelKey: "dashboard.sidebar.doctor.settings",

@@ -87,6 +87,8 @@ export function passwordResetRequestEmail(input: {
 export function passwordChangedEmail(input: {
   changedAt: Date;
   fullName: string;
+  // Changed from the account settings: the session of that change stays open.
+  keptCurrentSession?: boolean;
 }): Email {
   const subject = 'Votre mot de passe HealixDz a été modifié';
   const name = input.fullName.trim();
@@ -97,8 +99,9 @@ export function passwordChangedEmail(input: {
     timeZone: 'Africa/Algiers',
   }).format(input.changedAt);
   const changed = `Votre mot de passe a été modifié le ${when} (heure d'Alger).`;
-  const sessions =
-    'Par sécurité, toutes vos sessions ouvertes ont été fermées : reconnectez-vous avec votre nouveau mot de passe.';
+  const sessions = input.keptCurrentSession
+    ? 'Par sécurité, vos autres sessions ouvertes ont été fermées ; seule celle depuis laquelle vous avez fait ce changement reste ouverte.'
+    : 'Par sécurité, toutes vos sessions ouvertes ont été fermées : reconnectez-vous avec votre nouveau mot de passe.';
   const notYou =
     "Si vous n'êtes pas à l'origine de cette modification, contactez sans attendre l'administration de HealixDz.";
 
