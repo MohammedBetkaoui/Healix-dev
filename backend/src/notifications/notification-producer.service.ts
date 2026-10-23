@@ -48,6 +48,7 @@ const SAFE_DATA_KEYS: Record<string, ReadonlySet<string>> = {
   DOCTOR_ACCOUNT_CREATED: new Set(['doctorProfileId']),
   PRESCRIPTION_VALIDATED: new Set(['prescriptionId', 'number']),
   PRESCRIPTION_CANCELED: new Set(['prescriptionId', 'number']),
+  REPORT_FINALIZED: new Set(['reportId', 'number']),
 };
 
 @Injectable()

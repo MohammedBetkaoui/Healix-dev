@@ -142,6 +142,7 @@ describe('AiAnalysisReportsService (GET .../ai-analysis-runs/:runId/report)', ()
   const reportFindUnique = jest.fn();
   const reportFindFirst = jest.fn();
   const reportCreate = jest.fn();
+  const clinicalReportCreate = jest.fn();
   const getPatientInScope = jest.fn();
   const readStoredFile = jest.fn();
   const storeAiReport = jest.fn();
@@ -149,15 +150,22 @@ describe('AiAnalysisReportsService (GET .../ai-analysis-runs/:runId/report)', ()
   const log = jest.fn();
   const render = jest.fn();
 
+  const prismaMock = {
+    $transaction: (callback: (transaction: unknown) => Promise<unknown>) =>
+      callback({
+        aiAnalysisReport: { create: reportCreate },
+        clinicalReport: { create: clinicalReportCreate },
+      }),
+    aiAnalysisReport: {
+      create: reportCreate,
+      findFirst: reportFindFirst,
+      findUnique: reportFindUnique,
+    },
+    aiAnalysisRun: { findFirst: runFindFirst },
+  };
+
   const service = new AiAnalysisReportsService(
-    {
-      aiAnalysisReport: {
-        create: reportCreate,
-        findFirst: reportFindFirst,
-        findUnique: reportFindUnique,
-      },
-      aiAnalysisRun: { findFirst: runFindFirst },
-    } as unknown as PrismaService,
+    prismaMock as unknown as PrismaService,
     { getPatientInScope } as unknown as PatientsService,
     {
       deleteLocalFile,
@@ -212,6 +220,7 @@ describe('AiAnalysisReportsService (GET .../ai-analysis-runs/:runId/report)', ()
       disk.delete(path);
       return Promise.resolve();
     });
+    clinicalReportCreate.mockResolvedValue(undefined);
     reportCreate.mockImplementation(
       ({ data }: { data: Record<string, unknown> }) =>
         Promise.resolve({
@@ -592,5 +601,90 @@ describe('AiAnalysisReportsService (GET .../ai-analysis-runs/:runId/report)', ()
     expect(storeAiReport).not.toHaveBeenCalled();
     expect(reportCreate).not.toHaveBeenCalled();
     expect(log).not.toHaveBeenCalled();
+  });
+
+  describe('row in the clinical reports center', () => {
+    const inWorkspace = (overrides: Record<string, unknown> = {}) => {
+      const base = run();
+      return run({
+        patient: {
+          ...base.patient,
+          firstNameAr: 'كريم',
+          lastNameAr: 'حداد',
+          workspaceId: 'workspace-a',
+        },
+        ...overrides,
+      });
+    };
+
+    it('creates the FINAL clinical report, numbered like the PDF, in the same transaction', async () => {
+      runFindFirst.mockResolvedValue(inWorkspace());
+
+      const report = await service.getReport(doctor, 'patient-a', 'run-1');
+
+      expect(clinicalReportCreate).toHaveBeenCalledTimes(1);
+      const [{ data }] = clinicalReportCreate.mock.lastCall as [
+        { data: Record<string, unknown> },
+      ];
+      expect(data).toMatchObject({
+        aiAnalysisReportId: `report-${report.reportNumber}`,
+        authorId: 'doctor-a',
+        category: 'AI_BRAIN',
+        number: report.reportNumber,
+        patientId: 'patient-a',
+        sourceType: 'AI_ANALYSIS',
+        status: 'FINAL',
+        version: 1,
+        workspaceId: 'workspace-a',
+      });
+      expect(data.patientSnapshot).toMatchObject({
+        birthDate: '1984-03-27',
+        lastName: 'Haddad',
+        lastNameAr: 'حداد',
+      });
+      // Never the identity number nor the phone of the patient.
+      expect(JSON.stringify(data)).not.toContain(NATIONAL_ID);
+      expect(JSON.stringify(data)).not.toContain(PATIENT_PHONE);
+    });
+
+    it('leaves a patient with no workspace out of the center', async () => {
+      runFindFirst.mockResolvedValue(run());
+
+      await service.getReport(doctor, 'patient-a', 'run-1');
+
+      expect(clinicalReportCreate).not.toHaveBeenCalled();
+    });
+
+    it('does not create a row when serving a report already stored', async () => {
+      runFindFirst.mockResolvedValue(inWorkspace());
+      await service.getReport(doctor, 'patient-a', 'run-1');
+      const [{ data }] = reportCreate.mock.lastCall as [
+        { data: Record<string, unknown> },
+      ];
+      reportFindUnique.mockResolvedValue({
+        id: 'report-1',
+        runId: 'run-1',
+        ...data,
+      });
+      clinicalReportCreate.mockClear();
+
+      await service.getReport(doctor, 'patient-a', 'run-1');
+
+      expect(clinicalReportCreate).not.toHaveBeenCalled();
+    });
+
+    it('stores no PDF file when the clinical report row cannot be created', async () => {
+      runFindFirst.mockResolvedValue(inWorkspace());
+      clinicalReportCreate.mockRejectedValueOnce(new Error('db down'));
+
+      await expect(
+        service.getReport(doctor, 'patient-a', 'run-1'),
+      ).rejects.toThrow('db down');
+
+      expect(deleteLocalFile).toHaveBeenCalledTimes(1);
+      expect(
+        [...disk.keys()].filter((path) => path.includes('ai-reports')),
+      ).toEqual([]);
+    });
   });
 });

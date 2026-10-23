@@ -38,6 +38,7 @@ import { PrescriptionsService } from './prescriptions.service';
     JwtAuthGuard,
     RolesGuard,
   ],
-  exports: [PrescriptionsService],
+  // The authorization is shared with the reports (same physician checks).
+  exports: [PrescriptionsService, PrescriptionAuthorizationService],
 })
 export class PrescriptionsModule {}

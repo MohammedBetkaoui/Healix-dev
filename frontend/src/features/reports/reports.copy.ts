@@ -1,23 +1,10 @@
-import { type Locale } from "@/i18n";
-
-import {
-  type LocalizedReportText,
-  type ReportCategory,
-  type ReportSourceType,
-  type ReportStatus,
-} from "./types/report.types";
-
-export function localizeReport(value: LocalizedReportText, locale: Locale) {
-  return value[locale];
-}
+import { type ReportCategory, type ReportSourceType, type ReportStatus } from "./types/report.types";
 
 export const reportStatusKeys: Record<ReportStatus, string> = {
   AMENDED: "reports.statuses.AMENDED",
   CANCELED: "reports.statuses.CANCELED",
-  CORRECTED: "reports.statuses.CORRECTED",
   DRAFT: "reports.statuses.DRAFT",
   FINAL: "reports.statuses.FINAL",
-  PRELIMINARY: "reports.statuses.PRELIMINARY",
 };
 
 export const reportSourceKeys: Record<ReportSourceType, string> = {
@@ -40,4 +27,3 @@ export const reportCategoryKeys: Record<ReportCategory, string> = {
   OTHER_CLINICAL: "reports.categories.OTHER_CLINICAL",
   RADIOLOGY: "reports.categories.RADIOLOGY",
 };
-

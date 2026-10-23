@@ -359,6 +359,38 @@ enum NotificationResourceType {
   SYSTEM
 }
 
+// Clinical reports center. One row per version of a report: DRAFT while it is
+// being written; FINAL once finalized; AMENDED for a finalized version that
+// replaces an earlier one; CANCELED with a mandatory reason. The report of an
+// AI analysis is FINAL from its creation and is never edited.
+enum ClinicalReportStatus {
+  DRAFT
+  FINAL
+  AMENDED
+  CANCELED
+}
+
+enum ClinicalReportCategory {
+  AI_BRAIN
+  AI_ECG
+  AI_PATHOLOGY
+  AI_CARDIAC_MRI
+  CONSULTATION_NOTE
+  RADIOLOGY
+  LABORATORY_RESULT
+  EXTERNAL_MEDICAL
+  OTHER_CLINICAL
+}
+
+enum ClinicalReportSource {
+  AI_ANALYSIS
+  CONSULTATION
+  IMAGING
+  LABORATORY
+  EXTERNAL_DOCUMENT
+  OTHER
+}
+
 enum PrescriptionStatus {
   DRAFT
   PENDING_VALIDATION
@@ -460,6 +492,10 @@ model User {
   createdPrescriptions           Prescription[]            @relation("PrescriptionCreatedBy")
   validatedPrescriptions         Prescription[]            @relation("PrescriptionValidatedBy")
   canceledPrescriptions          Prescription[]            @relation("PrescriptionCanceledBy")
+  authoredClinicalReports        ClinicalReport[]          @relation("ClinicalReportAuthor")
+  finalizedClinicalReports       ClinicalReport[]          @relation("ClinicalReportFinalizedBy")
+  canceledClinicalReports        ClinicalReport[]          @relation("ClinicalReportCanceledBy")
+  clinicalReportDocuments        ClinicalReportDocument[]  @relation("ClinicalReportDocumentGeneratedBy")
   generatedPrescriptionDocuments PrescriptionDocument[]    @relation("PrescriptionDocumentGeneratedBy")
 
   @@map("users")
@@ -553,18 +589,19 @@ model Patient {
   createdAt             DateTime                    @default(now()) @map("created_at")
   updatedAt             DateTime                    @updatedAt @map("updated_at")
 
-  establishment  Establishment?        @relation(fields: [establishmentId], references: [id], onDelete: SetNull)
-  doctorProfile  DoctorProfile?        @relation(fields: [doctorProfileId], references: [id], onDelete: SetNull)
-  workspace      Workspace?            @relation(fields: [workspaceId], references: [id], onDelete: SetNull)
-  consents       PatientConsent[]
-  consultations  PatientConsultation[]
-  documents      PatientDocument[]
-  aiAnalyses     PatientAiAnalysis[]
-  aiAnalysisRuns AiAnalysisRun[]
-  appointments   Appointment[]
-  conversations  Conversation[]
-  clinicalNotes  PatientClinicalNote[]
-  prescriptions  Prescription[]
+  establishment   Establishment?        @relation(fields: [establishmentId], references: [id], onDelete: SetNull)
+  doctorProfile   DoctorProfile?        @relation(fields: [doctorProfileId], references: [id], onDelete: SetNull)
+  workspace       Workspace?            @relation(fields: [workspaceId], references: [id], onDelete: SetNull)
+  consents        PatientConsent[]
+  consultations   PatientConsultation[]
+  documents       PatientDocument[]
+  aiAnalyses      PatientAiAnalysis[]
+  aiAnalysisRuns  AiAnalysisRun[]
+  appointments    Appointment[]
+  conversations   Conversation[]
+  clinicalNotes   PatientClinicalNote[]
+  prescriptions   Prescription[]
+  clinicalReports ClinicalReport[]
 
   @@index([establishmentId])
   @@index([doctorProfileId])
@@ -588,6 +625,7 @@ model Workspace {
   conversations      Conversation[]
   notifications      Notification[]
   prescriptions      Prescription[]
+  clinicalReports    ClinicalReport[]
 
   @@index([type])
   @@index([establishmentId])
@@ -650,10 +688,11 @@ model PatientConsultation {
   createdAt       DateTime @default(now()) @map("created_at")
   updatedAt       DateTime @updatedAt @map("updated_at")
 
-  patient       Patient        @relation(fields: [patientId], references: [id], onDelete: Cascade)
-  doctorProfile DoctorProfile? @relation(fields: [doctorProfileId], references: [id], onDelete: SetNull)
-  appointment   Appointment?   @relation(fields: [appointmentId], references: [id], onDelete: SetNull)
-  prescriptions Prescription[]
+  patient         Patient          @relation(fields: [patientId], references: [id], onDelete: Cascade)
+  doctorProfile   DoctorProfile?   @relation(fields: [doctorProfileId], references: [id], onDelete: SetNull)
+  appointment     Appointment?     @relation(fields: [appointmentId], references: [id], onDelete: SetNull)
+  prescriptions   Prescription[]
+  clinicalReports ClinicalReport[]
 
   @@index([patientId])
   @@map("patient_consultations")
@@ -680,6 +719,7 @@ model PatientDocument {
   aiAnalysisRuns     AiAnalysisRun[]
   messageAttachments MessageAttachment[]
   prescription       Prescription?       @relation(fields: [prescriptionId], references: [id], onDelete: Restrict)
+  clinicalReport     ClinicalReport?
 
   @@index([patientId])
   @@map("patient_documents")
@@ -886,6 +926,88 @@ model PrescriptionDocument {
 
   @@index([generatedById])
   @@map("prescription_documents")
+}
+
+model ClinicalReport {
+  id                   String                 @id @default(cuid())
+  // CR-<year>-<NNNNNN> (CLINICAL_REPORT sequence), given when the version is
+  // finalized; CR-IA-<year>-<NNNNNN> for the report of an AI analysis.
+  number               String?                @unique @db.VarChar(20)
+  workspaceId          String                 @map("workspace_id")
+  patientId            String                 @map("patient_id")
+  encounterId          String?                @map("encounter_id")
+  category             ClinicalReportCategory
+  sourceType           ClinicalReportSource   @map("source_type")
+  status               ClinicalReportStatus   @default(DRAFT)
+  title                String                 @db.VarChar(200)
+  conclusion           String?                @db.Text
+  // [{ id, title, body }]
+  sections             Json
+  // Date of the clinical act the report is about.
+  effectiveAt          DateTime               @default(now()) @map("effective_at")
+  version              Int                    @default(1)
+  // The version this one replaces; one successor at most.
+  replacesId           String?                @unique @map("replaces_id")
+  supersededAt         DateTime?              @map("superseded_at")
+  authorId             String                 @map("author_id")
+  finalizedAt          DateTime?              @map("finalized_at")
+  finalizedById        String?                @map("finalized_by_id")
+  canceledAt           DateTime?              @map("canceled_at")
+  canceledById         String?                @map("canceled_by_id")
+  cancellationReason   String?                @map("cancellation_reason") @db.Text
+  // Frozen when the version is finalized (immutable afterwards).
+  patientSnapshot      Json?                  @map("patient_snapshot")
+  authorSnapshot       Json?                  @map("author_snapshot")
+  organizationSnapshot Json?                  @map("organization_snapshot")
+  contentFingerprint   String?                @map("content_fingerprint") @db.Char(64)
+  // Imported document: who wrote it outside (author, specialty).
+  externalSource       Json?                  @map("external_source")
+  aiAnalysisReportId   String?                @unique @map("ai_analysis_report_id")
+  patientDocumentId    String?                @unique @map("patient_document_id")
+  createdAt            DateTime               @default(now()) @map("created_at")
+  updatedAt            DateTime               @updatedAt @map("updated_at")
+
+  workspace        Workspace               @relation(fields: [workspaceId], references: [id], onDelete: Restrict)
+  patient          Patient                 @relation(fields: [patientId], references: [id], onDelete: Restrict)
+  encounter        PatientConsultation?    @relation(fields: [encounterId], references: [id], onDelete: SetNull)
+  replaces         ClinicalReport?         @relation("ClinicalReportVersions", fields: [replacesId], references: [id], onDelete: Restrict)
+  replacedBy       ClinicalReport?         @relation("ClinicalReportVersions")
+  author           User                    @relation("ClinicalReportAuthor", fields: [authorId], references: [id], onDelete: Restrict)
+  finalizedBy      User?                   @relation("ClinicalReportFinalizedBy", fields: [finalizedById], references: [id], onDelete: Restrict)
+  canceledBy       User?                   @relation("ClinicalReportCanceledBy", fields: [canceledById], references: [id], onDelete: Restrict)
+  aiAnalysisReport AiAnalysisReport?       @relation(fields: [aiAnalysisReportId], references: [id], onDelete: Cascade)
+  patientDocument  PatientDocument?        @relation(fields: [patientDocumentId], references: [id], onDelete: Restrict)
+  document         ClinicalReportDocument?
+
+  @@index([workspaceId, supersededAt])
+  @@index([patientId])
+  @@index([status])
+  @@index([category])
+  @@index([effectiveAt])
+  @@index([authorId])
+  @@index([encounterId])
+  @@map("clinical_reports")
+}
+
+// The PDF generated when a written report is finalized (the report of an AI
+// analysis keeps the PDF of ai_analysis_reports; an imported one, its file).
+model ClinicalReportDocument {
+  id                 String   @id @default(cuid())
+  reportId           String   @unique @map("report_id")
+  storedName         String   @map("stored_name") @db.VarChar(255)
+  localPath          String   @map("local_path") @db.VarChar(500)
+  mimeType           String   @default("application/pdf") @map("mime_type") @db.VarChar(100)
+  size               Int
+  checksum           String   @db.Char(64)
+  contentFingerprint String   @map("content_fingerprint") @db.Char(64)
+  generatedById      String   @map("generated_by_id")
+  generatedAt        DateTime @default(now()) @map("generated_at")
+
+  report      ClinicalReport @relation(fields: [reportId], references: [id], onDelete: Restrict)
+  generatedBy User           @relation("ClinicalReportDocumentGeneratedBy", fields: [generatedById], references: [id], onDelete: Restrict)
+
+  @@index([generatedById])
+  @@map("clinical_report_documents")
 }
 
 model ClinicalDocumentSequence {
@@ -1319,8 +1441,9 @@ model AiAnalysisReport {
   generatedById String   @map("generated_by_id")
   createdAt     DateTime @default(now()) @map("created_at")
 
-  run         AiAnalysisRun @relation(fields: [runId], references: [id], onDelete: Cascade)
-  generatedBy User          @relation("AiAnalysisReportGeneratedBy", fields: [generatedById], references: [id], onDelete: Restrict)
+  run            AiAnalysisRun   @relation(fields: [runId], references: [id], onDelete: Cascade)
+  generatedBy    User            @relation("AiAnalysisReportGeneratedBy", fields: [generatedById], references: [id], onDelete: Restrict)
+  clinicalReport ClinicalReport?
 
   @@index([generatedById])
   @@map("ai_analysis_reports")

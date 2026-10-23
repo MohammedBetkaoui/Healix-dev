@@ -22,6 +22,7 @@ import { NotificationsModule } from './notifications/notifications.module';
 import { PatientsModule } from './patients/patients.module';
 import { PaymentsModule } from './payments/payments.module';
 import { PrescriptionsModule } from './prescriptions/prescriptions.module';
+import { ReportsModule } from './reports/reports.module';
 import { SubscriptionsModule } from './subscriptions/subscriptions.module';
 import { VerificationModule } from './verification/verification.module';
 import { WorkspaceModule } from './workspaces/workspace.module';
@@ -53,6 +54,7 @@ import { WorkspaceModule } from './workspaces/workspace.module';
     MessagingModule,
     NotificationsModule,
     PrescriptionsModule,
+    ReportsModule,
     WorkspaceModule,
   ],
   controllers: [AppController],

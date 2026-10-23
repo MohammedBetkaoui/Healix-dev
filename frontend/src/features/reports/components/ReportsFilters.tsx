@@ -6,30 +6,28 @@ import { Select } from "@/components/ui/select";
 import { type Locale } from "@/i18n";
 import { type TranslationFunction } from "@/lib/i18n";
 
-import { reportCategoryKeys, reportSourceKeys, reportStatusKeys, localizeReport } from "../reports.copy";
-import { type ClinicalReport, type ReportCategory, type ReportSourceType, type ReportStatus } from "../types/report.types";
-import { type ReportFilterValue } from "../utils/report-utils";
+import { reportCategoryKeys, reportSourceKeys, reportStatusKeys } from "../reports.copy";
+import { type ReportCategory, type ReportListItem, type ReportSourceType, type ReportStatus } from "../types/report.types";
+import { getReportPatientName, type ReportFilterValue } from "../utils/report-utils";
 
 type ReportsFiltersProps = {
+  authors: Array<ReportListItem["author"]>;
   filters: ReportFilterValue;
   locale: Locale;
   onChange: (filters: ReportFilterValue) => void;
   onReset: () => void;
-  reports: ClinicalReport[];
+  patients: Array<ReportListItem["patient"]>;
   resultCount: number;
   t: TranslationFunction;
 };
 
-const statuses: ReportStatus[] = ["DRAFT", "PRELIMINARY", "FINAL", "AMENDED", "CORRECTED", "CANCELED"];
+const statuses: ReportStatus[] = ["DRAFT", "FINAL", "AMENDED", "CANCELED"];
 const sources: ReportSourceType[] = ["AI_ANALYSIS", "CONSULTATION", "IMAGING", "LABORATORY", "EXTERNAL_DOCUMENT", "OTHER"];
 const categories: ReportCategory[] = ["AI_BRAIN", "AI_ECG", "AI_PATHOLOGY", "AI_CARDIAC_MRI", "CONSULTATION_NOTE", "RADIOLOGY", "LABORATORY_RESULT", "EXTERNAL_MEDICAL", "OTHER_CLINICAL"];
 
-export function ReportsFilters({ filters, locale, onChange, onReset, reports, resultCount, t }: ReportsFiltersProps) {
+export function ReportsFilters({ authors, filters, locale, onChange, onReset, patients, resultCount, t }: ReportsFiltersProps) {
   const id = useId();
   const update = <Key extends keyof ReportFilterValue>(key: Key, value: ReportFilterValue[Key]) => onChange({ ...filters, [key]: value });
-  const uniquePatients = Array.from(new Map(reports.map((report) => [report.subject.id, report.subject])).values());
-  const uniqueAuthors = Array.from(new Map(reports.flatMap((report) => [report.author, report.validator]).filter(Boolean).map((person) => [person!.id, person!])).values());
-  const uniqueServices = [...new Set(reports.map((report) => localizeReport(report.service, locale)))];
   const active = Object.values(filters).some(Boolean);
 
   return (
@@ -52,12 +50,11 @@ export function ReportsFilters({ filters, locale, onChange, onReset, reports, re
       </div>
       <div className="mt-4 border-t border-[var(--line-soft)] pt-4">
         <div className="mb-3 flex items-center gap-2 text-[0.7rem] font-semibold text-[var(--text-secondary)]"><SlidersHorizontal size={14} strokeWidth={1.8} aria-hidden="true" />{t("reports.filters.label")}</div>
-        <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4 xl:grid-cols-7">
+        <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6">
           <FilterSelect id={`${id}-category`} label={t("reports.filters.type")} value={filters.category} onChange={(value) => update("category", value as ReportFilterValue["category"])} options={categories.map((value) => ({ label: t(reportCategoryKeys[value]), value }))} t={t} />
           <FilterSelect id={`${id}-status`} label={t("reports.filters.status")} value={filters.status} onChange={(value) => update("status", value as ReportFilterValue["status"])} options={statuses.map((value) => ({ label: t(reportStatusKeys[value]), value }))} t={t} />
-          <FilterSelect id={`${id}-patient`} label={t("reports.filters.patient")} value={filters.patient} onChange={(value) => update("patient", value)} options={uniquePatients.map((patient) => ({ label: localizeReport(patient.displayName, locale), value: patient.id }))} t={t} />
-          <FilterSelect id={`${id}-author`} label={t("reports.filters.author")} value={filters.author} onChange={(value) => update("author", value)} options={uniqueAuthors.map((person) => ({ label: localizeReport(person.displayName, locale), value: person.id }))} t={t} />
-          <FilterSelect id={`${id}-service`} label={t("reports.filters.service")} value={filters.service} onChange={(value) => update("service", value)} options={uniqueServices.map((value) => ({ label: value, value }))} t={t} />
+          <FilterSelect id={`${id}-patient`} label={t("reports.filters.patient")} value={filters.patient} onChange={(value) => update("patient", value)} options={patients.map((patient) => ({ label: getReportPatientName(patient, locale), value: patient.id }))} t={t} />
+          <FilterSelect id={`${id}-author`} label={t("reports.filters.author")} value={filters.author} onChange={(value) => update("author", value)} options={authors.map((person) => ({ label: person.fullName, value: person.id }))} t={t} />
           <FilterSelect id={`${id}-source`} label={t("reports.filters.source")} value={filters.source} onChange={(value) => update("source", value as ReportFilterValue["source"])} options={sources.map((value) => ({ label: t(reportSourceKeys[value]), value }))} t={t} />
           <div className="grid grid-cols-2 gap-2">
             <label htmlFor={`${id}-from`}><span className="mb-1.5 block text-[0.65rem] font-semibold text-[var(--text-secondary)]">{t("reports.filters.from")}</span><Input id={`${id}-from`} type="date" className="border-[var(--border)] px-2 text-xs shadow-none" value={filters.from} max={filters.to || undefined} onChange={(event) => update("from", event.target.value)} /></label>
@@ -80,4 +77,3 @@ function FilterSelect({ id, label, onChange, options, t, value }: { id: string; 
     </label>
   );
 }
-

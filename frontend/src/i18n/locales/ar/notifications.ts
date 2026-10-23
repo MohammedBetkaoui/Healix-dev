@@ -22,6 +22,7 @@ export const notificationsAr = {
     AI_ANALYSIS_FAILED: { title: "لم يكتمل التحليل", description: "تعذر إتمام التحليل." },
     AI_ANALYSIS_REQUIRES_DECISION: { title: "المصادقة الطبية مطلوبة", description: "يتطلب التحليل قرار مهني صحي مخول." },
     AI_REPORT_AVAILABLE: { title: "التقرير متاح", description: "أصبح التقرير المعتمد متاحا الآن." },
+    REPORT_FINALIZED: { title: "تم إنهاء تقرير", description: "تم للتو إنهاء تقرير يخص أحد مرضاك." },
     VERIFICATION_APPROVED: { title: "تمت الموافقة على التحقق", description: "تم التحقق من ملفك المهني." },
     VERIFICATION_REJECTED: { title: "التحقق يحتاج إلى استكمال", description: "طلب التحقق الخاص بك يحتاج إلى اهتمامك." },
     PAYMENT_APPROVED: { title: "تم اعتماد الدفع", description: "تمت مراجعة دفعتك واعتمادها." },

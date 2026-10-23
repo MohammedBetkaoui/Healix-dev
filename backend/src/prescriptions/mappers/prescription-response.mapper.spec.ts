@@ -61,7 +61,7 @@ describe('toPrescriptionResponse insurance', () => {
     const response = toPrescriptionResponse({
       ...base,
       insuranceSnapshot: null,
-    } as unknown as PrescriptionDetail);
+    });
     expect(response.insurance).toEqual({
       organization: null,
       maskedInsuredNumber: null,

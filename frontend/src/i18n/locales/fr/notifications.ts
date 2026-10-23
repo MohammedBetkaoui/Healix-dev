@@ -22,6 +22,7 @@ export const notificationsFr = {
     AI_ANALYSIS_FAILED: { title: "Analyse non aboutie", description: "L'analyse n'a pas pu être terminée." },
     AI_ANALYSIS_REQUIRES_DECISION: { title: "Validation médicale requise", description: "Une analyse nécessite la décision d'un professionnel autorisé." },
     AI_REPORT_AVAILABLE: { title: "Compte rendu disponible", description: "Le compte rendu validé est maintenant disponible." },
+    REPORT_FINALIZED: { title: "Rapport finalisé", description: "Un rapport concernant l'un de vos patients vient d'être finalisé." },
     VERIFICATION_APPROVED: { title: "Vérification approuvée", description: "Votre profil professionnel a été vérifié." },
     VERIFICATION_REJECTED: { title: "Vérification à compléter", description: "Votre demande de vérification nécessite votre attention." },
     PAYMENT_APPROVED: { title: "Paiement validé", description: "Votre paiement a été examiné et validé." },

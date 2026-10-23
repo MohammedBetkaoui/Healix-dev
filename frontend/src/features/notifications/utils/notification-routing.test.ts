@@ -12,8 +12,13 @@ describe("resolveNotificationDestination", () => {
     expect(resolveNotificationDestination(notification("APPOINTMENT"), "doctor")).toBe("/doctor/appointments?appointment=resource%201");
   });
   it("routes AI reports to the available destination for each account", () => {
-    expect(resolveNotificationDestination(notification("AI_REPORT", "run-1"), "establishment")).toBe("/establishment/reports?report=run-1");
+    expect(resolveNotificationDestination(notification("AI_REPORT", "run-1"), "establishment")).toBe("/establishment/reports");
     expect(resolveNotificationDestination(notification("AI_REPORT", "run-1"), "doctor")).toBe("/doctor/ai-analyses/runs/run-1");
+  });
+  it("opens a report finalized by someone else in the reports center of the account", () => {
+    const finalized = { ...notification("SYSTEM", ""), data: { reportId: "report 1" }, type: "REPORT_FINALIZED" };
+    expect(resolveNotificationDestination(finalized, "doctor")).toBe("/doctor/reports?report=report%201");
+    expect(resolveNotificationDestination(finalized, "establishment")).toBe("/establishment/reports?report=report%201");
   });
   it("does not invent a destination when the resource is absent", () => {
     expect(resolveNotificationDestination(notification("SYSTEM", ""), "doctor")).toBeNull();

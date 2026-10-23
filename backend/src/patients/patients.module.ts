@@ -23,6 +23,11 @@ import { PatientsService } from './patients.service';
     PatientAuditService,
   ],
   // Scope/consent checks, file storage and audit for the AI analysis runs.
-  exports: [PatientsService, PatientFileStorageService, PatientAuditService],
+  exports: [
+    PatientsService,
+    PatientFileStorageService,
+    PatientFileValidator,
+    PatientAuditService,
+  ],
 })
 export class PatientsModule {}

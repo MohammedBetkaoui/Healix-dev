@@ -125,7 +125,7 @@ export const doctorNavSections: DashboardNavSection[] = [
         labelKey: "dashboard.sidebar.doctor.lab",
       },
       {
-        href: "#reports",
+        href: "/doctor/reports",
         icon: FileBarChart,
         key: "reports",
         labelKey: "dashboard.sidebar.doctor.reports",

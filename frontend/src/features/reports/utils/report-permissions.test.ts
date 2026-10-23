@@ -1,17 +1,17 @@
-import { resolveReportCapabilities } from "./report-permissions";
+import { NO_REPORT_CAPABILITIES } from "./report-permissions";
 
-describe("report capabilities", () => {
-  it("keeps clinical document actions independent from the visual role", () => {
-    expect(resolveReportCapabilities(["REPORT_VIEW", "REPORT_DOWNLOAD"])).toEqual({
-      canAmendReports: false,
-      canCancelReports: false,
-      canCreateReports: false,
-      canDownloadReports: true,
-      canFinalizeReports: false,
-      canPrintReports: false,
-      canShareReports: false,
-      canViewReports: true,
-    });
+describe("report capabilities before the API answers", () => {
+  it("allow nothing: no action is shown on a right that was not granted", () => {
+    expect(Object.values(NO_REPORT_CAPABILITIES).every((granted) => granted === false)).toBe(true);
+    expect(Object.keys(NO_REPORT_CAPABILITIES).sort()).toEqual([
+      "canAmendReports",
+      "canCancelReports",
+      "canCreateReports",
+      "canDownloadReports",
+      "canFinalizeReports",
+      "canPrintReports",
+      "canShareReports",
+      "canViewReports",
+    ]);
   });
 });
-

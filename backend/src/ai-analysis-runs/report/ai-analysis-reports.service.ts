@@ -27,6 +27,7 @@ import { isPhysicianRole } from '../../common/utils/physician-name';
 import { PatientFileStorageService } from '../../patients/documents/patient-file-storage.service';
 import { PatientAuditService } from '../../patients/patient-audit.service';
 import { PatientsService } from '../../patients/patients.service';
+import { buildAiClinicalReport } from '../../reports/ai-clinical-report';
 import { PrismaService } from '../../prisma/prisma.service';
 import { NotificationProducerService } from '../../notifications/notification-producer.service';
 import {
@@ -97,10 +98,12 @@ const runForReport = {
       doctorProfile: { select: practiceSelect },
       establishment: { select: establishmentSelect },
       firstName: true,
+      firstNameAr: true,
       gender: true,
       hospitalRecordNumber: true,
       id: true,
       lastName: true,
+      lastNameAr: true,
       workspaceId: true,
       workspace: {
         select: {
@@ -462,16 +465,29 @@ export class AiAnalysisReportsService {
       });
 
       try {
-        const report = await this.prisma.aiAnalysisReport.create({
-          data: {
-            contentSha256,
-            filePath: localPath,
-            generatedById: user.sub,
-            reportNumber,
-            runId: run.id,
-            sha256,
-            sizeBytes: pdf.length,
-          },
+        // The report and its row in the clinical reports center are stored
+        // together: the center never misses a report, nor lists one that
+        // does not exist.
+        const report = await this.prisma.$transaction(async (transaction) => {
+          const created = await transaction.aiAnalysisReport.create({
+            data: {
+              contentSha256,
+              filePath: localPath,
+              generatedById: user.sub,
+              reportNumber,
+              runId: run.id,
+              sha256,
+              sizeBytes: pdf.length,
+            },
+          });
+          const clinicalReport = buildAiClinicalReport({
+            aiReport: created,
+            run,
+          });
+          if (clinicalReport) {
+            await transaction.clinicalReport.create({ data: clinicalReport });
+          }
+          return created;
         });
         await this.patientAuditService.log(
           user,
