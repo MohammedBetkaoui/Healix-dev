@@ -19,6 +19,7 @@ import {
   DEFAULT_THROTTLE_ANON_LIMIT,
 } from './common/guards/app-throttler.guard';
 import { DashboardModule } from './dashboard/dashboard.module';
+import { DicomModule } from './dicom/dicom.module';
 import { MessagingModule } from './messaging/messaging.module';
 import { NotificationsModule } from './notifications/notifications.module';
 import { PatientsModule } from './patients/patients.module';
@@ -50,6 +51,7 @@ import { WorkspaceModule } from './workspaces/workspace.module';
     PaymentsModule,
     VerificationModule,
     PatientsModule,
+    DicomModule,
     AiAnalysisRunsModule,
     AppointmentsModule,
     DashboardModule,

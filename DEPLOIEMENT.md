@@ -1,6 +1,6 @@
 # Déploiement Docker de HealixDz
 
-Cinq conteneurs applicatifs, plus celui des sauvegardes, décrits par
+Six conteneurs applicatifs, plus celui des sauvegardes, décrits par
 [`docker-compose.yml`](docker-compose.yml) :
 
 | Service | Image | Rôle | Réseaux | Ports publiés |
@@ -10,7 +10,8 @@ Cinq conteneurs applicatifs, plus celui des sauvegardes, décrits par
 | `backend` | [`backend/Dockerfile`](backend/Dockerfile) | API NestJS, migrations, PDF (Chromium) | edge, internal | aucun |
 | `mysql` | `mysql:8.4` | Base de données | internal | aucun |
 | `ai-service` | [`ai-service/Dockerfile`](ai-service/Dockerfile) | Inférence (PyTorch et TensorFlow, CPU) | internal | aucun |
-| `backup` | [`scripts/backup/Dockerfile`](scripts/backup/Dockerfile) | Sauvegarde nocturne de la base et des fichiers | internal | aucun |
+| `orthanc` | `orthancteam/orthanc:26.9.1` | Stockage des études DICOM et API DICOMweb (section 12) | internal | aucun |
+| `backup` | [`scripts/backup/Dockerfile`](scripts/backup/Dockerfile) | Sauvegarde nocturne de la base, des fichiers et du volume d'Orthanc | internal | aucun |
 
 - **Un seul domaine.** Tout passe par Caddy, sur `https://APP_DOMAIN` :
   `/api/*` va au backend, le reste au frontend. Le navigateur appelle donc
@@ -19,8 +20,8 @@ Cinq conteneurs applicatifs, plus celui des sauvegardes, décrits par
 - **Réseaux.**
   - `edge` (Caddy, frontend, backend) : le frontend n'a aucun accès à MySQL ni
     au service IA.
-  - `internal` (backend, MySQL, service IA) : `internal: true`, sans route
-    vers l'extérieur.
+  - `internal` (backend, MySQL, service IA, Orthanc) : `internal: true`, sans
+    route vers l'extérieur.
   - Le backend sort par `edge` (SMTP).
 - **Temps réel (messagerie).** Le navigateur ouvre une WebSocket sur
   `wss://APP_DOMAIN/api/realtime`. Caddy la relaie au backend comme le reste
@@ -36,6 +37,8 @@ Cinq conteneurs applicatifs, plus celui des sauvegardes, décrits par
     comptes rendus PDF, et les pièces jointes de la messagerie
     (`messaging/<conversation>/`, chiffrées ; une pièce jointe jamais
     envoyée est supprimée après 24 heures par une tâche horaire du backend) ;
+  - `healixdz_orthanc-data` : les études DICOM d'Orthanc, l'index (`index/`,
+    une base SQLite) et les fichiers (`storage/`) ;
   - `healixdz_caddy-data` et `healixdz_caddy-config` : certificats et état de
     Caddy.
 - **Fichiers montés depuis le dépôt ou l'hôte, en lecture seule :**
@@ -140,6 +143,10 @@ Chaque variable est commentée dans
   n'importe quelle adresse) ;
 - `MYSQL_PASSWORD` et `MYSQL_ROOT_PASSWORD` ;
 - les quatre secrets JWT et `AI_SERVICE_TOKEN` ;
+- `ORTHANC_USERNAME` et `ORTHANC_PASSWORD`, le compte du backend auprès
+  d'Orthanc : **24 caractères au moins**, lettres et chiffres uniquement
+  (`openssl rand -hex 24`) ; en production, le backend refuse de démarrer
+  avec un mot de passe plus court, absent ou par défaut ;
 - `MESSAGING_KEYS`, la clé de chiffrement des messages (ci-dessous) ;
 - en production, `SMTP_HOST`, `MAIL_FROM` et les identifiants SMTP.
 
@@ -427,7 +434,22 @@ dépose dans `BACKUP_DIR` (par défaut `./backups`) :
 | --- | --- |
 | `healixdz-db-<date UTC>.sql.gz[.age]` | la base, `mysqldump --single-transaction` (copie cohérente, sans bloquer l'application) |
 | `healixdz-files-<date UTC>.tar.gz[.age]` | le volume des fichiers patients (documents, masques, comptes rendus) et les pièces jointes de la messagerie (`messaging/`, déjà chiffrées par `MESSAGING_KEYS`) |
+| `healixdz-orthanc-<date UTC>.tar.gz[.age]` | le volume d'Orthanc : l'index SQLite (`index/`, archivé **en premier**) puis les fichiers DICOM (`storage/`) |
 | `….sha256` | l'empreinte SHA-256 de chaque archive, vérifiable avec `sha256sum -c` |
+
+**Cohérence de l'index d'Orthanc.** Le livre d'Orthanc prévient que la copie
+d'un index SQLite pendant qu'Orthanc y écrit peut être incohérente (Orthanc
+suppose être seul à l'utiliser), et le conteneur de sauvegarde ne peut pas
+l'arrêter. Deux précautions : l'index est archivé **avant** les fichiers
+(l'archive ne cite donc jamais un fichier qui lui manque : un fichier sans
+entrée est un simple orphelin) ; et si l'index change pendant la copie (ou
+si un journal SQLite montre une écriture en cours), la copie est refaite,
+trois fois au plus. Après trois échecs, l'archive est gardée avec
+l'avertissement `WARNING … may hold an inconsistent index` dans
+`docker compose logs backup` : refaites alors une sauvegarde hors d'un import.
+La nuit (02:30), personne n'importe : c'est le cas normal. Une copie à froid
+(`docker compose stop orthanc`, puis la sauvegarde, puis `start`) reste la
+seule garantie complète.
 
 Les archives de plus de `BACKUP_RETENTION_DAYS` jours (14) sont supprimées
 après chaque sauvegarde réussie. Une sauvegarde en échec rend le conteneur
@@ -498,12 +520,15 @@ dans `BACKUP_DIR`.
    docker compose up -d mysql
    ```
 
-2. Restaurez la base, puis les fichiers. Indiquez les noms des deux
-   archives d'une même sauvegarde :
+2. Restaurez la base, puis les fichiers, puis le volume d'Orthanc. Indiquez
+   les noms des trois archives d'une même sauvegarde (la troisième est
+   facultative : sans elle, le volume d'Orthanc n'est pas touché, ce qui
+   convient à une sauvegarde faite avant l'import DICOM) :
 
    ```bash
    docker compose --profile restore run --rm restore \
-     healixdz-db-20261010T023000Z.sql.gz healixdz-files-20261010T023000Z.tar.gz
+     healixdz-db-20261010T023000Z.sql.gz healixdz-files-20261010T023000Z.tar.gz \
+     healixdz-orthanc-20261010T023000Z.tar.gz
    ```
 
    Sauvegarde chiffrée : montez la clé privée pour cette seule commande.
@@ -511,16 +536,20 @@ dans `BACKUP_DIR`.
    ```bash
    docker compose --profile restore run --rm \
      -v /chemin/vers/healixdz-backup.key:/run/age/identity:ro \
-     restore healixdz-db-….sql.gz.age healixdz-files-….tar.gz.age
+     restore healixdz-db-….sql.gz.age healixdz-files-….tar.gz.age \
+     healixdz-orthanc-….tar.gz.age
    ```
 
    Le script ([`scripts/backup/restore.sh`](scripts/backup/restore.sh))
    procède ainsi :
    - il vérifie les empreintes SHA-256 et relit entièrement les deux archives
      (déchiffrées si besoin) **avant** d'écrire quoi que ce soit ;
-   - il s'arrête si la base a déjà des tables ou si le volume des fichiers
-     n'est pas vide ;
-   - il restaure ensuite la base, puis les fichiers.
+   - il s'arrête si la base a déjà des tables ou si un des volumes n'est pas
+     vide ;
+   - il restaure ensuite la base, puis les fichiers, puis le volume d'Orthanc.
+     Ce conteneur-là tourne en **root** (`user: "0:0"` dans le service
+     `restore`) : `tar` rend ainsi à chaque fichier son propriétaire d'origine
+     (utilisateur 1000 pour les fichiers patients, 999 pour Orthanc).
 3. Démarrez le reste de la pile ; le backend applique les migrations plus
    récentes que la sauvegarde, s'il y en a :
 
@@ -531,11 +560,13 @@ dans `BACKUP_DIR`.
 4. Vérifiez :
    - une connexion ;
    - l'ouverture d'un document patient ;
-   - le téléchargement d'un compte rendu PDF.
+   - le téléchargement d'un compte rendu PDF ;
+   - la liste des études DICOM d'un dossier (section 12) et l'aperçu d'une
+     coupe.
 
 **Remplacer des données existantes** (retour en arrière sur le même
 serveur) :
-1. Arrêtez ce qui écrit : `docker compose stop caddy frontend backend backup`.
+1. Arrêtez ce qui écrit : `docker compose stop caddy frontend backend orthanc backup`.
 2. Relancez la commande de restauration avec `--force` juste après `restore`.
    Les tables de la base et le contenu du volume sont alors remplacés.
 3. Faites une sauvegarde de l'état actuel avant, si elle peut servir.
@@ -627,7 +658,8 @@ ci-dessus). Les comptes suspendus n'en reçoivent pas.
       jamais versionné.
 - [ ] Tous les secrets sont générés au hasard (64 caractères) et différents
       les uns des autres : `MYSQL_PASSWORD`, `MYSQL_ROOT_PASSWORD`, les quatre
-      secrets JWT, `AI_SERVICE_TOKEN`.
+      secrets JWT, `AI_SERVICE_TOKEN` ; `ORTHANC_PASSWORD` fait au moins
+      24 caractères.
 - [ ] `MESSAGING_KEYS` est généré (`openssl rand -base64 32`), et une copie
       est rangée hors du serveur, à part des sauvegardes (section 8).
 - [ ] `ADMIN_GATE_PATH` est changé pour un chemin difficile à deviner ; si
@@ -656,7 +688,130 @@ ci-dessus). Les comptes suspendus n'en reçoivent pas.
 - [ ] **Une restauration a été testée** sur une autre machine, ou une pile
       vide (section 8), avec connexion et ouverture d'un document.
 
-## 12. Ce qui a été vérifié, et ce qui ne l'a pas été
+## 12. Imagerie DICOM (Orthanc)
+
+Les études DICOM (IRM, scanner...) d'un dossier patient sont importées dans
+**Orthanc**, un serveur DICOM ; HealixDz garde, pour chaque étude, une ligne
+(`dicom_studies`) qui dit quel établissement ou cabinet, et quel patient, y a
+accès.
+
+- **Orthanc** : image `orthancteam/orthanc:26.9.1` (version exacte ; jamais
+  `latest`, ni la variante `-full`, inutile ici). Variables de l'image
+  ([documentation](https://orthanc.uclouvain.be/book/users/docker-orthancteam.html)) :
+  `ORTHANC__` + le nom de l'option en majuscules séparées par `_`, `__` entre
+  deux niveaux ; `*_PLUGIN_ENABLED` active un plugin.
+- **Réseau.** Réseau `internal` seul, aucun port publié, **aucun port DICOM**
+  (`DicomServerEnabled=false` : rien n'écoute que l'API HTTP). Les interfaces
+  web d'Orthanc sont désactivées (Explorer 1 et 2, WebDAV). Seul le backend
+  lui parle.
+- **Authentification.** HTTP, avec un seul compte (`ORTHANC_USERNAME`,
+  `ORTHANC_PASSWORD` du `.env`). Au moins 24 caractères, lettres et chiffres
+  uniquement (le couple est écrit dans un objet JSON) ; en production, le
+  backend refuse de démarrer sinon, comme pour les secrets JWT. Pour le
+  changer : modifier `.env`, puis `docker compose up -d orthanc backend`.
+- **Plugin DICOMweb** actif, avec `PublicRoot=/api/dicomweb/` : l'API que la
+  visionneuse lira par le backend. Il n'est joignable par aucun navigateur.
+- **Volume** `healixdz_orthanc-data` monté sur `/var/lib/orthanc` : `index/`
+  (SQLite) et `storage/` (fichiers). Le processus tourne sous l'utilisateur
+  `orthanc` de l'image (999). Sauvegardé chaque nuit (section 8).
+- **Santé.** Sonde de l'image (`/probes/test-aliveness.py`, qui appelle
+  `/changes`) ; le backend attend `healthy`. Orthanc arrêté ou injoignable :
+  les routes DICOM répondent 502 `DICOM_STORE_UNAVAILABLE`, le reste de
+  l'application fonctionne.
+
+**Import** (`POST /api/dicom/studies/upload`, formulaire multipart : le
+champ `files` et `patientId`). Médecins et établissements, abonnement actif
+requis (lecture et liste restent ouvertes en lecture seule).
+
+| Limite | Valeur |
+| --- | --- |
+| Envoyé en une fois | 512 Mio (Caddy lève sa limite de 21 Mio pour cette seule route) |
+| Fichiers par import | 2 000 |
+| ZIP décompressé | 2 Gio (taille déclarée par l'archive, vérifiée à la lecture) |
+| Un fichier DICOM | 512 Mio |
+
+- **Fichiers .dcm** (plusieurs) **ou un seul .zip**, jamais les deux.
+- Chaque fichier doit porter `DICM` à l'octet 128, sinon il est **ignoré** et
+  compté dans `skipped`. Les valides partent un à un vers Orthanc.
+- Les fichiers reçus attendent dans un dossier temporaire du conteneur
+  backend (`/tmp`, jusqu'à 512 Mio), supprimé à la fin de la requête, qu'elle
+  réussisse ou non. Un ZIP est lu entrée par entrée, **jamais extrait sur le
+  disque**, et **refusé en entier**, avant tout envoi, s'il contient : un chemin absolu, un segment `..` ou une
+  barre oblique inverse ; un ZIP imbriqué (par son nom, ou par son contenu) ;
+  une entrée chiffrée ; plus de 2 000 fichiers ; plus de 2 Gio décompressés ;
+  ou s'il est corrompu : 422 `DICOM_ZIP_UNSAFE` et la raison.
+- Un ZIP peut contenir **plusieurs études** : une ligne chacune.
+- Aucun fichier valide : 422 `DICOM_NO_VALID_FILE`.
+- **Identité.** Le nom, la date de naissance et le sexe du fichier DICOM sont
+  comparés à ceux du dossier. Une différence est un **avertissement** conservé
+  avec l'étude (en orange dans l'interface), jamais un refus : un en-tête est
+  souvent saisi à la main, orthographié autrement, ou anonymisé.
+- Une étude déjà dans le dossier d'**un autre patient du même espace** n'est
+  pas rattachée à celui-ci (avertissement `STUDY_ATTACHED_TO_ANOTHER_PATIENT`).
+  Une même étude peut en revanche être importée par **deux espaces** : deux
+  lignes, une seule copie dans Orthanc.
+- Si Orthanc échoue en cours d'import, les études qu'il avait commencé à
+  créer, et que nulle ligne ne référence, sont supprimées d'Orthanc.
+- Journal d'audit : `DICOM_STUDY_IMPORTED`, `DICOM_STUDY_DELETED`.
+
+**Suppression** (`DELETE /api/dicom/studies/:id`). La ligne disparaît ; l'étude
+est supprimée d'Orthanc **seulement si aucune autre ligne** (un autre espace)
+ne la référence. Les documents et analyses faits à partir de ses coupes ne
+sont pas touchés.
+
+**Isolation.** Une étude, ou une coupe, d'un autre espace répond 404, comme
+une étude inconnue. Les identifiants d'Orthanc reçus du navigateur sont
+vérifiés (cinq groupes de 8 chiffres hexadécimaux) avant d'entrer dans une URL.
+
+**Montée de version d'Orthanc.** Changez l'étiquette dans
+`docker-compose.yml` après lecture des notes de version, et faites une
+sauvegarde juste avant (section 9) : Orthanc peut migrer son index au
+démarrage.
+
+## 13. Ce qui a été vérifié, et ce qui ne l'a pas été
+
+**Imagerie DICOM, import (24 octobre 2026, sans Docker).**
+
+Vérifié :
+- `docker compose config` (Compose v5.6.0), seul et avec
+  `docker-compose.dev.yml` : valide ; `orthanc` n'est que sur `internal`, sans
+  port publié ; l'absence de `ORTHANC_PASSWORD` est refusée.
+- Caddy 2.11.7 : `caddy validate` passe pour les deux Caddyfile ; `caddy
+  adapt` montre deux `request_body` exclusifs : 512 Mio pour
+  `/api/dicom/studies/upload`, 21 Mio pour tout le reste.
+- Les routes d'Orthanc utilisées existent dans son OpenAPI (`orthanc-openapi.json`,
+  version 1.13.0 de l'API) : `POST /instances`, `GET /studies/{id}`,
+  `/series?expand`, `/instances?expand&requested-tags`,
+  `/instances/{id}/rendered` (`window-center`, `window-width`),
+  `/studies/{id}/statistics`, `DELETE /studies/{id}`.
+- Sauvegarde et restauration du volume d'Orthanc, scripts exécutés hors
+  conteneur (Git Bash, outils MySQL simulés) : l'index est archivé avant les
+  fichiers ; la copie est refaite quand l'index change (ou qu'un journal
+  existe) et l'avertissement s'affiche après trois échecs ; restauration dans
+  un volume vide, refus d'un volume non vide sans `--force`, remplacement avec
+  `--force`, volume d'Orthanc intact avec deux archives seulement, archive
+  altérée refusée.
+- Tests jest du backend (1 400, dont les tests d'intégration sur MariaDB) :
+  ZIP dangereux (`../`, chemin absolu, barre oblique inverse, ZIP imbriqué par
+  son nom et par son contenu, trop de fichiers, taille décompressée, en-tête
+  qui ment sur la taille, entrée chiffrée), fichiers non DICOM ignorés,
+  avertissement d'identité, ZIP à deux études, étude partagée entre deux
+  espaces, suppression qui épargne Orthanc, 404 entre espaces, refus sans
+  abonnement actif, démarrage refusé sans mot de passe d'au moins 24
+  caractères.
+
+**Pas vérifié** (à faire sur une machine équipée de Docker) :
+- le démarrage d'Orthanc avec ces variables (noms vérifiés dans la
+  documentation et dans le dépôt de l'image, mais jamais exécutés), sa santé,
+  et le fonctionnement sous l'utilisateur 999 sur un volume neuf ;
+- que `AllowedHosts` (`orthanc`, `orthanc:8042`) convient au plugin DICOMweb
+  quand le backend l'appelle ;
+- la sauvegarde et la restauration du volume d'Orthanc **dans les
+  conteneurs** : lecture des fichiers d'Orthanc par l'utilisateur 1000 (ils
+  doivent être lisibles par tous), restauration en root avec les
+  propriétaires d'origine ;
+- un import réel de bout en bout (un fichier envoyé à un vrai Orthanc).
+
 
 **Temps réel (17 octobre 2026, sans Docker).** Vérifié par les tests
 d'intégration du backend : un vrai serveur, de vrais clients

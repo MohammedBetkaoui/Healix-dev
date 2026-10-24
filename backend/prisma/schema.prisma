@@ -487,6 +487,7 @@ model User {
   reviewedPayments               Payment[]                 @relation("PaymentReviewedBy")
   recordedPatientConsents        PatientConsent[]
   uploadedPatientDocuments       PatientDocument[]
+  uploadedDicomStudies           DicomStudy[]
   requestedPatientAiAnalyses     PatientAiAnalysis[]
   requestedAiAnalysisRuns        AiAnalysisRun[]           @relation("AiAnalysisRunRequestedBy")
   decidedAiAnalysisRuns          AiAnalysisRun[]           @relation("AiAnalysisRunDecidedBy")
@@ -618,6 +619,7 @@ model Patient {
   clinicalNotes   PatientClinicalNote[]
   prescriptions   Prescription[]
   clinicalReports ClinicalReport[]
+  dicomStudies    DicomStudy[]
 
   @@index([establishmentId])
   @@index([doctorProfileId])
@@ -642,6 +644,7 @@ model Workspace {
   notifications      Notification[]
   prescriptions      Prescription[]
   clinicalReports    ClinicalReport[]
+  dicomStudies       DicomStudy[]
 
   @@index([type])
   @@index([establishmentId])
@@ -739,6 +742,40 @@ model PatientDocument {
 
   @@index([patientId])
   @@map("patient_documents")
+}
+
+// A DICOM study imported into a patient record. The images live in Orthanc
+// (orthancStudyId); this row says which workspace and patient may see them. A
+// study may be attached to two workspaces (two rows, the same orthancStudyId):
+// Orthanc deletes it only when the last row is gone. identityWarnings lists
+// what the DICOM header (name, birth date, sex) does not match in the patient
+// record; it never blocks an import.
+model DicomStudy {
+  id               String    @id @default(cuid())
+  workspaceId      String    @map("workspace_id")
+  patientId        String    @map("patient_id")
+  orthancStudyId   String    @map("orthanc_study_id") @db.VarChar(64)
+  studyInstanceUid String    @map("study_instance_uid") @db.VarChar(64)
+  studyDate        DateTime? @map("study_date") @db.Date
+  studyDescription String?   @map("study_description") @db.VarChar(255)
+  // ["MR", "CT"...]: the modalities of the series.
+  modalities       Json
+  seriesCount      Int       @map("series_count")
+  instancesCount   Int       @map("instances_count")
+  sizeBytes        BigInt    @map("size_bytes")
+  // [{ field: "PatientName" | "PatientBirthDate" | "PatientSex", dicomValue }]
+  identityWarnings Json      @map("identity_warnings")
+  uploadedById     String    @map("uploaded_by_id")
+  createdAt        DateTime  @default(now()) @map("created_at")
+
+  workspace  Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  patient    Patient   @relation(fields: [patientId], references: [id], onDelete: Cascade)
+  uploadedBy User      @relation(fields: [uploadedById], references: [id], onDelete: Restrict)
+
+  @@unique([workspaceId, studyInstanceUid])
+  @@index([patientId])
+  @@index([orthancStudyId])
+  @@map("dicom_studies")
 }
 
 // This step only lays down the structure that will receive AI model output

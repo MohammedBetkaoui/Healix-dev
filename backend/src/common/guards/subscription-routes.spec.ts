@@ -3,6 +3,7 @@ import { GUARDS_METADATA, METHOD_METADATA } from '@nestjs/common/constants';
 
 import { AiAnalysisRunsController } from '../../ai-analysis-runs/ai-analysis-runs.controller';
 import { AppointmentsController } from '../../appointments/appointments.controller';
+import { DicomController } from '../../dicom/dicom.controller';
 import { DoctorsController } from '../../doctors/doctors.controller';
 import { PatientsController } from '../../patients/patients.controller';
 import { PrescriptionsController } from '../../prescriptions/prescriptions.controller';
@@ -62,6 +63,12 @@ const GATED: [string, Controller, string[]][] = [
     'AiAnalysisRunsController',
     AiAnalysisRunsController as unknown as Controller,
     ['create'],
+  ],
+  [
+    'DicomController',
+    DicomController as unknown as Controller,
+    // importing a study, deleting one; reading the studies and their slices stays open
+    ['remove', 'upload'],
   ],
   [
     'DoctorsController',

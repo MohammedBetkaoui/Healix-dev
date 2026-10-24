@@ -33,13 +33,15 @@ COPY backup.sh /usr/local/bin/healixdz-backup
 COPY restore.sh /usr/local/bin/healixdz-restore
 COPY scheduler.sh /usr/local/bin/healixdz-backup-scheduler
 # A Windows checkout may hold the scripts with CRLF line endings. The
-# patient files folder belongs to uid 1000 (the backend's user): an empty
-# volume first mounted here starts with that owner, so a restore into a
-# brand-new stack can write it.
+# patient files folder belongs to uid 1000 (the backend's user), the Orthanc
+# one to uid 999 (the "orthanc" user of its image): an empty volume first
+# mounted here starts with that owner, so Orthanc can write to a volume this
+# container created first, and a restore into a brand-new stack can write both.
 RUN sed -i 's/\r$//' /usr/local/bin/healixdz-* \
  && chmod 0755 /usr/local/bin/healixdz-* \
- && mkdir -p /data/patient-files /backups \
- && chown 1000:1000 /data/patient-files /backups
+ && mkdir -p /data/patient-files /data/orthanc /backups \
+ && chown 1000:1000 /data/patient-files /backups \
+ && chown 999:999 /data/orthanc
 # Same uid as the backend, which owns the patient files.
 USER 1000:1000
 HEALTHCHECK --interval=60s --timeout=5s --start-period=30s --retries=1 \

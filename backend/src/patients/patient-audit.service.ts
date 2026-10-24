@@ -28,6 +28,10 @@ const entityTypeByAction: Record<string, string> = {
   CASE_CONVERSATION_CREATED: 'Conversation',
   MESSAGES_VIEWED: 'Conversation',
   CASE_NOTE_FILED: 'PatientClinicalNote',
+  // DICOM studies of the record (entityId: the DicomStudy; never an image).
+  DICOM_STUDY_IMPORTED: 'DicomStudy',
+  DICOM_STUDY_DELETED: 'DicomStudy',
+  DICOM_STUDY_VIEWED: 'DicomStudy',
 };
 
 @Injectable()

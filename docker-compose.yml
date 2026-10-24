@@ -1,6 +1,6 @@
 # HealixDz: Caddy (HTTPS reverse proxy), frontend (Next.js), backend
-# (NestJS + Chromium), MySQL and the AI service (FastAPI, PyTorch CPU).
-# See DEPLOIEMENT.md.
+# (NestJS + Chromium), MySQL, the AI service (FastAPI, PyTorch CPU) and Orthanc
+# (DICOM store). See DEPLOIEMENT.md.
 #
 # One public domain: https://<APP_DOMAIN>/api/* goes to the backend,
 # everything else to the frontend. Caddy is the only container that publishes
@@ -100,6 +100,8 @@ services:
         condition: service_healthy
       ai-service:
         condition: service_healthy
+      orthanc:
+        condition: service_healthy
     environment:
       NODE_ENV: production
       PORT: "3001"
@@ -146,6 +148,11 @@ services:
       AI_CARDIO_SEG_EVALUATION_PATH: /app/evaluation/cardio-seg-latest.json
       AI_CARDIO_SEG_MODEL_CARD_PATH: /app/model-cards/cardio-seg-acdc-unet-effb4.json
       UPLOAD_ROOT: /app/uploads
+      # The DICOM store, on the internal network. In production the backend
+      # refuses to start when the password is shorter than 24 characters.
+      ORTHANC_URL: http://orthanc:8042
+      ORTHANC_USERNAME: ${ORTHANC_USERNAME:?ORTHANC_USERNAME manque dans .env}
+      ORTHANC_PASSWORD: ${ORTHANC_PASSWORD:?ORTHANC_PASSWORD manque dans .env}
       SMTP_HOST: ${SMTP_HOST:-}
       SMTP_PORT: ${SMTP_PORT:-587}
       SMTP_SECURE: ${SMTP_SECURE:-false}
@@ -169,7 +176,7 @@ services:
         target: /app/model-cards
         read_only: true
     # Edge: reached by Caddy and the frontend, and its way out (SMTP).
-    # Internal: MySQL and the AI service. No published port.
+    # Internal: MySQL, the AI service and Orthanc. No published port.
     networks:
       - edge
       - internal
@@ -230,10 +237,59 @@ services:
       retries: 5
       start_period: 60s
 
+  # The DICOM store: the studies imported into the patient records, and the
+  # DICOMweb API the viewer reads through the backend's authenticated proxy.
+  # Internal network only, no published port. The DICOM server (port 4242) is
+  # off, so a study enters by the backend's import route alone; the web
+  # interfaces of Orthanc are off too. Every setting below is an environment
+  # variable of the image (https://orthanc.uclouvain.be/book/users/docker-orthancteam.html):
+  # ORTHANC__ + the name of the option in upper snake case, "__" between two
+  # levels; *_PLUGIN_ENABLED switches a plugin.
+  orthanc:
+    image: orthancteam/orthanc:26.9.1
+    restart: unless-stopped
+    # "orthanc" (uid 999) of the image, which owns /var/lib/orthanc: by
+    # number, for runAsNonRoot checks.
+    user: "999:999"
+    environment:
+      # HTTP authentication: the backend's account only. Letters and digits
+      # (the pair is written in a JSON object).
+      ORTHANC__AUTHENTICATION_ENABLED: "true"
+      ORTHANC__REMOTE_ACCESS_ALLOWED: "true"
+      ORTHANC__REGISTERED_USERS: '{"${ORTHANC_USERNAME:?ORTHANC_USERNAME manque dans .env}": "${ORTHANC_PASSWORD:?ORTHANC_PASSWORD manque dans .env}"}'
+      # Nothing listens but the HTTP API: no DICOM port, no web interface
+      # (Orthanc Explorer 1 and 2), no WebDAV.
+      ORTHANC__DICOM_SERVER_ENABLED: "false"
+      ORTHANC__ORTHANC_EXPLORER_ENABLED: "false"
+      ORTHANC__WEB_DAV_ENABLED: "false"
+      ORTHANC_EXPLORER_2_ENABLED: "false"
+      # The index (SQLite) and the DICOM files in two folders of one volume:
+      # the backup archives the index first (see DEPLOIEMENT.md, section 8).
+      ORTHANC__INDEX_DIRECTORY: /var/lib/orthanc/index
+      ORTHANC__STORAGE_DIRECTORY: /var/lib/orthanc/storage
+      # DICOMweb, read through the backend at /api/dicomweb/ (the base path of
+      # the URLs Orthanc writes into its answers). The host of those URLs is
+      # the one the backend calls; the viewer rewrites it (viewer/app-config.js).
+      DICOM_WEB_PLUGIN_ENABLED: "true"
+      ORTHANC__DICOM_WEB__PUBLIC_ROOT: /api/dicomweb/
+      ORTHANC__DICOM_WEB__ALLOWED_HOSTS: '["orthanc", "orthanc:8042"]'
+    volumes:
+      - orthanc-data:/var/lib/orthanc
+    networks:
+      - internal
+    healthcheck:
+      # The probe of the image: calls /changes from inside, with the account
+      # of the configuration.
+      test: ["CMD", "python3", "/probes/test-aliveness.py"]
+      interval: 15s
+      timeout: 10s
+      retries: 8
+      start_period: 40s
+
   # Nightly backup at BACKUP_TIME: the database (mysqldump --single-transaction,
-  # gzip) and the patient files (tar.gz), timestamped, each with its SHA-256,
-  # in BACKUP_DIR on the host; kept BACKUP_RETENTION_DAYS days; encrypted with
-  # age when BACKUP_AGE_RECIPIENT is set. One backup now:
+  # gzip), the patient files and the Orthanc volume (tar.gz), timestamped, each
+  # with its SHA-256, in BACKUP_DIR on the host; kept BACKUP_RETENTION_DAYS
+  # days; encrypted with age when BACKUP_AGE_RECIPIENT is set. One backup now:
   #   docker compose exec backup healixdz-backup
   backup:
     build: ./scripts/backup
@@ -253,6 +309,7 @@ services:
       BACKUP_AGE_RECIPIENT: ${BACKUP_AGE_RECIPIENT:-}
     volumes:
       - patient-files:/data/patient-files:ro
+      - orthanc-data:/data/orthanc:ro
       - ${BACKUP_DIR:-./backups}:/backups
     # The MySQL image declares a data volume this container never uses.
     tmpfs:
@@ -260,13 +317,17 @@ services:
     networks:
       - internal
 
-  # One-off restore of a backup (database, then patient files), into an
-  # empty stack: see DEPLOIEMENT.md.
-  #   docker compose --profile restore run --rm restore <db archive> <files archive>
+  # One-off restore of a backup (database, patient files, Orthanc volume), into
+  # an empty stack: see DEPLOIEMENT.md.
+  #   docker compose --profile restore run --rm restore <db archive> <files archive> <orthanc archive>
   restore:
     image: healixdz-backup:latest
     profiles:
       - restore
+    # The two volumes belong to different users (uid 1000 for the patient
+    # files, uid 999 for Orthanc): as root, tar gives each file back the owner
+    # recorded in the archive. Nothing else runs in this container.
+    user: "0:0"
     depends_on:
       mysql:
         condition: service_healthy
@@ -276,6 +337,7 @@ services:
       BACKUP_AGE_IDENTITY_FILE: /run/age/identity
     volumes:
       - patient-files:/data/patient-files
+      - orthanc-data:/data/orthanc
       - ${BACKUP_DIR:-./backups}:/backups:ro
     tmpfs:
       - /var/lib/mysql
@@ -310,6 +372,7 @@ services:
 volumes:
   mysql-data:
   patient-files:
+  orthanc-data:
   caddy-data:
   caddy-config:
 
@@ -321,6 +384,6 @@ networks:
       config:
         - subnet: ${EDGE_SUBNET:-172.30.0.0/24}
           ip_range: ${EDGE_IP_RANGE:-172.30.0.128/25}
-  # Backend, MySQL and the AI service. No route to the outside.
+  # Backend, MySQL, the AI service and Orthanc. No route to the outside.
   internal:
     internal: true

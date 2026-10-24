@@ -7,8 +7,18 @@ encode zstd gzip
 
 # Largest accepted upload: 20 MiB per file (patient documents, images sent to
 # the AI service), plus the multipart envelope. The backend checks each file
-# again.
-request_body {
+# again. One exception: the import of a DICOM study (several .dcm files or one
+# ZIP), up to 512 MiB, on that route only. request_body comes before the
+# handle blocks in Caddy's directive order, so the two limits are chosen here,
+# each request getting exactly one of them.
+@dicom_upload path /api/dicom/studies/upload
+@not_dicom_upload {
+	not path /api/dicom/studies/upload
+}
+request_body @dicom_upload {
+	max_size 512MiB
+}
+request_body @not_dicom_upload {
 	max_size 21MiB
 }
 
