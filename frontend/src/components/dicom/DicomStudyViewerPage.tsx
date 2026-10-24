@@ -22,6 +22,8 @@ import { useSessionKeepAlive } from "@/lib/auth/use-session-keep-alive";
 import { getAccountInitials } from "@/lib/format/get-account-initials";
 import { useStoredLocale, useTranslation } from "@/lib/i18n";
 
+import { DicomAnalysisPanel } from "./DicomAnalysisPanel";
+
 type DicomStudyViewerPageProps = {
   accountType: "DOCTOR" | "ESTABLISHMENT";
   patientId: string;
@@ -128,6 +130,8 @@ export function DicomStudyViewerPage({ accountType, patientId, studyId }: DicomS
           src={buildViewerUrl(study.studyInstanceUid)}
           title={t("dicom.viewer.frameTitle")}
         />
+
+        <DicomAnalysisPanel accountType={accountType} patientId={patientId} study={study} t={t} />
       </>
     );
   };

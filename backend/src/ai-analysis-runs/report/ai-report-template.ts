@@ -230,6 +230,8 @@ export type ReportInput = {
     width: number | null;
     height: number | null;
     checksum: string | null;
+    /** The slice of a DICOM study the document was made from, else null. */
+    dicomSlice?: DicomSlice | null;
   };
   mask: { data: Buffer; sha256: string } | null;
   /** Colour overlay of a nuclei segmentation. */
@@ -393,6 +395,33 @@ function row(label: string, value: string): string {
   return `<tr><th scope="row">${escapeHtml(label)}</th><td>${value}</td></tr>`;
 }
 
+/** The slice of a DICOM study an analysis was made on: "Série 3, coupe n° 12". */
+export type DicomSlice = {
+  instanceNumber: number | null;
+  seriesNumber: number | null;
+};
+
+export function formatDicomSlice(slice: DicomSlice): string {
+  const series =
+    slice.seriesNumber === null ? 'sans numéro' : String(slice.seriesNumber);
+  const instance =
+    slice.instanceNumber === null
+      ? 'sans numéro'
+      : String(slice.instanceNumber);
+  return `Série ${series}, coupe n° ${instance}`;
+}
+
+// The row under "Document analysé": only for a document made from a slice of a
+// DICOM study.
+function sliceRow(sourceDocument: ReportInput['sourceDocument']): string {
+  return sourceDocument.dicomSlice
+    ? row(
+        'Coupe DICOM',
+        escapeHtml(formatDicomSlice(sourceDocument.dicomSlice)),
+      )
+    : '';
+}
+
 function identification(input: ReportInput): string {
   const { patient, run } = input;
   const recordRow = patient.hospitalRecordNumber
@@ -461,6 +490,7 @@ function technique(input: ReportInput): string {
   <h2>Technique</h2>
   <table class="facts">
     ${row('Document analysé', escapeHtml(sourceDocument.originalName))}
+    ${sliceRow(sourceDocument)}
     ${row("Date d'import", formatDateTime(sourceDocument.createdAt))}
     ${row('Dimensions', dimensions)}
     ${row("Chaîne d'analyse", 'Classification EfficientNet-B4, puis segmentation U-Net si méningiome ou adénome hypophysaire')}
@@ -1135,6 +1165,7 @@ function cardioSegTechnique(input: ReportInput): string {
   <h2>Technique</h2>
   <table class="facts">
     ${row('Document analysé', escapeHtml(sourceDocument.originalName))}
+    ${sliceRow(sourceDocument)}
     ${row("Date d'import", formatDateTime(sourceDocument.createdAt))}
     ${row('Coupe', `${seg?.source === 'dicom' ? 'DICOM mono-image' : 'Image PNG ou JPEG'}, ${dimensions} (déclarée coupe d’IRM ciné en petit axe lors de la demande)`)}
     ${row('Espacement des pixels', spacing)}
@@ -1380,6 +1411,11 @@ export function buildReportDocument(input: ReportInput): ReportDocument {
             input.sourceDocument.checksum ??
             createSha256Checksum(input.sourceDocument.data),
           createdAt: input.sourceDocument.createdAt,
+          // Present only for a slice of a DICOM study: the reports made before
+          // keep the content they were certified with.
+          ...(input.sourceDocument.dicomSlice
+            ? { dicomSlice: input.sourceDocument.dicomSlice }
+            : {}),
           height: input.sourceDocument.height,
           name: input.sourceDocument.originalName,
           width: input.sourceDocument.width,

@@ -22,6 +22,7 @@ import {
 import { useAiAnalysisRuns } from "@/features/ai-analyses/hooks/use-ai-analysis-runs";
 import { useAiTimeline } from "@/features/ai-analyses/hooks/use-ai-timeline";
 import { type Locale } from "@/i18n";
+import { formatDicomSlice } from "@/features/dicom/dicom-analysis";
 import { type TranslationFunction } from "@/lib/i18n";
 import { cn } from "@/lib/utils";
 
@@ -219,7 +220,10 @@ function EvolutionTable({ items, locale, measure, t }: { items: TimelineItem[]; 
                     )}
                   </td>
                   <td className="px-4 py-3 text-[var(--ink-soft)]">{item.decisionStatus ? t(`aiAnalyses.decision.statuses.${item.decisionStatus}`) : t("aiAnalyses.evolution.table.none")}</td>
-                  <td className="px-4 py-3 text-[var(--ink-soft)]">{t(`aiAnalyses.evolution.sources.${item.source}`)}</td>
+                  <td className="px-4 py-3 text-[var(--ink-soft)]">
+                    {t(`aiAnalyses.evolution.sources.${item.source}`)}
+                    {item.slice ? <span className="block text-xs" data-slice="true">{formatDicomSlice(item.slice, t)}</span> : null}
+                  </td>
                 </tr>
               );
             })}

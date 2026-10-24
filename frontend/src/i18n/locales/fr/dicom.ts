@@ -1,4 +1,33 @@
 export const dicomFr = {
+  analysis: {
+    chain: "Chaîne d'analyse",
+    consentMissing:
+      "Le consentement « Analyse IA diagnostique » de ce patient n'est pas signé : l'analyse est impossible.",
+    error: "Impossible de lancer l'analyse de cette coupe.",
+    launch: "Analyser cette coupe",
+    launching: "Analyse en cours… (une minute au plus)",
+    noNumber: "sans numéro",
+    noSeries:
+      "Cette étude ne contient aucune coupe d'IRM analysable : seules les images simples d'une série de modalité MR le sont.",
+    openConsents: "Ouvrir les consentements du dossier",
+    pipelineHints: {
+      brain: "Classification en 4 classes de la coupe, puis segmentation d'un méningiome ou d'une tumeur hypophysaire.",
+      "cardio-seg-mri": "Segmentation du ventricule gauche, du ventricule droit et du myocarde sur une coupe en petit axe.",
+    },
+    pipelineRequired: "Choisissez une chaîne d'analyse.",
+    previewAlt: "Aperçu de la coupe {position} sur {total}",
+    previewError: "Aperçu indisponible.",
+    previewLoading: "Chargement de l'aperçu…",
+    seriesLabel: "Série",
+    seriesOption: "Série {number} — {description} ({count} coupes)",
+    seriesOptionPlain: "Série {number} ({count} coupes)",
+    slice: "Série {series}, coupe n° {instance}",
+    sliceCounter: "Coupe {position} sur {total}",
+    sliderLabel: "Choisir la coupe",
+    subtitle:
+      "Choisissez une coupe d'IRM de cette étude. Elle est enregistrée dans le dossier comme document, puis analysée comme une image importée : consentement, quota et décision du médecin s'appliquent.",
+    title: "Analyser une coupe",
+  },
   delete: {
     body: "L'étude est retirée de ce dossier et ses images sont supprimées du serveur d'imagerie, sauf si un autre espace la détient encore. Les documents et analyses déjà faits à partir de ses coupes ne sont pas touchés.",
     cancel: "Annuler",
@@ -7,7 +36,13 @@ export const dicomFr = {
     title: "Supprimer cette étude DICOM ?",
   },
   errors: {
+    DICOM_MULTIFRAME_NOT_SUPPORTED:
+      "Cette image DICOM contient plusieurs images ({frames}) : choisissez une coupe d'une série d'images simples.",
     DICOM_NO_VALID_FILE: "Aucun fichier DICOM valide n'a été trouvé ({skipped} ignoré(s)).",
+    DICOM_PIPELINE_NOT_SUPPORTED: {
+      MODALITY: "Seule une coupe d'IRM (modalité MR) peut être analysée.",
+      PIPELINE: "Cette chaîne d'analyse ne lit pas une coupe DICOM : seules l'analyse cérébrale et la segmentation cardiaque le font.",
+    },
     DICOM_STORE_UNAVAILABLE: "Le serveur d'imagerie ne répond pas. Réessayez dans un instant.",
     DICOM_UPLOAD_INVALID: "Envoyez des fichiers DICOM, ou une seule archive .zip (2 000 fichiers et 512 Mo au plus).",
     DICOM_ZIP_UNSAFE: {

@@ -708,3 +708,93 @@ describe('the result changing', () => {
     );
   });
 });
+
+describe('the slice of a DICOM study a run was made on', () => {
+  const dicomRun = (sourceDocument: Partial<TimelineRun['sourceDocument']>) =>
+    run({
+      sourceDocument: {
+        documentType: 'DICOM',
+        mimeType: 'application/dicom',
+        originalName: 'serie-3-coupe-12.dcm',
+        ...sourceDocument,
+      },
+    });
+
+  it('is named by its series and its slice number', () => {
+    const timeline = buildAiTimeline('patient-1', 'brain', [
+      dicomRun({
+        dicomStudyId: 'study-1',
+        instanceNumber: 12,
+        seriesNumber: 3,
+        sopInstanceUid: '1.2.3',
+      }),
+    ]);
+
+    expect(timeline.items[0].slice).toEqual({
+      instanceNumber: 12,
+      seriesNumber: 3,
+    });
+  });
+
+  it('is still named once the study is deleted (the document keeps the numbers)', () => {
+    const timeline = buildAiTimeline('patient-1', 'brain', [
+      dicomRun({
+        dicomStudyId: null,
+        instanceNumber: 12,
+        seriesNumber: 3,
+        sopInstanceUid: '1.2.3',
+      }),
+    ]);
+
+    expect(timeline.items[0].slice).toEqual({
+      instanceNumber: 12,
+      seriesNumber: 3,
+    });
+  });
+
+  it('keeps a missing number as null', () => {
+    const timeline = buildAiTimeline('patient-1', 'brain', [
+      dicomRun({
+        dicomStudyId: 'study-1',
+        instanceNumber: null,
+        seriesNumber: 3,
+      }),
+    ]);
+
+    expect(timeline.items[0].slice).toEqual({
+      instanceNumber: null,
+      seriesNumber: 3,
+    });
+  });
+
+  it('is null for a document that did not come from a study', () => {
+    const timeline = buildAiTimeline('patient-1', 'brain', [
+      run(),
+      dicomRun({}),
+    ]);
+
+    expect(timeline.items.map((item) => item.slice)).toEqual([null, null]);
+  });
+
+  it('does not change what two runs on different slices are compared on', () => {
+    const timeline = buildAiTimeline('patient-1', 'brain', [
+      dicomRun({
+        dicomStudyId: 'study-1',
+        instanceNumber: 12,
+        seriesNumber: 3,
+      }),
+      dicomRun({
+        dicomStudyId: 'study-1',
+        instanceNumber: 14,
+        seriesNumber: 3,
+      }),
+    ]);
+
+    expect(timeline.items[1].comparison?.previousRunId).toBe(
+      timeline.items[0].runId,
+    );
+    expect(timeline.items.map((item) => item.slice?.instanceNumber)).toEqual([
+      12, 14,
+    ]);
+  });
+});

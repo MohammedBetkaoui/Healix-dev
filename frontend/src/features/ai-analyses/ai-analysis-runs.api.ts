@@ -23,7 +23,7 @@ import { type ModelMonitoring, type ModelMonitoringParams } from "./model-monito
 
 // The backend waits up to 60 s for the inference service: the default 10 s
 // client timeout would abort a valid analysis.
-const ANALYSIS_REQUEST_TIMEOUT_MS = 75_000;
+export const ANALYSIS_REQUEST_TIMEOUT_MS = 75_000;
 // The first request renders the PDF (Chromium may have to start).
 const REPORT_REQUEST_TIMEOUT_MS = 60_000;
 

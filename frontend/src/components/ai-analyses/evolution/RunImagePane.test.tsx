@@ -51,6 +51,7 @@ function item(overrides: Partial<TimelineItem> = {}): TimelineItem {
     model: { id: "m", segmentationId: null, segmentationWeightsSha256: null, weightsSha256: "a".repeat(64) },
     pixelSpacingMm: null,
     runId: "run-1",
+    slice: null,
     source: "image",
     sourceDocumentId: "doc-1",
     ...overrides,

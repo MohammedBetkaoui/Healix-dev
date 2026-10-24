@@ -52,6 +52,7 @@ function item(id: string, day: number, maskAreaPx: number | null, overrides: Par
     model: { id: "brain-model", segmentationId: null, segmentationWeightsSha256: null, weightsSha256: SHA_A },
     pixelSpacingMm: null,
     runId: id,
+    slice: null,
     source: "image",
     sourceDocumentId: `doc-${id}`,
     ...overrides,
@@ -146,6 +147,33 @@ describe("AiEvolutionSection", () => {
     }
     expect(html.match(/<tr data-run="r\d"/g)).toEqual(['<tr data-run="r1"', '<tr data-run="r2"', '<tr data-run="r3"']);
     expect(html).toContain(fr("aiAnalyses.evolution.table.first"));
+  });
+
+  it("names the series and the slice of a run made on a slice of a DICOM study, in the table and in the comparison", () => {
+    const sliced = (id: string, day: number, number: number) =>
+      item(id, day, 1000, { slice: { instanceNumber: number, seriesNumber: 3 }, source: "dicom" });
+    const html = show(brainTimeline([sliced("r1", 1, 12), sliced("r2", 15, 14)]));
+
+    expect(html).toContain('data-slice="true"');
+    expect(html.match(/data-slice="true">[^<]*</g)).toEqual([
+      `data-slice="true">${fr("dicom.analysis.slice", { instance: 12, series: 3 })}<`,
+      `data-slice="true">${fr("dicom.analysis.slice", { instance: 14, series: 3 })}<`,
+    ]);
+    // The side-by-side header of each run says it too.
+    expect(html).toContain(`DICOM · ${fr("dicom.analysis.slice", { instance: 12, series: 3 })}`);
+    expect(html).toContain(`DICOM · ${fr("dicom.analysis.slice", { instance: 14, series: 3 })}`);
+  });
+
+  it("says a missing number rather than guessing one, and names no slice for an ordinary image", () => {
+    const html = show(
+      brainTimeline([
+        item("r1", 1, 1000, { slice: { instanceNumber: null, seriesNumber: 3 }, source: "dicom" }),
+        item("r2", 15, 1000),
+      ]),
+    );
+
+    expect(html).toContain(fr("dicom.analysis.slice", { instance: fr("dicom.analysis.noNumber"), series: 3 }));
+    expect(html.match(/data-slice="true"/g)).toHaveLength(1);
   });
 
   it("shows the change with the previous analysis in value and in %, and flags the one that cannot be trusted", () => {

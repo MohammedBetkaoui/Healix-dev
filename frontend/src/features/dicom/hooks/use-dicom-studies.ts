@@ -3,7 +3,9 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useCallback, useState } from "react";
 
+import { type DicomAnalysisPipeline } from "../dicom-analysis";
 import {
+  analyzeDicomInstance,
   deleteDicomStudy,
   getDicomInstancePreview,
   getDicomStudies,
@@ -88,5 +90,25 @@ export function useDicomPreview(instanceId: string | null) {
     queryKey: dicomKeys.preview(instanceId ?? ""),
     retry: false,
     staleTime: Number.POSITIVE_INFINITY,
+  });
+}
+
+// The analysis of a slice. The run is recorded even when it fails, and the slice
+// is now a document of the record: the lists are refreshed on any outcome.
+export function useAnalyzeDicomInstance(patientId: string) {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: ({
+      instanceId,
+      pipeline,
+    }: {
+      instanceId: string;
+      pipeline: DicomAnalysisPipeline;
+    }) => analyzeDicomInstance(instanceId, pipeline),
+    onSettled: () => {
+      void queryClient.invalidateQueries({ queryKey: ["patients", "ai-analysis-runs", patientId] });
+      void queryClient.invalidateQueries({ queryKey: ["patients", "documents", patientId] });
+    },
   });
 }

@@ -1,10 +1,12 @@
 import { Module } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 
+import { AiAnalysisRunsModule } from '../ai-analysis-runs/ai-analysis-runs.module';
 import { PatientsModule } from '../patients/patients.module';
 import { PrismaModule } from '../prisma/prisma.module';
 import { SubscriptionsModule } from '../subscriptions/subscriptions.module';
 import { DicomController } from './dicom.controller';
+import { DicomAnalysisService } from './dicom-analysis.service';
 import { DicomImportService } from './dicom-import.service';
 import { DicomStudiesService } from './dicom-studies.service';
 import { DicomUploadDirInterceptor } from './dicom-upload';
@@ -14,7 +16,12 @@ import { OrthancClient } from './orthanc.client';
 import { ORTHANC_SETTINGS, orthancSettings } from './orthanc.config';
 
 @Module({
-  imports: [PrismaModule, PatientsModule, SubscriptionsModule],
+  imports: [
+    AiAnalysisRunsModule,
+    PatientsModule,
+    PrismaModule,
+    SubscriptionsModule,
+  ],
   controllers: [DicomController, DicomWebController],
   providers: [
     // Read when the application starts: in production, a missing, short or
@@ -25,6 +32,7 @@ import { ORTHANC_SETTINGS, orthancSettings } from './orthanc.config';
       useFactory: orthancSettings,
     },
     OrthancClient,
+    DicomAnalysisService,
     DicomImportService,
     DicomStudiesService,
     DicomUploadDirInterceptor,

@@ -9,6 +9,8 @@ import type { TranslationFunction } from "@/lib/i18n";
 //   422 DICOM_NO_VALID_FILE     { skipped }
 //   400 DICOM_UPLOAD_INVALID
 //   502 DICOM_STORE_UNAVAILABLE
+//   422 DICOM_PIPELINE_NOT_SUPPORTED { reason: PIPELINE | MODALITY }  analysing a slice
+//   422 DICOM_MULTIFRAME_NOT_SUPPORTED { frames }                     analysing a slice
 //   413 (Caddy or the backend)   the import is over 512 MiB
 const zipReasons: readonly string[] = [
   "CORRUPT",
@@ -45,6 +47,14 @@ export function getDicomErrorMessage(
     case "DICOM_NO_VALID_FILE":
       return t("dicom.errors.DICOM_NO_VALID_FILE", {
         skipped: typeof data?.skipped === "number" ? data.skipped : 0,
+      });
+    case "DICOM_PIPELINE_NOT_SUPPORTED":
+      return data?.reason === "PIPELINE" || data?.reason === "MODALITY"
+        ? t(`dicom.errors.DICOM_PIPELINE_NOT_SUPPORTED.${data.reason}`)
+        : t("dicom.analysis.error");
+    case "DICOM_MULTIFRAME_NOT_SUPPORTED":
+      return t("dicom.errors.DICOM_MULTIFRAME_NOT_SUPPORTED", {
+        frames: typeof data?.frames === "number" ? data.frames : 0,
       });
     case "DICOM_UPLOAD_INVALID":
     case "DICOM_STORE_UNAVAILABLE":

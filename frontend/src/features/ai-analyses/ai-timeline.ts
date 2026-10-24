@@ -41,10 +41,18 @@ export type Comparison = {
   reliable: boolean;
 };
 
+/** The slice of a DICOM study a run was made on ("Série 3, coupe n° 12"). */
+export type TimelineSlice = {
+  instanceNumber: number | null;
+  seriesNumber: number | null;
+};
+
 export type TimelineItem = {
   runId: string;
   createdAt: string;
   sourceDocumentId: string;
+  /** Set when the source is a slice of a DICOM study; null otherwise. */
+  slice: TimelineSlice | null;
   label: string | null;
   labels: string[] | null;
   decisionStatus: AiRunDecision | null;

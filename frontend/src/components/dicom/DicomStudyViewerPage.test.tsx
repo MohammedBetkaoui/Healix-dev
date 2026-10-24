@@ -25,6 +25,12 @@ jest.mock("@/features/patients/hooks/use-patient", () => ({
 jest.mock("@/components/shared/VerificationRequiredNotice", () => ({
   VerificationRequiredNotice: () => <div data-verification-required="true" />,
 }));
+// The analysis panel has its own tests (it needs the queries and the router).
+jest.mock("./DicomAnalysisPanel", () => ({
+  DicomAnalysisPanel: ({ accountType, patientId, study }: { accountType: string; patientId: string; study: { id: string } }) => (
+    <div data-analysis-panel={`${accountType}/${patientId}/${study.id}`} />
+  ),
+}));
 // The shell needs a router and several queries: only what it frames matters.
 jest.mock("@/components/dashboard/layout/DashboardShell", () => ({
   DashboardShell: ({ breadcrumbLabel, children }: { breadcrumbLabel?: string; children: React.ReactNode }) => (
@@ -90,6 +96,21 @@ describe("the page of a DICOM study", () => {
     expect(html).toContain("w-full");
     // No sandbox that would cut the viewer from its cookies and workers.
     expect(html).not.toContain("sandbox");
+  });
+
+  it("offers to analyse a slice under the viewer, for this study of this patient", () => {
+    const html = render();
+
+    expect(html).toContain('data-analysis-panel="DOCTOR/patient-1/study-1"');
+    expect(html.indexOf("data-analysis-panel")).toBeGreaterThan(html.indexOf("<iframe"));
+    expect(render({}, { accountType: "ESTABLISHMENT" })).toContain(
+      'data-analysis-panel="ESTABLISHMENT/patient-1/study-1"',
+    );
+  });
+
+  it("offers it only once the study is loaded", () => {
+    expect(render({ data: undefined, isLoading: true })).not.toContain("data-analysis-panel");
+    expect(render({ data: undefined, error: axiosError(404), isError: true })).not.toContain("data-analysis-panel");
   });
 
   it("renews the session while it is open", () => {

@@ -14,6 +14,9 @@ export const DICOM_UPLOAD_INVALID_CODE = 'DICOM_UPLOAD_INVALID';
 export const DICOM_ZIP_UNSAFE_CODE = 'DICOM_ZIP_UNSAFE';
 export const DICOM_NO_VALID_FILE_CODE = 'DICOM_NO_VALID_FILE';
 export const DICOM_STORE_UNAVAILABLE_CODE = 'DICOM_STORE_UNAVAILABLE';
+export const DICOM_PIPELINE_NOT_SUPPORTED_CODE = 'DICOM_PIPELINE_NOT_SUPPORTED';
+export const DICOM_MULTIFRAME_NOT_SUPPORTED_CODE =
+  'DICOM_MULTIFRAME_NOT_SUPPORTED';
 
 export type ZipRefusalReason =
   | 'CORRUPT'
@@ -49,6 +52,35 @@ export function dicomNoValidFile(skipped: number) {
     code: DICOM_NO_VALID_FILE_CODE,
     message: "Aucun fichier DICOM valide n'a été trouvé.",
     skipped,
+  });
+}
+
+// The chain cannot read this slice: pathology and ECG chains read no DICOM
+// slice (reason PIPELINE), and the others only read an MRI (reason MODALITY).
+export function dicomPipelineNotSupported(
+  pipeline: string,
+  reason: 'MODALITY' | 'PIPELINE',
+  modality: string | null = null,
+) {
+  return new UnprocessableEntityException({
+    code: DICOM_PIPELINE_NOT_SUPPORTED_CODE,
+    message:
+      reason === 'PIPELINE'
+        ? "Cette chaîne d'analyse ne lit pas une coupe DICOM : seules l'analyse cérébrale et la segmentation cardiaque le font."
+        : "Seule une coupe d'IRM (modalité MR) peut être analysée.",
+    modality,
+    pipeline,
+    reason,
+  });
+}
+
+// One DICOM file holding a cine or a volume: the analysis reads one image.
+export function dicomMultiframeNotSupported(frames: number) {
+  return new UnprocessableEntityException({
+    code: DICOM_MULTIFRAME_NOT_SUPPORTED_CODE,
+    frames,
+    message:
+      "Cette instance DICOM contient plusieurs images (multi-frame) : choisissez une coupe d'une série d'images simples.",
   });
 }
 

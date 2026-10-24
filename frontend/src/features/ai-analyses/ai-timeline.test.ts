@@ -54,6 +54,7 @@ function item(overrides: Partial<TimelineItem> = {}): TimelineItem {
     model: { id: "brain-model", segmentationId: null, segmentationWeightsSha256: null, weightsSha256: SHA_A },
     pixelSpacingMm: null,
     runId: `run-${sequence}`,
+    slice: null,
     source: "image",
     sourceDocumentId: "doc-1",
     ...overrides,

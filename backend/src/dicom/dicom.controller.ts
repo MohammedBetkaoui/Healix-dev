@@ -24,6 +24,7 @@ import { UserRole } from '../common/enums/user-role.enum';
 import { RolesGuard } from '../common/guards/roles.guard';
 import { SubscriptionGuard } from '../common/guards/subscription.guard';
 import { VerifiedAccountGuard } from '../common/guards/verified-account.guard';
+import { DicomAnalysisService } from './dicom-analysis.service';
 import { DicomImportService } from './dicom-import.service';
 import { DicomStudiesService } from './dicom-studies.service';
 import {
@@ -33,6 +34,7 @@ import {
   dicomUploadStorage,
 } from './dicom-upload';
 import { DICOM_IMPORT_LIMITS } from './dicom-zip';
+import { AnalyzeDicomInstanceDto } from './dto/analyze-dicom-instance.dto';
 import { RenderDicomInstanceQueryDto } from './dto/render-dicom-instance-query.dto';
 import { UploadDicomStudyDto } from './dto/upload-dicom-study.dto';
 
@@ -48,6 +50,7 @@ import { UploadDicomStudyDto } from './dto/upload-dicom-study.dto';
 )
 export class DicomController {
   constructor(
+    private readonly analysis: DicomAnalysisService,
     private readonly importService: DicomImportService,
     private readonly studies: DicomStudiesService,
   ) {}
@@ -104,6 +107,18 @@ export class DicomController {
     response.setHeader('Cache-Control', 'private, no-store');
     response.setHeader('X-Content-Type-Options', 'nosniff');
     response.end(png);
+  }
+
+  // "Analyser cette coupe": starts an analysis run on one slice of a study.
+  // Synchronous, like the run it creates (60 s at most). Answers with the run.
+  @Post('instances/:orthancInstanceId/analyze')
+  @RequiresActiveSubscription()
+  analyze(
+    @CurrentUser() user: AuthenticatedUserPayload,
+    @Param('orthancInstanceId') orthancInstanceId: string,
+    @Body() dto: AnalyzeDicomInstanceDto,
+  ) {
+    return this.analysis.analyze(user, orthancInstanceId, dto.pipeline);
   }
 
   @Delete('studies/:id')

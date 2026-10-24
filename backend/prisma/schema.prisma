@@ -718,21 +718,31 @@ model PatientConsultation {
 }
 
 model PatientDocument {
-  id             String              @id @default(cuid())
-  patientId      String              @map("patient_id")
-  documentType   PatientDocumentType @map("document_type")
-  originalName   String              @map("original_name") @db.VarChar(255)
-  storedName     String              @map("stored_name") @db.VarChar(255)
-  mimeType       String              @map("mime_type") @db.VarChar(100)
-  size           Int
-  localPath      String              @map("local_path") @db.VarChar(500)
-  checksum       String?             @db.VarChar(128)
-  uploadedById   String              @map("uploaded_by_id")
-  prescriptionId String?             @unique @map("prescription_id")
-  createdAt      DateTime            @default(now()) @map("created_at")
-  updatedAt      DateTime            @updatedAt @map("updated_at")
+  id                String              @id @default(cuid())
+  patientId         String              @map("patient_id")
+  documentType      PatientDocumentType @map("document_type")
+  originalName      String              @map("original_name") @db.VarChar(255)
+  storedName        String              @map("stored_name") @db.VarChar(255)
+  mimeType          String              @map("mime_type") @db.VarChar(100)
+  size              Int
+  localPath         String              @map("local_path") @db.VarChar(500)
+  checksum          String?             @db.VarChar(128)
+  uploadedById      String              @map("uploaded_by_id")
+  prescriptionId    String?             @unique @map("prescription_id")
+  // The slice of a DICOM study this document was made from ("Analyser cette
+  // coupe"): the study (the row goes on if the study is deleted), the DICOM
+  // identifiers of the series and of the instance, and the numbers a reader
+  // knows them by ("Série 3, coupe n° 12").
+  dicomStudyId      String?             @map("dicom_study_id")
+  seriesInstanceUid String?             @map("series_instance_uid") @db.VarChar(64)
+  sopInstanceUid    String?             @map("sop_instance_uid") @db.VarChar(64)
+  seriesNumber      Int?                @map("series_number")
+  instanceNumber    Int?                @map("instance_number")
+  createdAt         DateTime            @default(now()) @map("created_at")
+  updatedAt         DateTime            @updatedAt @map("updated_at")
 
   patient            Patient             @relation(fields: [patientId], references: [id], onDelete: Cascade)
+  dicomStudy         DicomStudy?         @relation(fields: [dicomStudyId], references: [id], onDelete: SetNull)
   uploadedBy         User                @relation(fields: [uploadedById], references: [id], onDelete: Restrict)
   aiAnalyses         PatientAiAnalysis[]
   aiAnalysisRuns     AiAnalysisRun[]
@@ -741,6 +751,8 @@ model PatientDocument {
   clinicalReport     ClinicalReport?
 
   @@index([patientId])
+  @@index([patientId, sopInstanceUid])
+  @@index([dicomStudyId])
   @@map("patient_documents")
 }
 
@@ -768,9 +780,10 @@ model DicomStudy {
   uploadedById     String    @map("uploaded_by_id")
   createdAt        DateTime  @default(now()) @map("created_at")
 
-  workspace  Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
-  patient    Patient   @relation(fields: [patientId], references: [id], onDelete: Cascade)
-  uploadedBy User      @relation(fields: [uploadedById], references: [id], onDelete: Restrict)
+  workspace  Workspace         @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  patient    Patient           @relation(fields: [patientId], references: [id], onDelete: Cascade)
+  uploadedBy User              @relation(fields: [uploadedById], references: [id], onDelete: Restrict)
+  documents  PatientDocument[]
 
   @@unique([workspaceId, studyInstanceUid])
   @@index([patientId])

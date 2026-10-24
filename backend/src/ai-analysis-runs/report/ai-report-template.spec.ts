@@ -384,3 +384,54 @@ describe('buildReportDocument', () => {
     );
   });
 });
+
+describe('a report on a slice of a DICOM study', () => {
+  const slice = { instanceNumber: 12, seriesNumber: 3 };
+  const withSlice = (
+    dicomSlice: ReportInput['sourceDocument']['dicomSlice'],
+  ) => {
+    const input = reportInput();
+    return {
+      ...input,
+      sourceDocument: { ...input.sourceDocument, dicomSlice },
+    };
+  };
+  const text = (input: ReportInput) =>
+    buildReportDocument(input).html.replace(/\s+/g, ' ');
+
+  it('names the series and the slice under the analysed document', () => {
+    const html = text(withSlice(slice));
+
+    expect(html).toContain(
+      '<tr><th scope="row">Coupe DICOM</th><td>Série 3, coupe n° 12</td></tr>',
+    );
+    expect(html.indexOf('Document analysé')).toBeLessThan(
+      html.indexOf('Coupe DICOM'),
+    );
+    expect(html.indexOf('Coupe DICOM')).toBeLessThan(
+      html.indexOf('Dimensions'),
+    );
+  });
+
+  it('says so when the DICOM header gave no number', () => {
+    expect(
+      text(withSlice({ instanceNumber: null, seriesNumber: null })),
+    ).toContain('Série sans numéro, coupe n° sans numéro');
+  });
+
+  it('prints nothing of the kind for an ordinary document', () => {
+    expect(text(reportInput())).not.toContain('Coupe DICOM');
+    expect(text(withSlice(null))).not.toContain('Coupe DICOM');
+  });
+
+  it('changes the fingerprint of the report only for a slice: a report made before keeps its own', () => {
+    const plain = buildReportDocument(reportInput()).contentSha256;
+
+    expect(buildReportDocument(withSlice(null)).contentSha256).toBe(plain);
+    expect(buildReportDocument(withSlice(slice)).contentSha256).not.toBe(plain);
+    expect(
+      buildReportDocument(withSlice({ instanceNumber: 13, seriesNumber: 3 }))
+        .contentSha256,
+    ).not.toBe(buildReportDocument(withSlice(slice)).contentSha256);
+  });
+});

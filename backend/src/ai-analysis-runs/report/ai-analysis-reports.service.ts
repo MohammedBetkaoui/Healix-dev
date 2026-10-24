@@ -119,9 +119,13 @@ const runForReport = {
     select: {
       checksum: true,
       createdAt: true,
+      dicomStudyId: true,
+      instanceNumber: true,
       localPath: true,
       mimeType: true,
       originalName: true,
+      seriesNumber: true,
+      sopInstanceUid: true,
     },
   },
 } satisfies Prisma.AiAnalysisRunInclude;
@@ -692,6 +696,14 @@ export class AiAnalysisReportsService {
         checksum: run.sourceDocument.checksum,
         createdAt: run.sourceDocument.createdAt,
         data: image,
+        // A document made from a slice of a DICOM study says which one.
+        dicomSlice:
+          run.sourceDocument.dicomStudyId || run.sourceDocument.sopInstanceUid
+            ? {
+                instanceNumber: run.sourceDocument.instanceNumber,
+                seriesNumber: run.sourceDocument.seriesNumber,
+              }
+            : null,
         height: size?.height ?? null,
         mimeType: run.sourceDocument.mimeType,
         originalName: run.sourceDocument.originalName,

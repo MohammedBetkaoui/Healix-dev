@@ -62,6 +62,29 @@ describe("getDicomErrorMessage", () => {
     );
   });
 
+  it.each<Locale>(["fr", "ar"])("explains a slice that cannot be analysed (%s)", (locale) => {
+    const t = tFor(locale);
+
+    for (const reason of ["PIPELINE", "MODALITY"]) {
+      const message = getDicomErrorMessage(
+        axiosError(422, { code: "DICOM_PIPELINE_NOT_SUPPORTED", reason }),
+        t,
+      );
+      expect(message).toBe(t(`dicom.errors.DICOM_PIPELINE_NOT_SUPPORTED.${reason}`));
+      expect(message).not.toContain("dicom.");
+    }
+    expect(
+      getDicomErrorMessage(axiosError(422, { code: "DICOM_PIPELINE_NOT_SUPPORTED", reason: "NEW" }), t),
+    ).toBe(t("dicom.analysis.error"));
+
+    const multiframe = getDicomErrorMessage(
+      axiosError(422, { code: "DICOM_MULTIFRAME_NOT_SUPPORTED", frames: 25 }),
+      t,
+    );
+    expect(multiframe).toContain("25");
+    expect(multiframe).toBe(t("dicom.errors.DICOM_MULTIFRAME_NOT_SUPPORTED", { frames: 25 }));
+  });
+
   it("reads a 413 (Caddy, with no code) as an import that is too large", () => {
     const t = tFor("fr");
 

@@ -1,5 +1,8 @@
+import { ANALYSIS_REQUEST_TIMEOUT_MS } from "@/features/ai-analyses/ai-analysis-runs.api";
+import { type AiAnalysisRun } from "@/features/ai-analyses/ai-analyses.types";
 import { apiClient } from "@/lib/api/http-client";
 
+import { type DicomAnalysisPipeline } from "./dicom-analysis";
 import {
   type DicomImportResult,
   type DicomStudy,
@@ -59,6 +62,22 @@ export async function getDicomInstancePreview(
   const response = await apiClient.get<Blob>(
     `/dicom/instances/${encodeURIComponent(orthancInstanceId)}/preview`,
     { responseType: "blob", signal },
+  );
+  return response.data;
+}
+
+// "Analyser cette coupe": the backend stores the slice as a document of the
+// record and runs the chain on it, like any analysis (up to 60 s). The run is
+// answered whatever its outcome is, or refused before it exists (consent,
+// quota, a chain that reads no slice...).
+export async function analyzeDicomInstance(
+  orthancInstanceId: string,
+  pipeline: DicomAnalysisPipeline,
+): Promise<AiAnalysisRun> {
+  const response = await apiClient.post<AiAnalysisRun>(
+    `/dicom/instances/${encodeURIComponent(orthancInstanceId)}/analyze`,
+    { pipeline },
+    { timeout: ANALYSIS_REQUEST_TIMEOUT_MS },
   );
   return response.data;
 }

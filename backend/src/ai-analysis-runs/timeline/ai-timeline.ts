@@ -97,6 +97,11 @@ export type TimelineRun = {
     documentType: string;
     mimeType: string;
     originalName: string;
+    // Set when the document was made from a slice of a DICOM study.
+    dicomStudyId?: string | null;
+    instanceNumber?: number | null;
+    seriesNumber?: number | null;
+    sopInstanceUid?: string | null;
   };
   sourceDocumentId: string;
   tracePath: string | null;
@@ -122,7 +127,15 @@ export const TIMELINE_RUN_SELECT = {
   segmentationWeightsSha256: true,
   slicePath: true,
   sourceDocument: {
-    select: { documentType: true, mimeType: true, originalName: true },
+    select: {
+      dicomStudyId: true,
+      documentType: true,
+      instanceNumber: true,
+      mimeType: true,
+      originalName: true,
+      seriesNumber: true,
+      sopInstanceUid: true,
+    },
   },
   sourceDocumentId: true,
   tracePath: true,
@@ -146,10 +159,18 @@ export type Comparison = {
   reliable: boolean;
 };
 
+/** The slice of a DICOM study a run was made on ("Série 3, coupe n° 12"). */
+export type TimelineSlice = {
+  instanceNumber: number | null;
+  seriesNumber: number | null;
+};
+
 export type TimelineItem = {
   runId: string;
   createdAt: string;
   sourceDocumentId: string;
+  /** Set when the source is a slice of a DICOM study; null otherwise. */
+  slice: TimelineSlice | null;
   /** Brain: the top class; breast: the BreakHis result; null otherwise. */
   label: string | null;
   /** ECG: the classes at or above their threshold; null otherwise. */
@@ -433,6 +454,13 @@ export function toTimelineItem(
     },
     pixelSpacingMm: pixelSpacingOf(run),
     runId: run.id,
+    slice:
+      run.sourceDocument.dicomStudyId || run.sourceDocument.sopInstanceUid
+        ? {
+            instanceNumber: run.sourceDocument.instanceNumber ?? null,
+            seriesNumber: run.sourceDocument.seriesNumber ?? null,
+          }
+        : null,
     source: sourceKindOf(run),
     sourceDocumentId: run.sourceDocumentId,
   };

@@ -843,6 +843,36 @@ requis (un compte en lecture seule voit ses images).
 - Une même requête ne peut désigner qu'une étude : le proxy ne permet pas de
   lister Orthanc.
 
+**Analyser une coupe** (`POST /api/dicom/instances/{orthancInstanceId}/analyze`,
+corps `{ "pipeline": "brain" | "cardio-seg-mri" }`). Depuis la page d'une
+étude, le médecin choisit une série d'IRM, une coupe (curseur et aperçu) et
+une chaîne ; le backend :
+
+1. refuse (422 `DICOM_PIPELINE_NOT_SUPPORTED`) une chaîne qui ne lit pas une
+   coupe (pathologie, ECG) ou une série qui n'est pas de modalité `MR`, et
+   (422 `DICOM_MULTIFRAME_NOT_SUPPORTED`) une instance à plusieurs images ;
+2. vérifie, **avant d'écrire quoi que ce soit**, le consentement
+   `DIAGNOSTIC_AI` du patient, l'abonnement, la chaîne dans le plan et le
+   quota du mois ;
+3. enregistre la coupe comme **document du dossier** (type `DICOM` avec le
+   fichier de l'instance pour la segmentation cardiaque, qui en lit
+   l'espacement des pixels ; type `MEDICAL_IMAGE` avec le PNG rendu par
+   Orthanc, fenêtrage du fichier, pour la chaîne cérébrale, qui ne lit que
+   PNG et JPEG), nommé `serie-3-coupe-12.dcm` ou `.png`, avec l'étude, les
+   UID de la série et de l'instance et leurs numéros ;
+4. lance ensuite la **création d'analyse habituelle** (aucune règle n'est
+   répétée) : l'analyse compte dans le quota, sa décision reste celle du
+   médecin, son compte rendu PDF et la chronologie du patient nomment « Série
+   3, coupe n° 12 ».
+
+Si la création est refusée après l'écriture du document (course sur le quota),
+le document et son fichier sont retirés ; si une analyse a été créée puis a
+échoué, le document reste : la source fait partie du dossier. Supprimer
+l'étude garde les documents et analyses faits à partir de ses coupes (le lien
+à l'étude passe à vide, les numéros restent). Écriture : abonnement actif
+requis. La migration `patient_document_dicom_slice` ajoute cinq colonnes
+nulles et deux index à `patient_documents` ; elle ne change aucune ligne.
+
 **Montée de version d'Orthanc.** Changez l'étiquette dans
 `docker-compose.yml` après lecture des notes de version, et faites une
 sauvegarde juste avant (section 9) : Orthanc peut migrer son index au
@@ -901,6 +931,28 @@ Vérifié :
   script qui déplace les scripts inline, la page de l'étude (iframe,
   renouvellement de la session), la liste, l'import et le résumé (jest), le
   CSP des pages (`frame-src 'self'`).
+
+**Analyse d'une coupe (24 octobre 2026, sans Docker ni service IA).**
+
+Vérifié, sur une base MySQL de test migrée, avec Orthanc et le service IA
+remplacés : la chaîne cardiaque reçoit le fichier DICOM de l'instance et la
+chaîne cérébrale son PNG rendu ; la coupe devient un document avec l'étude, les
+UID et les numéros ; le quota du mois est consommé (2 sur 2 puis refus, sans
+document ni analyse en plus) ; un patient sans consentement, une chaîne hors
+plan, une chaîne de pathologie, une série de scanner et une instance
+multi-image sont refusés sans rien écrire ; un médecin d'un autre espace
+reçoit 404 ; la chronologie nomme la coupe, y compris après la suppression de
+l'étude ; le compte rendu l'imprime et son empreinte ne change que pour une
+coupe (les comptes rendus déjà faits gardent la leur) ; la route est fermée
+aux comptes en lecture seule. Côté interface : le panneau (série, curseur,
+chaîne, consentement, lecture seule, erreurs, arabe), la redirection vers la
+page de l'analyse, et la coupe dans l'évolution.
+
+Pas vérifié : une vraie coupe d'IRM passée par Orthanc puis par le service IA
+(ni le rendu PNG d'Orthanc, ni la qualité de la prédiction de la chaîne
+cérébrale sur ce rendu, ni la lecture de l'espacement des pixels d'un vrai
+fichier), et les clics du panneau dans un navigateur (les tests rendent le
+panneau, ils ne le manipulent pas).
 
 Pas vérifié (Docker absent) :
 - la construction de l'image de la visionneuse (`pnpm install

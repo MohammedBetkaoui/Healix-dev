@@ -42,5 +42,8 @@ import { CardioSegEvaluationService } from './report/cardio-seg-evaluation';
     CardioEvaluationService,
     CardioSegEvaluationService,
   ],
+  // The analysis of a slice of a DICOM study goes through the same creation
+  // flow as any run.
+  exports: [AiAnalysisRunsService],
 })
 export class AiAnalysisRunsModule {}

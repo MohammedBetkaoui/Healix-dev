@@ -16,6 +16,7 @@ import { UserRole } from '../common/enums/user-role.enum';
 import { VerifiedAccountGuard } from '../common/guards/verified-account.guard';
 import { EntitlementsService } from '../subscriptions/entitlements.service';
 import { DicomController } from './dicom.controller';
+import { DicomAnalysisService } from './dicom-analysis.service';
 import { DicomImportService } from './dicom-import.service';
 import { DicomStudiesService } from './dicom-studies.service';
 import { DicomUploadDirInterceptor } from './dicom-upload';
@@ -58,6 +59,7 @@ const as = (role: string) =>
 describe('the DICOM routes over HTTP', () => {
   let app: INestApplication;
   const importStudy = jest.fn();
+  const analyze = jest.fn();
   const studies = {
     findOne: jest.fn(),
     listForPatient: jest.fn(),
@@ -71,6 +73,7 @@ describe('the DICOM routes over HTTP', () => {
     const module = await Test.createTestingModule({
       controllers: [DicomController],
       providers: [
+        { provide: DicomAnalysisService, useValue: { analyze } },
         { provide: DicomImportService, useValue: { import: importStudy } },
         { provide: DicomStudiesService, useValue: studies },
         { provide: EntitlementsService, useValue: entitlements },
@@ -264,6 +267,75 @@ describe('the DICOM routes over HTTP', () => {
       expect(response.status).toBe(403);
       expect(response.body).toMatchObject({ code: 'SUBSCRIPTION_INACTIVE' });
       expect(studies.remove).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('analysing a slice', () => {
+    const post = (body: object, role: string = UserRole.INDEPENDENT_DOCTOR) =>
+      request(app.getHttpServer())
+        .post('/dicom/instances/some-instance/analyze')
+        .set('x-test-user', as(role))
+        .send(body);
+
+    it('hands the pipeline to the analysis and answers with the run it creates', async () => {
+      analyze.mockResolvedValue({ id: 'run-1', pipeline: 'cardio-seg-mri' });
+
+      const response = await post({ pipeline: 'cardio-seg-mri' });
+
+      expect(response.status).toBe(201);
+      expect(response.body).toEqual({
+        id: 'run-1',
+        pipeline: 'cardio-seg-mri',
+      });
+      expect(analyze).toHaveBeenCalledWith(
+        expect.objectContaining({ sub: 'user-1' }),
+        'some-instance',
+        'cardio-seg-mri',
+      );
+    });
+
+    it('is refused with 403 SUBSCRIPTION_INACTIVE on a read-only account', async () => {
+      entitlements.getEntitlementsForUser.mockResolvedValue({
+        expiresAt: null,
+        readOnly: true,
+        status: 'EXPIRED',
+      });
+
+      const response = await post({ pipeline: 'brain' });
+
+      expect(response.status).toBe(403);
+      expect(response.body).toMatchObject({ code: 'SUBSCRIPTION_INACTIVE' });
+      expect(analyze).not.toHaveBeenCalled();
+    });
+
+    it.each([
+      ['no pipeline', {}],
+      ['a chain that does not exist', { pipeline: 'pathology-everything' }],
+      ['another field', { pipeline: 'brain', sourceDocumentId: 'x' }],
+    ])('refuses %s with 400', async (_label, body) => {
+      const response = await post(body);
+
+      expect(response.status).toBe(400);
+      expect(analyze).not.toHaveBeenCalled();
+    });
+
+    it('lets a chain that reads no slice through to the service, which answers 422', async () => {
+      analyze.mockResolvedValue({ id: 'never' });
+
+      await post({ pipeline: 'cardio-ecg' });
+
+      expect(analyze).toHaveBeenCalledWith(
+        expect.anything(),
+        'some-instance',
+        'cardio-ecg',
+      );
+    });
+
+    it('is closed to the other roles', async () => {
+      expect(
+        (await post({ pipeline: 'brain' }, UserRole.SUPER_ADMIN)).status,
+      ).toBe(403);
+      expect(analyze).not.toHaveBeenCalled();
     });
   });
 

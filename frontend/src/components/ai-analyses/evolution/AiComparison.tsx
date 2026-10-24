@@ -17,6 +17,7 @@ import {
   type AiTimeline,
   type TimelineItem,
 } from "@/features/ai-analyses/ai-timeline";
+import { formatDicomSlice } from "@/features/dicom/dicom-analysis";
 import { type Locale } from "@/i18n";
 import { type TranslationFunction } from "@/lib/i18n";
 
@@ -54,6 +55,7 @@ function Pane({ heading, item, locale, patientId, pipeline, t }: {
           {resultText(item, t)}
           {" · "}
           {t(`aiAnalyses.evolution.sources.${item.source}`)}
+          {item.slice ? ` · ${formatDicomSlice(item.slice, t)}` : ""}
         </p>
       </header>
       <RunImagePane item={item} patientId={patientId} pipeline={pipeline} t={t} />
