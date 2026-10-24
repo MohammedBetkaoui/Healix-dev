@@ -1,4 +1,5 @@
 import {
+  Activity,
   Bell,
   BadgeCheck,
   Brain,
@@ -45,6 +46,7 @@ export const establishmentNavSections: DashboardNavSection[] = [
     items: [
       { href: "/establishment/ai-analyses", icon: BrainCircuit, key: "analyses", labelKey: "dashboard.clinical.nav.ai" },
       { href: "/establishment/ai-analyses/tracking", icon: ListChecks, key: "aiTracking", labelKey: "dashboard.clinical.nav.aiTracking" },
+      { href: "/establishment/ai-analyses/monitoring", icon: Activity, key: "aiMonitoring", labelKey: "dashboard.clinical.nav.aiMonitoring" },
       { href: "/establishment/reports", icon: FileBarChart, key: "reports", labelKey: "dashboard.sidebar.establishment.reports" },
     ],
   },
@@ -119,6 +121,12 @@ export const doctorNavSections: DashboardNavSection[] = [
         icon: ListChecks,
         key: "aiTracking",
         labelKey: "dashboard.clinical.nav.aiTracking",
+      },
+      {
+        href: "/doctor/ai-analyses/monitoring",
+        icon: Activity,
+        key: "aiMonitoring",
+        labelKey: "dashboard.clinical.nav.aiMonitoring",
       },
       {
         href: "/doctor/reports",

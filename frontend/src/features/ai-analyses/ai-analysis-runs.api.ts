@@ -17,6 +17,7 @@ import {
   type EcgClass,
   type EcgUnit,
 } from "./ai-analyses.types";
+import { type ModelMonitoring, type ModelMonitoringParams } from "./model-monitoring";
 
 // The backend waits up to 60 s for the inference service: the default 10 s
 // client timeout would abort a valid analysis.
@@ -58,6 +59,12 @@ export async function getAiRunsOverview(params: AiRunsListParams): Promise<AiRun
 
 export async function getAiRunsSummary(params: AiRunsPeriodParams): Promise<AiRunsSummary> {
   const response = await apiClient.get<AiRunsSummary>("/ai-analysis-runs/summary", { params });
+  return response.data;
+}
+
+/** GET /ai-analysis-runs/model-monitoring: how the workspace's physicians judge each model, per month. */
+export async function getModelMonitoring(params: ModelMonitoringParams): Promise<ModelMonitoring> {
+  const response = await apiClient.get<ModelMonitoring>("/ai-analysis-runs/model-monitoring", { params });
   return response.data;
 }
 

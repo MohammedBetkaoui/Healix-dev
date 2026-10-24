@@ -6,6 +6,8 @@ import { PrismaModule } from '../prisma/prisma.module';
 import { NotificationsModule } from '../notifications/notifications.module';
 import { RealtimeModule } from '../realtime/realtime.module';
 import { SubscriptionsModule } from '../subscriptions/subscriptions.module';
+import { AdminAiMonitoringController } from './ai-monitoring/admin-ai-monitoring.controller';
+import { AdminAiMonitoringService } from './ai-monitoring/admin-ai-monitoring.service';
 import { AdminAuditLogsController } from './audit/admin-audit-logs.controller';
 import { AdminAuditLogsService } from './audit/admin-audit-logs.service';
 import { AdminDashboardController } from './dashboard/admin-dashboard.controller';
@@ -29,6 +31,7 @@ import { AdminVerificationsService } from './verifications/admin-verifications.s
     SubscriptionsModule,
   ],
   controllers: [
+    AdminAiMonitoringController,
     AdminAuditLogsController,
     AdminDashboardController,
     AdminPatientsController,
@@ -37,6 +40,7 @@ import { AdminVerificationsService } from './verifications/admin-verifications.s
     AdminVerificationsController,
   ],
   providers: [
+    AdminAiMonitoringService,
     AdminAuditLogsService,
     AdminDashboardService,
     AdminPatientsService,

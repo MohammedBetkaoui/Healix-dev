@@ -9,6 +9,9 @@ import {
   decidedByInclude,
   STALE_RUN_AFTER_MS,
 } from '../ai-analysis-runs.service';
+import { type ModelMonitoring } from '../monitoring/model-monitoring';
+import { type ModelMonitoringQueryDto } from '../monitoring/model-monitoring.dto';
+import { loadModelMonitoring } from '../monitoring/model-monitoring.query';
 import {
   type AiRunsPeriodQueryDto,
   type AiRunsSummaryQueryDto,
@@ -98,6 +101,18 @@ export class AiRunsOverviewService {
       total,
       totalPages: Math.max(1, Math.ceil(total / limit)),
     };
+  }
+
+  // How the physicians of the workspace judge each model, month by month
+  // (GET /ai-analysis-runs/model-monitoring). The scope is part of the query,
+  // like the list's.
+  async modelMonitoring(
+    user: AuthenticatedUserPayload,
+    query: ModelMonitoringQueryDto,
+  ): Promise<ModelMonitoring> {
+    const scope = await this.patientsService.getPatientScopeWhere(user);
+
+    return loadModelMonitoring(this.prisma, { patient: scope }, query);
   }
 
   async summary(

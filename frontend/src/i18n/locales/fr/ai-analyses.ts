@@ -1266,4 +1266,101 @@ export const aiAnalysesFr = {
     showMap: "Afficher la carte",
     mapOpacity: "Opacité de la carte",
   },
+  monitoring: {
+    breadcrumb: "Suivi des modèles",
+    context: "Analyses IA · Suivi des modèles",
+    title: "Suivi des modèles",
+    subtitle:
+      "Comment les médecins jugent les résultats de chaque modèle, mois par mois, pour repérer une baisse de performance.",
+    backToHub: "Retour aux analyses IA",
+    period: {
+      label: "Période",
+      "6": "6 derniers mois",
+      "12": "12 derniers mois",
+      "24": "24 derniers mois",
+    },
+    loading: "Chargement du suivi des modèles…",
+    error: "Impossible de charger le suivi des modèles.",
+    empty:
+      "Aucune analyse IA sur cette période : le suivi apparaît dès que des analyses sont décidées.",
+    unknownModel: "Modèle non identifié (échec avant la réponse)",
+    howTo: {
+      title: "Comment lire ce tableau",
+      rate:
+        "Taux de correction : part des analyses que le médecin a corrigées, parmi celles où il a pris position sur la classe (validées + corrigées). Une analyse rejetée, une image inadaptée par exemple, n’est pas une correction.",
+      months:
+        "Les mois sont ceux d’Alger, comptés à la date de l’analyse. Le mois en cours est partiel.",
+      drift:
+        "Alerte de dérive : le taux de correction d’un mois dépasse de plus de {points} points la moyenne des {months} mois précédents, avec au moins {minimum} décisions sur une classe dans le mois et dans les mois de référence.",
+      maps:
+        "Une carte de segmentation se valide ou se rejette, elle ne se corrige pas : pas de taux de correction, la part des rejets se lit dans le tableau.",
+      scope: {
+        workspace: "Les chiffres portent sur les analyses des patients de votre espace de travail.",
+        global: "Les chiffres portent sur tous les espaces de travail.",
+      },
+    },
+    alert: {
+      title: "Dérive détectée",
+      item:
+        "{model} : taux de correction de {month} à {rate}, contre {baseline} sur les {months} mois précédents ({points} points).",
+    },
+    chart: {
+      title: "Taux de correction par modèle",
+      caption:
+        "Part des analyses corrigées par le médecin. Un mois sans décision sur une classe n’a pas de point ; un cercle d’alerte marque une dérive.",
+      empty:
+        "Aucun taux de correction à tracer pour l’instant : il faut des décisions sur une classe (validées ou corrigées).",
+      summary: "Courbe du taux de correction de {models} modèle(s), sur {months} mois, de 0 % à {max}.",
+      yAxis: "Taux de correction",
+      point: "{model} · {month} : {rate} ({corrected} corrigées sur {judged})",
+      driftPoint: "Dérive",
+      legend: "Modèles",
+    },
+    model: {
+      chain: "Chaîne d’analyse",
+      status: {
+        alert: "Dérive détectée",
+        stable: "Aucune dérive",
+        noBaseline: "Référence insuffisante : moins de {minimum} décisions avant ce mois",
+        tooFewDecisions: "Pas assez de décisions ({minimum} requises)",
+        map: "Carte à valider, sans correction",
+        noDecision: "Pas encore de décision",
+      },
+    },
+    table: {
+      caption: "Suivi mensuel : {model}",
+      month: "Mois",
+      runs: "Analyses",
+      succeeded: "Réussies",
+      failed: "Échecs",
+      rejectedInput: "Images refusées",
+      decided: "Décidées",
+      validated: "Validées",
+      corrected: "Corrigées",
+      rejected: "Rejetées",
+      correctionRate: "Taux de correction",
+      decisionDelay: "Délai médian de décision",
+      inference: "Durée médiane d’inférence",
+      drift: "Dérive",
+      vsBaseline: "{points} pts vs {baseline}",
+    },
+    matrix: {
+      title: "Prédiction du modèle → décision du médecin",
+      caption:
+        "Analyses validées ou corrigées : une ligne par classe proposée par le modèle, une colonne par classe retenue par le médecin. La diagonale est l’accord.",
+      modelClass: "Classe du modèle",
+      retainedClass: "Classe retenue par le médecin",
+      agreementCell: "accord",
+      none: "Pas encore de décision sur une classe.",
+      notApplicable:
+        "Pas de matrice pour cette chaîne : l’ECG est multi-étiquettes et une carte de segmentation n’a pas de classe.",
+    },
+    duration: {
+      ms: "{value} ms",
+      seconds: "{value} s",
+      minutes: "{value} min",
+      hours: "{value} h",
+      days: "{value} j",
+    },
+  },
 } as const;

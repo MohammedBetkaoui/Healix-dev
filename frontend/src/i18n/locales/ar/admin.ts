@@ -432,6 +432,7 @@ export const adminAr = {
     secureAccessDescription: "واجهة مخصصة للإدارة فقط.",
     brand: "إدارة HealixDZ",
     nav: {
+      aiMonitoring: "متابعة نماذج الذكاء الاصطناعي",
       auditLogs: "سجلات التدقيق",
       dashboard: "لوحة التحكم",
       logout: "تسجيل الخروج",
@@ -606,6 +607,13 @@ export const adminAr = {
       type: "النوع",
       updatedAt: "آخر تحديث",
       wilaya: "الولاية",
+    },
+  },
+  aiMonitoring: {
+    page: {
+      subtitle:
+        "قرارات جميع الأطباء في كل فضاءات العمل، لاكتشاف نموذج تُصحَّح نتائجه أكثر فأكثر.",
+      title: "متابعة نماذج الذكاء الاصطناعي",
     },
   },
   subscriptions: {

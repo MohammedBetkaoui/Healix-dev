@@ -5,6 +5,7 @@ import { type AuthenticatedUserPayload } from '../../auth/types/authenticated-re
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
 import { RolesGuard } from '../../common/guards/roles.guard';
 import { VerifiedAccountGuard } from '../../common/guards/verified-account.guard';
+import { ModelMonitoringQueryDto } from '../monitoring/model-monitoring.dto';
 import {
   AiRunsSummaryQueryDto,
   ListAiAnalysisRunsQueryDto,
@@ -33,5 +34,16 @@ export class AiRunsOverviewController {
     @Query() query: AiRunsSummaryQueryDto,
   ) {
     return this.overviewService.summary(user, query);
+  }
+
+  // The monitoring board: per model and per month (Algiers), how the
+  // workspace's physicians judge the results. A read: open without a live
+  // subscription, like the rest of the tracking.
+  @Get('model-monitoring')
+  modelMonitoring(
+    @CurrentUser() user: AuthenticatedUserPayload,
+    @Query() query: ModelMonitoringQueryDto,
+  ) {
+    return this.overviewService.modelMonitoring(user, query);
   }
 }

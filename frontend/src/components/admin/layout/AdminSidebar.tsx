@@ -1,6 +1,7 @@
 "use client";
 
 import {
+  Activity,
   CreditCard,
   FileClock,
   Gauge,
@@ -58,6 +59,12 @@ const navItems: AdminNavItem[] = [
     icon: Gauge,
     key: "subscriptions",
     labelKey: "admin.layout.nav.subscriptions",
+  },
+  {
+    href: adminRoutes.aiMonitoring,
+    icon: Activity,
+    key: "aiMonitoring",
+    labelKey: "admin.layout.nav.aiMonitoring",
   },
   {
     href: adminRoutes.users,

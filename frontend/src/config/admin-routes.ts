@@ -2,6 +2,7 @@ export const ADMIN_GATE_PATH =
   process.env.NEXT_PUBLIC_ADMIN_GATE_PATH ?? "/hzdz-control-gate-2026";
 
 export const adminRoutes = {
+  aiMonitoring: `${ADMIN_GATE_PATH}/ai-monitoring`,
   auditLogs: `${ADMIN_GATE_PATH}/audit-logs`,
   dashboard: `${ADMIN_GATE_PATH}/dashboard`,
   login: `${ADMIN_GATE_PATH}/login`,

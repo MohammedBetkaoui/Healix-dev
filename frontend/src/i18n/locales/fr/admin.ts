@@ -449,6 +449,7 @@ export const adminFr = {
     secureAccessDescription: "Interface réservée à l'administration.",
     brand: "HealixDZ Admin",
     nav: {
+      aiMonitoring: "Suivi des modèles IA",
       auditLogs: "Audit logs",
       dashboard: "Tableau de bord",
       logout: "Déconnexion",
@@ -624,6 +625,13 @@ export const adminFr = {
       type: "Type",
       updatedAt: "Dernière mise à jour",
       wilaya: "Wilaya",
+    },
+  },
+  aiMonitoring: {
+    page: {
+      subtitle:
+        "Les décisions de tous les médecins, tous espaces de travail confondus, pour repérer un modèle dont les résultats sont de plus en plus corrigés.",
+      title: "Suivi des modèles IA",
     },
   },
   subscriptions: {
