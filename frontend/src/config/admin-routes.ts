@@ -8,6 +8,7 @@ export const adminRoutes = {
   patients: `${ADMIN_GATE_PATH}/patients`,
   payments: `${ADMIN_GATE_PATH}/payments`,
   settings: `${ADMIN_GATE_PATH}/settings`,
+  subscriptions: `${ADMIN_GATE_PATH}/subscriptions`,
   users: `${ADMIN_GATE_PATH}/users`,
   verificationDetail: (id: string) => `${ADMIN_GATE_PATH}/verifications/${id}`,
   verifications: `${ADMIN_GATE_PATH}/verifications`,

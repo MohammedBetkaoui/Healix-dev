@@ -20,9 +20,14 @@ ARG NEXT_PUBLIC_ADMIN_GATE_PATH=/hzdz-control-gate-2026
 # "true" shows the demo modules on mock data (laboratory, medical records);
 # anything else hides them (src/config/demo-modules.ts).
 ARG NEXT_PUBLIC_ENABLE_DEMO_MODULES=
+# "true" offers the offline settlements (cash, postal transfer, BaridiMob
+# receipt) next to the card payment; anything else shows the card alone
+# (src/config/manual-payments.ts). The backend has the same switch.
+ARG NEXT_PUBLIC_MANUAL_PAYMENTS_ENABLED=
 ENV NEXT_PUBLIC_API_URL=${NEXT_PUBLIC_API_URL} \
     NEXT_PUBLIC_ADMIN_GATE_PATH=${NEXT_PUBLIC_ADMIN_GATE_PATH} \
     NEXT_PUBLIC_ENABLE_DEMO_MODULES=${NEXT_PUBLIC_ENABLE_DEMO_MODULES} \
+    NEXT_PUBLIC_MANUAL_PAYMENTS_ENABLED=${NEXT_PUBLIC_MANUAL_PAYMENTS_ENABLED} \
     NEXT_TELEMETRY_DISABLED=1
 COPY --from=deps /app/node_modules ./node_modules
 COPY . .

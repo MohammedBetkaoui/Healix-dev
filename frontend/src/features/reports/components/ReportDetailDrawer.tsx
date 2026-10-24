@@ -7,6 +7,7 @@ import { useEffect, useState } from "react";
 import { Textarea } from "@/components/ui/textarea";
 import { type Locale } from "@/i18n";
 import { downloadBlob } from "@/lib/download-blob";
+import { useReadOnlyAction } from "@/features/subscriptions/hooks/use-read-only-action";
 import { type TranslationFunction } from "@/lib/i18n";
 import { cn } from "@/lib/utils";
 
@@ -44,6 +45,7 @@ type ReportDetailDrawerProps = {
 };
 
 export function ReportDetailDrawer({ accountType, capabilities, id, locale, onClose, onEdit, onNotice, onOpenReport, t }: ReportDetailDrawerProps) {
+  const write = useReadOnlyAction(t);
   const query = useReport(id);
   const history = useReportHistory(id);
   const finalize = useFinalizeReport();
@@ -145,12 +147,12 @@ export function ReportDetailDrawer({ accountType, capabilities, id, locale, onCl
               <div className="flex flex-wrap gap-2">
                 {actions.canDeleteDraft ? <button type="button" className="clinical-button text-[var(--danger-ink)]" disabled={busy} onClick={() => confirmDelete ? run(remove, report.id, () => { onNotice(t("reports.notices.draftDeleted")); onClose(); }) : setConfirmDelete(true)}><Trash2 size={15} aria-hidden="true" />{confirmDelete ? t("reports.actions.confirmDeleteDraft") : t("reports.actions.deleteDraft")}</button> : null}
                 {actions.canCancel ? <button type="button" className="clinical-button text-[var(--danger-ink)]" disabled={busy} onClick={() => setCancelOpen((value) => !value)}><XCircle size={15} aria-hidden="true" />{t("reports.actions.cancelReport")}</button> : null}
-                {actions.canAmend ? <button type="button" className="clinical-button" disabled={busy} onClick={() => run(amend, report.id, (draft: ClinicalReport) => { onNotice(t("reports.notices.amended")); onEdit(draft); })}><FilePenLine size={15} aria-hidden="true" />{t("reports.actions.createAmendment")}</button> : null}
+                {actions.canAmend ? <button type="button" className="clinical-button" disabled={busy || write.disabled} title={write.title} onClick={() => run(amend, report.id, (draft: ClinicalReport) => { onNotice(t("reports.notices.amended")); onEdit(draft); })}><FilePenLine size={15} aria-hidden="true" />{t("reports.actions.createAmendment")}</button> : null}
               </div>
               <div className="flex flex-wrap gap-2">
                 <Link href={patientHref} className="clinical-button"><FolderOpen size={15} aria-hidden="true" />{t("reports.actions.patientFile")}</Link>
                 {actions.canEditDraft ? <button type="button" className="clinical-button" disabled={busy} onClick={() => onEdit(report)}><Pencil size={15} aria-hidden="true" />{t("reports.actions.edit")}</button> : null}
-                {actions.canFinalize ? <button type="button" className="clinical-button clinical-button-primary" disabled={busy || (!report.sections.length && !report.conclusion)} onClick={() => run(finalize, report.id, (done: ClinicalReport) => onNotice(t("reports.notices.finalized", { number: done.number ?? "" })))}><CheckCircle2 size={15} aria-hidden="true" />{finalize.isPending ? t("reports.actions.finalizing") : t("reports.create.finalize")}</button> : null}
+                {actions.canFinalize ? <button type="button" className="clinical-button clinical-button-primary" disabled={busy || write.disabled || (!report.sections.length && !report.conclusion)} title={write.title} onClick={() => run(finalize, report.id, (done: ClinicalReport) => onNotice(t("reports.notices.finalized", { number: done.number ?? "" })))}><CheckCircle2 size={15} aria-hidden="true" />{finalize.isPending ? t("reports.actions.finalizing") : t("reports.create.finalize")}</button> : null}
                 {report.documentAvailable && capabilities.canDownloadReports ? <button type="button" className="clinical-button clinical-button-primary" onClick={() => setPdfOpen(true)}><ExternalLink size={15} aria-hidden="true" />{t("reports.actions.openPdf")}</button> : null}
               </div>
             </footer>

@@ -10,8 +10,14 @@ import {
 import { PlanFeatureList } from "./PlanFeatureList";
 import { formatPlanAmount } from "./subscription-format";
 
+// What the button does for this plan: start a subscription, renew the plan
+// held (its period is added after the days left), or change to another one
+// (it applies at once).
+export type PricingCtaKind = "changePlan" | "renew" | "subscribe";
+
 type PricingCardProps = {
   billingPeriod: BillingPeriod;
+  ctaKind: PricingCtaKind;
   current: boolean;
   disabled: boolean;
   onSelect: (planId: string) => void;
@@ -22,6 +28,7 @@ type PricingCardProps = {
 
 export function PricingCard({
   billingPeriod,
+  ctaKind,
   current,
   disabled,
   onSelect,
@@ -31,8 +38,8 @@ export function PricingCard({
 }: PricingCardProps) {
   const price =
     billingPeriod === "ANNUAL" ? plan.annualPrice : plan.monthlyPrice;
-  // The active plan is renewed from the status card, not re-subscribed here.
-  const isActionDisabled = disabled || current;
+  // The plan held can be renewed from its own card too.
+  const isActionDisabled = disabled;
   const isPrimaryAction = plan.recommended && !plan.custom && !isActionDisabled;
 
   return (
@@ -109,12 +116,7 @@ export function PricingCard({
         disabled={isActionDisabled}
         onClick={() => onSelect(plan.id)}
       >
-        {current ? (
-          <>
-            <Check size={16} strokeWidth={1.9} aria-hidden="true" />
-            {t("subscription.pricing.currentPlan")}
-          </>
-        ) : disabled ? (
+        {disabled ? (
           <>
             <Lock size={15} strokeWidth={1.8} aria-hidden="true" />
             {t("subscription.pricing.verificationRequired")}
@@ -131,7 +133,7 @@ export function PricingCard({
           </>
         ) : (
           <>
-            {t("subscription.pricing.choosePlan")}
+            {t(`subscription.cta.${ctaKind}`)}
             <ArrowRight size={16} strokeWidth={1.8} aria-hidden="true" className="rtl:rotate-180" />
           </>
         )}
@@ -143,12 +145,24 @@ export function PricingCard({
           t={t}
           title={t("subscription.pricing.features")}
         />
-        <PlanFeatureList
-          features={plan.limits}
-          kind="limit"
-          t={t}
-          title={t("subscription.pricing.limits")}
-        />
+        <div>
+          <PlanFeatureList
+            features={plan.limits}
+            kind="limit"
+            t={t}
+            title={t("subscription.pricing.limits")}
+          />
+          {plan.quotas && !plan.custom ? (
+            <p className="mt-2.5 text-[.8rem] leading-5 text-[var(--text-secondary)]">
+              {t("subscription.cta.pipelinesLabel")} :{" "}
+              <span className="font-medium text-[var(--text-primary)]">
+                {plan.quotas.aiPipelines === null
+                  ? t("subscription.cta.pipelinesAll")
+                  : t("subscription.cta.pipelinesClassification")}
+              </span>
+            </p>
+          ) : null}
+        </div>
       </div>
     </article>
   );

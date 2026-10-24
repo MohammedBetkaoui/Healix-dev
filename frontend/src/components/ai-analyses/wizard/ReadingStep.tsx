@@ -5,6 +5,7 @@ import { useId } from "react";
 
 import { type AiModule, type AiPipelineId } from "@/features/ai-analyses/ai-analyses.types";
 import { type LaunchState } from "@/features/ai-analyses/run-presentation";
+import { useReadOnlyAction } from "@/features/subscriptions/hooks/use-read-only-action";
 import { type TranslationFunction } from "@/lib/i18n";
 
 import { HealixSpecialtyArtwork } from "../HealixSpecialtyArtwork";
@@ -41,6 +42,7 @@ export function ReadingStep({
   isRefreshingService, t,
 }: ReadingStepProps) {
   const id = useId();
+  const write = useReadOnlyAction(t);
   const launchMessage = isLaunching
     ? t("aiAnalyses.wizard.reading.running")
     : launchError
@@ -99,7 +101,7 @@ export function ReadingStep({
           <strong>{t("aiAnalyses.wizard.workspace.launchTitle")}</strong>
           <p>{t("aiAnalyses.wizard.workspace.launchHint")}</p>
         </div>
-        <button type="button" className="clinical-button clinical-button-primary ai-wizard-launch-button" disabled={!canLaunch} aria-describedby={launchMessage ? `${id}-launch` : undefined} onClick={onLaunch}>
+        <button type="button" className="clinical-button clinical-button-primary ai-wizard-launch-button" disabled={!canLaunch || write.disabled} title={write.title} aria-describedby={launchMessage ? `${id}-launch` : undefined} onClick={onLaunch}>
           {isLaunching ? <Loader2 size={17} className="animate-spin" aria-hidden="true" /> : <PlayCircle size={17} aria-hidden="true" />}
           {isLaunching ? t("aiAnalyses.wizard.workspace.launching") : t("aiAnalyses.wizard.reading.launch")}
         </button>

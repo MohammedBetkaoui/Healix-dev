@@ -15,6 +15,7 @@ import { getReportBlocker, getReportErrorKey } from "@/features/ai-analyses/run-
 import { formatPatientDateTime } from "@/features/patients/patient-registry";
 import { type Locale } from "@/i18n";
 import { isVerificationRequiredError } from "@/lib/api/api-error";
+import { useReadOnlyAction } from "@/features/subscriptions/hooks/use-read-only-action";
 import { getVerificationRequiredMessage } from "@/lib/api/get-mutation-error-message";
 import { type TranslationFunction } from "@/lib/i18n";
 import { cn } from "@/lib/utils";
@@ -47,6 +48,16 @@ export function NewAiAnalysisMenu({
   patientId: string;
   t: TranslationFunction;
 }) {
+  const write = useReadOnlyAction(t);
+
+  if (write.disabled) {
+    return (
+      <button type="button" className={cn(className, "cursor-not-allowed opacity-60")} disabled title={write.title}>
+        {children}
+      </button>
+    );
+  }
+
   return (
     <details className="relative">
       <summary className={cn(className, "cursor-pointer list-none [&::-webkit-details-marker]:hidden")}>

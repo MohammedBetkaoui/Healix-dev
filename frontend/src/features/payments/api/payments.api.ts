@@ -1,6 +1,7 @@
 import { apiClient } from "@/lib/api/http-client";
 
 import {
+  type ActivatedSubscription,
   type CreatePaymentIntentPayload,
   type CreatePaymentIntentResponse,
   type PaymentProofType,
@@ -23,7 +24,12 @@ export async function createPaymentIntent(
 export async function paySyntheticChargily(
   paymentId: string,
   payload: SyntheticChargilyPayload,
-): Promise<{ message: string; payment: PaymentSummary; subscriptionId: string }> {
+): Promise<{
+  message: string;
+  payment: PaymentSummary;
+  subscription: ActivatedSubscription;
+  subscriptionId: string;
+}> {
   const response = await apiClient.post(
     `/payments/${paymentId}/pay/synthetic-chargily`,
     payload,

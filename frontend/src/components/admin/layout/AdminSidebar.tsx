@@ -3,6 +3,7 @@
 import {
   CreditCard,
   FileClock,
+  Gauge,
   LayoutDashboard,
   LogOut,
   Settings,
@@ -51,6 +52,12 @@ const navItems: AdminNavItem[] = [
     icon: CreditCard,
     key: "payments",
     labelKey: "admin.layout.nav.payments",
+  },
+  {
+    href: adminRoutes.subscriptions,
+    icon: Gauge,
+    key: "subscriptions",
+    labelKey: "admin.layout.nav.subscriptions",
   },
   {
     href: adminRoutes.users,

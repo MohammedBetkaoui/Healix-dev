@@ -86,7 +86,7 @@ export const subscriptionFr = {
     items: {
       activation: {
         answer:
-          "Votre abonnement est activé dès la confirmation du paiement. Pour un paiement manuel, l'activation intervient après validation de la preuve par l'équipe HealixDZ.",
+          "Votre abonnement est activé immédiatement après le paiement par carte (en démonstration, aucun débit réel). Aucune validation de l'administration n'est nécessaire.",
         question: "Quand mon compte sera activé ?",
       },
       annual: {
@@ -101,7 +101,7 @@ export const subscriptionFr = {
       },
       changePlan: {
         answer:
-          "Le changement de plan depuis cet espace sera bientôt disponible. En attendant, l'équipe HealixDZ peut vous accompagner.",
+          "Oui. Choisissez un autre plan : il s'applique immédiatement, et la période payée s'ajoute après vos jours restants, essai compris.",
         question: "Puis-je changer de plan ?",
       },
       manual: {
@@ -403,6 +403,7 @@ export const subscriptionFr = {
       EXPIRED: "Expiré",
       NO_PLAN: "Aucun abonnement",
       PAYMENT_PENDING: "Paiement en attente",
+      TRIALING: "Essai gratuit",
     },
     verification: {
       NOT_STARTED: "Non commencée",
@@ -422,5 +423,171 @@ export const subscriptionFr = {
     title: "Synthèse du compte",
     verification: "Vérification professionnelle",
     verificationHint: "Condition requise pour souscrire",
+  },
+  banner: {
+    actions: {
+      choose: "Choisir un plan",
+      renew: "Renouveler",
+    },
+    affiliated:
+      "L'abonnement est géré par l'administrateur de votre établissement.",
+    expiringOne: "Votre abonnement expire dans 1 jour",
+    expiringOther: "Votre abonnement expire dans {days} jours",
+    label: "État de votre abonnement",
+    readOnly: {
+      CANCELED: "Abonnement arrêté : mode lecture seule",
+      EXPIRED: "Abonnement expiré : mode lecture seule",
+      NO_PLAN: "Aucun abonnement actif : mode lecture seule",
+    },
+    readOnlyHint:
+      "Vous pouvez consulter et télécharger vos dossiers ; la création est suspendue.",
+    trialHint: "Tous les modèles IA sont inclus pendant l'essai.",
+    trialOne: "Essai gratuit : 1 jour restant",
+    trialOther: "Essai gratuit : {days} jours restants",
+  },
+  cta: {
+    changePlan: "Changer de plan",
+    pipelinesAll: "Tous",
+    pipelinesClassification: "Classification seule",
+    pipelinesLabel: "Modèles IA",
+    renew: "Renouveler",
+    subscribe: "S'abonner",
+  },
+  history: {
+    byAdministrator: "Par l'administration HealixDZ",
+    card: "Carte •••• {last4}",
+    columns: {
+      amount: "Montant",
+      date: "Date",
+      method: "Moyen",
+      plan: "Plan",
+      reference: "Référence",
+      status: "Statut",
+    },
+    emptyEvents: "Aucun événement pour le moment.",
+    emptyPayments: "Aucun paiement pour le moment.",
+    error: "Impossible de charger l'historique.",
+    events: {
+      CANCELED: "Abonnement arrêté",
+      EXPIRED: "Abonnement expiré",
+      PLAN_CHANGED: "Changement de plan",
+      PURCHASED: "Abonnement souscrit",
+      QUOTAS_CHANGED: "Quotas modifiés",
+      RENEWED: "Abonnement renouvelé",
+      TRIAL_EXTENDED: "Essai prolongé",
+      TRIAL_STARTED: "Essai gratuit commencé",
+    },
+    eventsTitle: "Historique de l'abonnement",
+    loading: "Chargement de l'historique...",
+    paymentsTitle: "Paiements",
+    planChange: "{from} → {to}",
+    until: "jusqu'au {date}",
+  },
+  hub: {
+    locked: "Ce modèle n'est pas inclus dans votre plan.",
+    planBadge: "Plan {plan}",
+    premiumName: "Premium",
+    upgrade: "Passer au plan {plan}",
+  },
+  limits: {
+    choose: "Choisir un plan",
+    close: "Fermer",
+    contact:
+      "Ce plan est sur devis : contactez l'équipe HealixDZ, il ne se paie pas en ligne.",
+    inactive:
+      "Votre abonnement n'est plus actif : le compte est en lecture seule. Choisissez un plan pour recommencer à créer.",
+    managedByEstablishment:
+      "L'abonnement est géré par l'administrateur de votre établissement : contactez-le.",
+    noHigherPlan:
+      "Vous avez déjà le plan le plus élevé : contactez l'équipe HealixDZ pour une offre sur mesure.",
+    pipeline: "Ce modèle d'analyse IA n'est pas inclus dans votre plan.",
+    preparing: "Préparation du paiement...",
+    quota: {
+      aiAnalysesPerMonth:
+        "Quota d'analyses IA atteint : {used}/{limit} ce mois-ci",
+      maxDoctors: "Nombre de médecins atteint : {used}/{limit}",
+      maxPatients: "Limite de patients atteinte : {used}/{limit}",
+    },
+    quotaTrial: {
+      aiAnalysesPerMonth:
+        "Quota d'analyses IA de l'essai atteint : {used}/{limit}",
+    },
+    renew: "Renouveler",
+    seePlans: "Voir les plans",
+    suggestion: "Plan proposé : {plan} ({price} DA / mois)",
+    title: "Limite de votre abonnement",
+    upgrade: "Passer au plan supérieur",
+  },
+  payNow: {
+    accepted: "Carte de test acceptée",
+    amount: "Montant à payer",
+    declined:
+      "Toute autre carte est refusée : simulation d'un refus, aucune somme n'est débitée et votre abonnement ne change pas.",
+    demoBanner: "Paiement de démonstration — aucun débit réel",
+    demoBannerHint:
+      "Aucun prestataire réel, aucun argent débité. Ne saisissez jamais une vraie carte.",
+    expiry: {
+      PLAN_CHANGED:
+        "Le nouveau plan s'applique immédiatement. Votre abonnement sera actif jusqu'au {date}.",
+      PURCHASED: "Votre abonnement sera actif jusqu'au {date}.",
+      RENEWED: "Votre abonnement sera prolongé jusqu'au {date}.",
+      trial:
+        "Votre essai prend fin et ses jours restants sont conservés : abonnement actif jusqu'au {date}.",
+    },
+    failed: {
+      retry: "Réessayer avec une autre carte",
+      retrying: "Préparation d'une nouvelle tentative...",
+      text: "La carte a été refusée. Aucun montant n'a été débité et votre abonnement n'a pas changé. Vous pouvez réessayer.",
+      title: "Paiement refusé",
+    },
+    newExpiry: "Nouvelle échéance",
+    period: "Période",
+    plan: "Plan",
+    recap: "Récapitulatif",
+    success: {
+      dashboard: "Retour au tableau de bord",
+      expiresOn: "Actif jusqu'au {date}",
+      subscription: "Voir mon abonnement",
+      text: "Votre abonnement est actif immédiatement, sans validation de l'administration.",
+      title: "Abonnement activé",
+    },
+  },
+  readOnly: {
+    hint: "Abonnement inactif : mode lecture seule. Choisissez un plan pour créer.",
+  },
+  usage: {
+    caption:
+      "Compteurs de votre espace de travail. Les analyses IA sont comptées sur le mois en cours (heure d'Alger).",
+    captionTrial:
+      "Pendant l'essai, les analyses IA sont comptées sur toute sa durée.",
+    labels: {
+      aiAnalysesPerMonth: "Analyses IA du mois",
+      aiAnalysesTrial: "Analyses IA de l'essai",
+      maxDoctors: "Médecins",
+      maxPatients: "Patients actifs",
+    },
+    ofLimit: "{used} / {limit}",
+    pipelines: {
+      all: "Tous les modèles IA sont inclus",
+      limited: "Modèles IA : classification uniquement",
+    },
+    title: "Utilisation de votre plan",
+    tone: {
+      danger: "Quota atteint",
+      warning: "Quota presque atteint",
+    },
+    unlimited: "{used} · illimité",
+  },
+  statusCard: {
+    canceledLabel: "Abonnement arrêté",
+    canceledTitle: "Plan {plan} : arrêté",
+    expiredLabel: "Abonnement expiré",
+    expiredTitle: "Plan {plan} : expiré le {end}",
+    readOnlyNote:
+      "Mode lecture seule : vous pouvez consulter et télécharger vos dossiers, la création est suspendue jusqu'au renouvellement.",
+    trialAction: "S'abonner à ce plan",
+    trialLabel: "Essai gratuit",
+    trialPeriod: "Se termine le {end} · jours restants : {days}",
+    trialTitle: "Essai gratuit : plan {plan}",
   },
 };

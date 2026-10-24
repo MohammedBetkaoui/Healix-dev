@@ -49,7 +49,7 @@ function getBannerKey(context: SubscriptionContext): BannerKey {
 
   if (
     context.accountStatus === "ACTIVE" &&
-    context.subscriptionStatus === "ACTIVE" &&
+    (context.subscriptionStatus === "ACTIVE" || context.subscriptionStatus === "TRIALING") &&
     context.verificationStatus === "VERIFIED"
   ) {
     return "active";

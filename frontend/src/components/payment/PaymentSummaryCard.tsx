@@ -1,9 +1,12 @@
-import { ReceiptText } from "lucide-react";
+import { CalendarCheck, ReceiptText } from "lucide-react";
 
-import { type TranslationFunction } from "@/lib/i18n";
+import { formatBillingDate } from "@/components/subscription/subscription-format";
 import { type PaymentSummary } from "@/features/payments/types/payment.types";
+import { type Locale } from "@/i18n";
+import { type TranslationFunction } from "@/lib/i18n";
 
 type PaymentSummaryCardProps = {
+  locale?: Locale;
   payment?: PaymentSummary | null;
   t: TranslationFunction;
 };
@@ -16,7 +19,23 @@ function formatPrice(value?: number, currency = "DZD") {
   return `${new Intl.NumberFormat("fr-DZ").format(value)} ${currency}`;
 }
 
-export function PaymentSummaryCard({ payment, t }: PaymentSummaryCardProps) {
+// "Votre abonnement sera prolongé jusqu'au ..." : what paying would do,
+// worked out by the backend with the very rule that applies it.
+export function describeExpiryPreview(
+  preview: NonNullable<PaymentSummary["expiryPreview"]>,
+  locale: Locale,
+  t: TranslationFunction,
+): string {
+  const date = formatBillingDate(preview.expiresAt, locale) ?? preview.expiresAt;
+
+  return preview.endsTrial
+    ? t("subscription.payNow.expiry.trial", { date })
+    : t(`subscription.payNow.expiry.${preview.type}`, { date });
+}
+
+export function PaymentSummaryCard({ locale = "fr", payment, t }: PaymentSummaryCardProps) {
+  const preview = payment?.expiryPreview ?? null;
+
   return (
     <section className="rounded-[24px] border border-slate-200 bg-white p-5 shadow-[0_16px_40px_rgba(15,23,42,0.05)]">
       <div className="flex items-start gap-3">
@@ -25,7 +44,7 @@ export function PaymentSummaryCard({ payment, t }: PaymentSummaryCardProps) {
         </span>
         <div>
           <h2 className="text-lg font-semibold text-slate-950">
-            {t("subscription.checkout.title")}
+            {t("subscription.payNow.recap")}
           </h2>
           <p className="mt-1 text-sm text-slate-500">
             {payment?.reference ?? t("subscription.paymentFlow.reference")}
@@ -35,9 +54,15 @@ export function PaymentSummaryCard({ payment, t }: PaymentSummaryCardProps) {
 
       <dl className="mt-5 space-y-3 text-sm">
         <div className="flex justify-between gap-4">
-          <dt className="text-slate-500">{t("subscription.checkout.plan")}</dt>
+          <dt className="text-slate-500">{t("subscription.payNow.plan")}</dt>
           <dd className="font-semibold text-slate-950">
-            {payment?.plan?.name ?? "-"}
+            {payment?.plan?.name ? t(payment.plan.name) : "-"}
+          </dd>
+        </div>
+        <div className="flex justify-between gap-4">
+          <dt className="text-slate-500">{t("subscription.payNow.period")}</dt>
+          <dd className="font-semibold text-slate-950">
+            {payment ? t(`subscription.billing.${payment.billingPeriod.toLowerCase()}`) : "-"}
           </dd>
         </div>
         <div className="flex justify-between gap-4">
@@ -45,7 +70,9 @@ export function PaymentSummaryCard({ payment, t }: PaymentSummaryCardProps) {
             {t("subscription.paymentFlow.amount")}
           </dt>
           <dd className="font-semibold text-slate-950">
-            {formatPrice(payment?.amount, payment?.currency)}
+            <bdi dir="ltr" className="tabular-nums">
+              {formatPrice(payment?.amount, payment?.currency)}
+            </bdi>
           </dd>
         </div>
         <div className="flex justify-between gap-4">
@@ -69,6 +96,16 @@ export function PaymentSummaryCard({ payment, t }: PaymentSummaryCardProps) {
           </dd>
         </div>
       </dl>
+
+      {preview ? (
+        <div className="mt-5 flex items-start gap-3 rounded-2xl border border-emerald-100 bg-emerald-50/70 p-4 text-sm leading-6 text-emerald-900">
+          <CalendarCheck className="mt-0.5 h-5 w-5 shrink-0" aria-hidden="true" />
+          <div>
+            <p className="font-semibold">{t("subscription.payNow.newExpiry")}</p>
+            <p data-testid="expiry-preview">{describeExpiryPreview(preview, locale, t)}</p>
+          </div>
+        </div>
+      ) : null}
     </section>
   );
 }

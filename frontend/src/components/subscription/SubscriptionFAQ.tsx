@@ -1,5 +1,6 @@
 import { ChevronDown } from "lucide-react";
 
+import { manualPaymentsEnabled } from "@/config/manual-payments";
 import { type TranslationFunction } from "@/lib/i18n";
 
 type SubscriptionFAQProps = {
@@ -16,6 +17,8 @@ const faqItems = [
 ] as const;
 
 export function SubscriptionFAQ({ t }: SubscriptionFAQProps) {
+  const items = faqItems.filter((item) => item !== "manual" || manualPaymentsEnabled());
+
   return (
     <section
       aria-labelledby="subscription-faq-heading"
@@ -30,7 +33,7 @@ export function SubscriptionFAQ({ t }: SubscriptionFAQProps) {
         </div>
       </div>
       <div className="divide-y divide-[var(--line-soft)]">
-        {faqItems.map((item) => (
+        {items.map((item) => (
           <details key={item} className="group">
             <summary className="flex min-h-[52px] cursor-pointer list-none items-center justify-between gap-4 px-5 py-3 text-sm font-medium text-[var(--text-primary)] transition hover:bg-[var(--surface-muted)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-[var(--accent)] [&::-webkit-details-marker]:hidden">
               {t(`subscription.faq.items.${item}.question`)}

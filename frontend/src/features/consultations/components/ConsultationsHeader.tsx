@@ -1,5 +1,6 @@
 import { ClipboardPlus, ShieldCheck } from "lucide-react";
 
+import { useReadOnlyAction } from "@/features/subscriptions/hooks/use-read-only-action";
 import { type TranslationFunction } from "@/lib/i18n";
 
 type ConsultationsHeaderProps = {
@@ -9,6 +10,8 @@ type ConsultationsHeaderProps = {
 };
 
 export function ConsultationsHeader({ canCreate, onCreate, t }: ConsultationsHeaderProps) {
+  const write = useReadOnlyAction(t);
+
   return (
     <header className="flex flex-col gap-5 lg:flex-row lg:items-start lg:justify-between">
       <div className="min-w-0">
@@ -23,7 +26,7 @@ export function ConsultationsHeader({ canCreate, onCreate, t }: ConsultationsHea
         <p className="mt-2 max-w-3xl text-sm leading-6 text-[var(--text-secondary)]">{t("consultations.page.subtitle")}</p>
       </div>
       {canCreate ? (
-        <button type="button" className="clinical-button clinical-button-primary lg:shrink-0" onClick={onCreate}>
+        <button type="button" className="clinical-button clinical-button-primary lg:shrink-0" disabled={write.disabled} title={write.title} onClick={onCreate}>
           <ClipboardPlus size={16} strokeWidth={1.8} aria-hidden="true" />
           {t("consultations.actions.new")}
         </button>

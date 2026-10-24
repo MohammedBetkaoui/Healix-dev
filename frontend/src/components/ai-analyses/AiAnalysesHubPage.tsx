@@ -18,6 +18,12 @@ import { getPipelineAvailability } from "@/features/ai-analyses/hub-presentation
 import { useAiModelsStatus } from "@/features/ai-analyses/hooks/use-ai-models-status";
 import { useAiRunsOverview } from "@/features/ai-analyses/hooks/use-ai-runs-overview";
 import { useCurrentUser } from "@/features/auth/hooks/use-current-user";
+import { useCreatePaymentIntent } from "@/features/payments/hooks/use-create-payment-intent";
+import { useEntitlements } from "@/features/subscriptions/hooks/use-entitlements";
+import { useReadOnlyAction } from "@/features/subscriptions/hooks/use-read-only-action";
+import { useSubscriptionPlans } from "@/features/subscriptions/hooks/use-subscription-plans";
+import { toSubscriptionPlan } from "@/features/subscriptions/subscriptions.api";
+import { findUpgradePlan, isPipelineLocked } from "@/features/subscriptions/utils/entitlements-presentation";
 import { useEstablishmentVerificationPrefill } from "@/features/verification/hooks/use-establishment-verification-prefill";
 import { getAccountInitials } from "@/lib/format/get-account-initials";
 import { useStoredLocale, useTranslation } from "@/lib/i18n";
@@ -64,6 +70,27 @@ export function AiAnalysesHubPage({ accountType }: AiAnalysesHubPageProps) {
     ? prefill.data?.establishment.name || t("dashboard.clinical.administration")
     : currentUser.data?.fullName || t("dashboard.clinical.doctor.workspace");
   const availability = getPipelineAvailability(selected, serviceStatus);
+  // The plan decides which chains are open (segmentation is a Premium matter),
+  // and without a live subscription nothing new can be launched.
+  const { entitlements } = useEntitlements();
+  const write = useReadOnlyAction(t);
+  const lockedPipeline = isPipelineLocked(entitlements, selected.id);
+  const anyLocked = aiPipelines.some((pipeline) => isPipelineLocked(entitlements, pipeline.id));
+  const plansQuery = useSubscriptionPlans({ enabled: anyLocked && (entitlements?.canManage ?? false) });
+  const upgrade = useCreatePaymentIntent();
+  const planFor = (pipelineId: string) => findUpgradePlan(
+    (plansQuery.data ?? []).map(toSubscriptionPlan),
+    { planId: entitlements?.plan?.code ?? null, trial: entitlements?.trial ?? false },
+    { kind: "pipeline", pipeline: pipelineId },
+  );
+  const upgradePlan = lockedPipeline ? planFor(selected.id) : null;
+  const planLabel = (pipelineId: string) =>
+    t("subscription.hub.planBadge", { plan: planFor(pipelineId)?.name ? t(planFor(pipelineId)?.name ?? "") : t("subscription.hub.premiumName") });
+  const subscriptionHref = `${roleBase}/subscription`;
+  const startUpgrade = () => {
+    if (!upgradePlan) return;
+    void upgrade.createIntent({ billingPeriod: "MONTHLY", paymentMethod: "SYNTHETIC_CHARGILY", planId: upgradePlan.id });
+  };
   const serviceState = status.isPending ? "checking" : !serviceStatus ? "unknown" : serviceStatus.service === "available" ? "online" : "offline";
   const number = new Intl.NumberFormat(locale === "ar" ? "ar-DZ" : "fr-DZ");
 
@@ -169,7 +196,7 @@ export function AiAnalysesHubPage({ accountType }: AiAnalysesHubPageProps) {
             </div>
             <ul id="ai-hub-pipelines" className="ai-hub-pipelines" aria-label={t("aiAnalyses.hub.chooseTitle")}>
               {visiblePipelines.map((pipeline) => (
-                <li key={pipeline.id}><AiPipelineCard pipeline={pipeline} index={number.format(catalogPipelines.findIndex((item) => item.id === pipeline.id) + 1)} selected={selectedId === pipeline.id} status={serviceStatus} onSelect={() => setSelectedId(pipeline.id)} t={t} /></li>
+                <li key={pipeline.id}><AiPipelineCard pipeline={pipeline} index={number.format(catalogPipelines.findIndex((item) => item.id === pipeline.id) + 1)} selected={selectedId === pipeline.id} status={serviceStatus} lockedLabel={isPipelineLocked(entitlements, pipeline.id) ? planLabel(pipeline.id) : undefined} onSelect={() => setSelectedId(pipeline.id)} t={t} /></li>
               ))}
             </ul>
             <p className="ai-hub-selection-hint"><ShieldCheck size={15} aria-hidden="true" />{t("aiAnalyses.hub.selectionHint")}</p>
@@ -202,18 +229,42 @@ export function AiAnalysesHubPage({ accountType }: AiAnalysesHubPageProps) {
                   </button>
                 ))}</div>
               </div>
-              <Link href={`${roleBase}/ai-analyses/new?pipeline=${encodeURIComponent(selected.id)}`} className="ai-hub-continue" aria-label={t("aiAnalyses.hub.continueWith", { name: t(`aiAnalyses.hub.analyses.${selected.id}.title`) })}>
-                {t("aiAnalyses.hub.continue")}<ArrowRight size={17} aria-hidden="true" className="clinical-directional" />
-              </Link>
+              {lockedPipeline ? (
+                <div data-locked="true" className="grid gap-2">
+                  <p role="status" className="text-sm font-medium text-[var(--warning-ink)]">{t("subscription.hub.locked")}</p>
+                  {entitlements?.canManage ? (
+                    upgradePlan ? (
+                      <button type="button" className="ai-hub-continue" disabled={upgrade.isLoading} onClick={startUpgrade}>
+                        {t("subscription.hub.upgrade", { plan: t(upgradePlan.name) })}<ArrowRight size={17} aria-hidden="true" className="clinical-directional" />
+                      </button>
+                    ) : (
+                      <Link href={subscriptionHref} className="ai-hub-continue">{t("subscription.limits.seePlans")}<ArrowRight size={17} aria-hidden="true" className="clinical-directional" /></Link>
+                    )
+                  ) : null}
+                  {upgrade.error ? <p role="alert" className="text-sm font-medium text-[var(--danger-ink)]">{upgrade.error}</p> : null}
+                </div>
+              ) : write.disabled ? (
+                <button type="button" className="ai-hub-continue" disabled title={write.title}>{t("aiAnalyses.hub.continue")}<ArrowRight size={17} aria-hidden="true" className="clinical-directional" /></button>
+              ) : (
+                <Link href={`${roleBase}/ai-analyses/new?pipeline=${encodeURIComponent(selected.id)}`} className="ai-hub-continue" aria-label={t("aiAnalyses.hub.continueWith", { name: t(`aiAnalyses.hub.analyses.${selected.id}.title`) })}>
+                  {t("aiAnalyses.hub.continue")}<ArrowRight size={17} aria-hidden="true" className="clinical-directional" />
+                </Link>
+              )}
               <p className="ai-hub-launch-note">{availability === "ready" ? <Check size={13} aria-hidden="true" /> : <ShieldCheck size={13} aria-hidden="true" />}{availability === "ready" ? t("aiAnalyses.hub.readyHint") : t("aiAnalyses.hub.checkHint")}</p>
               {selectedModel?.acceptedFormats ? <p className="ai-hub-summary-formats"><bdi dir="ltr">{selectedModel.acceptedFormats.join(" · ").toUpperCase()}</bdi></p> : null}
             </div>
           </aside>
           <div className="ai-hub-mobile-action">
             <div><span>{t("aiAnalyses.hub.selection")}</span><strong>{t(`aiAnalyses.hub.analyses.${selected.id}.title`)}</strong></div>
-            <Link href={`${roleBase}/ai-analyses/new?pipeline=${encodeURIComponent(selected.id)}`} className="ai-hub-continue" aria-label={t("aiAnalyses.hub.continueWith", { name: t(`aiAnalyses.hub.analyses.${selected.id}.title`) })}>
-              {t("aiAnalyses.hub.continue")}<ArrowRight size={16} aria-hidden="true" className="clinical-directional" />
-            </Link>
+            {lockedPipeline || write.disabled ? (
+              <button type="button" className="ai-hub-continue" disabled={write.disabled && !lockedPipeline} title={write.disabled ? write.title : t("subscription.hub.locked")} onClick={lockedPipeline && upgradePlan ? startUpgrade : undefined}>
+                {lockedPipeline && upgradePlan ? t("subscription.hub.upgrade", { plan: t(upgradePlan.name) }) : t("aiAnalyses.hub.continue")}<ArrowRight size={16} aria-hidden="true" className="clinical-directional" />
+              </button>
+            ) : (
+              <Link href={`${roleBase}/ai-analyses/new?pipeline=${encodeURIComponent(selected.id)}`} className="ai-hub-continue" aria-label={t("aiAnalyses.hub.continueWith", { name: t(`aiAnalyses.hub.analyses.${selected.id}.title`) })}>
+                {t("aiAnalyses.hub.continue")}<ArrowRight size={16} aria-hidden="true" className="clinical-directional" />
+              </Link>
+            )}
           </div>
         </div>
 

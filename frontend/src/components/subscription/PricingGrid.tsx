@@ -8,11 +8,13 @@ import {
 import { type TranslationFunction } from "@/lib/i18n";
 import { cn } from "@/lib/utils";
 
-import { PricingCard } from "./PricingCard";
+import { PricingCard, type PricingCtaKind } from "./PricingCard";
 
 type PricingGridProps = {
   billingPeriod: BillingPeriod;
   canSelectPlan: boolean;
+  // The button of each plan: "S'abonner", "Renouveler" or "Changer de plan".
+  ctaKind: (plan: SubscriptionPlan) => PricingCtaKind;
   currentPlanId?: string | null;
   onSelectPlan: (planId: string) => void;
   plans: SubscriptionPlan[];
@@ -25,6 +27,7 @@ type PricingGridProps = {
 export function PricingGrid({
   billingPeriod,
   canSelectPlan,
+  ctaKind,
   currentPlanId,
   onSelectPlan,
   plans,
@@ -61,6 +64,7 @@ export function PricingGrid({
           <PricingCard
             key={plan.id}
             billingPeriod={billingPeriod}
+            ctaKind={ctaKind(plan)}
             current={currentPlanId === plan.id}
             disabled={!canSelectPlan}
             onSelect={onSelectPlan}

@@ -14,11 +14,14 @@ type AiPipelineCardProps = {
   index: string;
   selected: boolean;
   status?: AiServiceStatus;
+  // The chain is outside the subscription's plan: the badge names the plan
+  // that gives it ("Plan Premium").
+  lockedLabel?: string;
   onSelect: () => void;
   t: TranslationFunction;
 };
 
-export function AiPipelineCard({ pipeline, index, selected, status, onSelect, t }: AiPipelineCardProps) {
+export function AiPipelineCard({ pipeline, index, selected, status, lockedLabel, onSelect, t }: AiPipelineCardProps) {
   const model = findModel(pipeline.entryModelId);
   const availability = getPipelineAvailability(pipeline, status);
   const title = t(`aiAnalyses.hub.analyses.${pipeline.id}.title`);
@@ -36,6 +39,9 @@ export function AiPipelineCard({ pipeline, index, selected, status, onSelect, t 
         <span className="ai-hub-pipeline-description">{t(`aiAnalyses.hub.analyses.${pipeline.id}.description`)}</span>
         <span className="ai-hub-pipeline-footer">
           <bdi dir="ltr" className="ai-hub-pipeline-formats">{model?.acceptedFormats?.join(" / ").toUpperCase()}</bdi>
+          {lockedLabel ? (
+            <span data-locked="true" className="rounded-[var(--radius-xs)] border border-[var(--warning-line)] bg-[var(--warning-soft)] px-1.5 py-0.5 text-[.68rem] font-semibold text-[var(--warning-ink)]">{lockedLabel}</span>
+          ) : null}
           <span className="ai-hub-availability" data-state={availability}><span className="ai-hub-status-dot" />{t(`aiAnalyses.hub.availability.${availability}`)}</span>
         </span>
       </span>

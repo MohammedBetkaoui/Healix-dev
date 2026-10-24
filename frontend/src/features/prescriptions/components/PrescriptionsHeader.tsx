@@ -1,5 +1,6 @@
 import { FileStack, Plus, ShieldAlert } from "lucide-react";
 
+import { useReadOnlyAction } from "@/features/subscriptions/hooks/use-read-only-action";
 import { type TranslationFunction } from "@/lib/i18n";
 
 import { type PrescriptionCapabilities } from "../types/prescription.types";
@@ -12,6 +13,8 @@ type PrescriptionsHeaderProps = {
 };
 
 export function PrescriptionsHeader({ capabilities, onNew, onTemplates, t }: PrescriptionsHeaderProps) {
+  const write = useReadOnlyAction(t);
+
   return (
     <header className="workspace-intro items-start">
       <div className="min-w-0 max-w-3xl">
@@ -25,7 +28,7 @@ export function PrescriptionsHeader({ capabilities, onNew, onTemplates, t }: Pre
           {t("prescriptions.actions.templates")}
         </button>
         {capabilities.canCreatePrescription ? (
-          <button type="button" className="clinical-button clinical-button-primary" onClick={onNew}>
+          <button type="button" className="clinical-button clinical-button-primary" disabled={write.disabled} title={write.title} onClick={onNew}>
             <Plus size={17} strokeWidth={2} aria-hidden="true" />
             {t("prescriptions.actions.new")}
           </button>

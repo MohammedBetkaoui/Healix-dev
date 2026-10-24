@@ -78,6 +78,7 @@ export const accountFr = {
       NO_PLAN: "Aucun abonnement",
       PAYMENT_PENDING: "Paiement en attente",
       ACTIVE: "Actif",
+      TRIALING: "Essai gratuit",
       EXPIRED: "Expiré",
       CANCELED: "Résilié",
     },

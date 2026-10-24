@@ -79,7 +79,7 @@ function getVerificationTone(status: SubscriptionContext["verificationStatus"]):
 }
 
 function getSubscriptionTone(status: SubscriptionContext["subscriptionStatus"]): SummaryTone {
-  if (status === "ACTIVE") return "success";
+  if (status === "ACTIVE" || status === "TRIALING") return "success";
   if (status === "PAYMENT_PENDING") return "warning";
   if (status === "EXPIRED" || status === "CANCELED") return "danger";
   return "neutral";

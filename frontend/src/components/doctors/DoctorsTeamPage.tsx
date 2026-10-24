@@ -36,6 +36,7 @@ import { useEstablishmentVerificationPrefill } from "@/features/verification/hoo
 import { isVerificationRequiredError } from "@/lib/api/api-error";
 import { getAccountInitials } from "@/lib/format/get-account-initials";
 import { useStoredLocale, useTranslation } from "@/lib/i18n";
+import { useReadOnlyAction } from "@/features/subscriptions/hooks/use-read-only-action";
 import { cn } from "@/lib/utils";
 import { type DashboardStatusTone } from "@/types/dashboard";
 
@@ -186,6 +187,7 @@ function SkeletonBlock({ className }: { className: string }) {
 export function DoctorsTeamPage() {
   const { locale } = useStoredLocale();
   const { direction, t } = useTranslation(locale);
+  const write = useReadOnlyAction(t);
   const currentUser = useCurrentUser(undefined, { enabled: true });
   const prefill = useEstablishmentVerificationPrefill();
   const initials = getAccountInitials(currentUser.data?.fullName);
@@ -255,7 +257,7 @@ export function DoctorsTeamPage() {
               </div>
             </div>
             <div className="flex flex-wrap gap-2 lg:justify-end">
-              <button type="button" className="clinical-button clinical-button-primary px-4" onClick={() => setCreateOpen(true)}>
+              <button type="button" className="clinical-button clinical-button-primary px-4" disabled={write.disabled} title={write.title} onClick={() => setCreateOpen(true)}>
                 <UserRoundPlus size={16} strokeWidth={1.8} aria-hidden="true" />
                 {copy.new}
               </button>
@@ -357,7 +359,7 @@ export function DoctorsTeamPage() {
               <span className="flex h-12 w-12 items-center justify-center rounded-full bg-[var(--medical-soft)] text-[var(--medical)]"><Users size={22} strokeWidth={1.8} aria-hidden="true" /></span>
               <h3 className="mt-4 text-sm font-semibold">{copy.empty.title}</h3>
               <p className="clinical-caption mt-1 max-w-sm">{copy.empty.description}</p>
-              <button type="button" className="clinical-button clinical-button-primary mt-5" onClick={() => setCreateOpen(true)}><UserRoundPlus size={16} strokeWidth={1.8} aria-hidden="true" />{copy.new}</button>
+              <button type="button" className="clinical-button clinical-button-primary mt-5" disabled={write.disabled} title={write.title} onClick={() => setCreateOpen(true)}><UserRoundPlus size={16} strokeWidth={1.8} aria-hidden="true" />{copy.new}</button>
             </div>
           ) : filteredDoctors.length === 0 ? (
             <div className="flex flex-col items-center px-6 py-16 text-center">

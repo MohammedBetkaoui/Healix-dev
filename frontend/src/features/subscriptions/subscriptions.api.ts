@@ -3,11 +3,17 @@ import {
   type AccountStatus,
   type AccountType,
   type BillingPeriod,
+  type PlanQuotas,
   type SubscriptionContext,
   type SubscriptionPlan,
   type SubscriptionStatus,
   type VerificationStatus,
 } from "@/types/subscription";
+
+import {
+  type Entitlements,
+  type SubscriptionHistory,
+} from "./types/entitlements.types";
 
 // Wire shape of GET /subscription/me. Mirrors
 // backend/src/subscriptions/subscriptions.service.ts#getMySubscription
@@ -21,6 +27,8 @@ export type MySubscriptionResponse = {
   currentSubscription: {
     id: string;
     status: string;
+    // The free trial: the plan is then the reference plan of the trial.
+    trial: boolean;
     billingPeriod: BillingPeriod;
     startedAt: string;
     expiresAt: string;
@@ -53,6 +61,7 @@ export function toSubscriptionContext(response: MySubscriptionResponse): Subscri
     // database id (a cuid): toSubscriptionPlan below maps code → id, so
     // `code` is what SubscriptionPage matches against.
     currentPlanId: response.currentSubscription?.plan.code ?? null,
+    currentTrial: response.currentSubscription?.trial ?? false,
     subscriptionStatus: response.subscriptionStatus as SubscriptionStatus,
     verificationStatus: response.verificationStatus as VerificationStatus,
   };
@@ -73,6 +82,8 @@ export type PublicSubscriptionPlan = {
   currency: string;
   features: string[] | null;
   limits: string[] | null;
+  // The numbers the platform enforces (limits are only their texts).
+  quotas: PlanQuotas;
   recommended: boolean;
   custom: boolean;
 };
@@ -99,6 +110,19 @@ export function toSubscriptionPlan(plan: PublicSubscriptionPlan): SubscriptionPl
     limits: plan.limits ?? [],
     monthlyPrice: plan.monthlyPrice,
     name: plan.name,
+    quotas: plan.quotas,
     recommended: plan.recommended,
   };
+}
+
+// The subscription the workspace works under, with its quotas and its usage
+// (affiliated doctors included: it is their establishment's).
+export async function getEntitlements(): Promise<Entitlements> {
+  const { data } = await apiClient.get<Entitlements>("/subscription/entitlements");
+  return data;
+}
+
+export async function getSubscriptionHistory(): Promise<SubscriptionHistory> {
+  const { data } = await apiClient.get<SubscriptionHistory>("/subscription/history");
+  return data;
 }

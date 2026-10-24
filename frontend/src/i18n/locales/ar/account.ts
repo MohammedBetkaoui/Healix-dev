@@ -78,6 +78,7 @@ export const accountAr = {
       NO_PLAN: "بدون اشتراك",
       PAYMENT_PENDING: "الدفع قيد الانتظار",
       ACTIVE: "نشط",
+      TRIALING: "فترة تجريبية مجانية",
       EXPIRED: "منتهي",
       CANCELED: "ملغى",
     },

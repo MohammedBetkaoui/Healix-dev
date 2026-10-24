@@ -6,6 +6,7 @@ import { useEffect } from "react";
 import { normalizeApiError } from "@/lib/api/api-error";
 
 import { getPaymentStatus } from "../api/payments.api";
+import { refreshSubscriptionData } from "./use-synthetic-card-payment";
 
 // GET /payments/:id is a plain owner-scoped read (no audit entry), so polling
 // it has no side effect.
@@ -31,8 +32,7 @@ export function usePaymentStatus(paymentId: string) {
       return;
     }
 
-    void queryClient.invalidateQueries({ queryKey: ["subscription", "me"], refetchType: "all" });
-    void queryClient.invalidateQueries({ queryKey: ["auth", "me"], refetchType: "all" });
+    void refreshSubscriptionData(queryClient);
   }, [queryClient, status]);
 
   return {

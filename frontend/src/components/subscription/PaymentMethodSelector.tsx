@@ -1,10 +1,13 @@
 import { Banknote, CreditCard, Landmark } from "lucide-react";
 
+import { availablePaymentMethods } from "@/config/manual-payments";
 import { type TranslationFunction } from "@/lib/i18n";
 import { cn } from "@/lib/utils";
 import { type PaymentMethod } from "@/types/subscription";
 
 type PaymentMethodSelectorProps = {
+  // The methods on offer; the card alone unless offline settlements are enabled.
+  availableMethods?: PaymentMethod[];
   disabled: boolean;
   onChange: (paymentMethod: PaymentMethod) => void;
   selectedMethod?: PaymentMethod;
@@ -40,6 +43,7 @@ const paymentMethods = [
 ] as const;
 
 export function PaymentMethodSelector({
+  availableMethods = availablePaymentMethods(),
   disabled,
   onChange,
   selectedMethod,
@@ -51,7 +55,7 @@ export function PaymentMethodSelector({
         {t("subscription.payment.methodTitle")}
       </h2>
       <div className="mt-3 grid gap-3 sm:grid-cols-2">
-        {paymentMethods.map((method) => {
+        {paymentMethods.filter((method) => availableMethods.includes(method.id)).map((method) => {
           const Icon = method.icon;
           const selected = selectedMethod === method.id;
 

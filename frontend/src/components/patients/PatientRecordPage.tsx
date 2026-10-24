@@ -46,6 +46,7 @@ import { formatPatientDate, formatPatientDateTime, getPatientAge } from "@/featu
 import { isVerificationRequiredError } from "@/lib/api/api-error";
 import { getAccountInitials } from "@/lib/format/get-account-initials";
 import { useStoredLocale, useTranslation } from "@/lib/i18n";
+import { useReadOnlyAction } from "@/features/subscriptions/hooks/use-read-only-action";
 import { cn } from "@/lib/utils";
 import { type DashboardStatusTone } from "@/types/dashboard";
 import { type PatientConsentStatus, type PatientConsentType } from "@/types/patient";
@@ -184,6 +185,7 @@ function EmptyTab({ label }: { label: string }) {
 export function PatientRecordPage({ accountType, initialTab, patientId }: PatientRecordPageProps) {
   const { locale } = useStoredLocale();
   const { direction, t } = useTranslation(locale);
+  const write = useReadOnlyAction(t);
   const currentUser = useCurrentUser(undefined, { enabled: true });
   // Establishment name for the workspace subtitle; skipped for doctor
   // accounts (ESTABLISHMENT_ADMIN-only endpoint).
@@ -309,10 +311,10 @@ export function PatientRecordPage({ accountType, initialTab, patientId }: Patien
           </div>
 
           <div className="flex flex-wrap gap-2 border-t border-[var(--line)] bg-[var(--panel-soft)] px-5 py-4 sm:px-6">
-            <Button className="rounded-[var(--radius-sm)] px-4" disabled={!canCreateConsultation} title={canCreateConsultation ? undefined : localized.doctorOnly} onClick={() => setConsultationModalOpen(true)}><ClipboardPlus className="h-4 w-4" strokeWidth={1.8} />{localized.actions.consultation}</Button>
+            <Button className="rounded-[var(--radius-sm)] px-4" disabled={!canCreateConsultation || write.disabled} title={canCreateConsultation ? write.title : localized.doctorOnly} onClick={() => setConsultationModalOpen(true)}><ClipboardPlus className="h-4 w-4" strokeWidth={1.8} />{localized.actions.consultation}</Button>
             <Button variant="outline" className="rounded-[var(--radius-sm)] border-[var(--line)] bg-[var(--panel)] text-[var(--ink-soft)]" onClick={() => setEditModalOpen(true)}><Edit3 className="h-4 w-4" strokeWidth={1.7} />{t("patients.actions.edit")}</Button>
-            <Button variant="outline" className="rounded-[var(--radius-sm)] border-[var(--line)] bg-[var(--panel)] text-[var(--ink-soft)]" onClick={() => setAppointmentModalOpen(true)}><CalendarPlus className="h-4 w-4" strokeWidth={1.7} />{localized.actions.appointment}</Button>
-            <Button variant="outline" className="rounded-[var(--radius-sm)] border-[var(--line)] bg-[var(--panel)] text-[var(--ink-soft)]" onClick={() => setDocumentModalOpen(true)}><FilePlus2 className="h-4 w-4" strokeWidth={1.7} />{localized.actions.document}</Button>
+            <Button variant="outline" className="rounded-[var(--radius-sm)] border-[var(--line)] bg-[var(--panel)] text-[var(--ink-soft)]" disabled={write.disabled} title={write.title} onClick={() => setAppointmentModalOpen(true)}><CalendarPlus className="h-4 w-4" strokeWidth={1.7} />{localized.actions.appointment}</Button>
+            <Button variant="outline" className="rounded-[var(--radius-sm)] border-[var(--line)] bg-[var(--panel)] text-[var(--ink-soft)]" disabled={write.disabled} title={write.title} onClick={() => setDocumentModalOpen(true)}><FilePlus2 className="h-4 w-4" strokeWidth={1.7} />{localized.actions.document}</Button>
             {/* The wizard checks the DIAGNOSTIC_AI consent and explains a missing one. */}
             <DiscussCaseButton accountType={accountType} patientId={patientId} locale={locale}
               className="inline-flex h-11 items-center justify-center gap-2 rounded-[var(--radius-sm)] border border-[var(--accent-line)] bg-[var(--medical-soft)] px-4 text-sm font-medium text-[var(--medical)] transition-colors hover:brightness-95 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--accent)] focus-visible:ring-offset-2 focus-visible:ring-offset-[var(--bg)] disabled:opacity-60" />

@@ -31,6 +31,7 @@ import { useAppointments } from "@/features/appointments/hooks/use-appointments"
 import { isVerificationRequiredError } from "@/lib/api/api-error";
 import { getAccountInitials } from "@/lib/format/get-account-initials";
 import { useStoredLocale, useTranslation } from "@/lib/i18n";
+import { useReadOnlyAction } from "@/features/subscriptions/hooks/use-read-only-action";
 import { cn } from "@/lib/utils";
 import { type DashboardStatusTone } from "@/types/dashboard";
 
@@ -191,6 +192,7 @@ function SkeletonBlock({ className }: { className: string }) {
 export function AppointmentsAgendaPage({ accountType }: AppointmentsAgendaPageProps) {
   const { locale } = useStoredLocale();
   const { direction, t } = useTranslation(locale);
+  const write = useReadOnlyAction(t);
   const currentUser = useCurrentUser(undefined, { enabled: true });
   // Establishment name for the workspace subtitle; skipped for doctor
   // accounts (ESTABLISHMENT_ADMIN-only endpoint).
@@ -344,7 +346,7 @@ export function AppointmentsAgendaPage({ accountType }: AppointmentsAgendaPagePr
                 ))}
               </Select>
             ) : null}
-            <button type="button" className="clinical-button clinical-button-primary" onClick={openCreate}>
+            <button type="button" className="clinical-button clinical-button-primary" disabled={write.disabled} title={write.title} onClick={openCreate}>
               <CalendarPlus size={16} strokeWidth={1.8} aria-hidden="true" />
               {copy.new}
             </button>
@@ -433,7 +435,7 @@ export function AppointmentsAgendaPage({ accountType }: AppointmentsAgendaPagePr
               </span>
               <h3 className="mt-4 text-sm font-semibold">{copy.empty.title}</h3>
               <p className="clinical-caption mt-1 max-w-sm">{copy.empty.description}</p>
-              <button type="button" className="clinical-button clinical-button-primary mt-5" onClick={openCreate}>
+              <button type="button" className="clinical-button clinical-button-primary mt-5" disabled={write.disabled} title={write.title} onClick={openCreate}>
                 <CalendarPlus size={16} strokeWidth={1.8} aria-hidden="true" />
                 {copy.new}
               </button>

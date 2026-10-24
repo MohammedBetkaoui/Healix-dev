@@ -3,6 +3,7 @@ import { useEffect, useState } from "react";
 
 import { Textarea } from "@/components/ui/textarea";
 import { type Locale } from "@/i18n";
+import { useReadOnlyAction } from "@/features/subscriptions/hooks/use-read-only-action";
 import { type TranslationFunction } from "@/lib/i18n";
 
 import {
@@ -38,6 +39,7 @@ type PrescriptionDetailProps = {
 };
 
 export function PrescriptionDetail({ capabilities, id, initialAction, locale, onClose, onEdit, onNotice, onRenew, t }: PrescriptionDetailProps) {
+  const write = useReadOnlyAction(t);
   const query = usePrescription(id);
   const history = usePrescriptionHistory(id);
   const cancel = useCancelPrescription();
@@ -142,10 +144,10 @@ export function PrescriptionDetail({ capabilities, id, initialAction, locale, on
             <footer className="absolute inset-x-0 bottom-0 flex flex-wrap justify-end gap-2 border-t border-[var(--border)] bg-[var(--surface-elevated)] p-3 sm:px-6">
               {canEditDraft ? <button type="button" className="clinical-button text-[var(--danger-ink)]" disabled={busy} onClick={() => confirmDelete ? deleteDraft() : setConfirmDelete(true)}><Trash2 size={15} aria-hidden="true" />{confirmDelete ? t("prescriptions.actions.confirmDeleteDraft") : t("prescriptions.actions.deleteDraft")}</button> : null}
               {canCancel ? <button type="button" className="clinical-button text-[var(--danger-ink)]" onClick={() => setCancelOpen((value) => !value)}><XCircle size={15} aria-hidden="true" />{t("prescriptions.actions.cancel")}</button> : null}
-              {canRenew ? <button type="button" className="clinical-button" onClick={() => onRenew(prescription.id)}><RefreshCw size={15} aria-hidden="true" />{t("prescriptions.actions.renew")}</button> : null}
+              {canRenew ? <button type="button" className="clinical-button" disabled={write.disabled} title={write.title} onClick={() => onRenew(prescription.id)}><RefreshCw size={15} aria-hidden="true" />{t("prescriptions.actions.renew")}</button> : null}
               {canPrint ? <button type="button" className="clinical-button clinical-button-primary" onClick={() => setPreviewOpen(true)}><Printer size={15} aria-hidden="true" />{t("prescriptions.actions.print")}</button> : null}
               {canEditDraft ? <button type="button" className="clinical-button clinical-button-primary" disabled={busy} onClick={() => onEdit(prescription)}><Pencil size={15} aria-hidden="true" />{t("prescriptions.actions.edit")}</button> : null}
-              {canValidate && !canEditDraft ? <button type="button" className="clinical-button clinical-button-primary" disabled={busy} onClick={() => void validateNow()}><FileCheck2 size={15} aria-hidden="true" />{t("prescriptions.actions.validate")}</button> : null}
+              {canValidate && !canEditDraft ? <button type="button" className="clinical-button clinical-button-primary" disabled={busy || write.disabled} title={write.title} onClick={() => void validateNow()}><FileCheck2 size={15} aria-hidden="true" />{t("prescriptions.actions.validate")}</button> : null}
             </footer>
           ) : null}
         </aside>

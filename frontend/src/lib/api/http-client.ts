@@ -8,6 +8,8 @@ import {
   notifyRateLimited,
   readRetryAfterSeconds,
 } from "./rate-limit-notice";
+import { getSubscriptionLimit } from "./subscription-limit";
+import { notifySubscriptionLimit } from "./subscription-limit-notice";
 
 const defaultApiUrl = "http://localhost:3001/api";
 
@@ -84,6 +86,15 @@ apiClient.interceptors.response.use(
     const originalRequest = error.config as RetriableRequestConfig | undefined;
     const status = error.response?.status;
     const requestUrl = originalRequest?.url ?? "";
+
+    // The subscription does not allow it (inactive, quota reached, chain out
+    // of the plan, plan on quote): one dialog says why and offers the way out,
+    // whatever the screen. The error still reaches its caller.
+    const subscriptionLimit = getSubscriptionLimit(error);
+
+    if (subscriptionLimit) {
+      notifySubscriptionLimit(subscriptionLimit);
+    }
 
     // Too many requests: never a refresh nor a sign-out.
     if (status === 429) {

@@ -16,6 +16,8 @@ import {
   type SubscriptionPlan,
 } from "@/types/subscription";
 
+import { availablePaymentMethods } from "@/config/manual-payments";
+
 import { CheckoutSummary } from "./CheckoutSummary";
 import { ManualPaymentNotice } from "./ManualPaymentNotice";
 import { PaymentMethodSelector } from "./PaymentMethodSelector";
@@ -183,12 +185,18 @@ export function PaymentCheckoutModal({
         <div className="overflow-y-auto overscroll-contain bg-[var(--bg)] p-4 [scrollbar-color:var(--border-strong)_transparent] [scrollbar-width:thin] sm:p-6">
           <div className="grid items-start gap-5 xl:grid-cols-[minmax(0,1fr)_minmax(19rem,0.72fr)]">
             <div className="space-y-4">
-              <PaymentMethodSelector
-                disabled={false}
-                onChange={onPaymentMethodChange}
-                selectedMethod={paymentMethod}
-                t={t}
-              />
+              {availablePaymentMethods().length > 1 ? (
+                <PaymentMethodSelector
+                  disabled={false}
+                  onChange={onPaymentMethodChange}
+                  selectedMethod={paymentMethod}
+                  t={t}
+                />
+              ) : (
+                <p className="rounded-[var(--radius-md)] border border-[var(--accent-line)] bg-[var(--accent-soft)] px-4 py-3 text-sm font-medium text-[var(--accent-dark)]">
+                  {t("subscription.payNow.demoBanner")}
+                </p>
+              )}
               <ManualPaymentNotice
                 billingPeriod={billingPeriod}
                 paymentMethod={paymentMethod}

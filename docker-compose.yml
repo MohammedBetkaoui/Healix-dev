@@ -67,6 +67,9 @@ services:
         NEXT_PUBLIC_ADMIN_GATE_PATH: ${ADMIN_GATE_PATH:-/hzdz-control-gate-2026}
         # "true": shows the demo modules on mock data. Absent: hidden (404).
         NEXT_PUBLIC_ENABLE_DEMO_MODULES: ${ENABLE_DEMO_MODULES:-}
+        # "true": offers the offline settlements next to the card payment (the
+        # backend has the same switch). Absent: the card alone.
+        NEXT_PUBLIC_MANUAL_PAYMENTS_ENABLED: ${MANUAL_PAYMENTS_ENABLED:-}
     image: healixdz-frontend:latest
     restart: unless-stopped
     depends_on:

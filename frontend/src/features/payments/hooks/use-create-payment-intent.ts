@@ -7,6 +7,8 @@ import {
   getPaymentAlreadyPendingId,
   normalizeApiError,
 } from "@/lib/api/api-error";
+import { getSubscriptionLimitMessage } from "@/lib/api/get-mutation-error-message";
+import { useStoredLocale, useTranslation } from "@/lib/i18n";
 
 import { createPaymentIntent } from "../api/payments.api";
 import {
@@ -16,6 +18,8 @@ import {
 
 export function useCreatePaymentIntent() {
   const router = useRouter();
+  const { locale } = useStoredLocale();
+  const { t } = useTranslation(locale);
   const [error, setError] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(false);
 
@@ -46,13 +50,18 @@ export function useCreatePaymentIntent() {
           return null;
         }
 
-        setError(normalizeApiError(caughtError).message);
+        // A plan on quote (PLAN_REQUIRES_CONTACT) is explained in the user's
+        // language; the other refusals keep the backend's message.
+        setError(
+          getSubscriptionLimitMessage(caughtError, t) ??
+            normalizeApiError(caughtError).message,
+        );
         return null;
       } finally {
         setIsLoading(false);
       }
     },
-    [isLoading, router],
+    [isLoading, router, t],
   );
 
   return {

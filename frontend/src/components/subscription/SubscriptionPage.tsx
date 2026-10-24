@@ -11,15 +11,21 @@ import { DashboardShell } from "@/components/dashboard/layout/DashboardShell";
 import { BillingToggle } from "@/components/subscription/BillingToggle";
 import { PaymentCheckoutModal } from "@/components/subscription/PaymentCheckoutModal";
 import { PlanComparisonTable } from "@/components/subscription/PlanComparisonTable";
+import { type PricingCtaKind } from "@/components/subscription/PricingCard";
 import { PricingGrid } from "@/components/subscription/PricingGrid";
 import { SubscriptionAccountSummary } from "@/components/subscription/SubscriptionAccountSummary";
 import { SubscriptionFAQ } from "@/components/subscription/SubscriptionFAQ";
 import { SubscriptionHeader } from "@/components/subscription/SubscriptionHeader";
+import { SubscriptionHistory } from "@/components/subscription/SubscriptionHistory";
 import { SubscriptionStatusCard } from "@/components/subscription/SubscriptionStatusCard";
+import { UsageGauges } from "@/components/subscription/UsageGauges";
 import { VerificationAccessBanner } from "@/components/subscription/VerificationAccessBanner";
+import { availablePaymentMethods, onlinePaymentMethod } from "@/config/manual-payments";
 import { useCurrentUser } from "@/features/auth/hooks/use-current-user";
 import { useCreatePaymentIntent } from "@/features/payments/hooks/use-create-payment-intent";
+import { useEntitlements } from "@/features/subscriptions/hooks/use-entitlements";
 import { useMySubscription } from "@/features/subscriptions/hooks/use-my-subscription";
+import { useSubscriptionHistory } from "@/features/subscriptions/hooks/use-subscription-history";
 import { useSubscriptionPlans } from "@/features/subscriptions/hooks/use-subscription-plans";
 import {
   toSubscriptionContext,
@@ -117,7 +123,11 @@ export function SubscriptionPage({ accountType }: SubscriptionPageProps) {
   const [billingPeriod, setBillingPeriod] =
     useState<BillingPeriod>("MONTHLY");
   const [selectedPlanId, setSelectedPlanId] = useState<string | undefined>();
-  const [paymentMethod, setPaymentMethod] = useState<PaymentMethod | undefined>();
+  // The card is the way to subscribe: no choice to make unless offline
+  // settlements are enabled.
+  const defaultPaymentMethod: PaymentMethod | undefined =
+    availablePaymentMethods().length === 1 ? onlinePaymentMethod : undefined;
+  const [paymentMethod, setPaymentMethod] = useState<PaymentMethod | undefined>(defaultPaymentMethod);
   const [isPaymentModalOpen, setIsPaymentModalOpen] = useState(false);
   const [toastMessage, setToastMessage] = useState<string | null>(null);
   const {
@@ -145,12 +155,26 @@ export function SubscriptionPage({ accountType }: SubscriptionPageProps) {
     isLoading: isLoadingSubscription,
   } = useMySubscription();
   const isLoading = isLoadingSubscription || plansQuery.isLoading;
+  const { entitlements } = useEntitlements();
+  const history = useSubscriptionHistory();
   // Memoized so the context keeps a stable identity between renders for the
-  // components it is passed to.
-  const context = useMemo(
-    () => (data ? toSubscriptionContext(data) : null),
-    [data],
-  );
+  // components it is passed to. The status and the end are those of the
+  // entitlements (an ended subscription reads EXPIRED at once).
+  const context = useMemo(() => {
+    if (!data) {
+      return null;
+    }
+
+    const base = toSubscriptionContext(data);
+
+    return entitlements
+      ? {
+          ...base,
+          currentPeriodEnd: entitlements.expiresAt ?? base.currentPeriodEnd,
+          subscriptionStatus: entitlements.status,
+        }
+      : base;
+  }, [data, entitlements]);
   const currentPlan = context
     ? plans.find((plan) => plan.id === context.currentPlanId)
     : undefined;
@@ -177,7 +201,7 @@ export function SubscriptionPage({ accountType }: SubscriptionPageProps) {
 
     const nextPlan = plans.find((plan) => plan.id === planId);
     setSelectedPlanId(planId);
-    setPaymentMethod(undefined);
+    setPaymentMethod(defaultPaymentMethod);
 
     if (nextPlan?.custom) {
       showMockToast(t("subscription.pricing.contactTeam"));
@@ -195,6 +219,19 @@ export function SubscriptionPage({ accountType }: SubscriptionPageProps) {
     }
 
     handleSelectPlan(currentPlan.id);
+  };
+
+  // What each plan's button does: subscribe, renew the plan held (the paid
+  // period is added after the days left), or change plan (applies at once).
+  const ctaKind = (plan: { id: string }): PricingCtaKind => {
+    const live = entitlements ? !entitlements.readOnly : false;
+    const trial = entitlements?.trial ?? false;
+
+    if (plan.id === context?.currentPlanId) {
+      return !trial && (live || context.subscriptionStatus === "EXPIRED") ? "renew" : "subscribe";
+    }
+
+    return live && !trial ? "changePlan" : "subscribe";
   };
 
   // Any other plan card in the grid below already starts a real checkout.
@@ -263,17 +300,29 @@ export function SubscriptionPage({ accountType }: SubscriptionPageProps) {
             <SubscriptionStatusCard
               context={context}
               currentPlan={currentPlan}
+              entitlements={entitlements}
               locale={locale}
               onChangePlan={handleChangePlan}
               onRenew={handleRenew}
               t={t}
             />
 
+            {entitlements?.plan ? (
+              <UsageGauges
+                entitlements={entitlements}
+                showDoctors={accountType === "ESTABLISHMENT" || !entitlements.canManage}
+                t={t}
+              />
+            ) : null}
+
             <PricingGrid
               billingPeriod={billingPeriod}
               canSelectPlan={canSelectPlan}
+              ctaKind={ctaKind}
               currentPlanId={
-                context.subscriptionStatus === "ACTIVE" ? context.currentPlanId : null
+                ["ACTIVE", "TRIALING", "EXPIRED"].includes(context.subscriptionStatus)
+                  ? context.currentPlanId
+                  : null
               }
               onSelectPlan={handleSelectPlan}
               plans={plans}
@@ -291,6 +340,14 @@ export function SubscriptionPage({ accountType }: SubscriptionPageProps) {
             <PlanComparisonTable
               billingPeriod={billingPeriod}
               plans={plans}
+              t={t}
+            />
+
+            <SubscriptionHistory
+              error={history.isError}
+              history={history.data}
+              isLoading={history.isLoading}
+              locale={locale}
               t={t}
             />
 

@@ -20,7 +20,7 @@ export type AccountVerificationStatus =
   | "REJECTED"
   | "SUSPENDED";
 
-export type AccountSubscriptionStatus = "NO_PLAN" | "PAYMENT_PENDING" | "ACTIVE" | "EXPIRED" | "CANCELED";
+export type AccountSubscriptionStatus = "NO_PLAN" | "PAYMENT_PENDING" | "TRIALING" | "ACTIVE" | "EXPIRED" | "CANCELED";
 
 export type EstablishmentTypeValue = "CLINIC" | "HOSPITAL" | "IMAGING_CENTER" | "LABORATORY" | "GROUP_PRACTICE";
 

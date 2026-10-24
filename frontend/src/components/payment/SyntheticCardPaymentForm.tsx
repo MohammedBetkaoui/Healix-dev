@@ -8,7 +8,7 @@ import { z } from "zod";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { useSyntheticCardPayment } from "@/features/payments/hooks/use-synthetic-card-payment";
+import { type SyntheticChargilyPayload } from "@/features/payments/types/payment.types";
 import { type TranslationFunction } from "@/lib/i18n";
 
 const cardSchema = z.object({
@@ -22,14 +22,21 @@ const cardSchema = z.object({
 type CardFormInput = z.input<typeof cardSchema>;
 type CardFormOutput = z.output<typeof cardSchema>;
 
-export function SyntheticCardPaymentForm({
-  paymentId,
-  t,
-}: {
-  paymentId: string;
+type SyntheticCardPaymentFormProps = {
+  error?: string | null;
+  isLoading: boolean;
+  onSubmit: (payload: SyntheticChargilyPayload) => void;
   t: TranslationFunction;
-}) {
-  const { error, isLoading, submit } = useSyntheticCardPayment(paymentId);
+};
+
+// The demo card form. The code (PSV) goes to the backend to be checked and is
+// never stored there; nothing of the card stays in this page after the answer.
+export function SyntheticCardPaymentForm({
+  error,
+  isLoading,
+  onSubmit,
+  t,
+}: SyntheticCardPaymentFormProps) {
   const form = useForm<CardFormInput, unknown, CardFormOutput>({
     resolver: zodResolver(cardSchema),
     defaultValues: {
@@ -44,7 +51,7 @@ export function SyntheticCardPaymentForm({
   return (
     <form
       className="rounded-[24px] border border-slate-200 bg-white p-5 shadow-[0_16px_40px_rgba(15,23,42,0.05)]"
-      onSubmit={form.handleSubmit((values) => submit(values))}
+      onSubmit={form.handleSubmit((values) => onSubmit(values))}
     >
       <div className="flex items-start gap-3">
         <span className="flex h-11 w-11 items-center justify-center rounded-2xl bg-[#0b3b5f] text-white">
@@ -62,14 +69,17 @@ export function SyntheticCardPaymentForm({
 
       <div className="mt-5 rounded-2xl border border-cyan-100 bg-cyan-50/60 p-4 text-sm text-slate-700">
         <p className="font-semibold text-cyan-900">
-          {t("subscription.paymentFlow.cardDemo")}
+          {t("subscription.payNow.accepted")}
         </p>
         <p className="mt-2">
-          {t("subscription.paymentFlow.testCardNumber")} -{" "}
-          {t("subscription.paymentFlow.testCardExpiry")} -{" "}
-          {t("subscription.paymentFlow.testCardPsv")} -{" "}
-          {t("subscription.paymentFlow.testCardHolder")}
+          <bdi dir="ltr" className="tabular-nums">
+            {t("subscription.paymentFlow.testCardNumber")} -{" "}
+            {t("subscription.paymentFlow.testCardExpiry")} -{" "}
+            {t("subscription.paymentFlow.testCardPsv")} -{" "}
+            {t("subscription.paymentFlow.testCardHolder")}
+          </bdi>
         </p>
+        <p className="mt-2 text-slate-600">{t("subscription.payNow.declined")}</p>
       </div>
 
       <div className="mt-5 grid gap-4 sm:grid-cols-2">
@@ -129,7 +139,7 @@ export function SyntheticCardPaymentForm({
       </div>
 
       {error ? (
-        <p className="mt-4 rounded-2xl bg-rose-50 p-3 text-sm font-medium text-rose-700">
+        <p role="alert" className="mt-4 rounded-2xl bg-rose-50 p-3 text-sm font-medium text-rose-700">
           {error}
         </p>
       ) : null}

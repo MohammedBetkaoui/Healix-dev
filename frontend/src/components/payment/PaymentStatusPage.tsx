@@ -39,7 +39,7 @@ export function PaymentStatusPage({
           status={data?.status}
           t={t}
         />
-        <PaymentSummaryCard payment={data} t={t} />
+        <PaymentSummaryCard locale={locale} payment={data} t={t} />
 
         {isLoading ? (
           <p className="rounded-2xl border border-slate-200 bg-white p-4 text-sm text-slate-500">

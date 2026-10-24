@@ -2,8 +2,10 @@ import { AxiosError, type AxiosAdapter, type AxiosResponse } from "axios";
 
 import { apiClient } from "./http-client";
 import { onRateLimited, readRetryAfterSeconds } from "./rate-limit-notice";
+import { type SubscriptionLimit } from "./subscription-limit";
+import { onSubscriptionLimit } from "./subscription-limit-notice";
 
-type Reply = { headers?: Record<string, string>; status: number };
+type Reply = { data?: unknown; headers?: Record<string, string>; status: number };
 
 // Answers per "METHOD /url", in order; 200 once a script runs out.
 let script: Record<string, Reply[]>;
@@ -15,7 +17,7 @@ const adapter: AxiosAdapter = async (config) => {
   const reply = script[key]?.shift() ?? { status: 200 };
   const response: AxiosResponse = {
     config,
-    data: { key },
+    data: reply.data ?? { key },
     headers: reply.headers ?? {},
     request: {},
     status: reply.status,
@@ -145,6 +147,51 @@ describe("apiClient refresh on 401", () => {
     const result = await settle(apiClient.get("/admin/users"));
 
     expect("error" in result && result.error.response?.status).toBe(503);
+  });
+});
+
+describe("apiClient on the subscription's refusals", () => {
+  let limits: SubscriptionLimit[];
+  let unsubscribeLimits: () => void;
+
+  beforeEach(() => {
+    limits = [];
+    unsubscribeLimits = onSubscriptionLimit((limit) => limits.push(limit));
+  });
+
+  afterEach(() => unsubscribeLimits());
+
+  it("tells the dialog about a 403 QUOTA_EXCEEDED, and still rejects to the caller", async () => {
+    script["POST /ai-analysis-runs"] = [{ data: { code: "QUOTA_EXCEEDED", limit: 20, quota: "aiAnalysesPerMonth", used: 20 }, status: 403 }];
+
+    const result = await settle(apiClient.post("/ai-analysis-runs", {}));
+
+    expect("error" in result && result.error.response?.status).toBe(403);
+    expect(limits).toEqual([{ code: "QUOTA_EXCEEDED", limit: 20, quota: "aiAnalysesPerMonth", trial: false, used: 20 }]);
+    // No refresh, no new attempt: a refusal is not a session problem.
+    expect(calls).toEqual(["POST /ai-analysis-runs"]);
+  });
+
+  it.each([
+    [{ code: "SUBSCRIPTION_INACTIVE", expiresAt: null, status: "CANCELED" }, 403, { code: "SUBSCRIPTION_INACTIVE", expiresAt: null, status: "CANCELED" }],
+    [{ code: "AI_PIPELINE_NOT_IN_PLAN", pipeline: "cardio-seg-mri" }, 403, { code: "AI_PIPELINE_NOT_IN_PLAN", pipeline: "cardio-seg-mri" }],
+    [{ code: "PLAN_REQUIRES_CONTACT" }, 400, { code: "PLAN_REQUIRES_CONTACT" }],
+  ])("tells the dialog about %j", async (data, status, expected) => {
+    script["POST /patients"] = [{ data, status }];
+
+    await settle(apiClient.post("/patients", {}));
+
+    expect(limits).toEqual([expected]);
+  });
+
+  it("says nothing for any other refusal", async () => {
+    script["POST /patients"] = [{ data: { code: "VERIFICATION_REQUIRED" }, status: 403 }];
+    script["GET /patients"] = [{ data: { message: "Introuvable." }, status: 404 }];
+
+    await settle(apiClient.post("/patients", {}));
+    await settle(apiClient.get("/patients"));
+
+    expect(limits).toEqual([]);
   });
 });
 

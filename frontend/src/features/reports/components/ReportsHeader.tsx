@@ -1,5 +1,6 @@
 import { FilePlus2, ShieldCheck, Upload } from "lucide-react";
 
+import { useReadOnlyAction } from "@/features/subscriptions/hooks/use-read-only-action";
 import { type TranslationFunction } from "@/lib/i18n";
 
 import { type ReportCapabilities } from "../types/report.types";
@@ -12,6 +13,8 @@ type ReportsHeaderProps = {
 };
 
 export function ReportsHeader({ capabilities, onCreate, onImport, t }: ReportsHeaderProps) {
+  const write = useReadOnlyAction(t);
+
   return (
     <header className="flex flex-col gap-5 lg:flex-row lg:items-start lg:justify-between">
       <div className="min-w-0">
@@ -27,11 +30,11 @@ export function ReportsHeader({ capabilities, onCreate, onImport, t }: ReportsHe
       </div>
       {capabilities.canCreateReports ? (
         <div className="flex flex-col gap-2 sm:flex-row lg:shrink-0">
-          <button type="button" className="clinical-button bg-[var(--surface)]" onClick={onImport}>
+          <button type="button" className="clinical-button bg-[var(--surface)]" disabled={write.disabled} title={write.title} onClick={onImport}>
             <Upload size={16} strokeWidth={1.8} aria-hidden="true" />
             {t("reports.actions.import")}
           </button>
-          <button type="button" className="clinical-button clinical-button-primary" onClick={onCreate}>
+          <button type="button" className="clinical-button clinical-button-primary" disabled={write.disabled} title={write.title} onClick={onCreate}>
             <FilePlus2 size={16} strokeWidth={1.8} aria-hidden="true" />
             {t("reports.actions.new")}
           </button>

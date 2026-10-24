@@ -57,6 +57,25 @@ export type PaymentProofSummary = {
   uploadedAt: string;
 } | null;
 
+// What paying would do to the subscription, computed by the backend before the
+// card form (GET /payments/:id, while the payment is open): the new end, and
+// whether it ends the trial or changes the plan.
+export type PaymentExpiryPreview = {
+  currentExpiresAt: string | null;
+  endsTrial: boolean;
+  expiresAt: string;
+  type: "PLAN_CHANGED" | "PURCHASED" | "RENEWED";
+};
+
+// The subscription a successful card payment activated.
+export type ActivatedSubscription = {
+  expiresAt: string | null;
+  id: string;
+  startedAt: string | null;
+  status: string;
+  trial: boolean;
+};
+
 export type PaymentSummary = {
   accountType: AccountType;
   amount: number;
@@ -65,6 +84,7 @@ export type PaymentSummary = {
   cardLast4?: string | null;
   createdAt: string;
   currency: "DZD";
+  expiryPreview?: PaymentExpiryPreview | null;
   id: string;
   method: PaymentMethod;
   paidAt?: string | null;
@@ -73,6 +93,7 @@ export type PaymentSummary = {
   reference: string;
   rejectionReason?: string | null;
   status: PaymentStatus;
+  subscription?: { expiresAt: string | null; id: string; status: string } | null;
   updatedAt: string;
 };
 

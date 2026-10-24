@@ -38,6 +38,7 @@ import { usePatients } from "@/features/patients/hooks/use-patients";
 import { useEstablishmentVerificationPrefill } from "@/features/verification/hooks/use-establishment-verification-prefill";
 import { isVerificationRequiredError } from "@/lib/api/api-error";
 import { getAccountInitials } from "@/lib/format/get-account-initials";
+import { getSubscriptionLimitMessage } from "@/lib/api/get-mutation-error-message";
 import { useStoredLocale, useTranslation } from "@/lib/i18n";
 import { type Patient, type PatientDocumentType } from "@/types/patient";
 
@@ -457,7 +458,11 @@ export function AiAnalysisWizardPage({ accountType, initialPatientId, pipelineId
                           ),
                         }
                       : createRunMutation.isError && !getFailedRunId(createRunMutation.error)
-                        ? { key: getLaunchErrorKey(createRunMutation.error) }
+                        ? {
+                            key: getLaunchErrorKey(createRunMutation.error),
+                            // Quota reached, chain outside the plan, inactive subscription.
+                            message: getSubscriptionLimitMessage(createRunMutation.error, t),
+                          }
                         : null
                   }
                   launchState={launchState}

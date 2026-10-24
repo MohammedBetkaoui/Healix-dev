@@ -18,6 +18,7 @@ export type VerificationStatus =
 export type SubscriptionStatus =
   | "NO_PLAN"
   | "PAYMENT_PENDING"
+  | "TRIALING"
   | "ACTIVE"
   | "EXPIRED"
   | "CANCELED";
@@ -29,6 +30,15 @@ export type PaymentMethod =
   | "MANUAL_CASH"
   | "MANUAL_POST_TRANSFER"
   | "BARIDIMOB_RECEIPT";
+
+// What a plan allows, in numbers (GET /subscription/plans, field quotas):
+// null is unlimited, and aiPipelines null is every pipeline.
+export type PlanQuotas = {
+  aiAnalysesPerMonth: number | null;
+  aiPipelines: string[] | null;
+  maxDoctors: number | null;
+  maxPatients: number | null;
+};
 
 export type SubscriptionPlan = {
   accountType: AccountType;
@@ -42,6 +52,7 @@ export type SubscriptionPlan = {
   limits: string[];
   monthlyPrice: number | null;
   name: string;
+  quotas?: PlanQuotas;
   recommended?: boolean;
 };
 
@@ -57,6 +68,8 @@ export type SubscriptionContext = {
   currentPlanId: string | null;
   currentPeriodEnd?: string;
   currentPeriodStart?: string;
+  // The free trial: its plan is the reference plan, not a bought one.
+  currentTrial?: boolean;
   subscriptionStatus: SubscriptionStatus;
   verificationStatus: VerificationStatus;
 };

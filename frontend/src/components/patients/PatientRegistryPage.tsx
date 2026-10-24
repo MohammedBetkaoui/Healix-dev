@@ -44,6 +44,7 @@ import {
 import { isVerificationRequiredError } from "@/lib/api/api-error";
 import { getAccountInitials } from "@/lib/format/get-account-initials";
 import { useStoredLocale, useTranslation } from "@/lib/i18n";
+import { useReadOnlyAction } from "@/features/subscriptions/hooks/use-read-only-action";
 import { cn } from "@/lib/utils";
 import { type Patient } from "@/types/patient";
 
@@ -282,6 +283,7 @@ export function PatientRegistryPage({ accountType }: PatientRegistryPageProps) {
   const router = useRouter();
   const { locale } = useStoredLocale();
   const { direction, t } = useTranslation(locale);
+  const write = useReadOnlyAction(t);
   const currentUser = useCurrentUser(undefined, { enabled: true });
   // Establishment name for the workspace subtitle; skipped for doctor
   // accounts (ESTABLISHMENT_ADMIN-only endpoint).
@@ -390,7 +392,7 @@ export function PatientRegistryPage({ accountType }: PatientRegistryPageProps) {
               <input ref={importRef} className="hidden" type="file" accept=".csv,.xlsx" onChange={() => { setNotice(copy.importReady); window.setTimeout(() => setNotice(""), 3200); }} />
               <Button className="rounded-[var(--radius-sm)] border-[var(--line)] bg-[var(--panel)] px-3.5 text-[var(--ink-soft)] shadow-none" variant="outline" onClick={() => importRef.current?.click()}><Upload className="h-4 w-4" strokeWidth={1.7} />{copy.actions.import}</Button>
               <Button className="rounded-[var(--radius-sm)] border-[var(--line)] bg-[var(--panel)] px-3.5 text-[var(--ink-soft)] shadow-none" variant="outline" onClick={exportRegistry}><Download className="h-4 w-4" strokeWidth={1.7} />{copy.actions.export}</Button>
-              <Button className="rounded-[var(--radius-sm)] px-4 shadow-sm" onClick={() => setAddOpen(true)}><UserPlus className="h-4 w-4" strokeWidth={1.8} />{copy.actions.new}</Button>
+              <Button className="rounded-[var(--radius-sm)] px-4 shadow-sm" disabled={write.disabled} title={write.title} onClick={() => setAddOpen(true)}><UserPlus className="h-4 w-4" strokeWidth={1.8} />{copy.actions.new}</Button>
             </div>
           </div>
 

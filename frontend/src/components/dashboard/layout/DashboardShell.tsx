@@ -3,6 +3,8 @@
 import { useCallback, useMemo, useRef, useState, type ReactNode } from "react";
 import { X } from "lucide-react";
 
+import { SubscriptionBanner } from "@/components/subscription/SubscriptionBanner";
+import { SubscriptionLimitDialog } from "@/components/subscription/SubscriptionLimitDialog";
 import { withDemoModules } from "@/config/demo-modules";
 import { type AccountType } from "@/types/auth";
 import {
@@ -99,6 +101,8 @@ export function DashboardShell({
               title={t(titleKey)}
               user={{ ...user, accountType }}
             />
+            {/* The subscription page says it itself, with the plans below. */}
+            {activeKey === "subscription" ? null : <SubscriptionBanner accountType={accountType} t={t} />}
             <DashboardContent>
               {activeKey === "verification" ? (
                 <h1 className="mb-5 text-xl font-semibold text-[var(--text-primary)]">{t(titleKey)}</h1>
@@ -115,6 +119,7 @@ export function DashboardShell({
           <p className="mb-2 text-sm font-medium text-[var(--medical)]">{t("dashboard.clinical.comingSoon")}</p>
           <p id="module-description" className="clinical-caption">{t("dashboard.clinical.moduleNotice")}</p>
         </dialog>
+        <SubscriptionLimitDialog accountType={accountType} />
       </main>
     </WorkspaceNavigationContext>
   );

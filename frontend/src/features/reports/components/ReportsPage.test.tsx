@@ -21,6 +21,11 @@ jest.mock("@/features/notifications/hooks/useNotifications", () => ({
   useUnreadNotificationCount: () => ({ data: undefined }),
 }));
 jest.mock("@/lib/realtime/use-realtime-events", () => ({ useRealtimeEvents: () => undefined }));
+// The subscription banner and its dialog, reached through the shell, are tested on their own.
+jest.mock("@/features/subscriptions/hooks/use-entitlements", () => ({
+  useEntitlements: () => ({ entitlements: null, isLoading: false, readOnly: false, refetch: jest.fn() }),
+}));
+jest.mock("@/components/subscription/SubscriptionLimitDialog", () => ({ SubscriptionLimitDialog: () => null }));
 jest.mock("next/navigation", () => ({ useSearchParams: () => new URLSearchParams() }));
 jest.mock("@/features/ai-analyses/hooks/use-ai-runs-overview", () => ({
   useAiRunsOverview: () => ({ data: { items: [] }, isError: false, isLoading: false }),
