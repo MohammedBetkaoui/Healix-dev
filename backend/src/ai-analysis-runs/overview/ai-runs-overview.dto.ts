@@ -6,6 +6,10 @@ import {
   AI_PIPELINES,
   type AiPipeline,
 } from '../dto/create-ai-analysis-run.dto';
+import {
+  AI_PRIORITY_LEVELS,
+  type AiPriorityLevel,
+} from '../priority/ai-priority';
 
 // "pending": a SUCCEEDED run the physician has not decided yet.
 export const AI_RUN_DECISION_FILTERS = [
@@ -17,6 +21,12 @@ export const AI_RUN_DECISION_FILTERS = [
 export type AiRunDecisionFilter = (typeof AI_RUN_DECISION_FILTERS)[number];
 
 export const AI_RUNS_PAGE_LIMIT_MAX = 50;
+
+// "priority": the reading order of the runs waiting for a decision (the
+// results the model finds suspicious first, see priority/ai-priority.ts), then
+// the others, the latest first. The default is the date.
+export const AI_RUN_SORTS = ['createdAt', 'priority'] as const;
+export type AiRunSort = (typeof AI_RUN_SORTS)[number];
 
 // The period, on the analysis date (createdAt): ISO instants, both included.
 export class AiRunsPeriodQueryDto {
@@ -51,6 +61,16 @@ export class ListAiAnalysisRunsQueryDto extends AiRunsFilterQueryDto {
   @IsOptional()
   @IsIn(['me'])
   requestedBy?: 'me';
+
+  @IsOptional()
+  @IsIn(AI_RUN_SORTS)
+  sort?: AiRunSort;
+
+  // Only the runs of this reading priority. A priority is read from the run
+  // when it is listed, so the filter implies the priority order.
+  @IsOptional()
+  @IsIn(AI_PRIORITY_LEVELS)
+  priority?: AiPriorityLevel;
 
   @Type(() => Number)
   @IsInt()

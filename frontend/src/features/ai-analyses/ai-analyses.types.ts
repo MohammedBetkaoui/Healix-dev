@@ -345,7 +345,40 @@ export type AiRunPatientName = {
   lastNameAr: string;
 };
 
-export type AiRunListItem = AiAnalysisRun & { patient: AiRunPatientName };
+/** The reading priority of a run (backend/src/ai-analysis-runs/priority): an order of reading, not a diagnosis. */
+export const aiPriorityLevels = ["URGENT", "HIGH", "ROUTINE"] as const;
+export type AiPriorityLevel = (typeof aiPriorityLevels)[number];
+
+export type AiPriorityReasonCode =
+  | "ALREADY_DECIDED"
+  | "BRAIN_GLIOMA"
+  | "BRAIN_TUMOR_POSSIBLE"
+  | "BRAIN_TUMOR_PREDICTED"
+  | "BREAST_ABOVE_THRESHOLD"
+  | "BREAST_BORDERLINE"
+  | "BREAST_MALIGNANT"
+  | "CARDIO_NO_STRUCTURE"
+  | "CARDIO_STRUCTURE_ABSENT"
+  | "ECG_MI"
+  | "ECG_MULTIPLE_ABNORMAL"
+  | "LOW_CONFIDENCE"
+  | "NO_RESULT"
+  | "NUCLEI_NONE_FOUND";
+
+export type AiPriorityReason = {
+  code: AiPriorityReasonCode;
+  /** Probabilities and scores as stored (0 to 1), counts, structure names. */
+  params?: Record<string, number | string>;
+};
+
+export type AiPriority = {
+  level: AiPriorityLevel;
+  /** 0 to 100; ROUTINE under 40, HIGH 40-69, URGENT from 70. */
+  score: number;
+  reasons: AiPriorityReason[];
+};
+
+export type AiRunListItem = AiAnalysisRun & { patient: AiRunPatientName; priority: AiPriority };
 
 export type AiRunsPage = {
   items: AiRunListItem[];

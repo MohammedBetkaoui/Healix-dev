@@ -6,7 +6,9 @@ import { type Locale } from "@/i18n";
 
 import {
   aiPipelineIds,
+  aiPriorityLevels,
   type AiAnalysisRunStatus,
+  type AiPriorityLevel,
   type AiRunDecisionFilter,
   type AiRunsRate,
   type AiRunsSummary,
@@ -28,6 +30,14 @@ export type TrackingStatus = (typeof TRACKING_STATUSES)[number];
 export const TRACKING_PIPELINES = ["all", ...aiPipelineIds] as const;
 export type TrackingPipeline = (typeof TRACKING_PIPELINES)[number];
 
+/** The order of the worklist: the reading priority, or the date (the latest first). */
+export const TRACKING_SORTS = ["priority", "date"] as const;
+export type TrackingSort = (typeof TRACKING_SORTS)[number];
+
+/** "all": every reading priority. */
+export const TRACKING_PRIORITIES = ["all", ...aiPriorityLevels] as const;
+export type TrackingPriority = (typeof TRACKING_PRIORITIES)[number];
+
 export const TRACKING_PERIODS = ["30d", "90d", "365d", "all"] as const;
 export type TrackingPeriod = (typeof TRACKING_PERIODS)[number];
 
@@ -38,6 +48,9 @@ export type TrackingState = {
   decision: TrackingDecision;
   status: TrackingStatus;
   pipeline: TrackingPipeline;
+  sort: TrackingSort;
+  /** Only this reading priority; it brings the priority order with it. */
+  priority: TrackingPriority;
   /** YYYY-MM-DD (local day) or "". */
   from: string;
   to: string;
@@ -48,7 +61,10 @@ export type TrackingState = {
   period: TrackingPeriod;
 };
 
-/** The worklist opens on the runs waiting for a decision. */
+/**
+ * The worklist opens on the runs waiting for a decision, the ones the model
+ * finds most suspicious first (an order of reading, not a diagnosis).
+ */
 export const DEFAULT_TRACKING_STATE: TrackingState = {
   decision: "pending",
   from: "",
@@ -56,6 +72,8 @@ export const DEFAULT_TRACKING_STATE: TrackingState = {
   page: 1,
   period: "90d",
   pipeline: "all",
+  priority: "all",
+  sort: "priority",
   status: "all",
   tab: "worklist",
   to: "",
@@ -79,6 +97,8 @@ export function parseTrackingState(params: { get(name: string): string | null })
     page: Number.isInteger(page) && page >= 1 ? page : 1,
     period: oneOf(TRACKING_PERIODS, params.get("period"), DEFAULT_TRACKING_STATE.period),
     pipeline: oneOf(TRACKING_PIPELINES, params.get("pipeline"), DEFAULT_TRACKING_STATE.pipeline),
+    priority: oneOf(TRACKING_PRIORITIES, params.get("priority"), DEFAULT_TRACKING_STATE.priority),
+    sort: oneOf(TRACKING_SORTS, params.get("sort"), DEFAULT_TRACKING_STATE.sort),
     status: oneOf(TRACKING_STATUSES, params.get("status"), DEFAULT_TRACKING_STATE.status),
     tab: oneOf(TRACKING_TABS, params.get("tab"), DEFAULT_TRACKING_STATE.tab),
     to: DAY.test(to) ? to : "",
@@ -92,6 +112,8 @@ export function buildTrackingSearch(state: TrackingState): string {
   if (state.decision !== DEFAULT_TRACKING_STATE.decision) params.set("decision", state.decision);
   if (state.status !== DEFAULT_TRACKING_STATE.status) params.set("status", state.status);
   if (state.pipeline !== DEFAULT_TRACKING_STATE.pipeline) params.set("pipeline", state.pipeline);
+  if (state.priority !== DEFAULT_TRACKING_STATE.priority) params.set("priority", state.priority);
+  if (state.sort !== DEFAULT_TRACKING_STATE.sort) params.set("sort", state.sort);
   if (state.from) params.set("from", state.from);
   if (state.to) params.set("to", state.to);
   if (state.mine) params.set("mine", "1");
@@ -99,6 +121,15 @@ export function buildTrackingSearch(state: TrackingState): string {
   if (state.period !== DEFAULT_TRACKING_STATE.period) params.set("period", state.period);
   const search = params.toString();
   return search ? `?${search}` : "";
+}
+
+/**
+ * What the worklist is really sorted by: a priority filter brings the priority
+ * order with it (the backend lists that level in that order), whatever the
+ * sort chosen.
+ */
+export function effectiveSort(state: Pick<TrackingState, "priority" | "sort">): TrackingSort {
+  return state.priority !== "all" ? "priority" : state.sort;
 }
 
 /** Start of a local day, or its last millisecond, as an ISO instant. */
@@ -114,7 +145,10 @@ export function worklistParams(state: TrackingState): AiRunsListParams {
     limit: WORKLIST_PAGE_SIZE,
     page: state.page,
     pipeline: state.pipeline === "all" ? undefined : state.pipeline,
+    priority: state.priority === "all" ? undefined : (state.priority satisfies AiPriorityLevel),
     requestedBy: state.mine ? "me" : undefined,
+    // The API's own order is the date: only the priority is asked for.
+    sort: state.sort === "priority" ? "priority" : undefined,
     status: state.status === "all" ? undefined : (state.status satisfies AiAnalysisRunStatus),
     to: state.to ? localDayBound(state.to, true) : undefined,
   };

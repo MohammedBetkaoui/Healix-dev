@@ -11,6 +11,10 @@ import {
 } from '@prisma/client';
 
 import { getModelLabel } from '../ai-analysis-runs/ai-analysis-runs.service';
+import {
+  computeAiPriority,
+  PRIORITY_RUN_SELECT,
+} from '../ai-analysis-runs/priority/ai-priority';
 import { UNCERTAINTY_THRESHOLD } from '../ai-analysis-runs/report/ai-report-rules';
 import { AppointmentsService } from '../appointments/appointments.service';
 import { type AuthenticatedUserPayload } from '../auth/types/authenticated-request.type';
@@ -250,6 +254,7 @@ export class DashboardService {
       oldestPending,
       uncertainRows,
       recent,
+      urgentPending,
     ] = await Promise.all([
       this.prisma.aiAnalysisRun.count({ where: inPeriod }),
       this.prisma.aiAnalysisRun.groupBy({
@@ -299,6 +304,7 @@ export class DashboardService {
         take: RECENT_ANALYSES,
         where: { patient: scopes.patients },
       }),
+      this.urgentPending(scopes),
     ]);
     const decisionCount = (decision: string) =>
       decisions.find((group) => group.decisionStatus === decision)?._count
@@ -328,8 +334,26 @@ export class DashboardService {
         threshold: UNCERTAINTY_THRESHOLD,
         total: succeeded,
       },
+      urgentPending,
       validated: decisionCount('VALIDATED'),
     };
+  }
+
+  // The reading priority is computed from the stored result (not a column):
+  // the waiting queue is read and ranked, as the list does.
+  private async urgentPending(scopes: Scopes) {
+    const waiting = await this.prisma.aiAnalysisRun.findMany({
+      select: PRIORITY_RUN_SELECT,
+      where: {
+        AND: [
+          { patient: scopes.patients },
+          { decisionStatus: null, status: AiAnalysisRunStatus.SUCCEEDED },
+        ],
+      },
+    });
+
+    return waiting.filter((run) => computeAiPriority(run).level === 'URGENT')
+      .length;
   }
 
   // Per local day: consultations held, appointments completed, AI analyses

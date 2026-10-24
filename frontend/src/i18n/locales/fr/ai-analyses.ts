@@ -1363,4 +1363,67 @@ export const aiAnalysesFr = {
       days: "{value} j",
     },
   },
+  priority: {
+    label: "Priorité de lecture",
+    column: "Priorité",
+    disclaimer:
+      "La priorité est un ordre de lecture proposé d’après le résultat du modèle, pas un diagnostic : seule la décision du médecin fait foi.",
+    disclaimerShort: "Ordre de lecture, pas un diagnostic.",
+    badgeTitle: "Priorité de lecture : {level}",
+    levels: {
+      URGENT: "Urgent",
+      HIGH: "Élevée",
+      ROUTINE: "Routine",
+    },
+    sort: {
+      label: "Trier par",
+      priority: "Priorité de lecture",
+      date: "Date (récentes d’abord)",
+      locked: "Un filtre de priorité trie par priorité.",
+    },
+    filter: {
+      label: "Priorité de lecture",
+      all: "Toutes les priorités",
+    },
+    structures: {
+      LV: "ventricule gauche",
+      RV: "ventricule droit",
+      MYO: "myocarde",
+    },
+    reasons: {
+      ALREADY_DECIDED: "Déjà décidée par le médecin.",
+      BRAIN_GLIOMA: "Gliome proposé par le modèle ({probability}).",
+      BRAIN_TUMOR_POSSIBLE:
+        "Aucune tumeur proposée, mais les classes tumorales pèsent {probability} ensemble.",
+      BRAIN_TUMOR_PREDICTED: "{label} proposé par le modèle ({probability}).",
+      BREAST_MALIGNANT: "Score de malignité {score}, bien au-dessus du seuil {threshold}.",
+      BREAST_MALIGNANT_NO_SCORE: "Résultat « malin » proposé par le modèle.",
+      BREAST_ABOVE_THRESHOLD: "Score de malignité {score}, au-dessus du seuil {threshold}.",
+      BREAST_BORDERLINE:
+        "Score de malignité {score}, juste sous le seuil {threshold} : résultat limite.",
+      CARDIO_NO_STRUCTURE:
+        "Aucune structure (ventricules, myocarde) trouvée sur la coupe.",
+      CARDIO_STRUCTURE_ABSENT: "Structure absente : {structure}.",
+      ECG_MI: "Infarctus du myocarde proposé par le modèle ({probability}).",
+      ECG_MULTIPLE_ABNORMAL: "{count} classes anormales proposées.",
+      LOW_CONFIDENCE: "Le modèle hésite (probabilité de la classe principale : {probability}).",
+      NO_RESULT: "Pas de résultat à relire.",
+      NUCLEI_NONE_FOUND: "Aucun noyau détecté sur l’image.",
+    },
+    card: {
+      title: "À revoir en priorité",
+      subtitle:
+        "Les analyses que le modèle juge les plus suspectes et qu’aucun médecin n’a encore revues.",
+      urgentCount: "{count} urgente(s) non revue(s)",
+      urgentNone: "Aucune urgente non revue",
+      loading: "Chargement des analyses à revoir…",
+      error: "Impossible de charger les analyses à revoir.",
+      empty: "Aucune analyse suspecte en attente de décision.",
+      viewAll: "Tout voir dans le suivi",
+      waitingHours: "En attente depuis {count} h",
+      waitingDays: "En attente depuis {count} j",
+      open: "Ouvrir",
+      openFor: "Ouvrir l’analyse de {patient}",
+    },
+  },
 } as const;

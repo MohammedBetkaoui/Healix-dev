@@ -18,6 +18,7 @@ import { isVerificationRequiredError } from "@/lib/api/api-error";
 import type { TranslationFunction } from "@/lib/i18n";
 
 import { ActivityTable } from "./ActivityTable";
+import { AiPriorityCard } from "./AiPriorityCard";
 import { AttentionQueue } from "./AttentionQueue";
 import { ClinicalActivityChart } from "./ClinicalActivityChart";
 import { HealixAIWidget } from "./HealixAIWidget";
@@ -117,6 +118,14 @@ export function DashboardOverviewPanel({ accountType, locale, t }: DashboardOver
           ) : null}
         </dl>
       </section>
+
+      <AiPriorityCard
+        formatNumber={formatNumber}
+        locale={locale}
+        roleBase={roleBase}
+        t={t}
+        urgentPending={data.aiAnalyses.urgentPending}
+      />
 
       <div className="workspace-split">
         <AttentionQueue items={attentionLinks(data.attention, roleBase)} t={t} formatNumber={formatNumber} />

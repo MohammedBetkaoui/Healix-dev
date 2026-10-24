@@ -57,6 +57,8 @@ export type DashboardOverview = {
   aiAnalyses: {
     total: number;
     pending: { count: number; oldestCreatedAt: string | null; oldestAgeHours: number | null };
+    /** Waiting runs the model's own answer ranks URGENT for reading, whatever their age. An order of reading, not a diagnosis. */
+    urgentPending: number;
     validated: number;
     corrected: number;
     rejected: number;

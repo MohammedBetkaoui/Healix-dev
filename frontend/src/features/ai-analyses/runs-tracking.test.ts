@@ -1,6 +1,7 @@
 import {
   buildTrackingSearch,
   DEFAULT_TRACKING_STATE,
+  effectiveSort,
   formatRate,
   isUncertainProbability,
   parseTrackingState,
@@ -14,10 +15,28 @@ import {
 const state = (overrides: Partial<TrackingState>): TrackingState => ({ ...DEFAULT_TRACKING_STATE, ...overrides });
 
 describe("URL filters", () => {
-  it("opens on the worklist of pending runs", () => {
+  it("opens on the worklist of pending runs, in reading-priority order", () => {
     expect(parseTrackingState(new URLSearchParams(""))).toEqual(DEFAULT_TRACKING_STATE);
     expect(DEFAULT_TRACKING_STATE.decision).toBe("pending");
+    expect(DEFAULT_TRACKING_STATE.sort).toBe("priority");
+    expect(DEFAULT_TRACKING_STATE.priority).toBe("all");
     expect(buildTrackingSearch(DEFAULT_TRACKING_STATE)).toBe("");
+  });
+
+  it("writes the date order and a priority filter in the URL, and reads them back", () => {
+    const byDate = state({ sort: "date" });
+    const urgent = state({ priority: "URGENT" });
+
+    expect(buildTrackingSearch(byDate)).toBe("?sort=date");
+    expect(buildTrackingSearch(urgent)).toBe("?priority=URGENT");
+    expect(parseTrackingState(new URLSearchParams("sort=date"))).toEqual(byDate);
+    expect(parseTrackingState(new URLSearchParams("priority=HIGH&sort=date"))).toEqual(state({ priority: "HIGH", sort: "date" }));
+  });
+
+  it("falls back to the defaults for an order or a priority it does not know", () => {
+    expect(parseTrackingState(new URLSearchParams("sort=score&priority=CRITICAL"))).toEqual(DEFAULT_TRACKING_STATE);
+    // Levels are upper case, as the API writes them.
+    expect(parseTrackingState(new URLSearchParams("priority=urgent")).priority).toBe("all");
   });
 
   it("writes only what differs from the defaults, and reads it back", () => {
@@ -52,7 +71,9 @@ describe("URL filters", () => {
       limit: 20,
       page: 1,
       pipeline: undefined,
+      priority: undefined,
       requestedBy: undefined,
+      sort: "priority",
       status: undefined,
       to: undefined,
     });
@@ -63,6 +84,24 @@ describe("URL filters", () => {
     // Whole local days, both included.
     expect(params.from).toBe(new Date("2026-10-01T00:00:00.000").toISOString());
     expect(params.to).toBe(new Date("2026-10-09T23:59:59.999").toISOString());
+  });
+
+  it("asks for the priority order by default, and for no order (the API's date) when the date is chosen", () => {
+    expect(worklistParams(state({ sort: "priority" })).sort).toBe("priority");
+    expect(worklistParams(state({ sort: "date" })).sort).toBeUndefined();
+  });
+
+  it("sends the priority filter, and only when there is one", () => {
+    expect(worklistParams(state({ priority: "URGENT" })).priority).toBe("URGENT");
+    expect(worklistParams(state({ priority: "HIGH" })).priority).toBe("HIGH");
+    expect(worklistParams(state({ priority: "ROUTINE" })).priority).toBe("ROUTINE");
+    expect(worklistParams(state({ priority: "all" })).priority).toBeUndefined();
+  });
+
+  it("sorts by priority whenever a priority is filtered, as the API lists it", () => {
+    expect(effectiveSort(state({ priority: "all", sort: "date" }))).toBe("date");
+    expect(effectiveSort(state({ priority: "all", sort: "priority" }))).toBe("priority");
+    expect(effectiveSort(state({ priority: "URGENT", sort: "date" }))).toBe("priority");
   });
 
   it("starts a period at the beginning of the local day N days ago", () => {

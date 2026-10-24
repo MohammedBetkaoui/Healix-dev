@@ -1359,4 +1359,67 @@ export const aiAnalysesAr = {
       days: "{value} ي",
     },
   },
+  priority: {
+    label: "أولوية القراءة",
+    column: "الأولوية",
+    disclaimer:
+      "الأولوية ترتيب مقترح للقراءة بناءً على نتيجة النموذج، وليست تشخيصًا: قرار الطبيب وحده هو المعتمد.",
+    disclaimerShort: "ترتيب للقراءة وليس تشخيصًا.",
+    badgeTitle: "أولوية القراءة: {level}",
+    levels: {
+      URGENT: "عاجل",
+      HIGH: "مرتفعة",
+      ROUTINE: "عادية",
+    },
+    sort: {
+      label: "الترتيب حسب",
+      priority: "أولوية القراءة",
+      date: "التاريخ (الأحدث أولًا)",
+      locked: "مرشّح الأولوية يرتّب حسب الأولوية.",
+    },
+    filter: {
+      label: "أولوية القراءة",
+      all: "كل الأولويات",
+    },
+    structures: {
+      LV: "البطين الأيسر",
+      RV: "البطين الأيمن",
+      MYO: "عضلة القلب",
+    },
+    reasons: {
+      ALREADY_DECIDED: "قرّر الطبيب بشأنها بالفعل.",
+      BRAIN_GLIOMA: "اقترح النموذج ورمًا دبقيًا ({probability}).",
+      BRAIN_TUMOR_POSSIBLE:
+        "لم يقترح النموذج ورمًا، لكن الفئات الورمية مجتمعة تبلغ {probability}.",
+      BRAIN_TUMOR_PREDICTED: "اقترح النموذج: {label} ({probability}).",
+      BREAST_MALIGNANT: "درجة الخباثة {score}، أعلى بكثير من العتبة {threshold}.",
+      BREAST_MALIGNANT_NO_SCORE: "اقترح النموذج أن النتيجة «خبيثة».",
+      BREAST_ABOVE_THRESHOLD: "درجة الخباثة {score}، أعلى من العتبة {threshold}.",
+      BREAST_BORDERLINE:
+        "درجة الخباثة {score}، أدنى بقليل من العتبة {threshold}: نتيجة حدّية.",
+      CARDIO_NO_STRUCTURE:
+        "لم يُعثر على أي بنية (البطينان، عضلة القلب) في المقطع.",
+      CARDIO_STRUCTURE_ABSENT: "بنية غائبة: {structure}.",
+      ECG_MI: "اقترح النموذج احتشاء عضلة القلب ({probability}).",
+      ECG_MULTIPLE_ABNORMAL: "{count} فئات غير طبيعية مقترحة.",
+      LOW_CONFIDENCE: "النموذج متردد (احتمال الفئة الرئيسية: {probability}).",
+      NO_RESULT: "لا توجد نتيجة لمراجعتها.",
+      NUCLEI_NONE_FOUND: "لم يُكتشف أي نواة في الصورة.",
+    },
+    card: {
+      title: "للمراجعة أولًا",
+      subtitle:
+        "التحاليل التي يعدّها النموذج الأكثر إثارة للشك والتي لم يراجعها طبيب بعد.",
+      urgentCount: "{count} عاجلة لم تُراجع بعد",
+      urgentNone: "لا توجد تحاليل عاجلة غير مراجَعة",
+      loading: "جارٍ تحميل التحاليل المطلوب مراجعتها…",
+      error: "تعذّر تحميل التحاليل المطلوب مراجعتها.",
+      empty: "لا يوجد تحليل مثير للشك في انتظار القرار.",
+      viewAll: "عرض الكل في المتابعة",
+      waitingHours: "في الانتظار منذ {count} س",
+      waitingDays: "في الانتظار منذ {count} ي",
+      open: "فتح",
+      openFor: "فتح تحليل {patient}",
+    },
+  },
 } as const;

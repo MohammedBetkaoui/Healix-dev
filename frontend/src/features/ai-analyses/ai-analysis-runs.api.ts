@@ -8,6 +8,7 @@ import {
   type AiMagnification,
   type AiPipelineId,
   type AiRunDecision,
+  type AiPriorityLevel,
   type AiRunDecisionFilter,
   type AiRunsPage,
   type AiRunsSummary,
@@ -46,6 +47,10 @@ export type AiRunsListParams = {
   from?: string;
   to?: string;
   requestedBy?: "me";
+  /** "priority": the runs waiting for a decision in reading order, then the others; the date by default. */
+  sort?: "priority";
+  /** Only this reading priority; implies the priority order. */
+  priority?: AiPriorityLevel;
   page?: number;
   limit?: number;
 };

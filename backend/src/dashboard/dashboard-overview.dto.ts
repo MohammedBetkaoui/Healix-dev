@@ -55,6 +55,11 @@ export type DashboardOverview = {
       oldestCreatedAt: string | null;
       oldestAgeHours: number | null;
     };
+    // The runs waiting for a decision (whatever their age: the work does not
+    // expire with the period) that the model's own answer ranks URGENT for
+    // reading (ai-analysis-runs/priority). An order of reading, not a
+    // diagnosis.
+    urgentPending: number;
     validated: number;
     corrected: number;
     rejected: number;

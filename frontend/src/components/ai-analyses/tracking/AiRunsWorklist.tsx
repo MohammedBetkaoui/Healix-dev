@@ -1,6 +1,7 @@
 "use client";
 
 import {
+  ArrowUpDown,
   CalendarDays,
   ChevronLeft,
   ChevronRight,
@@ -25,9 +26,12 @@ import { decisionTones } from "@/features/ai-analyses/run-decision";
 import { sortPredictions } from "@/features/ai-analyses/run-presentation";
 import {
   DEFAULT_TRACKING_STATE,
+  effectiveSort,
   isUncertainProbability,
   TRACKING_DECISIONS,
   TRACKING_PIPELINES,
+  TRACKING_PRIORITIES,
+  TRACKING_SORTS,
   TRACKING_STATUSES,
   type TrackingState,
   worklistParams,
@@ -39,6 +43,7 @@ import { type TranslationFunction } from "@/lib/i18n";
 import { type DashboardStatusTone } from "@/types/dashboard";
 
 import { AiRunModelResult } from "../AiRunModelResult";
+import { PriorityBadge } from "../PriorityBadge";
 import { getPatientDisplayName } from "../wizard/PatientStep";
 
 const MONO = "font-[family-name:var(--font-auth-mono)] tabular-nums";
@@ -85,6 +90,7 @@ export function AiRunsWorklist({ accountType, locale, roleBase, state, t, update
     state.decision !== DEFAULT_TRACKING_STATE.decision ||
     state.status !== DEFAULT_TRACKING_STATE.status ||
     state.pipeline !== DEFAULT_TRACKING_STATE.pipeline ||
+    state.priority !== DEFAULT_TRACKING_STATE.priority ||
     Boolean(state.from) ||
     Boolean(state.to) ||
     state.mine;
@@ -92,6 +98,7 @@ export function AiRunsWorklist({ accountType, locale, roleBase, state, t, update
     state.decision !== DEFAULT_TRACKING_STATE.decision,
     state.status !== DEFAULT_TRACKING_STATE.status,
     state.pipeline !== DEFAULT_TRACKING_STATE.pipeline,
+    state.priority !== DEFAULT_TRACKING_STATE.priority,
     Boolean(state.from),
     Boolean(state.to),
     state.mine,
@@ -103,6 +110,7 @@ export function AiRunsWorklist({ accountType, locale, roleBase, state, t, update
     mine: false,
     page: 1,
     pipeline: "all",
+    priority: "all",
     status: "all",
     to: "",
   });
@@ -124,10 +132,10 @@ export function AiRunsWorklist({ accountType, locale, roleBase, state, t, update
 
       <form
         aria-label={t("aiAnalyses.tracking.filters.label")}
-        className="surface-section grid gap-4 p-4 sm:grid-cols-2 sm:p-5 lg:grid-cols-3 xl:grid-cols-5"
+        className="surface-section grid gap-4 p-4 sm:grid-cols-2 sm:p-5 lg:grid-cols-3 xl:grid-cols-4"
         onSubmit={(event) => event.preventDefault()}
       >
-        <div className="flex flex-wrap items-center justify-between gap-3 border-b border-[var(--line-soft)] pb-4 sm:col-span-2 lg:col-span-3 xl:col-span-5">
+        <div className="flex flex-wrap items-center justify-between gap-3 border-b border-[var(--line-soft)] pb-4 sm:col-span-2 lg:col-span-3 xl:col-span-4">
           <div className="flex items-center gap-3">
             <span className="flex h-9 w-9 items-center justify-center rounded-[var(--radius-sm)] bg-[var(--accent-soft)] text-[var(--accent-dark)] ring-1 ring-[var(--accent-line)]">
               <SlidersHorizontal className="h-4 w-4" strokeWidth={1.8} aria-hidden="true" />
@@ -171,6 +179,32 @@ export function AiRunsWorklist({ accountType, locale, roleBase, state, t, update
           </select>
         </label>
 
+        <label className="space-y-1.5" htmlFor={`${id}-priority`}>
+          <span className="block text-[0.7rem] font-semibold text-[var(--ink-soft)]">{t("aiAnalyses.priority.filter.label")}</span>
+          <select id={`${id}-priority`} className={fieldClass} value={state.priority} onChange={(event) => update({ page: 1, priority: event.target.value as TrackingState["priority"] })}>
+            {TRACKING_PRIORITIES.map((priority) => (
+              <option key={priority} value={priority}>
+                {priority === "all" ? t("aiAnalyses.priority.filter.all") : t(`aiAnalyses.priority.levels.${priority}`)}
+              </option>
+            ))}
+          </select>
+        </label>
+
+        <label className="space-y-1.5" htmlFor={`${id}-sort`}>
+          <span className="flex items-center gap-1.5 text-[0.7rem] font-semibold text-[var(--ink-soft)]"><ArrowUpDown className="h-3.5 w-3.5" strokeWidth={1.8} aria-hidden="true" />{t("aiAnalyses.priority.sort.label")}</span>
+          {/* A priority filter lists that level in priority order: the sort cannot be changed under it. */}
+          <select
+            id={`${id}-sort`}
+            className={`${fieldClass} disabled:cursor-not-allowed disabled:opacity-60`}
+            disabled={state.priority !== "all"}
+            title={state.priority !== "all" ? t("aiAnalyses.priority.sort.locked") : undefined}
+            value={effectiveSort(state)}
+            onChange={(event) => update({ page: 1, sort: event.target.value as TrackingState["sort"] })}
+          >
+            {TRACKING_SORTS.map((sort) => <option key={sort} value={sort}>{t(`aiAnalyses.priority.sort.${sort}`)}</option>)}
+          </select>
+        </label>
+
         <label className="space-y-1.5" htmlFor={`${id}-from`}>
           <span className="flex items-center gap-1.5 text-[0.7rem] font-semibold text-[var(--ink-soft)]"><CalendarDays className="h-3.5 w-3.5" strokeWidth={1.8} aria-hidden="true" />{t("aiAnalyses.tracking.filters.from")}</span>
           <input id={`${id}-from`} type="date" className={fieldClass} value={state.from} max={state.to || undefined} onChange={(event) => update({ from: event.target.value, page: 1 })} />
@@ -181,7 +215,7 @@ export function AiRunsWorklist({ accountType, locale, roleBase, state, t, update
           <input id={`${id}-to`} type="date" className={fieldClass} value={state.to} min={state.from || undefined} onChange={(event) => update({ page: 1, to: event.target.value })} />
         </label>
 
-        <label className="flex cursor-pointer items-center justify-between gap-4 rounded-[var(--radius-sm)] border border-[var(--line)] bg-[var(--panel-soft)] px-4 py-3 sm:col-span-2 lg:col-span-3 xl:col-span-5">
+        <label className="flex cursor-pointer items-center justify-between gap-4 rounded-[var(--radius-sm)] border border-[var(--line)] bg-[var(--panel-soft)] px-4 py-3 sm:col-span-2 lg:col-span-3 xl:col-span-4">
           <span className="flex items-center gap-3 text-sm font-medium text-[var(--ink)]">
             <span className="flex h-8 w-8 items-center justify-center rounded-[var(--radius-sm)] bg-[var(--panel)] text-[var(--medical)] ring-1 ring-[var(--line)]"><UserRoundCheck className="h-4 w-4" strokeWidth={1.8} aria-hidden="true" /></span>
             {t("aiAnalyses.tracking.filters.mine")}
@@ -225,6 +259,10 @@ export function AiRunsWorklist({ accountType, locale, roleBase, state, t, update
             </span>
           </header>
 
+          <p role="note" className="border-b border-[var(--line-soft)] bg-[var(--panel-soft)] px-5 py-2.5 text-xs leading-5 text-[var(--ink-soft)] sm:px-6">
+            {t("aiAnalyses.priority.disclaimer")}
+          </p>
+
           <div className="grid gap-3 p-4 lg:hidden">
             {page.items.map((run) => {
               const view = getRunView(run);
@@ -236,7 +274,10 @@ export function AiRunsWorklist({ accountType, locale, roleBase, state, t, update
                       <Link href={`${roleBase}/patients/${encodeURIComponent(run.patient.id)}?tab=imaging`} className="block truncate text-sm font-semibold text-[var(--ink)] hover:text-[var(--accent-dark)] hover:underline">{view.patientName}</Link>
                       <time dateTime={run.createdAt} className={`${MONO} mt-1 block text-xs text-[var(--ink-faint)]`}>{view.date}</time>
                     </div>
-                    <StatusBadge label={view.decision.label} tone={view.decision.tone} />
+                    <div className="flex shrink-0 flex-col items-end gap-1.5">
+                      <PriorityBadge locale={locale} priority={run.priority} t={t} />
+                      <StatusBadge label={view.decision.label} tone={view.decision.tone} />
+                    </div>
                   </div>
                   <dl className="grid gap-4 p-4 sm:grid-cols-2">
                     <div><dt className="text-[0.68rem] font-semibold uppercase tracking-[0.08em] text-[var(--ink-faint)]">{t("aiAnalyses.tracking.worklist.columns.pipeline")}</dt><dd className="mt-1 text-sm text-[var(--ink-soft)]">{t(`aiAnalyses.pipelines.${run.pipeline}.name`)}</dd></div>
@@ -253,10 +294,11 @@ export function AiRunsWorklist({ accountType, locale, roleBase, state, t, update
           </div>
 
           <div className="hidden overflow-x-auto lg:block">
-            <table className="w-full min-w-[68rem] text-sm">
+            <table className="w-full min-w-[72rem] text-sm">
               <caption className="sr-only">{t("aiAnalyses.tracking.worklist.caption")}</caption>
               <thead className="bg-[var(--panel-soft)]">
                 <tr className="border-b border-[var(--line)] text-[0.7rem] font-semibold uppercase tracking-[0.06em] text-[var(--ink-faint)]">
+                  <th scope="col" className="px-4 py-3 text-start font-semibold">{t("aiAnalyses.priority.column")}</th>
                   {(["date", "patient", "pipeline", "modelClass", "uncertain", "mask", "decision"] as const).map((column) => <th key={column} scope="col" className="px-4 py-3 text-start font-semibold">{t(`aiAnalyses.tracking.worklist.columns.${column}`)}</th>)}
                   <th scope="col" className="px-4 py-3 text-end font-semibold">{t("aiAnalyses.tracking.worklist.columns.result")}</th>
                 </tr>
@@ -266,6 +308,10 @@ export function AiRunsWorklist({ accountType, locale, roleBase, state, t, update
                   const view = getRunView(run);
                   return (
                     <tr key={run.id} className="align-middle transition hover:bg-[var(--panel-soft)]">
+                      <td className="whitespace-nowrap px-4 py-3.5">
+                        <PriorityBadge locale={locale} priority={run.priority} t={t} />
+                        {run.priority.level === "ROUTINE" ? <span className="text-[var(--ink-faint)]" aria-hidden="true">—</span> : null}
+                      </td>
                       <td className="whitespace-nowrap px-4 py-3.5 text-[var(--ink-faint)]"><time dateTime={run.createdAt} className={MONO}>{view.date}</time></td>
                       <td className="px-4 py-3.5">
                         <Link href={`${roleBase}/patients/${encodeURIComponent(run.patient.id)}?tab=imaging`} className="flex items-center gap-2.5 font-medium text-[var(--ink)] hover:text-[var(--accent-dark)] hover:underline">

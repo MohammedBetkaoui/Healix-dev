@@ -493,6 +493,8 @@ describeWithDatabase('GET /dashboard/overview against a database', () => {
     expect(ai.pending.count).toBe(2);
     expect(ai.pending.oldestAgeHours).toBe(30);
     expect([ai.validated, ai.corrected, ai.rejected]).toEqual([1, 1, 1]);
+    // The two waiting runs are meningiomas: HIGH for reading, not URGENT.
+    expect(ai.urgentPending).toBe(0);
     // Top probability 0.80 and 0.70 out of the five succeeded runs.
     expect(ai.uncertain).toEqual({ count: 2, threshold: 0.9, total: 5 });
     expect(ai.recent).toHaveLength(5);

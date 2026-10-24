@@ -1,5 +1,5 @@
 import { BadRequestException, Injectable } from '@nestjs/common';
-import { AiAnalysisRunStatus } from '@prisma/client';
+import { AiAnalysisRunStatus, type Prisma } from '@prisma/client';
 
 import { type AuthenticatedUserPayload } from '../../auth/types/authenticated-request.type';
 import { PatientsService } from '../../patients/patients.service';
@@ -10,6 +10,11 @@ import {
   STALE_RUN_AFTER_MS,
 } from '../ai-analysis-runs.service';
 import { type ModelMonitoring } from '../monitoring/model-monitoring';
+import {
+  type AiPriorityLevel,
+  computeAiPriority,
+  rankByPriority,
+} from '../priority/ai-priority';
 import { type ModelMonitoringQueryDto } from '../monitoring/model-monitoring.dto';
 import { loadModelMonitoring } from '../monitoring/model-monitoring.query';
 import {
@@ -31,6 +36,11 @@ const patientNameSelect = {
   id: true,
   lastName: true,
   lastNameAr: true,
+} as const;
+
+const runListInclude = {
+  ...decidedByInclude,
+  patient: { select: patientNameSelect },
 } as const;
 
 function readPeriod(query: AiRunsPeriodQueryDto): { from?: Date; to?: Date } {
@@ -71,19 +81,13 @@ export class AiRunsOverviewService {
     const page = query.page ?? 1;
     const limit = query.limit ?? 20;
 
-    const [total, runs] = await Promise.all([
-      this.prisma.aiAnalysisRun.count({ where }),
-      this.prisma.aiAnalysisRun.findMany({
-        include: {
-          ...decidedByInclude,
-          patient: { select: patientNameSelect },
-        },
-        orderBy: runsOrder(query.decision),
-        skip: (page - 1) * limit,
-        take: limit,
-        where,
-      }),
-    ]);
+    // The priority is read from the run, not stored: it cannot be ordered or
+    // filtered in SQL, so that order has its own path.
+    const byPriority =
+      query.sort === 'priority' || query.priority !== undefined;
+    const { runs, total } = byPriority
+      ? await this.listByPriority(where, query.priority, page, limit)
+      : await this.listByDate(where, query.decision, page, limit);
 
     const items = await Promise.all(
       runs.map(async ({ patient, ...run }) => ({
@@ -91,6 +95,7 @@ export class AiRunsOverviewService {
           await this.runsService.expireIfStale(user, run),
         ),
         patient,
+        priority: computeAiPriority(run),
       })),
     );
 
@@ -100,6 +105,76 @@ export class AiRunsOverviewService {
       page,
       total,
       totalPages: Math.max(1, Math.ceil(total / limit)),
+    };
+  }
+
+  private async listByDate(
+    where: Prisma.AiAnalysisRunWhereInput,
+    decision: ListAiAnalysisRunsQueryDto['decision'],
+    page: number,
+    limit: number,
+  ) {
+    const [total, runs] = await Promise.all([
+      this.prisma.aiAnalysisRun.count({ where }),
+      this.prisma.aiAnalysisRun.findMany({
+        include: runListInclude,
+        orderBy: runsOrder(decision),
+        skip: (page - 1) * limit,
+        take: limit,
+        where,
+      }),
+    ]);
+
+    return { runs, total };
+  }
+
+  // The runs waiting for a decision, in reading order, then everything else
+  // (decided, failed, running: all ROUTINE, with nothing left to review first)
+  // the latest first. Only the waiting queue is read to be ranked; the rest is
+  // paged by the database after it. With a level, only that level is listed:
+  // URGENT and HIGH exist among the waiting runs only.
+  private async listByPriority(
+    where: Prisma.AiAnalysisRunWhereInput,
+    level: AiPriorityLevel | undefined,
+    page: number,
+    limit: number,
+  ) {
+    const waiting = {
+      decisionStatus: null,
+      status: AiAnalysisRunStatus.SUCCEEDED,
+    };
+    const ranked = rankByPriority(
+      await this.prisma.aiAnalysisRun.findMany({
+        include: runListInclude,
+        where: { AND: [where, waiting] },
+      }),
+      level,
+    ).map((entry) => entry.run);
+    const othersWhere: Prisma.AiAnalysisRunWhereInput = {
+      AND: [where, { NOT: waiting }],
+    };
+    const withOthers = level === undefined || level === 'ROUTINE';
+    const othersTotal = withOthers
+      ? await this.prisma.aiAnalysisRun.count({ where: othersWhere })
+      : 0;
+
+    const offset = (page - 1) * limit;
+    const fromQueue = ranked.slice(offset, offset + limit);
+    const missing = limit - fromQueue.length;
+    const others =
+      withOthers && missing > 0
+        ? await this.prisma.aiAnalysisRun.findMany({
+            include: runListInclude,
+            orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
+            skip: Math.max(0, offset - ranked.length),
+            take: missing,
+            where: othersWhere,
+          })
+        : [];
+
+    return {
+      runs: [...fromQueue, ...others],
+      total: ranked.length + othersTotal,
     };
   }
 

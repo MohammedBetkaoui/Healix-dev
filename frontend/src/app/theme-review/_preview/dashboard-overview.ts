@@ -64,6 +64,7 @@ export function previewDashboardOverview(days: number, withDoctors: boolean, now
       rejected,
       total,
       uncertain: { count: Math.round((total - failed) * 0.2), threshold: 0.9, total: total - failed },
+      urgentPending: 0,
       validated,
     },
     appointmentsToday: {
