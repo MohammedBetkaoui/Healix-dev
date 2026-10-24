@@ -23,6 +23,7 @@ import {
 import Link from "next/link";
 import { useMemo, useState } from "react";
 
+import { AiEvolutionSection } from "@/components/ai-analyses/evolution/AiEvolutionSection";
 import { LatestRetainedAiRun, NewAiAnalysisMenu, PatientAiRunsSection } from "@/components/ai-analyses/record/PatientAiRuns";
 import { AppointmentDetailsModal } from "@/components/appointments/AppointmentDetailsModal";
 import { CreateAppointmentModal } from "@/components/appointments/CreateAppointmentModal";
@@ -65,7 +66,7 @@ type PatientRecordPageProps = {
 
 type RecordTab =
   | "summary" | "timeline" | "consultations" | "diagnostics" | "allergies"
-  | "medications" | "vitals" | "labs" | "imaging" | "documents"
+  | "medications" | "vitals" | "labs" | "imaging" | "aiEvolution" | "documents"
   | "reports" | "notes" | "appointments" | "careTeam" | "consents" | "audit";
 
 const copy = {
@@ -103,7 +104,7 @@ const copy = {
     tabs: {
       summary: "Résumé", timeline: "Chronologie", consultations: "Consultations", diagnostics: "Diagnostics",
       allergies: "Allergies", medications: "Médicaments", vitals: "Constantes", labs: "Examens / Analyses",
-      imaging: "Imagerie / Pathologie", documents: "Documents", reports: "Rapports associés", notes: "Notes", appointments: "Rendez-vous",
+      imaging: "Imagerie / Pathologie", aiEvolution: "Évolution IA", documents: "Documents", reports: "Rapports associés", notes: "Notes", appointments: "Rendez-vous",
       careTeam: "Équipe médicale", consents: "Consentements", audit: "Audit",
     },
   },
@@ -141,7 +142,7 @@ const copy = {
     tabs: {
       summary: "الملخص", timeline: "التسلسل الزمني", consultations: "الاستشارات", diagnostics: "التشخيصات",
       allergies: "الحساسية", medications: "الأدوية", vitals: "المؤشرات", labs: "الفحوصات / التحاليل",
-      imaging: "التصوير / علم الأمراض", documents: "الوثائق", reports: "التقارير المرتبطة", notes: "الملاحظات", appointments: "المواعيد",
+      imaging: "التصوير / علم الأمراض", aiEvolution: "تطور الذكاء الاصطناعي", documents: "الوثائق", reports: "التقارير المرتبطة", notes: "الملاحظات", appointments: "المواعيد",
       careTeam: "الفريق الطبي", consents: "الموافقات", audit: "التدقيق",
     },
   },
@@ -149,7 +150,7 @@ const copy = {
 
 const tabs: RecordTab[] = [
   "summary", "timeline", "consultations", "diagnostics", "allergies", "medications",
-  "vitals", "labs", "imaging", "reports", "documents", "notes", "appointments", "careTeam", "consents", "audit",
+  "vitals", "labs", "imaging", "aiEvolution", "reports", "documents", "notes", "appointments", "careTeam", "consents", "audit",
 ];
 
 // Local time, not UTC (toISOString), so the default date never shifts by a day.
@@ -372,6 +373,10 @@ export function PatientRecordPage({ accountType, initialTab, patientId }: Patien
           />
         ) : null}
 
+        {activeTab === "aiEvolution" ? (
+          <AiEvolutionSection locale={locale} patientId={patientId} t={t} />
+        ) : null}
+
         {activeTab === "reports" ? (
           <PatientReportsSection accountType={accountType} locale={locale} patientId={patientId} t={t} />
         ) : null}
@@ -475,7 +480,7 @@ export function PatientRecordPage({ accountType, initialTab, patientId }: Patien
           </section>
         ) : null}
 
-        {activeTab !== "summary" && activeTab !== "allergies" && activeTab !== "consultations" && activeTab !== "documents" && activeTab !== "imaging" && activeTab !== "reports" && activeTab !== "consents" && activeTab !== "audit" && activeTab !== "appointments" && activeTab !== "notes" ? <EmptyTab label={localized.tabs[activeTab]} /> : null}
+        {activeTab !== "summary" && activeTab !== "allergies" && activeTab !== "consultations" && activeTab !== "documents" && activeTab !== "imaging" && activeTab !== "aiEvolution" && activeTab !== "reports" && activeTab !== "consents" && activeTab !== "audit" && activeTab !== "appointments" && activeTab !== "notes" ? <EmptyTab label={localized.tabs[activeTab]} /> : null}
       </div>
 
       <div role="status" aria-live="polite">

@@ -12,6 +12,8 @@ import { AiAnalysisRunsService } from './ai-analysis-runs.service';
 import { AiServiceClient } from './ai-service.client';
 import { AiRunsOverviewController } from './overview/ai-runs-overview.controller';
 import { AiRunsOverviewService } from './overview/ai-runs-overview.service';
+import { AiTimelineController } from './timeline/ai-timeline.controller';
+import { AiTimelineService } from './timeline/ai-timeline.service';
 import { AiAnalysisReportsService } from './report/ai-analysis-reports.service';
 import { AiReportRenderer } from './report/ai-report-renderer';
 import { CardioEvaluationService } from './report/cardio-evaluation';
@@ -28,6 +30,7 @@ import { CardioSegEvaluationService } from './report/cardio-seg-evaluation';
     AiAnalysisRunsController,
     AiModelsController,
     AiRunsOverviewController,
+    AiTimelineController,
   ],
   providers: [
     AiAnalysisRunsService,
@@ -35,6 +38,7 @@ import { CardioSegEvaluationService } from './report/cardio-seg-evaluation';
     AiAnalysisReportsService,
     AiReportRenderer,
     AiRunsOverviewService,
+    AiTimelineService,
     CardioEvaluationService,
     CardioSegEvaluationService,
   ],

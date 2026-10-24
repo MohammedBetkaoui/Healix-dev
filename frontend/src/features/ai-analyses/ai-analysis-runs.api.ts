@@ -18,6 +18,7 @@ import {
   type EcgClass,
   type EcgUnit,
 } from "./ai-analyses.types";
+import { type AiTimeline } from "./ai-timeline";
 import { type ModelMonitoring, type ModelMonitoringParams } from "./model-monitoring";
 
 // The backend waits up to 60 s for the inference service: the default 10 s
@@ -70,6 +71,12 @@ export async function getAiRunsSummary(params: AiRunsPeriodParams): Promise<AiRu
 /** GET /ai-analysis-runs/model-monitoring: how the workspace's physicians judge each model, per month. */
 export async function getModelMonitoring(params: ModelMonitoringParams): Promise<ModelMonitoring> {
   const response = await apiClient.get<ModelMonitoring>("/ai-analysis-runs/model-monitoring", { params });
+  return response.data;
+}
+
+/** GET /patients/:id/ai-timeline: the SUCCEEDED runs of one chain, oldest first, with their comparable measures. */
+export async function getAiTimeline(patientId: string, pipeline: AiPipelineId): Promise<AiTimeline> {
+  const response = await apiClient.get<AiTimeline>(`/patients/${patientId}/ai-timeline`, { params: { pipeline } });
   return response.data;
 }
 
