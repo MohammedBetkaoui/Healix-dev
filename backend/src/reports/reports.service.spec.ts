@@ -242,18 +242,19 @@ function createDatabase() {
         return Promise.resolve(data);
       },
     },
-    clinicalDocumentSequence: {
-      upsert: ({
-        where,
-      }: {
-        where: { type_year: { type: string; year: number } };
-      }) => {
-        const key = `${where.type_year.type}:${where.type_year.year}`;
-        const next = (sequences.get(key) ?? 0) + 1;
-        sequences.set(key, next);
-        return Promise.resolve({ lastValue: next });
-      },
+    // The two statements of the counter (see nextSequenceValue): add 1 to
+    // (type, year), then read it.
+    $executeRaw: (
+      _strings: TemplateStringsArray,
+      type: string,
+      year: number,
+    ) => {
+      const key = `${type}:${year}`;
+      sequences.set(key, (sequences.get(key) ?? 0) + 1);
+      return Promise.resolve(1);
     },
+    $queryRaw: (_strings: TemplateStringsArray, type: string, year: number) =>
+      Promise.resolve([{ last_value: sequences.get(`${type}:${year}`) }]),
     patient: {
       findFirst: ({ where }: { where: Row }) =>
         Promise.resolve(

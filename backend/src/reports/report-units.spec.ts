@@ -13,35 +13,40 @@ import { ReportNumberService } from './report-number.service';
 import { normalizeSections } from './reports.service';
 
 describe('ReportNumberService', () => {
+  // The counter is an INSERT ... ON DUPLICATE KEY UPDATE, then a read of its
+  // value; its behavior on a database is in report-numbering.integration.spec.ts.
   const sequence = (values: number[]) => {
-    const upsert = jest.fn(() =>
-      Promise.resolve({ lastValue: values.shift() as number }),
+    const increment = jest.fn(() => Promise.resolve(1));
+    const read = jest.fn(() =>
+      Promise.resolve([{ last_value: values.shift() as number }]),
     );
     return {
-      upsert,
+      increment,
       transaction: {
-        clinicalDocumentSequence: { upsert },
+        $executeRaw: increment,
+        $queryRaw: read,
       } as unknown as Prisma.TransactionClient,
     };
   };
+  const incrementedFor = (call: unknown[]) => call.slice(1);
 
   it('gives CR-<year>-<NNNNNN> from the CLINICAL_REPORT sequence of the year', async () => {
-    const { upsert, transaction } = sequence([1, 2, 42]);
+    const { increment, transaction } = sequence([1, 2, 42]);
     const service = new ReportNumberService();
     const at = new Date('2026-10-23T10:00:00Z');
 
     expect(await service.next(transaction, at)).toBe('CR-2026-000001');
     expect(await service.next(transaction, at)).toBe('CR-2026-000002');
     expect(await service.next(transaction, at)).toBe('CR-2026-000042');
-    expect(upsert).toHaveBeenCalledWith(
-      expect.objectContaining({
-        where: { type_year: { type: 'CLINICAL_REPORT', year: 2026 } },
-      }),
-    );
+    expect(increment.mock.calls.map(incrementedFor)).toEqual([
+      ['CLINICAL_REPORT', 2026],
+      ['CLINICAL_REPORT', 2026],
+      ['CLINICAL_REPORT', 2026],
+    ]);
   });
 
   it('counts the year in Algiers time: the last minutes of 31 December', async () => {
-    const { upsert, transaction } = sequence([1, 1]);
+    const { increment, transaction } = sequence([1, 1]);
     const service = new ReportNumberService();
 
     // 23:30 UTC on 31 December is already 00:30 on 1 January in Algiers.
@@ -51,7 +56,10 @@ describe('ReportNumberService', () => {
     expect(
       await service.next(transaction, new Date('2026-12-31T22:30:00Z')),
     ).toBe('CR-2026-000001');
-    expect(upsert).toHaveBeenCalledTimes(2);
+    expect(increment.mock.calls.map(incrementedFor)).toEqual([
+      ['CLINICAL_REPORT', 2027],
+      ['CLINICAL_REPORT', 2026],
+    ]);
   });
 });
 

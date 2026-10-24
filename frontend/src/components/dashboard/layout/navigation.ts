@@ -121,12 +121,6 @@ export const doctorNavSections: DashboardNavSection[] = [
         labelKey: "dashboard.clinical.nav.aiTracking",
       },
       {
-        href: "#lab",
-        icon: FlaskConical,
-        key: "lab",
-        labelKey: "dashboard.sidebar.doctor.lab",
-      },
-      {
         href: "/doctor/reports",
         icon: FileBarChart,
         key: "reports",

@@ -1,26 +1,20 @@
 import { Injectable } from '@nestjs/common';
 import { type Prisma } from '@prisma/client';
 
-const TIME_ZONE = 'Africa/Algiers';
+import { nextDocumentNumber } from '../common/utils/clinical-document-number';
 
+// ORD-<year>-<NNNNNN>, sequential within the year (PRESCRIPTION sequence),
+// taken in the transaction that validates the prescription.
 @Injectable()
 export class PrescriptionNumberService {
-  async next(
+  next(
     transaction: Prisma.TransactionClient,
     at = new Date(),
   ): Promise<string> {
-    const year = Number(
-      new Intl.DateTimeFormat('en-CA', {
-        timeZone: TIME_ZONE,
-        year: 'numeric',
-      }).format(at),
-    );
-    const sequence = await transaction.clinicalDocumentSequence.upsert({
-      where: { type_year: { type: 'PRESCRIPTION', year } },
-      create: { type: 'PRESCRIPTION', year, lastValue: 1 },
-      update: { lastValue: { increment: 1 } },
-      select: { lastValue: true },
+    return nextDocumentNumber(transaction, {
+      at,
+      prefix: 'ORD',
+      type: 'PRESCRIPTION',
     });
-    return `ORD-${year}-${String(sequence.lastValue).padStart(6, '0')}`;
   }
 }
