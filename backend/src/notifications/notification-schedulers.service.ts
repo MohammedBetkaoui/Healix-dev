@@ -12,6 +12,9 @@ import { PrismaService } from '../prisma/prisma.service';
 import { NotificationProducerService } from './notification-producer.service';
 
 const DAY_MS = 24 * 60 * 60 * 1_000;
+// Ascending: the first threshold the remaining days fit under is the one sent.
+const SUBSCRIPTION_REMINDER_DAYS = [1, 7, 30];
+const TRIAL_REMINDER_DAYS = [1, 3, 7];
 
 @Injectable()
 export class NotificationSchedulersService {
@@ -72,6 +75,10 @@ export class NotificationSchedulersService {
     }
   }
 
+  // Reminders before a subscription ends: 30, 7 and 1 day(s) for a paid
+  // subscription, 7, 3 and 1 day(s) for a trial. One per threshold and per
+  // expiry date, so a renewal (the same row, a later expiry) is reminded again
+  // the next time.
   @Cron('0 15 8 * * *')
   async createSubscriptionExpiryNotifications() {
     const now = new Date();
@@ -79,10 +86,12 @@ export class NotificationSchedulersService {
     try {
       const subscriptions = await this.prisma.subscription.findMany({
         where: {
-          status: SubscriptionStatus.ACTIVE,
+          status: {
+            in: [SubscriptionStatus.ACTIVE, SubscriptionStatus.TRIALING],
+          },
           expiresAt: { gt: now, lte: until },
         },
-        select: { id: true, userId: true, expiresAt: true },
+        select: { id: true, userId: true, expiresAt: true, trial: true },
       });
       await Promise.all(
         subscriptions.flatMap((subscription) => {
@@ -93,12 +102,19 @@ export class NotificationSchedulersService {
               (subscription.expiresAt.getTime() - now.getTime()) / DAY_MS,
             ),
           );
-          const currentThreshold = remaining <= 1 ? 1 : remaining <= 7 ? 7 : 30;
-          return [currentThreshold].map((threshold) =>
+          const thresholds = subscription.trial
+            ? TRIAL_REMINDER_DAYS
+            : SUBSCRIPTION_REMINDER_DAYS;
+          const threshold = thresholds.find((days) => remaining <= days);
+          if (threshold === undefined) return [];
+          const type = subscription.trial
+            ? 'TRIAL_EXPIRING'
+            : 'SUBSCRIPTION_EXPIRING';
+          return [
             this.producer.create({
               userId: subscription.userId,
               category: NotificationCategory.SUBSCRIPTION,
-              type: 'SUBSCRIPTION_EXPIRING',
+              type,
               severity:
                 threshold === 1
                   ? NotificationSeverity.WARNING
@@ -109,9 +125,9 @@ export class NotificationSchedulersService {
                 subscriptionId: subscription.id,
                 daysRemaining: threshold,
               },
-              dedupeKey: `subscription-expiring:${subscription.id}:${threshold}`,
+              dedupeKey: `${type.toLowerCase()}:${subscription.id}:${threshold}:${subscription.expiresAt.toISOString().slice(0, 10)}`,
             }),
-          );
+          ];
         }),
       );
     } catch (error) {

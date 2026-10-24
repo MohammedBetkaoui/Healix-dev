@@ -3,6 +3,7 @@ import { Module } from '@nestjs/common';
 import { PatientsModule } from '../patients/patients.module';
 import { PrismaModule } from '../prisma/prisma.module';
 import { NotificationsModule } from '../notifications/notifications.module';
+import { SubscriptionsModule } from '../subscriptions/subscriptions.module';
 import {
   AiAnalysisRunsController,
   AiModelsController,
@@ -17,7 +18,12 @@ import { CardioEvaluationService } from './report/cardio-evaluation';
 import { CardioSegEvaluationService } from './report/cardio-seg-evaluation';
 
 @Module({
-  imports: [PrismaModule, PatientsModule, NotificationsModule],
+  imports: [
+    PrismaModule,
+    PatientsModule,
+    NotificationsModule,
+    SubscriptionsModule,
+  ],
   controllers: [
     AiAnalysisRunsController,
     AiModelsController,

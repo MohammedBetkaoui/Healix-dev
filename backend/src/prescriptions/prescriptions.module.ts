@@ -7,6 +7,7 @@ import { RolesGuard } from '../common/guards/roles.guard';
 import { NotificationsModule } from '../notifications/notifications.module';
 import { PatientsModule } from '../patients/patients.module';
 import { PrismaModule } from '../prisma/prisma.module';
+import { SubscriptionsModule } from '../subscriptions/subscriptions.module';
 import { WorkspaceModule } from '../workspaces/workspace.module';
 import { PrescriptionAuthorizationService } from './prescription-authorization.service';
 import { PrescriptionNumberService } from './prescription-number.service';
@@ -24,6 +25,7 @@ import { PrescriptionsService } from './prescriptions.service';
     WorkspaceModule,
     AuditLogsModule,
     NotificationsModule,
+    SubscriptionsModule,
   ],
   controllers: [PrescriptionsController],
   providers: [

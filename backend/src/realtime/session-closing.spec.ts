@@ -7,6 +7,7 @@ import { type PrismaService } from '../prisma/prisma.service';
 import { type UsersService } from '../users/users.service';
 import { type WorkspaceService } from '../workspaces/workspace.service';
 import { type RealtimeService } from './realtime.service';
+import { passThroughEntitlements } from '../subscriptions/testing/entitlements-stub';
 
 // The writes that end the sessions of an account also close its sockets.
 
@@ -43,6 +44,7 @@ describe('affiliated doctors managed by their establishment', () => {
       {} as WorkspaceService,
       { get: () => '4' } as unknown as ConfigService,
       realtime as unknown as RealtimeService,
+      passThroughEntitlements(),
     );
     return { realtime, service };
   }

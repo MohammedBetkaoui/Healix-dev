@@ -4,6 +4,7 @@ export const SubscriptionStatus = {
   ACTIVE: 'ACTIVE',
   EXPIRED: 'EXPIRED',
   CANCELED: 'CANCELED',
+  TRIALING: 'TRIALING',
 } as const;
 
 export type SubscriptionStatus =

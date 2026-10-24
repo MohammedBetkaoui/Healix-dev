@@ -140,7 +140,11 @@ describeWithDatabase(
       prescriptions = moduleRef.get(PrescriptionsService);
       fixtures = new IntegrationFixtures(prisma, 'num');
 
-      const doctor = await fixtures.independentDoctor();
+      // Subscribed past 2099: the spec sets the clock there to start a new
+      // numbering year, and a subscription that has ended refuses to sign.
+      const doctor = await fixtures.independentDoctor({
+        subscription: { expiresAt: new Date('2100-12-31T00:00:00.000Z') },
+      });
       actor = doctor.actor;
       patientId = (
         await fixtures.patient(doctor.workspace.id, doctor.profile.id)

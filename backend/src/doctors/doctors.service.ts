@@ -17,6 +17,7 @@ import { VerificationStatus } from '../common/enums/verification-status.enum';
 import { PrismaService } from '../prisma/prisma.service';
 import { NotificationProducerService } from '../notifications/notification-producer.service';
 import { RealtimeService } from '../realtime/realtime.service';
+import { EntitlementsService } from '../subscriptions/entitlements.service';
 import { UsersService } from '../users/users.service';
 import { WorkspaceService } from '../workspaces/workspace.service';
 import { CreateAffiliatedDoctorDto } from './dto/create-affiliated-doctor.dto';
@@ -66,6 +67,7 @@ export class DoctorsService {
     private readonly workspaceService: WorkspaceService,
     configService: ConfigService,
     private readonly realtime: RealtimeService,
+    private readonly entitlements: EntitlementsService,
     @Optional()
     private readonly notificationProducer?: NotificationProducerService,
   ) {
@@ -98,8 +100,23 @@ export class DoctorsService {
   ): Promise<CreateAffiliatedDoctorResponse> {
     const temporaryPassword = this.generateTemporaryPassword();
     const passwordHash = await this.hashPassword(temporaryPassword);
+    const workspace = await this.prisma.workspace.findUnique({
+      where: { establishmentId },
+      select: { id: true },
+    });
 
-    const { user, doctorProfile } = await this.prisma.$transaction(
+    if (!workspace) {
+      throw new NotFoundException(
+        "Le workspace de l'établissement est introuvable.",
+      );
+    }
+
+    // The seat is counted and taken under the lock of the establishment's
+    // subscription: its plan's number of doctors cannot be passed by two
+    // invitations at once.
+    const { user, doctorProfile } = await this.entitlements.withQuota(
+      workspace.id,
+      'maxDoctors',
       async (transaction) => {
         await this.usersService.ensureEmailAndPhoneAvailable(
           dto.email,
@@ -128,7 +145,12 @@ export class DoctorsService {
             isIndependent: false,
             establishmentId,
             verificationStatus: VerificationStatus.VERIFIED,
-            subscriptionStatus: SubscriptionStatus.ACTIVE,
+            // Follows the establishment's subscription (live at this point,
+            // or the quota gate would have refused).
+            subscriptionStatus: await this.establishmentSubscriptionStatus(
+              establishmentId,
+              transaction,
+            ),
           },
         });
 
@@ -142,13 +164,9 @@ export class DoctorsService {
       },
     );
 
-    const workspace = await this.prisma.workspace.findUnique({
-      where: { establishmentId },
-      select: { id: true },
-    });
     await this.notificationProducer?.create({
       userId: user.id,
-      workspaceId: workspace?.id,
+      workspaceId: workspace.id,
       category: NotificationCategory.TEAM,
       type: 'DOCTOR_ACCOUNT_CREATED',
       resourceType: NotificationResourceType.DOCTOR_PROFILE,
@@ -263,12 +281,23 @@ export class DoctorsService {
       doctorProfileId,
     );
 
-    // No session to revoke: suspension already revoked them all.
-    const updatedUser = await this.prisma.user.update({
-      where: { id: doctorProfile.userId },
-      data: { accountStatus: AccountStatus.ACTIVE },
-      select: { accountStatus: true },
-    });
+    const activate = (client: PrismaExecutor) =>
+      // No session to revoke: suspension already revoked them all.
+      client.user.update({
+        where: { id: doctorProfile.userId },
+        data: { accountStatus: AccountStatus.ACTIVE },
+        select: { accountStatus: true },
+      });
+    // Reactivating takes a seat back: the plan's number of doctors applies.
+    // A doctor who is already active takes none.
+    const updatedUser =
+      doctorProfile.user.accountStatus === AccountStatus.ACTIVE
+        ? await activate(this.prisma)
+        : await this.entitlements.withQuota(
+            await this.establishmentWorkspaceId(establishmentId),
+            'maxDoctors',
+            activate,
+          );
     // Any socket left from before is closed: the next one starts afresh.
     await this.realtime.disconnectUser(doctorProfile.userId);
 
@@ -318,6 +347,37 @@ export class DoctorsService {
       professionalAddress: updatedDoctorProfile.professionalAddress,
       accountStatus: updatedUser.accountStatus,
     };
+  }
+
+  private async establishmentWorkspaceId(
+    establishmentId: string,
+  ): Promise<string> {
+    const workspace = await this.prisma.workspace.findUnique({
+      where: { establishmentId },
+      select: { id: true },
+    });
+
+    if (!workspace) {
+      throw new NotFoundException(
+        "Le workspace de l'établissement est introuvable.",
+      );
+    }
+
+    return workspace.id;
+  }
+
+  private async establishmentSubscriptionStatus(
+    establishmentId: string,
+    client: PrismaExecutor,
+  ): Promise<SubscriptionStatus> {
+    const establishment = await client.establishment.findUnique({
+      where: { id: establishmentId },
+      select: { subscriptionStatus: true },
+    });
+
+    return establishment?.subscriptionStatus === SubscriptionStatus.TRIALING
+      ? SubscriptionStatus.TRIALING
+      : SubscriptionStatus.ACTIVE;
   }
 
   // Same message whether the profile is missing or belongs elsewhere, so

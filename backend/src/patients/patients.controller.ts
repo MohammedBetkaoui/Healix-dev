@@ -19,7 +19,9 @@ import { memoryStorage } from 'multer';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { type AuthenticatedUserPayload } from '../auth/types/authenticated-request.type';
 import { CurrentUser } from '../common/decorators/current-user.decorator';
+import { RequiresActiveSubscription } from '../common/decorators/requires-active-subscription.decorator';
 import { RolesGuard } from '../common/guards/roles.guard';
+import { SubscriptionGuard } from '../common/guards/subscription.guard';
 import { VerifiedAccountGuard } from '../common/guards/verified-account.guard';
 import { CheckPatientDuplicateQueryDto } from './dto/check-patient-duplicate-query.dto';
 import { CreatePatientAiAnalysisDto } from './dto/create-patient-ai-analysis.dto';
@@ -32,11 +34,12 @@ import { UpsertPatientConsentDto } from './dto/upsert-patient-consent.dto';
 import { PatientsService } from './patients.service';
 
 @Controller('patients')
-@UseGuards(JwtAuthGuard, RolesGuard, VerifiedAccountGuard)
+@UseGuards(JwtAuthGuard, RolesGuard, VerifiedAccountGuard, SubscriptionGuard)
 export class PatientsController {
   constructor(private readonly patientsService: PatientsService) {}
 
   @Post()
+  @RequiresActiveSubscription()
   create(
     @CurrentUser() user: AuthenticatedUserPayload,
     @Body() dto: CreatePatientDto,
@@ -106,6 +109,7 @@ export class PatientsController {
   }
 
   @Post(':id/consultations')
+  @RequiresActiveSubscription()
   createConsultation(
     @CurrentUser() user: AuthenticatedUserPayload,
     @Param('id') id: string,
@@ -164,6 +168,7 @@ export class PatientsController {
   }
 
   @Post(':id/documents')
+  @RequiresActiveSubscription()
   @UseInterceptors(
     FileInterceptor('file', {
       storage: memoryStorage(),
@@ -190,6 +195,7 @@ export class PatientsController {
   }
 
   @Post(':id/ai-analyses')
+  @RequiresActiveSubscription()
   createAiAnalysis(
     @CurrentUser() user: AuthenticatedUserPayload,
     @Param('id') id: string,

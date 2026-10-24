@@ -12,21 +12,19 @@ import {
 
 import { trimStringValue } from '../../common/utils/transform-input';
 import {
+  AI_PIPELINES,
+  type AiPipeline,
+} from '../../subscriptions/plans/plan-quotas';
+import {
   ECG_MAX_SAMPLING_RATE,
   ECG_MIN_SAMPLING_RATE,
   ECG_UNITS,
   type EcgUnit,
 } from '../ai-service.client';
 
-// Five independent chains, never run one after the other.
-export const AI_PIPELINES = [
-  'brain',
-  'pathology-breast',
-  'pathology-nuclei',
-  'cardio-ecg',
-  'cardio-seg-mri',
-] as const;
-export type AiPipeline = (typeof AI_PIPELINES)[number];
+// Five independent chains, never run one after the other (the list lives
+// with the plan quotas, which say which ones a plan opens).
+export { AI_PIPELINES, type AiPipeline };
 
 // Microscope magnification of a histopathology slide.
 export const AI_MAGNIFICATIONS = [40, 100, 200, 400] as const;

@@ -16,6 +16,7 @@ import { PatientFileStorageService } from './documents/patient-file-storage.serv
 import { PatientFileValidator } from './documents/patient-file-validator';
 import { PatientAuditService } from './patient-audit.service';
 import { PatientsService } from './patients.service';
+import { passThroughEntitlements } from '../subscriptions/testing/entitlements-stub';
 
 describe('PatientsService workspace boundary', () => {
   const create = jest.fn<Promise<Patient>, [Prisma.PatientCreateArgs]>();
@@ -35,6 +36,7 @@ describe('PatientsService workspace boundary', () => {
     {} as PatientFileValidator,
     {} as PatientFileStorageService,
     context,
+    passThroughEntitlements(prisma),
   );
   const actor = {
     sub: 'owner-a',

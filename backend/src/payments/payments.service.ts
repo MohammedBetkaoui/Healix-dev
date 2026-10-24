@@ -15,9 +15,14 @@ import { PaymentProofDocumentType } from '../common/enums/payment-proof-document
 import { PaymentStatus } from '../common/enums/payment-status.enum';
 import { PrismaService } from '../prisma/prisma.service';
 import { SubscriptionPlansService } from '../subscriptions/plans/subscription-plans.service';
+import {
+  paymentMethodDisabled,
+  planRequiresContact,
+} from '../subscriptions/subscription-errors';
 import { SubscriptionsService } from '../subscriptions/subscriptions.service';
 import { CreatePaymentIntentDto } from './dto/create-payment-intent.dto';
 import { SyntheticChargilyPaymentDto } from './dto/synthetic-chargily-payment.dto';
+import { isManualPaymentsEnabled } from './manual-payments';
 import { PaymentProofService } from './proofs/payment-proof.service';
 import { PaymentProofStorageService } from './proofs/payment-proof-storage.service';
 import { PaymentProofValidator } from './proofs/payment-proof-validator';
@@ -61,6 +66,15 @@ export class PaymentsService {
     dto: CreatePaymentIntentDto,
     context: RequestContext = {},
   ) {
+    // The online card payment is the way to subscribe; the offline
+    // settlements are an opt-in (MANUAL_PAYMENTS_ENABLED).
+    if (
+      dto.paymentMethod !== PaymentMethod.SYNTHETIC_CHARGILY &&
+      !isManualPaymentsEnabled()
+    ) {
+      throw paymentMethodDisabled();
+    }
+
     const user = await this.prisma.user.findUnique({
       include: {
         doctorProfile: true,
@@ -89,9 +103,7 @@ export class PaymentsService {
     }
 
     if (plan.custom) {
-      throw new BadRequestException(
-        "Ce plan necessite un contact avec l'equipe HealixDZ.",
-      );
+      throw planRequiresContact();
     }
 
     if (plan.accountType !== accountContext.accountType) {
@@ -238,13 +250,25 @@ export class PaymentsService {
 
     // This is a demo synthetic payment flow only. Production must use Chargily checkout + webhook.
     if (!isValidSyntheticChargilyCard(dto)) {
-      await this.prisma.payment.update({
+      // Guarded by the status: a payment that was paid since the read above
+      // (a double click) is never turned into a failure.
+      const { count } = await this.prisma.payment.updateMany({
         data: {
           providerStatus: 'FAILED_DEMO_CARD',
           status: PaymentStatus.FAILED,
         },
-        where: { id: payment.id },
+        where: {
+          id: payment.id,
+          status: {
+            in: [PaymentStatus.CREATED, PaymentStatus.WAITING_PAYMENT],
+          },
+        },
       });
+
+      if (count === 0) {
+        throw new ConflictException('Ce paiement ne peut plus etre traite.');
+      }
+
       await this.auditLogsService.createAuditLog({
         action: 'SYNTHETIC_CHARGILY_PAYMENT_FAILED',
         entityId: payment.id,
@@ -258,12 +282,24 @@ export class PaymentsService {
         userAgent: context.userAgent,
         userId,
       });
-      throw new BadRequestException(
-        'Paiement refuse. Verifiez les informations de paiement.',
-      );
+      throw new BadRequestException({
+        code: 'PAYMENT_DECLINED',
+        message: 'Paiement refuse. Verifiez les informations de paiement.',
+      });
     }
 
     const result = await this.prisma.$transaction(async (transaction) => {
+      // The payment row is locked, then read again: of two requests paying
+      // the same paymentId at once, the second waits here and finds it PAID
+      // (409), so the subscription is extended once.
+      await transaction.$queryRaw`SELECT id FROM payments WHERE id = ${payment.id} FOR UPDATE`;
+      const lockedPayment = await transaction.payment.findUniqueOrThrow({
+        where: { id: payment.id },
+      });
+      this.assertPaymentCanBePaid(lockedPayment);
+
+      // Only the last 4 digits and the holder are kept: the card number and
+      // the security code (psv) are never stored.
       const updatedPayment = await transaction.payment.update({
         data: {
           cardHolderName: normalizeCardHolderName(dto.cardHolderName),
@@ -275,25 +311,12 @@ export class PaymentsService {
         where: { id: payment.id },
       });
 
-      const subscription =
-        await this.subscriptionsService.activateSubscriptionForPayment(
-          updatedPayment,
-          transaction,
-        );
-
-      await transaction.payment.update({
-        data: {
-          subscriptionId: subscription.id,
-        },
-        where: {
-          id: updatedPayment.id,
-        },
-      });
-
-      await this.subscriptionsService.updateAccountToActive(
-        updatedPayment.userId,
-        updatedPayment.accountType,
+      // The subscription is active as soon as the payment is, in this very
+      // transaction: no administrator in between.
+      const outcome = await this.subscriptionsService.applyPurchase(
+        updatedPayment,
         transaction,
+        { context },
       );
 
       await this.auditLogsService.createAuditLog(
@@ -312,34 +335,25 @@ export class PaymentsService {
         },
         transaction,
       );
-      await this.auditLogsService.createAuditLog(
-        {
-          action: 'SUBSCRIPTION_ACTIVATED',
-          entityId: subscription.id,
-          entityType: 'SUBSCRIPTION',
-          ipAddress: context.ipAddress,
-          metadata: {
-            accountType: updatedPayment.accountType,
-            paymentId: updatedPayment.id,
-            planId: updatedPayment.planId,
-            reference: updatedPayment.reference,
-          },
-          userAgent: context.userAgent,
-          userId,
-        },
-        transaction,
-      );
 
-      return {
-        payment: updatedPayment,
-        subscription,
-      };
+      return { outcome, payment: updatedPayment };
     });
+
+    await this.subscriptionsService.notifyPurchase(result.outcome);
+
+    const { subscription } = result.outcome;
 
     return {
       message: 'Paiement demo accepte. Abonnement active.',
       payment: this.toPublicPayment(result.payment),
-      subscriptionId: result.subscription.id,
+      subscription: {
+        expiresAt: subscription.expiresAt,
+        id: subscription.id,
+        startedAt: subscription.startedAt,
+        status: subscription.status,
+        trial: subscription.trial,
+      },
+      subscriptionId: subscription.id,
     };
   }
 
@@ -447,7 +461,15 @@ export class PaymentsService {
       include: {
         plan: true,
         proofDocument: true,
-        subscription: true,
+        subscription: {
+          select: {
+            expiresAt: true,
+            id: true,
+            startedAt: true,
+            status: true,
+            trial: true,
+          },
+        },
       },
       where: {
         id: paymentId,
@@ -459,7 +481,14 @@ export class PaymentsService {
       throw new NotFoundException('Paiement introuvable.');
     }
 
-    return this.toPublicPayment(payment);
+    return {
+      ...this.toPublicPayment(payment),
+      // What paying would do (the new expiry, whether it ends a trial), shown
+      // before the card form; null once the payment is settled.
+      expiryPreview: OPEN_PAYMENT_STATUSES.includes(payment.status)
+        ? await this.subscriptionsService.previewPurchase(payment)
+        : null,
+    };
   }
 
   async findPaymentForActivation(

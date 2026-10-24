@@ -44,12 +44,27 @@ enum VerificationStatus {
   SUSPENDED
 }
 
+// TRIALING: the free trial (a Subscription with trial = true). It is a live
+// status, like ACTIVE: the account may write, within the trial quotas.
 enum SubscriptionStatus {
   NO_PLAN
   PAYMENT_PENDING
   ACTIVE
   EXPIRED
   CANCELED
+  TRIALING
+}
+
+// What happened to a subscription, one SubscriptionEvent per change.
+enum SubscriptionEventType {
+  TRIAL_STARTED
+  PURCHASED
+  RENEWED
+  PLAN_CHANGED
+  EXPIRED
+  CANCELED
+  TRIAL_EXTENDED
+  QUOTAS_CHANGED
 }
 
 enum VerificationRequestType {
@@ -467,6 +482,7 @@ model User {
   verificationRequests           VerificationRequest[]     @relation("VerificationRequestUser")
   reviewedVerificationRequests   VerificationRequest[]     @relation("VerificationReviewedBy")
   subscriptions                  Subscription[]            @relation("SubscriptionUser")
+  subscriptionEvents             SubscriptionEvent[]       @relation("SubscriptionEventActor")
   payments                       Payment[]                 @relation("PaymentUser")
   reviewedPayments               Payment[]                 @relation("PaymentReviewedBy")
   recordedPatientConsents        PatientConsent[]
@@ -1206,15 +1222,23 @@ model SubscriptionPlan {
   annualPrice  Int?        @map("annual_price")
   currency     String      @default("DZD") @db.VarChar(8)
   features     Json?
+  // Display texts ("100 patients"); the numbers the platform enforces are in
+  // `quotas`, and a test keeps both in agreement.
   limits       Json?
+  // { maxPatients, aiAnalysesPerMonth, maxDoctors, aiPipelines }: null is
+  // unlimited, and aiPipelines null is every pipeline (see
+  // subscriptions/plans/plan-quotas.ts).
+  quotas       Json
   recommended  Boolean     @default(false)
   custom       Boolean     @default(false)
   active       Boolean     @default(true)
   createdAt    DateTime    @default(now()) @map("created_at")
   updatedAt    DateTime    @updatedAt @map("updated_at")
 
-  subscriptions Subscription[]
-  payments      Payment[]
+  subscriptions  Subscription[]
+  payments       Payment[]
+  eventsFromPlan SubscriptionEvent[] @relation("SubscriptionEventFromPlan")
+  eventsToPlan   SubscriptionEvent[] @relation("SubscriptionEventToPlan")
 
   @@index([accountType])
   @@index([active])
@@ -1228,20 +1252,60 @@ model Subscription {
   accountType   AccountType        @map("account_type")
   status        SubscriptionStatus
   billingPeriod BillingPeriod      @map("billing_period")
+  // startedAt: the start of the current regime (the trial, the paid period
+  // after the trial or after a lapse). A renewal or a plan change keeps it:
+  // the AI quota counts from it.
   startedAt     DateTime?          @map("started_at")
   expiresAt     DateTime?          @map("expires_at")
   canceledAt    DateTime?          @map("canceled_at")
+  // The free trial: quotas of the trial, whatever the reference plan says.
+  trial         Boolean            @default(false)
+  // Fixed by an administrator: replaces the quotas of the plan (and of the
+  // trial) while it is set.
+  customQuotas  Json?              @map("custom_quotas")
   createdAt     DateTime           @default(now()) @map("created_at")
   updatedAt     DateTime           @updatedAt @map("updated_at")
 
-  user     User             @relation("SubscriptionUser", fields: [userId], references: [id], onDelete: Cascade)
-  plan     SubscriptionPlan @relation(fields: [planId], references: [id])
+  user     User                @relation("SubscriptionUser", fields: [userId], references: [id], onDelete: Cascade)
+  plan     SubscriptionPlan    @relation(fields: [planId], references: [id])
   payments Payment[]
+  events   SubscriptionEvent[]
 
   @@index([userId])
   @@index([planId])
   @@index([status])
   @@map("subscriptions")
+}
+
+// The history of a subscription: what changed, from what to what, because of
+// which payment or which administrator, and why.
+model SubscriptionEvent {
+  id             String                @id @default(cuid())
+  subscriptionId String                @map("subscription_id")
+  type           SubscriptionEventType
+  fromStatus     SubscriptionStatus?   @map("from_status")
+  toStatus       SubscriptionStatus?   @map("to_status")
+  fromPlanId     String?               @map("from_plan_id")
+  toPlanId       String?               @map("to_plan_id")
+  fromExpiresAt  DateTime?             @map("from_expires_at")
+  toExpiresAt    DateTime?             @map("to_expires_at")
+  paymentId      String?               @map("payment_id")
+  actorId        String?               @map("actor_id")
+  reason         String?               @db.Text
+  createdAt      DateTime              @default(now()) @map("created_at")
+
+  subscription Subscription      @relation(fields: [subscriptionId], references: [id], onDelete: Cascade)
+  fromPlan     SubscriptionPlan? @relation("SubscriptionEventFromPlan", fields: [fromPlanId], references: [id], onDelete: SetNull)
+  toPlan       SubscriptionPlan? @relation("SubscriptionEventToPlan", fields: [toPlanId], references: [id], onDelete: SetNull)
+  payment      Payment?          @relation(fields: [paymentId], references: [id], onDelete: SetNull)
+  actor        User?             @relation("SubscriptionEventActor", fields: [actorId], references: [id], onDelete: SetNull)
+
+  @@index([subscriptionId, createdAt])
+  @@index([fromPlanId])
+  @@index([toPlanId])
+  @@index([paymentId])
+  @@index([actorId])
+  @@map("subscription_events")
 }
 
 // In-app attention signals only. Clinical detail stays on the protected
@@ -1315,11 +1379,12 @@ model Payment {
   createdAt         DateTime      @default(now()) @map("created_at")
   updatedAt         DateTime      @updatedAt @map("updated_at")
 
-  user          User                  @relation("PaymentUser", fields: [userId], references: [id], onDelete: Cascade)
-  plan          SubscriptionPlan      @relation(fields: [planId], references: [id])
-  subscription  Subscription?         @relation(fields: [subscriptionId], references: [id])
-  reviewedBy    User?                 @relation("PaymentReviewedBy", fields: [reviewedById], references: [id], onDelete: SetNull)
-  proofDocument PaymentProofDocument?
+  user               User                  @relation("PaymentUser", fields: [userId], references: [id], onDelete: Cascade)
+  plan               SubscriptionPlan      @relation(fields: [planId], references: [id])
+  subscription       Subscription?         @relation(fields: [subscriptionId], references: [id])
+  reviewedBy         User?                 @relation("PaymentReviewedBy", fields: [reviewedById], references: [id], onDelete: SetNull)
+  proofDocument      PaymentProofDocument?
+  subscriptionEvents SubscriptionEvent[]
 
   @@index([userId])
   @@index([subscriptionId])

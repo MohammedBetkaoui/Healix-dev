@@ -37,4 +37,10 @@ export class SubscriptionsController {
   getMySubscription(@CurrentUser() user: AuthenticatedUserPayload) {
     return this.subscriptionsService.getMySubscription(user.sub);
   }
+
+  // The payments and the events of the subscription (subscription page).
+  @Get('history')
+  getMyHistory(@CurrentUser() user: AuthenticatedUserPayload) {
+    return this.subscriptionsService.getMyHistory(user.sub);
+  }
 }

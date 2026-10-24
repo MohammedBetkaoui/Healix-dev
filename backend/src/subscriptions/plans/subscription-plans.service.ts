@@ -4,6 +4,7 @@ import { type SubscriptionPlan } from '@prisma/client';
 import { AccountType } from '../../common/enums/account-type.enum';
 import { UserRole } from '../../common/enums/user-role.enum';
 import { PrismaService } from '../../prisma/prisma.service';
+import { normalizeQuotas } from './plan-quotas';
 
 @Injectable()
 export class SubscriptionPlansService {
@@ -45,6 +46,8 @@ export class SubscriptionPlansService {
       currency: plan.currency,
       features: plan.features,
       limits: plan.limits,
+      // The numbers the platform enforces (limits are only their texts).
+      quotas: normalizeQuotas(plan.quotas),
       recommended: plan.recommended,
       custom: plan.custom,
     };

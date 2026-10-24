@@ -28,6 +28,7 @@ import { VerificationDocumentStatus } from '../../common/enums/verification-docu
 import { VerificationStatus } from '../../common/enums/verification-status.enum';
 import { PrismaService } from '../../prisma/prisma.service';
 import { NotificationProducerService } from '../../notifications/notification-producer.service';
+import { SubscriptionsService } from '../../subscriptions/subscriptions.service';
 import {
   createPaginationMeta,
   getPagination,
@@ -61,6 +62,7 @@ export class AdminVerificationsService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly auditLogsService: AuditLogsService,
+    private readonly subscriptionsService: SubscriptionsService,
     configService: ConfigService,
     @Optional()
     private readonly notificationProducer?: NotificationProducerService,
@@ -179,7 +181,7 @@ export class AdminVerificationsService {
     this.assertPendingVerification(request);
     this.assertCanApprove(request);
 
-    await this.prisma.$transaction(async (transaction) => {
+    const trial = await this.prisma.$transaction(async (transaction) => {
       await transaction.verificationRequest.update({
         data: {
           reviewedAt: new Date(),
@@ -208,6 +210,15 @@ export class AdminVerificationsService {
         where: { id: request.userId },
       });
 
+      // The free trial (14 days), given once per account, in the same
+      // transaction as the verification: the account is ACTIVE and TRIALING
+      // when it commits. Null if the account already had a subscription.
+      const startedTrial = await this.subscriptionsService.startTrial(
+        request.userId,
+        request.type,
+        transaction,
+      );
+
       await this.auditLogsService.createAuditLog(
         {
           action: 'VERIFICATION_APPROVED',
@@ -216,6 +227,7 @@ export class AdminVerificationsService {
           ipAddress: context.ipAddress,
           metadata: {
             adminNote: dto.adminNote,
+            trialStarted: startedTrial !== null,
             type: request.type,
           },
           userAgent: context.userAgent,
@@ -223,7 +235,13 @@ export class AdminVerificationsService {
         },
         transaction,
       );
+
+      return startedTrial;
     });
+
+    if (trial) {
+      await this.subscriptionsService.notifyTrialStarted(trial);
+    }
 
     await this.notificationProducer?.create({
       userId: request.userId,

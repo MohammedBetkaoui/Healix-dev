@@ -32,6 +32,7 @@ import { PatientFileStorageService } from '../patients/documents/patient-file-st
 import { PatientAuditService } from '../patients/patient-audit.service';
 import { PatientsService } from '../patients/patients.service';
 import { PrismaService } from '../prisma/prisma.service';
+import { EntitlementsService } from '../subscriptions/entitlements.service';
 import { NotificationProducerService } from '../notifications/notification-producer.service';
 import {
   AI_SERVICE_TIMEOUT_MS,
@@ -295,6 +296,7 @@ export class AiAnalysisRunsService {
     private readonly fileStorageService: PatientFileStorageService,
     private readonly patientAuditService: PatientAuditService,
     private readonly aiServiceClient: AiServiceClient,
+    private readonly entitlements: EntitlementsService,
     @Optional()
     private readonly notificationProducer?: NotificationProducerService,
   ) {}
@@ -308,7 +310,10 @@ export class AiAnalysisRunsService {
     const magnification = checkMagnification(dto.pipeline, dto.magnification);
     checkEcgOptions(dto.pipeline, dto);
 
-    await this.patientsService.getPatientInScope(user, patientId);
+    const patient = await this.patientsService.getPatientInScope(
+      user,
+      patientId,
+    );
     await this.patientsService.assertDiagnosticAiConsentSigned(patientId);
 
     // (id, patientId): a document of another patient answers 404.
@@ -359,17 +364,27 @@ export class AiAnalysisRunsService {
       ? sanitizeTextInput(dto.clinicianImpression)
       : '';
 
-    const run = await this.prisma.aiAnalysisRun.create({
-      data: {
-        clinicianImpression: impression || null,
-        magnification,
-        patientId,
-        pipeline: dto.pipeline,
-        requestedById: user.sub,
-        sourceDocumentId: document.id,
-        status: AiAnalysisRunStatus.RUNNING,
-      },
-    });
+    // The run is counted against the plan the moment it exists (RUNNING
+    // included), in the transaction that checked the quota under the lock of
+    // the subscription: 15 simultaneous requests with 10 analyses left create
+    // 10 runs. The chain must be part of the plan (AI_PIPELINE_NOT_IN_PLAN).
+    const run = await this.entitlements.withQuota(
+      patient.workspaceId ?? '',
+      'aiAnalysesPerMonth',
+      (client) =>
+        client.aiAnalysisRun.create({
+          data: {
+            clinicianImpression: impression || null,
+            magnification,
+            patientId,
+            pipeline: dto.pipeline,
+            requestedById: user.sub,
+            sourceDocumentId: document.id,
+            status: AiAnalysisRunStatus.RUNNING,
+          },
+        }),
+      { pipeline: dto.pipeline },
+    );
 
     // The chain and the magnification (the rate and unit of a signal),
     // never a result.

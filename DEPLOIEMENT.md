@@ -171,6 +171,19 @@ elle, ni les messages ni les pièces jointes d'une sauvegarde ne se relisent.
 Pour changer de clé, ajoutez-en une à la fin (`k1:<ancienne>,k2:<nouvelle>`)
 et gardez l'ancienne tant que des messages ou des fichiers l'utilisent.
 
+**Abonnements (`MANUAL_PAYMENTS_ENABLED`).** Un compte vérifié reçoit
+automatiquement **14 jours d'essai gratuit** (10 analyses IA pour tout l'essai,
+tous les modèles). Ensuite, il s'abonne **en payant par carte en ligne**,
+sans validation de l'administration : l'abonnement est actif aussitôt (en
+démonstration, le paiement est simulé : aucun débit réel). Les règlements
+hors ligne (espèces, CCP, reçu BaridiMob) sont **désactivés par défaut**
+(`MANUAL_PAYMENTS_ENABLED=false`) : l'interface ne les propose plus et le
+backend refuse d'en créer (400 `PAYMENT_METHOD_DISABLED`). Les paiements
+déjà en attente restent consultables et validables par l'administration.
+Mettez `MANUAL_PAYMENTS_ENABLED=true` pour les réactiver ; le frontend lit la
+même valeur au build (`NEXT_PUBLIC_MANUAL_PAYMENTS_ENABLED`) : après l'avoir
+changée, `docker compose build frontend`.
+
 `.env` contient les secrets : ne le versionnez pas (Git l'ignore) et ne
 l'envoyez à personne.
 
@@ -540,9 +553,19 @@ docker compose up -d
 nouvelles migrations à son démarrage. Avec la configuration de
 démonstration, ajoutez les deux `-f` (ou `COMPOSE_FILE`, voir plus haut).
 
-`PUBLIC_API_URL` (déduite de `APP_DOMAIN`), `ADMIN_GATE_PATH` et
-`ENABLE_DEMO_MODULES` sont écrits dans le frontend au moment du build : après
-les avoir changés, lancez `docker compose build frontend`.
+`PUBLIC_API_URL` (déduite de `APP_DOMAIN`), `ADMIN_GATE_PATH`,
+`ENABLE_DEMO_MODULES` et `MANUAL_PAYMENTS_ENABLED` sont écrits dans le
+frontend au moment du build : après les avoir changés, lancez
+`docker compose build frontend`.
+
+**Migration des abonnements (une seule fois, au premier démarrage qui la
+contient).** Elle ajoute les quotas de chaque plan (sans relancer le seed) et
+donne un **essai de 14 jours, qui commence à ce moment-là**, à chaque compte
+déjà vérifié (établissement ou médecin indépendant) qui n'a pas
+d'abonnement actif, et qui n'a pas déjà eu son essai : aucun compte existant
+n'est bloqué du jour au lendemain. Ses médecins affiliés suivent
+l'abonnement de leur établissement. Sauvegardez avant (première commande
+ci-dessus). Les comptes suspendus n'en reçoivent pas.
 
 ## 10. Points d'attention
 
@@ -570,6 +593,20 @@ les avoir changés, lancez `docker compose build frontend`.
   conteneurs avec l'adresse de la passerelle Docker, et non celle du client :
   en démonstration locale, tous les navigateurs partagent donc la même
   adresse. Sur un serveur Linux, l'adresse réelle du client est conservée.
+
+- **Abonnement expiré = lecture seule.** Quand l'essai ou l'abonnement d'un
+  compte se termine (la tâche horaire du backend le constate, au plus une
+  heure plus tard, mais la création est refusée dès l'échéance passée), le
+  compte et ses médecins affiliés continuent de **lire et télécharger** leurs
+  dossiers, de converser et de gérer leur compte ; ils ne peuvent plus
+  **créer** (patient, rendez-vous, consultation, ordonnance, rapport,
+  analyse IA, document, invitation de médecin) : 403 `SUBSCRIPTION_INACTIVE`.
+  Un abonnement à l'échéance dépassée se règle par un nouveau paiement par
+  carte. Les quotas (patients, médecins, analyses IA du mois à l'heure
+  d'Alger) sont comptés et appliqués par le backend : 403 `QUOTA_EXCEEDED`.
+- **Contrat sur devis (`EST_CUSTOM`).** Il ne se paie pas en ligne (400
+  `PLAN_REQUIRES_CONTACT`) : l'administration l'active depuis la console des
+  abonnements, avec la date de fin et les quotas du contrat.
 
 ## 11. Check-list de mise en production
 

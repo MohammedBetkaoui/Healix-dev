@@ -5,12 +5,15 @@ import { AuditLogsModule } from '../audit-logs/audit-logs.module';
 import { PrismaModule } from '../prisma/prisma.module';
 import { NotificationsModule } from '../notifications/notifications.module';
 import { RealtimeModule } from '../realtime/realtime.module';
+import { SubscriptionsModule } from '../subscriptions/subscriptions.module';
 import { AdminAuditLogsController } from './audit/admin-audit-logs.controller';
 import { AdminAuditLogsService } from './audit/admin-audit-logs.service';
 import { AdminDashboardController } from './dashboard/admin-dashboard.controller';
 import { AdminDashboardService } from './dashboard/admin-dashboard.service';
 import { AdminPatientsController } from './patients/admin-patients.controller';
 import { AdminPatientsService } from './patients/admin-patients.service';
+import { AdminSubscriptionsController } from './subscriptions/admin-subscriptions.controller';
+import { AdminSubscriptionsService } from './subscriptions/admin-subscriptions.service';
 import { AdminUsersController } from './users/admin-users.controller';
 import { AdminUsersService } from './users/admin-users.service';
 import { AdminVerificationsController } from './verifications/admin-verifications.controller';
@@ -23,11 +26,13 @@ import { AdminVerificationsService } from './verifications/admin-verifications.s
     AuditLogsModule,
     RealtimeModule,
     NotificationsModule,
+    SubscriptionsModule,
   ],
   controllers: [
     AdminAuditLogsController,
     AdminDashboardController,
     AdminPatientsController,
+    AdminSubscriptionsController,
     AdminUsersController,
     AdminVerificationsController,
   ],
@@ -35,6 +40,7 @@ import { AdminVerificationsService } from './verifications/admin-verifications.s
     AdminAuditLogsService,
     AdminDashboardService,
     AdminPatientsService,
+    AdminSubscriptionsService,
     AdminUsersService,
     AdminVerificationsService,
   ],

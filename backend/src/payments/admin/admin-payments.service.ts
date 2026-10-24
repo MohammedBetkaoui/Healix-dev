@@ -163,6 +163,8 @@ export class AdminPaymentsService {
     this.assertWaitingAdminReview(payment);
 
     const result = await this.prisma.$transaction(async (transaction) => {
+      await this.lockWaitingPayment(transaction, payment.id);
+
       const updatedPayment = await transaction.payment.update({
         data: {
           adminNote: dto.adminNote,
@@ -176,25 +178,11 @@ export class AdminPaymentsService {
         },
       });
 
-      const subscription =
-        await this.subscriptionsService.activateSubscriptionForPayment(
-          updatedPayment,
-          transaction,
-        );
-
-      await transaction.payment.update({
-        data: {
-          subscriptionId: subscription.id,
-        },
-        where: {
-          id: updatedPayment.id,
-        },
-      });
-
-      await this.subscriptionsService.updateAccountToActive(
-        updatedPayment.userId,
-        updatedPayment.accountType,
+      // The same rules as a card payment (days left kept, new plan at once).
+      const outcome = await this.subscriptionsService.applyPurchase(
+        updatedPayment,
         transaction,
+        { actorId: adminId, context },
       );
 
       await this.auditLogsService.createAuditLog(
@@ -213,40 +201,25 @@ export class AdminPaymentsService {
         },
         transaction,
       );
-      await this.auditLogsService.createAuditLog(
-        {
-          action: 'SUBSCRIPTION_ACTIVATED',
-          entityId: subscription.id,
-          entityType: 'SUBSCRIPTION',
-          ipAddress: context.ipAddress,
-          metadata: {
-            paymentId: updatedPayment.id,
-            planId: updatedPayment.planId,
-            reference: updatedPayment.reference,
-          },
-          userAgent: context.userAgent,
-          userId: adminId,
-        },
-        transaction,
-      );
 
-      return updatedPayment;
+      return { outcome, payment: updatedPayment };
     });
 
+    await this.subscriptionsService.notifyPurchase(result.outcome);
     await this.notificationProducer?.create({
-      userId: result.userId,
+      userId: result.payment.userId,
       category: NotificationCategory.PAYMENT,
       type: 'PAYMENT_APPROVED',
       severity: NotificationSeverity.SUCCESS,
       resourceType: NotificationResourceType.PAYMENT,
-      resourceId: result.id,
-      data: { paymentId: result.id },
-      dedupeKey: `payment-approved:${result.id}`,
+      resourceId: result.payment.id,
+      data: { paymentId: result.payment.id },
+      dedupeKey: `payment-approved:${result.payment.id}`,
     });
 
     return {
       message: 'Paiement approuve avec succes.',
-      payment: this.paymentsService.toPublicPayment(result),
+      payment: this.paymentsService.toPublicPayment(result.payment),
     };
   }
 
@@ -318,6 +291,8 @@ export class AdminPaymentsService {
     this.assertWaitingAdminReview(payment);
 
     const result = await this.prisma.$transaction(async (transaction) => {
+      await this.lockWaitingPayment(transaction, payment.id);
+
       const updatedPayment = await transaction.payment.update({
         data: {
           adminNote: dto.adminNote,
@@ -329,23 +304,10 @@ export class AdminPaymentsService {
         where: { id: payment.id },
       });
 
-      const subscription =
-        await this.subscriptionsService.activateSubscriptionForPayment(
-          updatedPayment,
-          transaction,
-        );
-
-      await transaction.payment.update({
-        data: {
-          subscriptionId: subscription.id,
-        },
-        where: { id: updatedPayment.id },
-      });
-
-      await this.subscriptionsService.updateAccountToActive(
-        updatedPayment.userId,
-        updatedPayment.accountType,
+      const outcome = await this.subscriptionsService.applyPurchase(
+        updatedPayment,
         transaction,
+        { actorId: adminId, context },
       );
 
       await this.auditLogsService.createAuditLog(
@@ -364,12 +326,14 @@ export class AdminPaymentsService {
         transaction,
       );
 
-      return updatedPayment;
+      return { outcome, payment: updatedPayment };
     });
+
+    await this.subscriptionsService.notifyPurchase(result.outcome);
 
     return {
       message: 'Paiement cash active avec succes.',
-      payment: this.paymentsService.toPublicPayment(result),
+      payment: this.paymentsService.toPublicPayment(result.payment),
     };
   }
 
@@ -441,6 +405,21 @@ export class AdminPaymentsService {
     }
 
     return payment;
+  }
+
+  // The payment row is locked and read again: two administrators validating
+  // the same payment at once extend the subscription once, the second one
+  // finds it PAID.
+  private async lockWaitingPayment(
+    transaction: Prisma.TransactionClient,
+    paymentId: string,
+  ): Promise<void> {
+    await transaction.$queryRaw`SELECT id FROM payments WHERE id = ${paymentId} FOR UPDATE`;
+    this.assertWaitingAdminReview(
+      await transaction.payment.findUniqueOrThrow({
+        where: { id: paymentId },
+      }),
+    );
   }
 
   private assertWaitingAdminReview(payment: Payment): void {

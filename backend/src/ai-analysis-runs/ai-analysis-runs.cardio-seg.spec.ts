@@ -36,6 +36,7 @@ import {
 } from './ai-analysis-runs.service';
 import { AiServiceClient, parseCardioSegAnalysis } from './ai-service.client';
 import { DecideAiAnalysisRunDto } from './dto/decide-ai-analysis-run.dto';
+import { passThroughEntitlements } from '../subscriptions/testing/entitlements-stub';
 
 // The cardiac MRI chain on the backend side: fetch is simulated, everything
 // else (scope, consent, storage, response validation) is real.
@@ -191,6 +192,7 @@ describe('AiAnalysisRunsService, cardio-seg-mri (POST /patients/:id/ai-analysis-
         doctorProfileId: 'doctor-profile-a',
       }),
     } as unknown as WorkspaceContextService,
+    passThroughEntitlements(),
   );
   const service = new AiAnalysisRunsService(
     prisma,
@@ -200,6 +202,7 @@ describe('AiAnalysisRunsService, cardio-seg-mri (POST /patients/:id/ai-analysis-
     new AiServiceClient(
       config({ AI_SERVICE_TOKEN: 'secret', AI_SERVICE_URL: 'http://ai.test' }),
     ),
+    passThroughEntitlements(prisma),
   );
 
   const pngDocument = {
@@ -428,6 +431,7 @@ describe('AiAnalysisRunsService, cardio-seg-mri images and decision', () => {
     { readStoredFile } as unknown as PatientFileStorageService,
     { log } as unknown as PatientAuditService,
     {} as AiServiceClient,
+    passThroughEntitlements(),
   );
 
   const mriRun = (overrides: Record<string, unknown> = {}) => ({

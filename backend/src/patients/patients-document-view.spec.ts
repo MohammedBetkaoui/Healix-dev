@@ -15,6 +15,7 @@ import { PatientFileValidator } from './documents/patient-file-validator';
 import { PatientAuditService } from './patient-audit.service';
 import { PatientsController } from './patients.controller';
 import { PatientsService } from './patients.service';
+import { passThroughEntitlements } from '../subscriptions/testing/entitlements-stub';
 
 const readAll = async (stream: Readable) => {
   const chunks: Buffer[] = [];
@@ -53,6 +54,7 @@ describe('PatientsService.getDocumentStream (GET /patients/:id/documents/:docume
     {} as PatientFileValidator,
     storage,
     { resolveWorkspaceForUser } as unknown as WorkspaceContextService,
+    passThroughEntitlements(),
   );
   const doctor = {
     sub: 'doctor-a',

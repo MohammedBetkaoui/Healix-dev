@@ -12,7 +12,9 @@ import { type Response } from 'express';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { type AuthenticatedUserPayload } from '../auth/types/authenticated-request.type';
 import { CurrentUser } from '../common/decorators/current-user.decorator';
+import { RequiresActiveSubscription } from '../common/decorators/requires-active-subscription.decorator';
 import { RolesGuard } from '../common/guards/roles.guard';
+import { SubscriptionGuard } from '../common/guards/subscription.guard';
 import { VerifiedAccountGuard } from '../common/guards/verified-account.guard';
 import { AiAnalysisRunsService } from './ai-analysis-runs.service';
 import { AiServiceClient } from './ai-service.client';
@@ -24,7 +26,7 @@ import { CardioSegEvaluationService } from './report/cardio-seg-evaluation';
 
 // Same guards as the patient record the runs belong to.
 @Controller('patients/:id/ai-analysis-runs')
-@UseGuards(JwtAuthGuard, RolesGuard, VerifiedAccountGuard)
+@UseGuards(JwtAuthGuard, RolesGuard, VerifiedAccountGuard, SubscriptionGuard)
 export class AiAnalysisRunsController {
   constructor(
     private readonly runsService: AiAnalysisRunsService,
@@ -33,6 +35,7 @@ export class AiAnalysisRunsController {
 
   // Synchronous: answers once the service is done (60 s at most).
   @Post()
+  @RequiresActiveSubscription()
   create(
     @CurrentUser() user: AuthenticatedUserPayload,
     @Param('id') id: string,

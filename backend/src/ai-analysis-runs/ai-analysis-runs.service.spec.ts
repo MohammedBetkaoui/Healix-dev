@@ -34,6 +34,7 @@ import { PrismaService } from '../prisma/prisma.service';
 import { WorkspaceContextService } from '../workspaces/workspace-context.service';
 import { AiAnalysisRunsService } from './ai-analysis-runs.service';
 import { AiServiceClient } from './ai-service.client';
+import { passThroughEntitlements } from '../subscriptions/testing/entitlements-stub';
 
 // fetch is simulated here only: everything else (scope, consent, storage,
 // response validation) is the real code.
@@ -175,6 +176,7 @@ describe('AiAnalysisRunsService (POST /patients/:id/ai-analysis-runs)', () => {
         doctorProfileId: 'doctor-profile-a',
       }),
     } as unknown as WorkspaceContextService,
+    passThroughEntitlements(),
   );
   const makeService = (token = 'service-secret') =>
     new AiAnalysisRunsService(
@@ -188,6 +190,7 @@ describe('AiAnalysisRunsService (POST /patients/:id/ai-analysis-runs)', () => {
           AI_SERVICE_URL: 'http://ai.test:8001/',
         }),
       ),
+      passThroughEntitlements(prisma),
     );
   const service = makeService();
 

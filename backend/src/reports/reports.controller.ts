@@ -19,7 +19,9 @@ import { memoryStorage } from 'multer';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { type AuthenticatedUserPayload } from '../auth/types/authenticated-request.type';
 import { CurrentUser } from '../common/decorators/current-user.decorator';
+import { RequiresActiveSubscription } from '../common/decorators/requires-active-subscription.decorator';
 import { RolesGuard } from '../common/guards/roles.guard';
+import { SubscriptionGuard } from '../common/guards/subscription.guard';
 import { VerifiedAccountGuard } from '../common/guards/verified-account.guard';
 import { CancelReportDto } from './dto/cancel-report.dto';
 import { CreateReportDto } from './dto/create-report.dto';
@@ -29,7 +31,7 @@ import { UpdateReportDto } from './dto/update-report.dto';
 import { ReportsService } from './reports.service';
 
 @Controller('reports')
-@UseGuards(JwtAuthGuard, RolesGuard, VerifiedAccountGuard)
+@UseGuards(JwtAuthGuard, RolesGuard, VerifiedAccountGuard, SubscriptionGuard)
 export class ReportsController {
   constructor(private readonly reports: ReportsService) {}
 
@@ -60,6 +62,7 @@ export class ReportsController {
   }
 
   @Post()
+  @RequiresActiveSubscription()
   create(
     @CurrentUser() user: AuthenticatedUserPayload,
     @Body() dto: CreateReportDto,
@@ -68,6 +71,7 @@ export class ReportsController {
   }
 
   @Post('import')
+  @RequiresActiveSubscription()
   @UseInterceptors(
     FileInterceptor('file', {
       storage: memoryStorage(),
@@ -108,6 +112,7 @@ export class ReportsController {
   }
 
   @Post(':id/finalize')
+  @RequiresActiveSubscription()
   finalize(
     @CurrentUser() user: AuthenticatedUserPayload,
     @Param('id') id: string,
@@ -116,6 +121,7 @@ export class ReportsController {
   }
 
   @Post(':id/amend')
+  @RequiresActiveSubscription()
   amend(
     @CurrentUser() user: AuthenticatedUserPayload,
     @Param('id') id: string,

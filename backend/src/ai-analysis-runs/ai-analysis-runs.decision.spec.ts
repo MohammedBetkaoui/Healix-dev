@@ -15,6 +15,7 @@ import { PrismaService } from '../prisma/prisma.service';
 import { AiAnalysisRunsService } from './ai-analysis-runs.service';
 import { AiServiceClient } from './ai-service.client';
 import { DecideAiAnalysisRunDto } from './dto/decide-ai-analysis-run.dto';
+import { passThroughEntitlements } from '../subscriptions/testing/entitlements-stub';
 
 const doctor = {
   sub: 'doctor-a',
@@ -84,6 +85,7 @@ describe('AiAnalysisRunsService.decide (POST .../ai-analysis-runs/:runId/decisio
     {} as PatientFileStorageService,
     { log } as unknown as PatientAuditService,
     {} as AiServiceClient,
+    passThroughEntitlements(),
   );
 
   // The run as read again after the decision.

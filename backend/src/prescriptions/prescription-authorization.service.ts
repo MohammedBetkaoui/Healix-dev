@@ -1,7 +1,6 @@
 import { Injectable } from '@nestjs/common';
 import {
   AccountStatus,
-  SubscriptionStatus,
   UserRole,
   VerificationStatus,
   WorkspaceMembershipStatus,
@@ -9,6 +8,7 @@ import {
 
 import { type AuthenticatedUserPayload } from '../auth/types/authenticated-request.type';
 import { PrismaService } from '../prisma/prisma.service';
+import { EntitlementsService } from '../subscriptions/entitlements.service';
 import {
   type ResolvedWorkspaceContext,
   WorkspaceContextService,
@@ -50,6 +50,7 @@ export class PrescriptionAuthorizationService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly workspaceContext: WorkspaceContextService,
+    private readonly entitlements: EntitlementsService,
   ) {}
 
   capabilities(role: string) {
@@ -124,7 +125,6 @@ export class PrescriptionAuthorizationService {
             wilaya: true,
             isIndependent: true,
             verificationStatus: true,
-            subscriptionStatus: true,
             establishment: {
               select: {
                 id: true,
@@ -172,13 +172,19 @@ export class PrescriptionAuthorizationService {
         'Le profil du prescripteur doit être vérifié.',
       );
     }
-    if (
-      profile.isIndependent &&
-      profile.subscriptionStatus !== SubscriptionStatus.ACTIVE
-    ) {
+    // The subscription of the workspace the doctor works in: their own for an
+    // independent doctor, the establishment's for an affiliated one. A trial
+    // counts; a lapsed subscription does not, even before the hourly job has
+    // marked it expired.
+    const subscription = await this.entitlements.getEntitlements(
+      workspace.workspaceId,
+    );
+    if (subscription.readOnly) {
       throw prescriptionForbidden(
         'PRESCRIBER_SUBSCRIPTION_INACTIVE',
-        "L'abonnement du prescripteur indépendant doit être actif.",
+        profile.isIndependent
+          ? "L'abonnement du prescripteur indépendant doit être actif."
+          : "L'abonnement de l'établissement doit être actif.",
       );
     }
     if (!profile.isIndependent) {

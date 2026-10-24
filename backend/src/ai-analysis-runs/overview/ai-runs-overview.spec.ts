@@ -22,6 +22,7 @@ import {
   ListAiAnalysisRunsQueryDto,
 } from './ai-runs-overview.dto';
 import { AiRunsOverviewService } from './ai-runs-overview.service';
+import { passThroughEntitlements } from '../../subscriptions/testing/entitlements-stub';
 
 const doctor = {
   email: 'doctor-a@healix.dz',
@@ -157,6 +158,7 @@ function overview(runs: FakeRun[]) {
     {} as PatientFileStorageService,
     { log: jest.fn() } as unknown as PatientAuditService,
     {} as AiServiceClient,
+    passThroughEntitlements(),
   );
   return new AiRunsOverviewService(prisma, patientsService, runsService);
 }

@@ -2,6 +2,8 @@ import { hash } from 'bcrypt';
 
 import { type AuthenticatedUserPayload } from '../../auth/types/authenticated-request.type';
 import { type PrismaService } from '../../prisma/prisma.service';
+import { SUBSCRIPTION_PLAN_CATALOG } from '../../subscriptions/plans/plan-catalog';
+import { type PlanQuotas } from '../../subscriptions/plans/plan-quotas';
 
 // What the integration specs share: the test database they run on, and the
 // rows they need (user, workspace, doctor, patient, appointment), created
@@ -44,6 +46,17 @@ export class FakePdfRenderer {
 }
 
 export const TEST_PASSWORD = 'Integration-mdp-2026!';
+
+// The subscription a fixture account holds: live (ACTIVE for a year) unless
+// told otherwise.
+export type FixtureSubscription = {
+  customQuotas?: PlanQuotas;
+  expiresAt?: Date;
+  plan?: string;
+  startedAt?: Date;
+  status?: string;
+  trial?: boolean;
+};
 
 type Role =
   | 'ADMIN_VERIFICATION'
@@ -120,17 +133,97 @@ export class IntegrationFixtures {
     return workspace;
   }
 
-  // An independent doctor who can prescribe and sign: verified, subscribed,
-  // with the order number and the regional council the documents print.
-  async independentDoctor(options: { password?: string } = {}) {
+  // A plan of the catalog, registered when the test database was not seeded
+  // (and with the quotas of the catalog when it was).
+  async plan(code: string) {
+    const entry = SUBSCRIPTION_PLAN_CATALOG.find((plan) => plan.code === code);
+
+    if (!entry) {
+      throw new Error('Unknown plan ' + code);
+    }
+
+    const data = {
+      accountType: entry.accountType,
+      active: true,
+      annualPrice: entry.annualPrice,
+      custom: entry.custom,
+      description: entry.description,
+      features: [...entry.features],
+      limits: [...entry.limits],
+      monthlyPrice: entry.monthlyPrice,
+      name: entry.name,
+      quotas: { ...entry.quotas },
+      recommended: entry.recommended,
+    };
+    // Specs run in parallel on one database: two may create it at once.
+    for (let attempt = 0; ; attempt += 1) {
+      try {
+        return await this.prisma.subscriptionPlan.upsert({
+          create: { ...data, code, currency: 'DZD' },
+          update: data,
+          where: { code },
+        });
+      } catch (error) {
+        if (attempt >= 2) throw error;
+      }
+    }
+  }
+
+  // The subscription of an account (the row the entitlements are read from).
+  async subscription(
+    userId: string,
+    accountType: 'ESTABLISHMENT' | 'INDEPENDENT_DOCTOR',
+    options: FixtureSubscription = {},
+  ) {
+    const plan = await this.plan(
+      options.plan ??
+        (accountType === 'ESTABLISHMENT' ? 'EST_BASIC_CLINIC' : 'DOCTOR_PRO'),
+    );
+
+    return this.prisma.subscription.create({
+      data: {
+        accountType,
+        billingPeriod: 'MONTHLY',
+        customQuotas: options.customQuotas
+          ? { ...options.customQuotas }
+          : undefined,
+        expiresAt: options.expiresAt ?? new Date(Date.now() + 365 * 86_400_000),
+        planId: plan.id,
+        startedAt: options.startedAt ?? new Date(Date.now() - 86_400_000),
+        status: (options.status ?? 'ACTIVE') as never,
+        trial: options.trial ?? false,
+        userId,
+      },
+    });
+  }
+
+  // An independent doctor who can prescribe and sign: verified, subscribed
+  // (a live subscription, or the one given; false for none), with the order
+  // number and the regional council the documents print. The subscription is
+  // created before the profile: the migration's backfill (run by a spec on
+  // the same database) never finds a verified doctor without one.
+  async independentDoctor(
+    options: {
+      password?: string;
+      subscription?: FixtureSubscription | false;
+    } = {},
+  ) {
     const user = await this.user('INDEPENDENT_DOCTOR', options);
     const n = this.counter;
+    const subscription =
+      options.subscription === false
+        ? null
+        : await this.subscription(
+            user.id,
+            'INDEPENDENT_DOCTOR',
+            options.subscription,
+          );
     const profile = await this.prisma.doctorProfile.create({
       data: {
         isIndependent: true,
         professionalAddress: '12 rue Didouche Mourad, Alger',
         speciality: 'Médecine interne',
-        subscriptionStatus: 'ACTIVE',
+        subscriptionStatus: (subscription?.status ?? 'NO_PLAN') as never,
         userId: user.id,
         verificationStatus: 'VERIFIED',
         wilaya: 'Alger',
@@ -161,7 +254,89 @@ export class IntegrationFixtures {
       },
     });
     const workspace = await this.privatePracticeWorkspace(profile.id, user.id);
-    return { actor: this.actor(user), profile, user, workspace };
+    return {
+      actor: this.actor(user),
+      profile,
+      subscription,
+      user,
+      workspace,
+    };
+  }
+
+  // An establishment with its owner, its workspace and affiliated doctors,
+  // who work under the owner's subscription (they have none of their own).
+  async establishmentWithDoctors(
+    doctorCount: number,
+    options: { subscription?: FixtureSubscription | false } = {},
+  ) {
+    const owner = await this.user('ESTABLISHMENT_ADMIN');
+    const subscription =
+      options.subscription === false
+        ? null
+        : await this.subscription(
+            owner.id,
+            'ESTABLISHMENT',
+            options.subscription,
+          );
+    const establishment = await this.prisma.establishment.create({
+      data: {
+        address: '1 rue de la Santé, Alger',
+        managerFullName: owner.fullName,
+        name: 'Clinique ' + this.suffix + '-' + this.counter,
+        ownerId: owner.id,
+        phone: '0550000000',
+        professionalEmail: owner.email,
+        subscriptionStatus: (subscription?.status ?? 'NO_PLAN') as never,
+        type: 'CLINIC',
+        verificationStatus: 'VERIFIED',
+        wilaya: 'Alger',
+      },
+    });
+    const workspace = await this.prisma.workspace.create({
+      data: {
+        establishmentId: establishment.id,
+        name: establishment.name,
+        type: 'ESTABLISHMENT',
+      },
+    });
+    this.created.workspaces.push(workspace.id);
+    await this.prisma.workspaceMembership.create({
+      data: { role: 'OWNER', userId: owner.id, workspaceId: workspace.id },
+    });
+
+    const doctors: {
+      actor: AuthenticatedUserPayload;
+      profile: { id: string };
+      user: { id: string };
+    }[] = [];
+    for (let index = 0; index < doctorCount; index += 1) {
+      const user = await this.user('AFFILIATED_DOCTOR');
+      const profile = await this.prisma.doctorProfile.create({
+        data: {
+          establishmentId: establishment.id,
+          isIndependent: false,
+          professionalAddress: establishment.address,
+          speciality: 'Médecine interne',
+          subscriptionStatus: (subscription?.status ?? 'NO_PLAN') as never,
+          userId: user.id,
+          verificationStatus: 'VERIFIED',
+          wilaya: 'Alger',
+        },
+      });
+      await this.prisma.workspaceMembership.create({
+        data: { role: 'DOCTOR', userId: user.id, workspaceId: workspace.id },
+      });
+      doctors.push({ actor: this.actor(user), profile, user });
+    }
+
+    return {
+      doctors,
+      establishment,
+      owner,
+      ownerActor: this.actor(owner),
+      subscription,
+      workspace,
+    };
   }
 
   async patient(workspaceId: string, doctorProfileId: string) {
@@ -271,6 +446,8 @@ export class IntegrationFixtures {
     await this.prisma.auditLog.deleteMany({
       where: { userId: { in: users } },
     });
+    // A payment points at the subscription it activated: it goes first.
+    await this.prisma.payment.deleteMany({ where: { userId: { in: users } } });
     await this.prisma.user.deleteMany({ where: { id: { in: users } } });
   }
 }

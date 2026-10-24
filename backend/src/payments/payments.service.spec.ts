@@ -84,6 +84,16 @@ describe('PaymentsService.createIntent', () => {
     planId: plan.id,
   };
 
+  // These cases are about the offline settlements, off unless the deployment
+  // turns them on (MANUAL_PAYMENTS_ENABLED); the disabled case has its own spec.
+  beforeAll(() => {
+    process.env.MANUAL_PAYMENTS_ENABLED = 'true';
+  });
+
+  afterAll(() => {
+    delete process.env.MANUAL_PAYMENTS_ENABLED;
+  });
+
   beforeEach(() => {
     jest.clearAllMocks();
     prisma.user.findUnique.mockResolvedValue({

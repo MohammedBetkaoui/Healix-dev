@@ -8,6 +8,7 @@ import { NotificationsModule } from '../notifications/notifications.module';
 import { PatientsModule } from '../patients/patients.module';
 import { PrescriptionsModule } from '../prescriptions/prescriptions.module';
 import { PrismaModule } from '../prisma/prisma.module';
+import { SubscriptionsModule } from '../subscriptions/subscriptions.module';
 import { WorkspaceModule } from '../workspaces/workspace.module';
 import { ReportAuthorizationService } from './report-authorization.service';
 import { ReportNumberService } from './report-number.service';
@@ -24,6 +25,7 @@ import { ReportsService } from './reports.service';
     WorkspaceModule,
     AuditLogsModule,
     NotificationsModule,
+    SubscriptionsModule,
   ],
   controllers: [ReportsController],
   providers: [

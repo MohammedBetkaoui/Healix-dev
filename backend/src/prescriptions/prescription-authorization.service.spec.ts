@@ -6,6 +6,7 @@ describe('PrescriptionAuthorizationService capabilities', () => {
   const service = new PrescriptionAuthorizationService(
     {} as never,
     {} as never,
+    {} as never,
   );
 
   it('never grants clinical mutations to an establishment admin', () => {

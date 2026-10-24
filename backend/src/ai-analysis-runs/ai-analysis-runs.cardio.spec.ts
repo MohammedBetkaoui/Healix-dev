@@ -35,6 +35,7 @@ import { AiAnalysisRunsService } from './ai-analysis-runs.service';
 import { AiServiceClient, ECG_LEADS } from './ai-service.client';
 import { CreateAiAnalysisRunDto } from './dto/create-ai-analysis-run.dto';
 import { DecideAiAnalysisRunDto } from './dto/decide-ai-analysis-run.dto';
+import { passThroughEntitlements } from '../subscriptions/testing/entitlements-stub';
 
 // The cardiology chain end to end on the backend side: fetch is simulated,
 // everything else (scope, consent, storage, response validation) is real.
@@ -143,6 +144,7 @@ describe('AiAnalysisRunsService, cardio-ecg (POST /patients/:id/ai-analysis-runs
         doctorProfileId: 'doctor-profile-a',
       }),
     } as unknown as WorkspaceContextService,
+    passThroughEntitlements(),
   );
   const service = new AiAnalysisRunsService(
     prisma,
@@ -152,6 +154,7 @@ describe('AiAnalysisRunsService, cardio-ecg (POST /patients/:id/ai-analysis-runs
     new AiServiceClient(
       config({ AI_SERVICE_TOKEN: 'secret', AI_SERVICE_URL: 'http://ai.test' }),
     ),
+    passThroughEntitlements(prisma),
   );
 
   const csvDocument = {
@@ -436,6 +439,7 @@ describe('AiAnalysisRunsService, cardio-ecg trace and decision', () => {
     { readStoredFile } as unknown as PatientFileStorageService,
     { log } as unknown as PatientAuditService,
     {} as AiServiceClient,
+    passThroughEntitlements(),
   );
 
   const ecgRun = (overrides: Record<string, unknown> = {}) => ({

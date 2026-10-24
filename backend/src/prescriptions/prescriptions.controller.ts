@@ -15,7 +15,9 @@ import { type Response } from 'express';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { type AuthenticatedUserPayload } from '../auth/types/authenticated-request.type';
 import { CurrentUser } from '../common/decorators/current-user.decorator';
+import { RequiresActiveSubscription } from '../common/decorators/requires-active-subscription.decorator';
 import { RolesGuard } from '../common/guards/roles.guard';
+import { SubscriptionGuard } from '../common/guards/subscription.guard';
 import { VerifiedAccountGuard } from '../common/guards/verified-account.guard';
 import { CancelPrescriptionDto } from './dto/cancel-prescription.dto';
 import { CreatePrescriptionDto } from './dto/create-prescription.dto';
@@ -25,7 +27,7 @@ import { UpdatePrescriptionDto } from './dto/update-prescription.dto';
 import { PrescriptionsService } from './prescriptions.service';
 
 @Controller('prescriptions')
-@UseGuards(JwtAuthGuard, RolesGuard, VerifiedAccountGuard)
+@UseGuards(JwtAuthGuard, RolesGuard, VerifiedAccountGuard, SubscriptionGuard)
 export class PrescriptionsController {
   constructor(private readonly prescriptions: PrescriptionsService) {}
 
@@ -69,6 +71,7 @@ export class PrescriptionsController {
   }
 
   @Post()
+  @RequiresActiveSubscription()
   create(
     @CurrentUser() user: AuthenticatedUserPayload,
     @Body() dto: CreatePrescriptionDto,
@@ -94,6 +97,7 @@ export class PrescriptionsController {
   }
 
   @Post(':id/submit')
+  @RequiresActiveSubscription()
   submit(
     @CurrentUser() user: AuthenticatedUserPayload,
     @Param('id') id: string,
@@ -102,6 +106,7 @@ export class PrescriptionsController {
   }
 
   @Post(':id/validate')
+  @RequiresActiveSubscription()
   validate(
     @CurrentUser() user: AuthenticatedUserPayload,
     @Param('id') id: string,
@@ -119,6 +124,7 @@ export class PrescriptionsController {
   }
 
   @Post(':id/renew')
+  @RequiresActiveSubscription()
   renew(
     @CurrentUser() user: AuthenticatedUserPayload,
     @Param('id') id: string,

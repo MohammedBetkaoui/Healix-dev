@@ -30,6 +30,7 @@ import {
   sanitizeTextInput,
 } from '../common/utils/sanitize';
 import { PrismaService } from '../prisma/prisma.service';
+import { EntitlementsService } from '../subscriptions/entitlements.service';
 import { WorkspaceContextService } from '../workspaces/workspace-context.service';
 import { CheckPatientDuplicateQueryDto } from './dto/check-patient-duplicate-query.dto';
 import { CreatePatientAiAnalysisDto } from './dto/create-patient-ai-analysis.dto';
@@ -77,42 +78,50 @@ export class PatientsService {
     private readonly fileValidator: PatientFileValidator,
     private readonly fileStorageService: PatientFileStorageService,
     private readonly workspaceContext: WorkspaceContextService,
+    private readonly entitlements: EntitlementsService,
   ) {}
 
   async create(user: AuthenticatedUserPayload, dto: CreatePatientDto) {
     const scope = await this.resolveOwnerScope(user);
 
-    const patient = await this.prisma.patient.create({
-      data: {
-        firstName: sanitizeTextInput(dto.firstName),
-        firstNameAr: sanitizeTextInput(dto.firstNameAr),
-        lastName: sanitizeTextInput(dto.lastName),
-        lastNameAr: sanitizeTextInput(dto.lastNameAr),
-        gender: dto.gender,
-        birthDate: new Date(dto.birthDate),
-        nationalId: sanitizeTextInput(dto.nationalId),
-        bloodGroup: dto.bloodGroup,
-        phone: sanitizePhone(dto.phone),
-        email: dto.email ? normalizeEmail(dto.email) : undefined,
-        address: sanitizeTextInput(dto.address),
-        wilaya: sanitizeTextInput(dto.wilaya),
-        commune: sanitizeTextInput(dto.commune),
-        emergencyContactName: sanitizeTextInput(dto.emergencyContactName),
-        emergencyContactPhone: sanitizePhone(dto.emergencyContactPhone),
-        insurance: dto.insurance,
-        insuredNumber: dto.insuredNumber
-          ? sanitizeTextInput(dto.insuredNumber)
-          : undefined,
-        sector: dto.sector,
-        hospitalRecordNumber: dto.hospitalRecordNumber
-          ? sanitizeTextInput(dto.hospitalRecordNumber)
-          : undefined,
-        smsEnabled: dto.smsEnabled ?? true,
-        workspaceId: scope.workspaceId,
-        establishmentId: scope.establishmentId ?? undefined,
-        doctorProfileId: scope.doctorProfileId ?? undefined,
-      },
-    });
+    // Counted and created under the lock of the subscription: the last free
+    // place of the plan goes to one request only.
+    const patient = await this.entitlements.withQuota(
+      scope.workspaceId,
+      'maxPatients',
+      (client) =>
+        client.patient.create({
+          data: {
+            firstName: sanitizeTextInput(dto.firstName),
+            firstNameAr: sanitizeTextInput(dto.firstNameAr),
+            lastName: sanitizeTextInput(dto.lastName),
+            lastNameAr: sanitizeTextInput(dto.lastNameAr),
+            gender: dto.gender,
+            birthDate: new Date(dto.birthDate),
+            nationalId: sanitizeTextInput(dto.nationalId),
+            bloodGroup: dto.bloodGroup,
+            phone: sanitizePhone(dto.phone),
+            email: dto.email ? normalizeEmail(dto.email) : undefined,
+            address: sanitizeTextInput(dto.address),
+            wilaya: sanitizeTextInput(dto.wilaya),
+            commune: sanitizeTextInput(dto.commune),
+            emergencyContactName: sanitizeTextInput(dto.emergencyContactName),
+            emergencyContactPhone: sanitizePhone(dto.emergencyContactPhone),
+            insurance: dto.insurance,
+            insuredNumber: dto.insuredNumber
+              ? sanitizeTextInput(dto.insuredNumber)
+              : undefined,
+            sector: dto.sector,
+            hospitalRecordNumber: dto.hospitalRecordNumber
+              ? sanitizeTextInput(dto.hospitalRecordNumber)
+              : undefined,
+            smsEnabled: dto.smsEnabled ?? true,
+            workspaceId: scope.workspaceId,
+            establishmentId: scope.establishmentId ?? undefined,
+            doctorProfileId: scope.doctorProfileId ?? undefined,
+          },
+        }),
+    );
 
     await this.patientAuditService.log(user, 'PATIENT_CREATED', patient.id);
 

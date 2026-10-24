@@ -120,6 +120,9 @@ services:
       THROTTLE_USER_LIMIT: ${THROTTLE_USER_LIMIT:-600}
       THROTTLE_ANON_LIMIT: ${THROTTLE_ANON_LIMIT:-120}
       BCRYPT_SALT_ROUNDS: ${BCRYPT_SALT_ROUNDS:-12}
+      # Offline settlements (cash, postal transfer, BaridiMob receipt) are
+      # off: the online card payment activates the subscription at once.
+      MANUAL_PAYMENTS_ENABLED: ${MANUAL_PAYMENTS_ENABLED:-false}
       JWT_ACCESS_SECRET: ${JWT_ACCESS_SECRET:?JWT_ACCESS_SECRET manque dans .env}
       JWT_REFRESH_SECRET: ${JWT_REFRESH_SECRET:?JWT_REFRESH_SECRET manque dans .env}
       ADMIN_JWT_ACCESS_SECRET: ${ADMIN_JWT_ACCESS_SECRET:?ADMIN_JWT_ACCESS_SECRET manque dans .env}

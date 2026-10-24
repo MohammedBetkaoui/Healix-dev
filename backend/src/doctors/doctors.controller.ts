@@ -12,9 +12,11 @@ import {
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { type AuthenticatedUserPayload } from '../auth/types/authenticated-request.type';
 import { CurrentUser } from '../common/decorators/current-user.decorator';
+import { RequiresActiveSubscription } from '../common/decorators/requires-active-subscription.decorator';
 import { Roles } from '../common/decorators/roles.decorator';
 import { UserRole } from '../common/enums/user-role.enum';
 import { RolesGuard } from '../common/guards/roles.guard';
+import { SubscriptionGuard } from '../common/guards/subscription.guard';
 import { VerifiedAccountGuard } from '../common/guards/verified-account.guard';
 import { PrismaService } from '../prisma/prisma.service';
 import { CreateAffiliatedDoctorDto } from './dto/create-affiliated-doctor.dto';
@@ -22,7 +24,7 @@ import { UpdateAffiliatedDoctorDto } from './dto/update-affiliated-doctor.dto';
 import { DoctorsService } from './doctors.service';
 
 @Controller('establishment/doctors')
-@UseGuards(JwtAuthGuard, RolesGuard, VerifiedAccountGuard)
+@UseGuards(JwtAuthGuard, RolesGuard, VerifiedAccountGuard, SubscriptionGuard)
 export class DoctorsController {
   constructor(
     private readonly doctorsService: DoctorsService,
@@ -31,6 +33,7 @@ export class DoctorsController {
 
   @Post()
   @Roles(UserRole.ESTABLISHMENT_ADMIN)
+  @RequiresActiveSubscription()
   async create(
     @CurrentUser() user: AuthenticatedUserPayload,
     @Body() dto: CreateAffiliatedDoctorDto,
