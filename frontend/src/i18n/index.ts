@@ -5,6 +5,7 @@ import { adminAr } from "./locales/ar/admin";
 import { commonAr } from "./locales/ar/common";
 import { consultationsAr } from "./locales/ar/consultations";
 import { dashboardAr } from "./locales/ar/dashboard";
+import { dicomAr } from "./locales/ar/dicom";
 import { doctorVerificationAr } from "./locales/ar/doctor-verification";
 import { loginAr } from "./locales/ar/login";
 import { landingAr } from "./locales/ar/landing";
@@ -23,6 +24,7 @@ import { adminFr } from "./locales/fr/admin";
 import { commonFr } from "./locales/fr/common";
 import { consultationsFr } from "./locales/fr/consultations";
 import { dashboardFr } from "./locales/fr/dashboard";
+import { dicomFr } from "./locales/fr/dicom";
 import { doctorVerificationFr } from "./locales/fr/doctor-verification";
 import { loginFr } from "./locales/fr/login";
 import { landingFr } from "./locales/fr/landing";
@@ -49,6 +51,7 @@ export const dictionaries = {
     common: commonFr,
     consultations: consultationsFr,
     dashboard: dashboardFr,
+    dicom: dicomFr,
     doctorVerification: doctorVerificationFr,
     login: loginFr,
     landing: landingFr,
@@ -69,6 +72,7 @@ export const dictionaries = {
     common: commonAr,
     consultations: consultationsAr,
     dashboard: dashboardAr,
+    dicom: dicomAr,
     doctorVerification: doctorVerificationAr,
     login: loginAr,
     landing: landingAr,

@@ -20,9 +20,14 @@ const CREDENTIAL_PATTERN = /^[A-Za-z0-9]+$/;
 
 export const DEFAULT_ORTHANC_TIMEOUT_MS = 30_000;
 export const DEFAULT_ORTHANC_UPLOAD_TIMEOUT_MS = 120_000;
+// Orthanc may take a while to build the metadata of a large series, the first
+// time it is asked: the wait for the first byte of a DICOMweb answer.
+export const DEFAULT_ORTHANC_STREAM_TIMEOUT_MS = 120_000;
 
 export type OrthancSettings = {
   password: string;
+  /** Wait for the first byte of a streamed DICOMweb answer. */
+  streamTimeoutMs: number;
   /** Timeout of a request that sends a file (an instance to store). */
   uploadTimeoutMs: number;
   /** Timeout of the other requests. */
@@ -116,6 +121,11 @@ export function readOrthancSettings(env: Env): OrthancSettings {
 
   return {
     password: password?.trim() ? password : DEFAULT_ORTHANC_SETTINGS.password,
+    streamTimeoutMs: readPositiveInteger(
+      env,
+      'ORTHANC_STREAM_TIMEOUT_MS',
+      DEFAULT_ORTHANC_STREAM_TIMEOUT_MS,
+    ),
     timeoutMs: readPositiveInteger(
       env,
       'ORTHANC_TIMEOUT_MS',
@@ -135,6 +145,7 @@ export function orthancSettings(configService: ConfigService): OrthancSettings {
   const names = [
     'NODE_ENV',
     'ORTHANC_PASSWORD',
+    'ORTHANC_STREAM_TIMEOUT_MS',
     'ORTHANC_TIMEOUT_MS',
     'ORTHANC_UPLOAD_TIMEOUT_MS',
     'ORTHANC_URL',

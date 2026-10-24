@@ -1,10 +1,10 @@
 # HealixDz: Caddy (HTTPS reverse proxy), frontend (Next.js), backend
-# (NestJS + Chromium), MySQL, the AI service (FastAPI, PyTorch CPU) and Orthanc
-# (DICOM store). See DEPLOIEMENT.md.
+# (NestJS + Chromium), MySQL, the AI service (FastAPI, PyTorch CPU), Orthanc
+# (DICOM store) and the OHIF viewer. See DEPLOIEMENT.md.
 #
 # One public domain: https://<APP_DOMAIN>/api/* goes to the backend,
-# everything else to the frontend. Caddy is the only container that publishes
-# ports (80 and 443).
+# /viewer/* to the DICOM viewer, everything else to the frontend. Caddy is the
+# only container that publishes ports (80 and 443).
 #
 # Every setting and secret comes from .env, next to this file (copy
 # .env.docker.example; .env is never versioned).
@@ -24,6 +24,8 @@ services:
       frontend:
         condition: service_healthy
       backend:
+        condition: service_healthy
+      viewer:
         condition: service_healthy
     environment:
       APP_DOMAIN: ${APP_DOMAIN:?APP_DOMAIN manque dans .env}
@@ -90,6 +92,30 @@ services:
       timeout: 5s
       retries: 5
       start_period: 30s
+
+  # The OHIF Viewer, built from its source (viewer/Dockerfile) to live under
+  # /viewer/. Static files only: the page holds no data, the images come from
+  # the authenticated DICOMweb proxy of the backend (/api/dicomweb). Edge
+  # network only: no route to Orthanc, MySQL or the AI service.
+  viewer:
+    build: ./viewer
+    image: healixdz-viewer:latest
+    restart: unless-stopped
+    volumes:
+      # The configuration, read-only: a change needs a reload of the page, not
+      # a rebuild.
+      - type: bind
+        source: ./viewer/app-config.js
+        target: /usr/share/nginx/html/viewer/app-config.js
+        read_only: true
+    networks:
+      - edge
+    healthcheck:
+      test: ["CMD", "wget", "-q", "--spider", "http://127.0.0.1:8080/healthz"]
+      interval: 30s
+      timeout: 5s
+      retries: 5
+      start_period: 15s
 
   backend:
     build: ./backend

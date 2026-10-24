@@ -1,12 +1,13 @@
 # Déploiement Docker de HealixDz
 
-Six conteneurs applicatifs, plus celui des sauvegardes, décrits par
+Sept conteneurs applicatifs, plus celui des sauvegardes, décrits par
 [`docker-compose.yml`](docker-compose.yml) :
 
 | Service | Image | Rôle | Réseaux | Ports publiés |
 | --- | --- | --- | --- | --- |
 | `caddy` | `caddy:2.11-alpine` | Proxy inverse HTTPS, certificats Let's Encrypt | edge | `80`, `443` |
 | `frontend` | [`frontend/Dockerfile`](frontend/Dockerfile) | Interface Next.js (serveur autonome) | edge | aucun |
+| `viewer` | [`viewer/Dockerfile`](viewer/Dockerfile) | Visionneuse d'imagerie DICOM (OHIF Viewer 3.13.13, construite depuis ses sources, servie par nginx sous `/viewer/`) | edge | aucun |
 | `backend` | [`backend/Dockerfile`](backend/Dockerfile) | API NestJS, migrations, PDF (Chromium) | edge, internal | aucun |
 | `mysql` | `mysql:8.4` | Base de données | internal | aucun |
 | `ai-service` | [`ai-service/Dockerfile`](ai-service/Dockerfile) | Inférence (PyTorch et TensorFlow, CPU) | internal | aucun |
@@ -14,12 +15,13 @@ Six conteneurs applicatifs, plus celui des sauvegardes, décrits par
 | `backup` | [`scripts/backup/Dockerfile`](scripts/backup/Dockerfile) | Sauvegarde nocturne de la base, des fichiers et du volume d'Orthanc | internal | aucun |
 
 - **Un seul domaine.** Tout passe par Caddy, sur `https://APP_DOMAIN` :
-  `/api/*` va au backend, le reste au frontend. Le navigateur appelle donc
+  `/api/*` va au backend, `/viewer/*` à la visionneuse DICOM, le reste au
+  frontend. Le navigateur appelle donc
   l'API sur la même origine que les pages, et les cookies de session valent
   pour les deux. Configuration : [`caddy/`](caddy/).
 - **Réseaux.**
-  - `edge` (Caddy, frontend, backend) : le frontend n'a aucun accès à MySQL ni
-    au service IA.
+  - `edge` (Caddy, frontend, backend, visionneuse) : le frontend et la
+    visionneuse n'ont aucun accès à MySQL, au service IA ni à Orthanc.
   - `internal` (backend, MySQL, service IA, Orthanc) : `internal: true`, sans
     route vers l'extérieur.
   - Le backend sort par `edge` (SMTP).
@@ -561,8 +563,8 @@ dans `BACKUP_DIR`.
    - une connexion ;
    - l'ouverture d'un document patient ;
    - le téléchargement d'un compte rendu PDF ;
-   - la liste des études DICOM d'un dossier (section 12) et l'aperçu d'une
-     coupe.
+   - la liste des études DICOM d'un dossier (section 12), l'aperçu d'une
+     coupe et l'ouverture d'une étude dans la visionneuse.
 
 **Remplacer des données existantes** (retour en arrière sur le même
 serveur) :
@@ -710,7 +712,8 @@ accès.
   backend refuse de démarrer sinon, comme pour les secrets JWT. Pour le
   changer : modifier `.env`, puis `docker compose up -d orthanc backend`.
 - **Plugin DICOMweb** actif, avec `PublicRoot=/api/dicomweb/` : l'API que la
-  visionneuse lira par le backend. Il n'est joignable par aucun navigateur.
+  visionneuse lit par le backend (ci-dessous). Il n'est joignable par aucun
+  navigateur.
 - **Volume** `healixdz_orthanc-data` monté sur `/var/lib/orthanc` : `index/`
   (SQLite) et `storage/` (fichiers). Le processus tourne sous l'utilisateur
   `orthanc` de l'image (999). Sauvegardé chaque nuit (section 8).
@@ -763,6 +766,83 @@ sont pas touchés.
 une étude inconnue. Les identifiants d'Orthanc reçus du navigateur sont
 vérifiés (cinq groupes de 8 chiffres hexadécimaux) avant d'entrer dans une URL.
 
+**Visionneuse** (`viewer`, OHIF Viewer 3.13.13).
+
+- **Construction.** [`viewer/Dockerfile`](viewer/Dockerfile) construit OHIF à
+  partir de ses sources, au commit exact de la version 3.13.13
+  (`1fa151f5133934c953a2ab4c0056ca91f929c32f`, vérifié pendant la
+  construction), avec Node 24.15.0, pnpm 12.8.1 (le `packageManager` d'OHIF),
+  `pnpm install --frozen-lockfile`, puis nginx-unprivileged 1.30.6. Pas
+  l'image officielle `ohif/app` : le chemin de base (`PUBLIC_URL`) est figé à
+  la construction (« baked into the build and cannot be changed without
+  rebuilding the image », documentation d'OHIF), et la visionneuse doit vivre
+  sous `/viewer/`, à côté des pages. **La construction demande plusieurs Go
+  de mémoire** (celle d'OHIF aussi) et télécharge le code de GitHub et les
+  paquets de npm : `docker compose build viewer`.
+- **Aucune sortie vers l'extérieur.** Le service worker d'OHIF, qui charge
+  Workbox depuis un stockage Google, est remplacé par un fichier qui
+  n'enregistre rien (et supprime celui d'un ancien build). Les deux scripts
+  « inline » de `index.html` sont déplacés dans des fichiers
+  ([`viewer/externalize-inline-scripts.mjs`](viewer/externalize-inline-scripts.mjs),
+  test : `node --test viewer/externalize-inline-scripts.test.mjs`) : la
+  construction échoue s'il en reste un, ou s'il n'y en avait aucun à
+  déplacer (la page d'OHIF a changé).
+- **Configuration.** [`viewer/app-config.js`](viewer/app-config.js), montée en
+  lecture seule : une seule source DICOMweb, `qidoRoot`, `wadoRoot` et
+  `wadoUriRoot` sur `/api/dicomweb` (même origine, donc le cookie de
+  session), images et miniatures lues par trames (`wadors`),
+  `enableStudyLazyLoad`, pas de liste d'études, pas de dialogue « usage
+  investigationnel », ni envoi, ni chargement de fichiers locaux, ni autre
+  source. Une modification se prend en rechargeant la page, sans
+  reconstruire.
+- **Route.** `/viewer/*` → conteneur `viewer` (port 8080 : nginx-unprivileged
+  n'est pas root, il écoute au-dessus de 1024). La page ne contient aucune
+  donnée ; les images ne viennent que du proxy authentifié.
+- **Content-Security-Policy de `/viewer`** (posée par Caddy) :
+  `default-src 'self'; script-src 'self' 'wasm-unsafe-eval'; worker-src 'self'
+  blob:; img-src 'self' data: blob:; style-src 'self' 'unsafe-inline';
+  connect-src 'self'; font-src 'self' data:; frame-ancestors 'self'`.
+  `'wasm-unsafe-eval'` pour les décodeurs d'images WebAssembly (pas
+  `'unsafe-eval'`) ; `frame-ancestors 'self'` : seule une page de
+  HealixDz peut l'encadrer. Si la console du navigateur signale pourtant une
+  violation citant `'unsafe-eval'` à l'ouverture d'une étude, le correctif
+  connu est de l'ajouter à `script-src` dans `caddy/healixdz-site.caddy`
+  (la configuration d'OHIF lui-même, en mode « Report-Only », l'autorise) :
+  à décider en connaissance de cause, jamais par défaut.
+- **Session.** L'iframe lit l'API avec le cookie d'accès (15 minutes) mais ne
+  sait pas le renouveler : la page de l'étude le fait à l'ouverture, puis
+  toutes les 10 minutes, tant qu'elle est ouverte. Session terminée : un
+  message l'indique.
+
+**Proxy DICOMweb** (`GET /api/dicomweb/*`, dans le backend). Cookie de
+session, mêmes gardes que la lecture d'un dossier, **sans** abonnement actif
+requis (un compte en lecture seule voit ses images).
+
+| Requête | Réponse |
+| --- | --- |
+| tout verbe autre que GET (STOW-RS compris) | 405, `Allow: GET`, rien n'est envoyé à Orthanc |
+| `/studies/{StudyInstanceUID}` et tout ce qui est dessous (metadata, series, instances, frames, rendered, bulkdata) | relayé si l'étude est une ligne de l'espace de l'appelant, sinon 404 |
+| `/studies?StudyInstanceUID={uid}` (un seul UID, plus `limit`, `offset`, `fuzzymatching`, `includefield`) | relayé aux mêmes conditions |
+| `/studies` sans UID, `/series` ou `/instances` à la racine, recherche par nom ou par date, liste d'UID, chemin avec `..`, `%`, `\` ou `//` | 404, sans requête à la base ni à Orthanc |
+| Orthanc refuse le compte du backend (401, 403), échoue (5xx), redirige ou ne répond pas | 502 `DICOM_STORE_UNAVAILABLE` (jamais un 401 : le navigateur croirait sa session perdue) |
+
+- Orthanc n'est joint qu'avec son propre compte : ni cookie ni
+  `Authorization` du navigateur ne lui sont transmis. Seuls `Accept`,
+  `Range` et `If-None-Match` partent ; reviennent `Content-Type` (le
+  `multipart/related; boundary=…` compris), `Content-Length`, `Content-Range`,
+  `Accept-Ranges`, `ETag`, `Last-Modified`, avec `Cache-Control: private` et
+  `X-Content-Type-Options: nosniff`.
+- Le corps est relayé **en flux**, jamais gardé en mémoire ; le navigateur qui
+  part annule la requête faite à Orthanc.
+- Limite de débit propre à cette route : 6 000 requêtes par minute et par
+  utilisateur (une étude se charge par centaines de trames), au lieu des 600
+  habituels.
+- Audit : `DICOM_STUDY_VIEWED`, **une fois** par utilisateur, par étude et par
+  tranche fixe de 30 minutes (pas par image), écrit avant l'envoi de la
+  première image.
+- Une même requête ne peut désigner qu'une étude : le proxy ne permet pas de
+  lister Orthanc.
+
 **Montée de version d'Orthanc.** Changez l'étiquette dans
 `docker-compose.yml` après lecture des notes de version, et faites une
 sauvegarde juste avant (section 9) : Orthanc peut migrer son index au
@@ -799,6 +879,37 @@ Vérifié :
   espaces, suppression qui épargne Orthanc, 404 entre espaces, refus sans
   abonnement actif, démarrage refusé sans mot de passe d'au moins 24
   caractères.
+
+**Visionneuse et proxy (24 octobre 2026, sans Docker).**
+
+Vérifié :
+- Avec un vrai Caddy 2.11.7 devant des serveurs de remplacement : `/viewer/*`
+  va à la visionneuse avec la Content-Security-Policy ci-dessus (et les
+  en-têtes de sécurité du site), `/api/*` au backend avec la sienne
+  (`default-src 'none'`), le reste au frontend, `/viewerx` n'est pas la
+  visionneuse ; les limites de corps sont appliquées : 20 Mio passent et
+  22 Mio donnent 413 sur l'API ; 25 Mio passent et 520 Mio donnent 413 sur
+  `/api/dicom/studies/upload`. Avec une barre finale, la limite large ne
+  s'applique pas (413 dès 21 Mio : c'est le sens sûr) ; une autre casse,
+  que Nest et Caddy lisent de la même façon, la reçoit.
+- La spécification OpenAPI d'Orthanc et les sources d'OHIF 3.13.13, lues : les URL relatives de
+  `wadoRoot` sont prises en charge (`getWADORSImageId`, `fixBulkDataURI`),
+  l'iframe demande `routerBasename` sans barre finale et `PUBLIC_URL` avec
+  (documentation d'OHIF), et `index.html` contient bien deux scripts inline.
+- Tests : proxy sur HTTP (garde, verbes, chemins, flux qui arrive avant la fin
+  de l'envoi d'Orthanc, annulation, en-têtes, audit une fois par tranche), le
+  script qui déplace les scripts inline, la page de l'étude (iframe,
+  renouvellement de la session), la liste, l'import et le résumé (jest), le
+  CSP des pages (`frame-src 'self'`).
+
+Pas vérifié (Docker absent) :
+- la construction de l'image de la visionneuse (`pnpm install
+  --frozen-lockfile` sur le dépôt d'OHIF, mémoire nécessaire, durée) ;
+- le fonctionnement d'OHIF sous cette Content-Security-Policy (le risque
+  connu : `'unsafe-eval'`, voir plus haut), son chargement par trames
+  (`omitQuotationForMultipartRequest`, réécriture des URL absolues d'Orthanc
+  par `bulkDataURI`), et une étude qui défile pendant plus de 20 minutes ;
+- nginx avec `viewer/nginx.conf`, et la sonde de santé de la visionneuse.
 
 **Pas vérifié** (à faire sur une machine équipée de Docker) :
 - le démarrage d'Orthanc avec ces variables (noms vérifiés dans la

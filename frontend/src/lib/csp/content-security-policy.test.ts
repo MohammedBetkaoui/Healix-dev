@@ -46,6 +46,19 @@ describe("buildContentSecurityPolicy", () => {
     expect(parsed.get("connect-src")).toEqual(["'self'"]);
   });
 
+  it("lets a page frame the DICOM viewer of its own origin (/viewer/), and nothing from another", () => {
+    // The viewer is a separate application served by Caddy at /viewer/, with
+    // its own policy: the page only has to be allowed to frame its own origin.
+    const parsed = directives(buildContentSecurityPolicy(production));
+
+    expect(parsed.get("frame-src")).toEqual(["'self'", "blob:"]);
+    expect(parsed.get("default-src")).toEqual(["'self'"]);
+    // The viewer itself may not be framed by another origin: the pages forbid
+    // being framed at all (frame-ancestors 'none'), the viewer's policy allows
+    // 'self' only (caddy/healixdz-site.caddy).
+    expect(parsed.get("frame-ancestors")).toEqual(["'none'"]);
+  });
+
   it("lets the browser reach an API served from another origin, and its real-time socket", () => {
     const parsed = directives(
       buildContentSecurityPolicy({ ...production, apiOrigin: "http://localhost:3001" }),

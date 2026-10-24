@@ -291,6 +291,41 @@ export class OrthancClient {
     }
   }
 
+  // GET /dicom-web<path>: the DICOMweb API, for the viewer's proxy. The answer
+  // is handed back unread (its body is a stream the caller relays), whatever
+  // its status; only a store that cannot be reached is an error. Never
+  // compressed (Accept-Encoding: identity), so that what is relayed is what
+  // Orthanc sent. The caller chooses the timeout, with the signal.
+  async fetchDicomWeb(
+    path: string,
+    options: { headers?: Record<string, string>; signal: AbortSignal },
+  ): Promise<Response> {
+    try {
+      return await fetch(`${this.settings.url}/dicom-web${path}`, {
+        headers: {
+          ...options.headers,
+          'Accept-Encoding': 'identity',
+          Authorization: this.authorization,
+        },
+        method: 'GET',
+        redirect: 'manual',
+        signal: options.signal,
+      });
+    } catch (error) {
+      if (options.signal.aborted) {
+        throw new OrthancError('TIMEOUT', 'Orthanc did not answer in time.');
+      }
+      this.logger.warn(
+        `Orthanc is unreachable: ${error instanceof Error ? error.message : 'unknown error'}`,
+      );
+      throw new OrthancError('UNAVAILABLE', 'Orthanc is unreachable.');
+    }
+  }
+
+  get streamTimeoutMs(): number {
+    return this.settings.streamTimeoutMs;
+  }
+
   private toInstance(raw: Json): OrthancInstance {
     const tags = asRecord(raw.MainDicomTags);
     const requested = asRecord(raw.RequestedTags);

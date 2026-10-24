@@ -48,6 +48,25 @@ handle @admin_outside_allowlist {
 	respond 403
 }
 
+# The DICOM viewer (OHIF), built to live under /viewer/. Static files: the
+# page holds no data, the images come from /api/dicomweb, which the backend
+# opens to a signed-in user for the studies of their workspace only. Its
+# Content-Security-Policy is its own (the pages' one is Next.js's):
+#  - script-src 'self' 'wasm-unsafe-eval': only our scripts (OHIF's inline
+#    scripts were moved to files at build time), and WebAssembly for the image
+#    decoders (not 'unsafe-eval');
+#  - worker-src 'self' blob: : OHIF's decoding workers;
+#  - img-src 'self' data: blob: : the images are drawn from blob: URLs;
+#  - style-src 'self' 'unsafe-inline' : OHIF sets styles from its code;
+#  - connect-src 'self' : the images and the API, on this origin and no other;
+#  - frame-ancestors 'self' : only a HealixDz page may frame it.
+@viewer path /viewer /viewer/*
+handle @viewer {
+	header Content-Security-Policy "default-src 'self'; script-src 'self' 'wasm-unsafe-eval'; worker-src 'self' blob:; img-src 'self' data: blob:; style-src 'self' 'unsafe-inline'; connect-src 'self'; font-src 'self' data:; frame-ancestors 'self'"
+
+	reverse_proxy {$VIEWER_UPSTREAM:viewer:8080}
+}
+
 # The API, path unchanged (Nest's global prefix is /api). One exception: the
 # frontend's own route that clears the session cookies when the backend
 # cannot be reached (src/app/api/auth/local-logout).

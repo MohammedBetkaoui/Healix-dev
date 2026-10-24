@@ -1,0 +1,64 @@
+import { apiClient } from "@/lib/api/http-client";
+
+import {
+  type DicomImportResult,
+  type DicomStudy,
+  type DicomStudyDetail,
+} from "./dicom.types";
+
+export async function getDicomStudies(patientId: string): Promise<DicomStudy[]> {
+  const response = await apiClient.get<DicomStudy[]>(
+    `/dicom/patients/${encodeURIComponent(patientId)}/studies`,
+  );
+  return response.data;
+}
+
+export async function getDicomStudy(studyId: string): Promise<DicomStudyDetail> {
+  const response = await apiClient.get<DicomStudyDetail>(
+    `/dicom/studies/${encodeURIComponent(studyId)}`,
+  );
+  return response.data;
+}
+
+export async function deleteDicomStudy(studyId: string): Promise<void> {
+  await apiClient.delete(`/dicom/studies/${encodeURIComponent(studyId)}`);
+}
+
+// The .dcm files, or the .zip, in one request. The import can run for minutes
+// (up to 512 MiB, then Orthanc): no timeout, the progress of the upload is
+// reported as a fraction between 0 and 1.
+export async function importDicomStudies(
+  patientId: string,
+  files: readonly File[],
+  onProgress?: (fraction: number) => void,
+): Promise<DicomImportResult> {
+  const form = new FormData();
+  form.append("patientId", patientId);
+  for (const file of files) {
+    form.append("files", file, file.name);
+  }
+
+  const response = await apiClient.post<DicomImportResult>("/dicom/studies/upload", form, {
+    headers: { "Content-Type": "multipart/form-data" },
+    onUploadProgress: (event) => {
+      if (event.total) {
+        onProgress?.(Math.min(1, event.loaded / event.total));
+      }
+    },
+    timeout: 0,
+  });
+  return response.data;
+}
+
+// The PNG of a slice, as a Blob (an <img> cannot carry the session on another
+// origin, and the page's CSP only allows blob: images).
+export async function getDicomInstancePreview(
+  orthancInstanceId: string,
+  signal?: AbortSignal,
+): Promise<Blob> {
+  const response = await apiClient.get<Blob>(
+    `/dicom/instances/${encodeURIComponent(orthancInstanceId)}/preview`,
+    { responseType: "blob", signal },
+  );
+  return response.data;
+}

@@ -8,12 +8,14 @@ import { DicomController } from './dicom.controller';
 import { DicomImportService } from './dicom-import.service';
 import { DicomStudiesService } from './dicom-studies.service';
 import { DicomUploadDirInterceptor } from './dicom-upload';
+import { DicomWebController } from './dicomweb.controller';
+import { DicomWebProxyService } from './dicomweb-proxy.service';
 import { OrthancClient } from './orthanc.client';
 import { ORTHANC_SETTINGS, orthancSettings } from './orthanc.config';
 
 @Module({
   imports: [PrismaModule, PatientsModule, SubscriptionsModule],
-  controllers: [DicomController],
+  controllers: [DicomController, DicomWebController],
   providers: [
     // Read when the application starts: in production, a missing, short or
     // default Orthanc password stops it, like the JWT secrets.
@@ -26,9 +28,10 @@ import { ORTHANC_SETTINGS, orthancSettings } from './orthanc.config';
     DicomImportService,
     DicomStudiesService,
     DicomUploadDirInterceptor,
+    DicomWebProxyService,
   ],
-  // The DICOMweb proxy and the slice analysis (next commits) read the studies
-  // and talk to Orthanc through these.
+  // The slice analysis (next commit) reads the studies and talks to Orthanc
+  // through these.
   exports: [OrthancClient, DicomStudiesService],
 })
 export class DicomModule {}

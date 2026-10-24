@@ -1,6 +1,7 @@
 import type { TranslationFunction } from "@/lib/i18n";
 
 import { isVerificationRequiredError } from "./api-error";
+import { getDicomErrorMessage } from "./dicom-error";
 import { getServerErrorMessage } from "./get-server-error-message";
 import {
   describeSubscriptionLimit,
@@ -30,8 +31,8 @@ export function getSubscriptionLimitMessage(
   return limit ? describeSubscriptionLimit(limit, t) : undefined;
 }
 
-// Error text for a write modal: the localized verification notice or
-// subscription limit, else the backend's own message (e.g. a 409 conflict),
+// Error text for a write modal: the localized verification notice,
+// subscription limit or DICOM refusal, else the backend's own message (e.g. a 409 conflict),
 // else the modal's fallback.
 export function getMutationErrorMessage(
   error: unknown,
@@ -41,6 +42,7 @@ export function getMutationErrorMessage(
   return (
     getVerificationRequiredMessage(error, t) ??
     getSubscriptionLimitMessage(error, t) ??
+    getDicomErrorMessage(error, t) ??
     getServerErrorMessage(error) ??
     fallback
   );

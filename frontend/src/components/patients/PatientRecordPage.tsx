@@ -27,6 +27,7 @@ import { AiEvolutionSection } from "@/components/ai-analyses/evolution/AiEvoluti
 import { LatestRetainedAiRun, NewAiAnalysisMenu, PatientAiRunsSection } from "@/components/ai-analyses/record/PatientAiRuns";
 import { AppointmentDetailsModal } from "@/components/appointments/AppointmentDetailsModal";
 import { CreateAppointmentModal } from "@/components/appointments/CreateAppointmentModal";
+import { DicomStudiesSection } from "@/components/dicom/DicomStudiesSection";
 import { DashboardShell } from "@/components/dashboard/layout/DashboardShell";
 import { VerificationRequiredNotice } from "@/components/shared/VerificationRequiredNotice";
 import { PatientReportsSection } from "@/features/reports/components/PatientReportsSection";
@@ -363,14 +364,17 @@ export function PatientRecordPage({ accountType, initialTab, patientId }: Patien
         ) : null}
 
         {activeTab === "imaging" ? (
-          <PatientAiRunsSection
-            accountType={accountType}
-            hasSignedAiConsent={hasSignedAiConsent}
-            locale={locale}
-            patientId={patientId}
-            t={t}
-            title={localized.tabs.imaging}
-          />
+          <>
+            <DicomStudiesSection accountType={accountType} locale={locale} patientId={patientId} t={t} />
+            <PatientAiRunsSection
+              accountType={accountType}
+              hasSignedAiConsent={hasSignedAiConsent}
+              locale={locale}
+              patientId={patientId}
+              t={t}
+              title={localized.tabs.imaging}
+            />
+          </>
         ) : null}
 
         {activeTab === "aiEvolution" ? (

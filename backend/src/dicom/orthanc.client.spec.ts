@@ -5,6 +5,7 @@ import { type OrthancSettings } from './orthanc.config';
 
 const SETTINGS: OrthancSettings = {
   password: 'secret',
+  streamTimeoutMs: 3000,
   timeoutMs: 1000,
   uploadTimeoutMs: 2000,
   url: 'http://orthanc:8042',
