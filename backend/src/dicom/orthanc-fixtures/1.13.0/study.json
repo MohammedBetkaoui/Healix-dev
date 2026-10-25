@@ -1,0 +1,28 @@
+{
+  "ID": "27f7126f-4f66fb14-03f4081b-f9341db2-53925988",
+  "IsStable": true,
+  "Labels": [],
+  "LastUpdate": "20261024T222727",
+  "MainDicomTags": {
+    "AccessionNumber": "0",
+    "InstitutionName": "ANONYMISE",
+    "ReferringPhysicianName": "ANONYMISE",
+    "RequestedProcedureDescription": "IRM cérébrale, neuro-crâne",
+    "StudyDate": "20061201",
+    "StudyDescription": "IRM cérébrale, neuro-crâne",
+    "StudyID": "218211405",
+    "StudyInstanceUID": "2.16.840.1.113669.632.20.1211.10000357775",
+    "StudyTime": "141645.000000"
+  },
+  "ParentPatient": "16738bc3-e47ed42a-43ce044c-a3414a45-cb069bd0",
+  "PatientMainDicomTags": {
+    "PatientBirthDate": "19490301",
+    "PatientID": "PID0001",
+    "PatientName": "DOE^JANE",
+    "PatientSex": "0000"
+  },
+  "Series": [
+    "1e2c125c-411b8e86-3f4fe68e-a7584dd3-c6da78f0"
+  ],
+  "Type": "Study"
+}

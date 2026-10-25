@@ -1,0 +1,8 @@
+{
+  "ID": "4cf245ed-6ae18f9e-22e12942-2b9513f2-99a638e5",
+  "ParentPatient": "16738bc3-e47ed42a-43ce044c-a3414a45-cb069bd0",
+  "ParentSeries": "1e2c125c-411b8e86-3f4fe68e-a7584dd3-c6da78f0",
+  "ParentStudy": "27f7126f-4f66fb14-03f4081b-f9341db2-53925988",
+  "Path": "/instances/4cf245ed-6ae18f9e-22e12942-2b9513f2-99a638e5",
+  "Status": "AlreadyStored"
+}

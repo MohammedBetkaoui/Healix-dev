@@ -1,0 +1,24 @@
+{
+  "FileSize": 169478,
+  "FileUuid": "a0c729f6-ddc3-4c44-95a9-c619dc8cfed5",
+  "ID": "08ff3a1a-c8fb57d9-4e24d9cb-2ed22b80-0ff7461e",
+  "IndexInSeries": 16,
+  "Labels": [],
+  "MainDicomTags": {
+    "AcquisitionNumber": "4",
+    "ImageOrientationPatient": "0.99971222877502\\7.8810308973E-12\\0.02398800104856\\-0.0017278126906\\0.99740260839462\\0.07200747728347",
+    "ImagePositionPatient": "-116.34178406355\\-112.38943034748\\-6.0232827120466",
+    "InstanceCreationDate": "20061201",
+    "InstanceCreationTime": "145321.000000",
+    "InstanceNumber": "16",
+    "SOPInstanceUID": "1.3.46.670589.11.0.0.11.4.2.0.8743.5.5396.2006120114302809531",
+    "TemporalPositionIdentifier": "1"
+  },
+  "ParentSeries": "1e2c125c-411b8e86-3f4fe68e-a7584dd3-c6da78f0",
+  "RequestedTags": {
+    "ImageOrientationPatient": "0.99971222877502\\7.8810308973E-12\\0.02398800104856\\-0.0017278126906\\0.99740260839462\\0.07200747728347",
+    "ImagePositionPatient": "-116.34178406355\\-112.38943034748\\-6.0232827120466",
+    "InstanceNumber": "16"
+  },
+  "Type": "Instance"
+}

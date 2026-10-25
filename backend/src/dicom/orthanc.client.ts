@@ -242,12 +242,23 @@ export class OrthancClient {
   }
 
   // GET /instances/{id}
+  // Orthanc names the series of an instance, not its study (the answer to a
+  // POST /instances does, a GET /instances/{id} does not: checked on Orthanc
+  // 1.13.0, src/dicom/orthanc-fixtures): the study is read from the series.
   async getInstance(instanceId: string): Promise<OrthancInstance> {
     const body = await this.json(
       'GET',
       `/instances/${this.id(instanceId)}?requested-tags=${REQUESTED_TAGS}`,
     );
-    return this.toInstance(asRecord(body));
+    const instance = this.toInstance(asRecord(body));
+    if (instance.parentStudy !== null || instance.parentSeries === '') {
+      return instance;
+    }
+
+    const series = asRecord(
+      await this.json('GET', `/series/${this.id(instance.parentSeries)}`),
+    );
+    return { ...instance, parentStudy: asString(series.ParentStudy) };
   }
 
   // GET /instances/{id}/file: the DICOM file as stored.
