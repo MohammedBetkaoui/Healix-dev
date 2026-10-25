@@ -232,6 +232,61 @@ identifiers. It deliberately contains no diagnosis, volume or ejection
 fraction: a single slice cannot provide them. Overlay colours live in
 `app/cardio_seg_palette.json` and are validated at startup.
 
+## Cardiology — MRI volumetry (cine stack)
+
+`POST /analyze/cardio/volume-mri`, multipart field `stack`: a **.zip of
+single-frame DICOM files** holding a whole short-axis cine (every slice, every
+phase), up to 600 files and 300 MiB unpacked (`AI_MAX_STACK_BYTES`). The same
+model (`cardio-seg-acdc-unet-effb4`) segments **every slice of every phase**, by
+batches of 8, with exactly the preprocessing of the single-slice pipeline (only
+the forward pass is shared: `predict_labels_batch`); the areas of `LV`, `RV` and
+`MYO` in mm² are counted slice by slice and phase by phase, and
+`app/cardio_volume_measures.py` turns them into volumes, ejection fractions and
+the mass of the myocardium. A measurement aid for the physician to check, never
+a diagnosis.
+
+Reading the stack (`app/cardio_volume_input.py`): the images are grouped by
+position in space (`ImagePositionPatient` projected on the normal of the plane)
+and, inside a position, ordered by phase (`TriggerTime` when every image of the
+position has one, else `InstanceNumber`). Both usual organisations give the same
+stack: one series per position with N phases, or one series holding everything.
+Refusals, 422 `cardio_volume_*`: `unsupported_format` (not a zip), `no_dicom`,
+`unsafe_archive` (`reason`: `unsafe_path`, `too_many_files`, `too_large`),
+`not_mr`, `multiframe`, `not_grayscale`, `undecodable`, `missing_geometry`
+(`missing`: the tags that are absent), `mixed_orientation` (a normal more than 5°
+from the first), `mixed_geometry` (`reason`: `pixel_spacing` or `image_size`),
+`unequal_phases` (`phasesPerPosition`), `too_few_slices` (under 6),
+`too_few_phases` (under 2), `too_many_phases` (over 30). An uneven step between
+slices (more than 20 % from the median) is a warning, not a refusal.
+
+Method. The volume of a structure at a phase is the sum over the slices of
+(area in mm² x **step between slices** in mm) / 1000, in ml (Simpson's discs): the
+step is the distance between successive positions along the normal, not
+`SliceThickness`, which can leave a gap. ED and ES are the phases of the largest
+and smallest LV volume. LV: EDV, ESV, SV = EDV − ESV, EF = SV / EDV; RV: the same;
+mass of the LV myocardium = MYO volume at ED x 1.05 g/ml; cardiac output = SV x
+heart rate, **only** when the heart rate is known (`HeartRate`, else
+`NominalInterval`); values indexed to the body surface (Mosteller) when
+`PatientSize` and `PatientWeight` are both there. The LVEF class is that of the
+2021 ESC heart-failure guidelines (McDonagh et al., Eur Heart J 2021;42:3599-3726):
+reduced ≤ 40 %, mildly reduced 41–49 %, preserved ≥ 50 %, read on the EF rounded
+to the unit. The base is the end of the stack where the LV cavity is larger (the
+DICOM geometry does not say which end is the apex): the answer says the order was
+inferred, with a warning (`slice_order_uncertain`) when the two ends look alike.
+
+The answer: `phases`, `slices` (`positionMm`, `stepMm`, base first), `sliceGapMm`,
+`phaseTimesMs`, `areasMm2[phase][slice]` (`LV`, `RV`, `MYO`), `lvVolumeCurveMl`,
+`edPhase` / `esPhase` (the automatic ones), `measures`, `bsaM2`, `heartRateBpm`,
+`labelMapsPng` and `slicesPng` (`ed` and `es` only, one PNG per slice: the other
+phases keep their areas, which are enough to recalculate), `warnings`, the model,
+weights and card identifiers, `durationMs`. The height and the weight themselves
+never leave the service, only the surface computed from them.
+`compute_measures(areas, spacing, ed, es, excluded_slices, bsa, hr)` is pure: the
+backend runs it again, written in TypeScript, when the physician moves ED or ES or
+excludes a slice, and both are checked against
+`tests/fixtures/cardio-volume/measures-cases.json` (inputs by hand, expected values
+in exact rational arithmetic).
+
 ## Install
 
 Python 3.12. Versions are pinned to training: torch 2.10.0, timm 1.0.25
@@ -259,6 +314,7 @@ uv pip install --python .venv -r requirements-dev.txt \
 | `AI_SERVICE_PORT` | `8001` | |
 | `AI_MAX_IMAGE_BYTES` | `20971520` (20 MB) | Larger uploads (images and ECG files): 413 |
 | `AI_MAX_IMAGE_PIXELS` | `50000000` | Larger images: 422 |
+| `AI_MAX_STACK_BYTES` | `314572800` (300 MiB) | Larger cine stacks (the .zip): 413 `stack_too_large` |
 | `AI_NUCLEI_MAX_SIDE` | `4096` | Nuclei segmentation: longer sides get 422 |
 | `AI_TF_INTRA_OP_THREADS` | half the CPUs | TensorFlow threads per operation |
 | `AI_TF_INTER_OP_THREADS` | `2` | TensorFlow operations run in parallel |
@@ -379,6 +435,10 @@ are listed under *Cardiology pipeline*.
   `labelMapPng` contains class indices 0–3. `areaMm2` is `null` without valid
   DICOM pixel spacing. The endpoint returns 503 `model_not_loaded` when the
   model is unavailable.
+- `POST /analyze/cardio/volume-mri` (multipart: `stack`, a .zip of single-frame
+  DICOM files, a whole short-axis cine) → volumes, ejection fractions and
+  myocardial mass: see *Cardiology — MRI volumetry*. 413 `stack_too_large`, 422
+  `cardio_volume_*`, 503 `model_not_loaded`.
 
 Errors, on every endpoint: 401 token, 413 too large, 422 `invalid_image`
 (not a decodable PNG/JPEG), 503 `model_not_loaded` (the classifier, for
@@ -733,3 +793,55 @@ Reports are written as `evaluation/cardio-seg-<date>-<sha8>.json` and copied
 to `evaluation/cardio-seg-latest.json`. Exit code 1 means the measured mean
 differs from the model card beyond its allowed tolerance; exit code 2 means
 the dataset or model is unavailable or the expected test split was not found.
+
+## Cardiology evaluation — MRI volumetry
+
+The same dataset and the same rules as the segmentation evaluation, for the
+ejection fractions and the volumes. Never run without the complete test set:
+
+```powershell
+cd <repository>\ai-service
+.\.venv\Scripts\python.exe -m scripts.evaluate_cardio_volume --acdc C:\datasets\ACDC_preprocessed
+# with the original NIfTI (volumes in ml and mass), and the figures of the thesis:
+.\.venv\Scripts\python.exe -m scripts.evaluate_cardio_volume --acdc C:\datasets\ACDC_preprocessed `
+    --acdc-nifti C:\datasets\ACDC\database --figures C:\datasets\figures
+```
+
+With the preprocessed slices (ED and ES only, no pixel spacing) it measures the
+**LV and RV ejection fractions** from the predicted and the true masks: the
+spacing cancels out in the ratio of two volumes of the same patient, and ED is the
+phase whose true LV is the larger. With `--acdc-nifti` (`database/training` and
+`database/testing`, with `pixdim` and `Info.cfg`) it also measures the **LV
+end-diastolic and end-systolic volumes in ml and the LV mass**, at the ED and ES of
+`Info.cfg`; each frame is rescaled to [0, 1] over its volume first, as the
+preprocessing that wrote the h5 files did (not checkable without the Kaggle files
+next to the NIfTI). For each measure: mean absolute error, bias and 95 % limits of
+agreement (Bland-Altman, bias ± 1.96 SD of the differences), Pearson's r. The 3D
+Dice of the segmentation is computed on the way and compared with the card's: the
+volumes only mean something while the batch inference still reproduces the
+notebook.
+
+The number of volumes (44) is checked before any inference. Reports:
+`evaluation/cardio-volume-<date>-<sha8>.json`, copied to
+`evaluation/cardio-volume-latest.json` (the backend prints the LVEF bias and limits
+of agreement of that file in the report of an analysis, and nothing when it is
+missing). `--figures` writes `lvef-bland-altman.pdf` and `lvef-predicted-vs-truth.pdf`
+and **refuses a folder inside the repository**. Exit code 1: the mean Dice differs
+from the card's by more than 0.005; exit code 2: data, model or folder missing, or
+not what the card expects. No image of the database is written.
+
+### Sample stack from ACDC (never committed)
+
+```powershell
+.\.venv\Scripts\python.exe -m scripts.make_sample_cine_dicom `
+    --acdc-patient C:\datasets\ACDC\database\training\patient001 --output C:\datasets\cine-patient001.zip
+```
+
+Turns one patient (`patient001_4d.nii.gz` and `Info.cfg`) into a cine DICOM stack
+ready to import in HealixDZ: all the phases, one series per position (or
+`--organisation single-series`), position, orientation, `PixelSpacing`,
+`SliceThickness`, `TriggerTime`, `PatientSize` and `PatientWeight`, new UIDs and a
+made-up patient. `--heart-rate` and `--rr-interval-ms` give a heart rate and a
+phase timing that ACDC does not hold. It needs nibabel (development dependency).
+The pixel data is ACDC's: **the licence forbids sharing it, so the archive stays on
+your machine**.

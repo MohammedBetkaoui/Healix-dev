@@ -34,6 +34,9 @@ class Settings:
     # analysis does not starve the PyTorch brain models of CPU.
     tf_intra_op_threads: int = 1
     tf_inter_op_threads: int = 2
+    # Upper bound of a cine stack (a .zip of DICOM files), in bytes: what
+    # cardio_volume_input accepts once unpacked (the archive is no larger).
+    max_stack_bytes: int = 300 * 1024 * 1024
 
 
 def load_settings() -> Settings:
@@ -47,4 +50,5 @@ def load_settings() -> Settings:
         nuclei_max_side=int(os.environ.get("AI_NUCLEI_MAX_SIDE", "4096")),
         tf_intra_op_threads=int(os.environ.get("AI_TF_INTRA_OP_THREADS") or default_tf_intra_op_threads()),
         tf_inter_op_threads=int(os.environ.get("AI_TF_INTER_OP_THREADS", "2")),
+        max_stack_bytes=int(os.environ.get("AI_MAX_STACK_BYTES", str(300 * 1024 * 1024))),
     )

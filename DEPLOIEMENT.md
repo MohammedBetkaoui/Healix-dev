@@ -873,6 +873,44 @@ l'étude garde les documents et analyses faits à partir de ses coupes (le lien
 requis. La migration `patient_document_dicom_slice` ajoute cinq colonnes
 nulles et deux index à `patient_documents` ; elle ne change aucune ligne.
 
+### Jeu d'essai : une pile ciné issue d'ACDC
+
+Aucune IRM cardiaque ciné réelle n'est dans le dépôt (la licence d'ACDC interdit de
+partager ses données). Pour essayer le calcul des volumes et de la fraction
+d'éjection, `ai-service/scripts/make_sample_cine_dicom.py` fabrique **sur votre
+machine** une pile ciné DICOM à partir d'un patient d'ACDC en NIfTI (le dossier
+`patientXXX` de la base d'origine : `patientXXX_4d.nii.gz` et `Info.cfg`) :
+
+```powershell
+cd <dépôt>\ai-service
+.\.venv\Scripts\python.exe -m scripts.make_sample_cine_dicom `
+    --acdc-patient C:\datasets\ACDC\database\training\patient001 `
+    --output C:\datasets\cine-patient001.zip
+```
+
+- **Contenu** : toutes les phases, toutes les positions, comme un examen exporté par un
+  scanner : une série par position (ou `--organisation single-series` pour une seule
+  série qui contient tout), `ImagePositionPatient`, `ImageOrientationPatient`,
+  `PixelSpacing`, `SliceThickness`, `TriggerTime`, `PatientSize` et `PatientWeight`
+  (lus dans `Info.cfg`), des UID neufs et un patient fictif (`Test^Cine`). La
+  fréquence cardiaque n'est pas dans ACDC : `--heart-rate 70` l'écrit (`HeartRate`,
+  `NominalInterval`), `--rr-interval-ms` règle le rythme des phases (1000 ms par
+  défaut). Sans elle, le débit cardiaque n'est pas calculé.
+- **Limite** : la géométrie est celle de la base (espacement des pixels, pas entre
+  les coupes) posée sur une grille axiale, pas l'orientation d'origine : de quoi
+  tester la volumétrie, pas une copie d'acquisition. Il faut nibabel (dépendance de
+  développement, `requirements-dev.txt`).
+- **Import** : le .zip s'importe comme n'importe quelle étude (onglet imagerie du
+  dossier d'un patient). Sans l'interface, le service IA l'accepte directement :
+  `curl -H "X-Service-Token: <jeton>" -F stack=@cine-patient001.zip
+  http://127.0.0.1:8001/analyze/cardio/volume-mri`.
+- **Ne le commitez pas et ne le partagez pas** : ce sont des pixels d'ACDC. Le script
+  l'écrit où vous le dites, jamais dans le dépôt.
+
+Pour comparer au résultat attendu, `scripts/evaluate_cardio_volume.py` mesure l'écart
+aux masques de vérité d'ACDC sur les 22 patients de test (voir le README du service
+IA, « Cardiology evaluation — MRI volumetry »).
+
 **Montée de version d'Orthanc.** Changez l'étiquette dans
 `docker-compose.yml` après lecture des notes de version, et faites une
 sauvegarde juste avant (section 9) : Orthanc peut migrer son index au

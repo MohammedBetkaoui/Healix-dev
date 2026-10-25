@@ -1,0 +1,1937 @@
+{
+ "description": "Cases of compute_measures shared by ai-service (Python) and backend (TypeScript): inputs by hand, expected values in exact rational arithmetic.",
+ "cases": [
+  {
+   "name": "uniform_6_slices",
+   "description": "6 slices of 1000/400 mm\u00b2 LV, step 10 mm: EDV 60 ml, ESV 24 ml, EF 60 %; MYO 48 ml x 1.05 = 50.4 g; nothing indexed, no output",
+   "input": {
+    "areas": [
+     [
+      {
+       "LV": 1000,
+       "RV": 1200,
+       "MYO": 800
+      },
+      {
+       "LV": 1000,
+       "RV": 1200,
+       "MYO": 800
+      },
+      {
+       "LV": 1000,
+       "RV": 1200,
+       "MYO": 800
+      },
+      {
+       "LV": 1000,
+       "RV": 1200,
+       "MYO": 800
+      },
+      {
+       "LV": 1000,
+       "RV": 1200,
+       "MYO": 800
+      },
+      {
+       "LV": 1000,
+       "RV": 1200,
+       "MYO": 800
+      }
+     ],
+     [
+      {
+       "LV": 400,
+       "RV": 700,
+       "MYO": 900
+      },
+      {
+       "LV": 400,
+       "RV": 700,
+       "MYO": 900
+      },
+      {
+       "LV": 400,
+       "RV": 700,
+       "MYO": 900
+      },
+      {
+       "LV": 400,
+       "RV": 700,
+       "MYO": 900
+      },
+      {
+       "LV": 400,
+       "RV": 700,
+       "MYO": 900
+      },
+      {
+       "LV": 400,
+       "RV": 700,
+       "MYO": 900
+      }
+     ]
+    ],
+    "gapMm": 10,
+    "edPhase": 0,
+    "esPhase": 1,
+    "excludedSlices": [],
+    "bsaM2": null,
+    "heartRateBpm": null
+   },
+   "expected": {
+    "edPhase": 0,
+    "esPhase": 1,
+    "excludedSlices": [],
+    "lv": {
+     "edvMl": 60.0,
+     "esvMl": 24.0,
+     "svMl": 36.0,
+     "efPercent": 60.0
+    },
+    "rv": {
+     "edvMl": 72.0,
+     "esvMl": 42.0,
+     "svMl": 30.0,
+     "efPercent": 41.666666666666664
+    },
+    "lvMassG": 50.4,
+    "cardiacOutputLMin": null,
+    "heartRateBpm": null,
+    "bsaM2": null,
+    "indexed": null,
+    "warnings": [],
+    "lvefClass": "preserved"
+   }
+  },
+  {
+   "name": "indexed_and_cardiac_output",
+   "description": "the same with BSA 2.0 m\u00b2 and 60 bpm: SV 36 ml x 60 = 2.16 L/min, everything divided by 2",
+   "input": {
+    "areas": [
+     [
+      {
+       "LV": 1000,
+       "RV": 1200,
+       "MYO": 800
+      },
+      {
+       "LV": 1000,
+       "RV": 1200,
+       "MYO": 800
+      },
+      {
+       "LV": 1000,
+       "RV": 1200,
+       "MYO": 800
+      },
+      {
+       "LV": 1000,
+       "RV": 1200,
+       "MYO": 800
+      },
+      {
+       "LV": 1000,
+       "RV": 1200,
+       "MYO": 800
+      },
+      {
+       "LV": 1000,
+       "RV": 1200,
+       "MYO": 800
+      }
+     ],
+     [
+      {
+       "LV": 400,
+       "RV": 700,
+       "MYO": 900
+      },
+      {
+       "LV": 400,
+       "RV": 700,
+       "MYO": 900
+      },
+      {
+       "LV": 400,
+       "RV": 700,
+       "MYO": 900
+      },
+      {
+       "LV": 400,
+       "RV": 700,
+       "MYO": 900
+      },
+      {
+       "LV": 400,
+       "RV": 700,
+       "MYO": 900
+      },
+      {
+       "LV": 400,
+       "RV": 700,
+       "MYO": 900
+      }
+     ]
+    ],
+    "gapMm": 10,
+    "edPhase": 0,
+    "esPhase": 1,
+    "excludedSlices": [],
+    "bsaM2": 2.0,
+    "heartRateBpm": 60
+   },
+   "expected": {
+    "edPhase": 0,
+    "esPhase": 1,
+    "excludedSlices": [],
+    "lv": {
+     "edvMl": 60.0,
+     "esvMl": 24.0,
+     "svMl": 36.0,
+     "efPercent": 60.0
+    },
+    "rv": {
+     "edvMl": 72.0,
+     "esvMl": 42.0,
+     "svMl": 30.0,
+     "efPercent": 41.666666666666664
+    },
+    "lvMassG": 50.4,
+    "cardiacOutputLMin": 2.16,
+    "heartRateBpm": 60,
+    "bsaM2": 2.0,
+    "indexed": {
+     "lvEdvMlM2": 30.0,
+     "lvEsvMlM2": 12.0,
+     "lvSvMlM2": 18.0,
+     "rvEdvMlM2": 36.0,
+     "rvEsvMlM2": 21.0,
+     "lvMassGM2": 25.2,
+     "cardiacIndexLMinM2": 1.08
+    },
+    "warnings": [],
+    "lvefClass": "preserved"
+   }
+  },
+  {
+   "name": "heart_rate_without_bsa",
+   "description": "output without indexing",
+   "input": {
+    "areas": [
+     [
+      {
+       "LV": 1000,
+       "RV": 1200,
+       "MYO": 800
+      },
+      {
+       "LV": 1000,
+       "RV": 1200,
+       "MYO": 800
+      },
+      {
+       "LV": 1000,
+       "RV": 1200,
+       "MYO": 800
+      },
+      {
+       "LV": 1000,
+       "RV": 1200,
+       "MYO": 800
+      },
+      {
+       "LV": 1000,
+       "RV": 1200,
+       "MYO": 800
+      },
+      {
+       "LV": 1000,
+       "RV": 1200,
+       "MYO": 800
+      }
+     ],
+     [
+      {
+       "LV": 400,
+       "RV": 700,
+       "MYO": 900
+      },
+      {
+       "LV": 400,
+       "RV": 700,
+       "MYO": 900
+      },
+      {
+       "LV": 400,
+       "RV": 700,
+       "MYO": 900
+      },
+      {
+       "LV": 400,
+       "RV": 700,
+       "MYO": 900
+      },
+      {
+       "LV": 400,
+       "RV": 700,
+       "MYO": 900
+      },
+      {
+       "LV": 400,
+       "RV": 700,
+       "MYO": 900
+      }
+     ]
+    ],
+    "gapMm": 10,
+    "edPhase": 0,
+    "esPhase": 1,
+    "excludedSlices": [],
+    "bsaM2": null,
+    "heartRateBpm": 75
+   },
+   "expected": {
+    "edPhase": 0,
+    "esPhase": 1,
+    "excludedSlices": [],
+    "lv": {
+     "edvMl": 60.0,
+     "esvMl": 24.0,
+     "svMl": 36.0,
+     "efPercent": 60.0
+    },
+    "rv": {
+     "edvMl": 72.0,
+     "esvMl": 42.0,
+     "svMl": 30.0,
+     "efPercent": 41.666666666666664
+    },
+    "lvMassG": 50.4,
+    "cardiacOutputLMin": 2.7,
+    "heartRateBpm": 75,
+    "bsaM2": null,
+    "indexed": null,
+    "warnings": [],
+    "lvefClass": "preserved"
+   }
+  },
+  {
+   "name": "bsa_without_heart_rate",
+   "description": "indexing without output (no heart rate: no cardiac output, no cardiac index)",
+   "input": {
+    "areas": [
+     [
+      {
+       "LV": 1000,
+       "RV": 1200,
+       "MYO": 800
+      },
+      {
+       "LV": 1000,
+       "RV": 1200,
+       "MYO": 800
+      },
+      {
+       "LV": 1000,
+       "RV": 1200,
+       "MYO": 800
+      },
+      {
+       "LV": 1000,
+       "RV": 1200,
+       "MYO": 800
+      },
+      {
+       "LV": 1000,
+       "RV": 1200,
+       "MYO": 800
+      },
+      {
+       "LV": 1000,
+       "RV": 1200,
+       "MYO": 800
+      }
+     ],
+     [
+      {
+       "LV": 400,
+       "RV": 700,
+       "MYO": 900
+      },
+      {
+       "LV": 400,
+       "RV": 700,
+       "MYO": 900
+      },
+      {
+       "LV": 400,
+       "RV": 700,
+       "MYO": 900
+      },
+      {
+       "LV": 400,
+       "RV": 700,
+       "MYO": 900
+      },
+      {
+       "LV": 400,
+       "RV": 700,
+       "MYO": 900
+      },
+      {
+       "LV": 400,
+       "RV": 700,
+       "MYO": 900
+      }
+     ]
+    ],
+    "gapMm": 10,
+    "edPhase": 0,
+    "esPhase": 1,
+    "excludedSlices": [],
+    "bsaM2": 1.8,
+    "heartRateBpm": null
+   },
+   "expected": {
+    "edPhase": 0,
+    "esPhase": 1,
+    "excludedSlices": [],
+    "lv": {
+     "edvMl": 60.0,
+     "esvMl": 24.0,
+     "svMl": 36.0,
+     "efPercent": 60.0
+    },
+    "rv": {
+     "edvMl": 72.0,
+     "esvMl": 42.0,
+     "svMl": 30.0,
+     "efPercent": 41.666666666666664
+    },
+    "lvMassG": 50.4,
+    "cardiacOutputLMin": null,
+    "heartRateBpm": null,
+    "bsaM2": 1.8,
+    "indexed": {
+     "lvEdvMlM2": 33.333333333333336,
+     "lvEsvMlM2": 13.333333333333334,
+     "lvSvMlM2": 20.0,
+     "rvEdvMlM2": 40.0,
+     "rvEsvMlM2": 23.333333333333332,
+     "lvMassGM2": 28.0,
+     "cardiacIndexLMinM2": null
+    },
+    "warnings": [],
+    "lvefClass": "preserved"
+   }
+  },
+  {
+   "name": "tapered_stack",
+   "description": "base larger than apex, 3 phases, step 8 mm",
+   "input": {
+    "areas": [
+     [
+      {
+       "LV": 1500,
+       "RV": 1800,
+       "MYO": 900
+      },
+      {
+       "LV": 1200,
+       "RV": 1500,
+       "MYO": 850
+      },
+      {
+       "LV": 1000,
+       "RV": 1300,
+       "MYO": 800
+      },
+      {
+       "LV": 800,
+       "RV": 1000,
+       "MYO": 700
+      },
+      {
+       "LV": 500,
+       "RV": 600,
+       "MYO": 500
+      },
+      {
+       "LV": 200,
+       "RV": 200,
+       "MYO": 300
+      }
+     ],
+     [
+      {
+       "LV": 800,
+       "RV": 1300,
+       "MYO": 1000
+      },
+      {
+       "LV": 600,
+       "RV": 1100,
+       "MYO": 950
+      },
+      {
+       "LV": 500,
+       "RV": 900,
+       "MYO": 900
+      },
+      {
+       "LV": 400,
+       "RV": 700,
+       "MYO": 800
+      },
+      {
+       "LV": 250,
+       "RV": 400,
+       "MYO": 600
+      },
+      {
+       "LV": 100,
+       "RV": 150,
+       "MYO": 400
+      }
+     ],
+     [
+      {
+       "LV": 1100,
+       "RV": 1500,
+       "MYO": 950
+      },
+      {
+       "LV": 900,
+       "RV": 1300,
+       "MYO": 900
+      },
+      {
+       "LV": 700,
+       "RV": 1100,
+       "MYO": 850
+      },
+      {
+       "LV": 600,
+       "RV": 850,
+       "MYO": 750
+      },
+      {
+       "LV": 350,
+       "RV": 500,
+       "MYO": 550
+      },
+      {
+       "LV": 150,
+       "RV": 180,
+       "MYO": 350
+      }
+     ]
+    ],
+    "gapMm": 8,
+    "edPhase": 0,
+    "esPhase": 1,
+    "excludedSlices": [],
+    "bsaM2": 1.95,
+    "heartRateBpm": 68
+   },
+   "expected": {
+    "edPhase": 0,
+    "esPhase": 1,
+    "excludedSlices": [],
+    "lv": {
+     "edvMl": 41.6,
+     "esvMl": 21.2,
+     "svMl": 20.4,
+     "efPercent": 49.03846153846154
+    },
+    "rv": {
+     "edvMl": 51.2,
+     "esvMl": 36.4,
+     "svMl": 14.8,
+     "efPercent": 28.90625
+    },
+    "lvMassG": 34.02,
+    "cardiacOutputLMin": 1.3872,
+    "heartRateBpm": 68,
+    "bsaM2": 1.95,
+    "indexed": {
+     "lvEdvMlM2": 21.333333333333332,
+     "lvEsvMlM2": 10.871794871794872,
+     "lvSvMlM2": 10.461538461538462,
+     "rvEdvMlM2": 26.256410256410255,
+     "rvEsvMlM2": 18.666666666666668,
+     "lvMassGM2": 17.446153846153845,
+     "cardiacIndexLMinM2": 0.7113846153846154
+    },
+    "warnings": [],
+    "lvefClass": "mildlyReduced"
+   }
+  },
+  {
+   "name": "basal_slice_excluded",
+   "description": "the basal slice left out of every sum: EF exactly 50 %",
+   "input": {
+    "areas": [
+     [
+      {
+       "LV": 1500,
+       "RV": 1800,
+       "MYO": 900
+      },
+      {
+       "LV": 1200,
+       "RV": 1500,
+       "MYO": 850
+      },
+      {
+       "LV": 1000,
+       "RV": 1300,
+       "MYO": 800
+      },
+      {
+       "LV": 800,
+       "RV": 1000,
+       "MYO": 700
+      },
+      {
+       "LV": 500,
+       "RV": 600,
+       "MYO": 500
+      },
+      {
+       "LV": 200,
+       "RV": 200,
+       "MYO": 300
+      }
+     ],
+     [
+      {
+       "LV": 800,
+       "RV": 1300,
+       "MYO": 1000
+      },
+      {
+       "LV": 600,
+       "RV": 1100,
+       "MYO": 950
+      },
+      {
+       "LV": 500,
+       "RV": 900,
+       "MYO": 900
+      },
+      {
+       "LV": 400,
+       "RV": 700,
+       "MYO": 800
+      },
+      {
+       "LV": 250,
+       "RV": 400,
+       "MYO": 600
+      },
+      {
+       "LV": 100,
+       "RV": 150,
+       "MYO": 400
+      }
+     ],
+     [
+      {
+       "LV": 1100,
+       "RV": 1500,
+       "MYO": 950
+      },
+      {
+       "LV": 900,
+       "RV": 1300,
+       "MYO": 900
+      },
+      {
+       "LV": 700,
+       "RV": 1100,
+       "MYO": 850
+      },
+      {
+       "LV": 600,
+       "RV": 850,
+       "MYO": 750
+      },
+      {
+       "LV": 350,
+       "RV": 500,
+       "MYO": 550
+      },
+      {
+       "LV": 150,
+       "RV": 180,
+       "MYO": 350
+      }
+     ]
+    ],
+    "gapMm": 8,
+    "edPhase": 0,
+    "esPhase": 1,
+    "excludedSlices": [
+     0
+    ],
+    "bsaM2": 1.95,
+    "heartRateBpm": 68
+   },
+   "expected": {
+    "edPhase": 0,
+    "esPhase": 1,
+    "excludedSlices": [
+     0
+    ],
+    "lv": {
+     "edvMl": 29.6,
+     "esvMl": 14.8,
+     "svMl": 14.8,
+     "efPercent": 50.0
+    },
+    "rv": {
+     "edvMl": 36.8,
+     "esvMl": 26.0,
+     "svMl": 10.8,
+     "efPercent": 29.347826086956523
+    },
+    "lvMassG": 26.46,
+    "cardiacOutputLMin": 1.0064,
+    "heartRateBpm": 68,
+    "bsaM2": 1.95,
+    "indexed": {
+     "lvEdvMlM2": 15.179487179487179,
+     "lvEsvMlM2": 7.589743589743589,
+     "lvSvMlM2": 7.589743589743589,
+     "rvEdvMlM2": 18.871794871794872,
+     "rvEsvMlM2": 13.333333333333334,
+     "lvMassGM2": 13.569230769230769,
+     "cardiacIndexLMinM2": 0.516102564102564
+    },
+    "warnings": [],
+    "lvefClass": "preserved"
+   }
+  },
+  {
+   "name": "middle_phase_as_es",
+   "description": "ES moved to the third phase",
+   "input": {
+    "areas": [
+     [
+      {
+       "LV": 1500,
+       "RV": 1800,
+       "MYO": 900
+      },
+      {
+       "LV": 1200,
+       "RV": 1500,
+       "MYO": 850
+      },
+      {
+       "LV": 1000,
+       "RV": 1300,
+       "MYO": 800
+      },
+      {
+       "LV": 800,
+       "RV": 1000,
+       "MYO": 700
+      },
+      {
+       "LV": 500,
+       "RV": 600,
+       "MYO": 500
+      },
+      {
+       "LV": 200,
+       "RV": 200,
+       "MYO": 300
+      }
+     ],
+     [
+      {
+       "LV": 800,
+       "RV": 1300,
+       "MYO": 1000
+      },
+      {
+       "LV": 600,
+       "RV": 1100,
+       "MYO": 950
+      },
+      {
+       "LV": 500,
+       "RV": 900,
+       "MYO": 900
+      },
+      {
+       "LV": 400,
+       "RV": 700,
+       "MYO": 800
+      },
+      {
+       "LV": 250,
+       "RV": 400,
+       "MYO": 600
+      },
+      {
+       "LV": 100,
+       "RV": 150,
+       "MYO": 400
+      }
+     ],
+     [
+      {
+       "LV": 1100,
+       "RV": 1500,
+       "MYO": 950
+      },
+      {
+       "LV": 900,
+       "RV": 1300,
+       "MYO": 900
+      },
+      {
+       "LV": 700,
+       "RV": 1100,
+       "MYO": 850
+      },
+      {
+       "LV": 600,
+       "RV": 850,
+       "MYO": 750
+      },
+      {
+       "LV": 350,
+       "RV": 500,
+       "MYO": 550
+      },
+      {
+       "LV": 150,
+       "RV": 180,
+       "MYO": 350
+      }
+     ]
+    ],
+    "gapMm": 8,
+    "edPhase": 0,
+    "esPhase": 2,
+    "excludedSlices": [],
+    "bsaM2": null,
+    "heartRateBpm": null
+   },
+   "expected": {
+    "edPhase": 0,
+    "esPhase": 2,
+    "excludedSlices": [],
+    "lv": {
+     "edvMl": 41.6,
+     "esvMl": 30.4,
+     "svMl": 11.2,
+     "efPercent": 26.923076923076923
+    },
+    "rv": {
+     "edvMl": 51.2,
+     "esvMl": 43.44,
+     "svMl": 7.76,
+     "efPercent": 15.15625
+    },
+    "lvMassG": 34.02,
+    "cardiacOutputLMin": null,
+    "heartRateBpm": null,
+    "bsaM2": null,
+    "indexed": null,
+    "warnings": [],
+    "lvefClass": "reduced"
+   }
+  },
+  {
+   "name": "two_slices_excluded",
+   "description": "slices 0 and 5 left out",
+   "input": {
+    "areas": [
+     [
+      {
+       "LV": 1500,
+       "RV": 1800,
+       "MYO": 900
+      },
+      {
+       "LV": 1200,
+       "RV": 1500,
+       "MYO": 850
+      },
+      {
+       "LV": 1000,
+       "RV": 1300,
+       "MYO": 800
+      },
+      {
+       "LV": 800,
+       "RV": 1000,
+       "MYO": 700
+      },
+      {
+       "LV": 500,
+       "RV": 600,
+       "MYO": 500
+      },
+      {
+       "LV": 200,
+       "RV": 200,
+       "MYO": 300
+      }
+     ],
+     [
+      {
+       "LV": 800,
+       "RV": 1300,
+       "MYO": 1000
+      },
+      {
+       "LV": 600,
+       "RV": 1100,
+       "MYO": 950
+      },
+      {
+       "LV": 500,
+       "RV": 900,
+       "MYO": 900
+      },
+      {
+       "LV": 400,
+       "RV": 700,
+       "MYO": 800
+      },
+      {
+       "LV": 250,
+       "RV": 400,
+       "MYO": 600
+      },
+      {
+       "LV": 100,
+       "RV": 150,
+       "MYO": 400
+      }
+     ],
+     [
+      {
+       "LV": 1100,
+       "RV": 1500,
+       "MYO": 950
+      },
+      {
+       "LV": 900,
+       "RV": 1300,
+       "MYO": 900
+      },
+      {
+       "LV": 700,
+       "RV": 1100,
+       "MYO": 850
+      },
+      {
+       "LV": 600,
+       "RV": 850,
+       "MYO": 750
+      },
+      {
+       "LV": 350,
+       "RV": 500,
+       "MYO": 550
+      },
+      {
+       "LV": 150,
+       "RV": 180,
+       "MYO": 350
+      }
+     ]
+    ],
+    "gapMm": 8,
+    "edPhase": 0,
+    "esPhase": 1,
+    "excludedSlices": [
+     5,
+     0
+    ],
+    "bsaM2": null,
+    "heartRateBpm": null
+   },
+   "expected": {
+    "edPhase": 0,
+    "esPhase": 1,
+    "excludedSlices": [
+     0,
+     5
+    ],
+    "lv": {
+     "edvMl": 28.0,
+     "esvMl": 14.0,
+     "svMl": 14.0,
+     "efPercent": 50.0
+    },
+    "rv": {
+     "edvMl": 35.2,
+     "esvMl": 24.8,
+     "svMl": 10.4,
+     "efPercent": 29.545454545454547
+    },
+    "lvMassG": 23.94,
+    "cardiacOutputLMin": null,
+    "heartRateBpm": null,
+    "bsaM2": null,
+    "indexed": null,
+    "warnings": [],
+    "lvefClass": "preserved"
+   }
+  },
+  {
+   "name": "ef_40_reduced",
+   "description": "EF 40.0 % (ESC: reduced): the ESC class is read on the EF rounded to the unit",
+   "input": {
+    "areas": [
+     [
+      {
+       "LV": 1000,
+       "RV": 1000,
+       "MYO": 700
+      },
+      {
+       "LV": 1000,
+       "RV": 1000,
+       "MYO": 700
+      },
+      {
+       "LV": 1000,
+       "RV": 1000,
+       "MYO": 700
+      },
+      {
+       "LV": 1000,
+       "RV": 1000,
+       "MYO": 700
+      },
+      {
+       "LV": 1000,
+       "RV": 1000,
+       "MYO": 700
+      },
+      {
+       "LV": 1000,
+       "RV": 1000,
+       "MYO": 700
+      }
+     ],
+     [
+      {
+       "LV": 600,
+       "RV": 800,
+       "MYO": 700
+      },
+      {
+       "LV": 600,
+       "RV": 800,
+       "MYO": 700
+      },
+      {
+       "LV": 600,
+       "RV": 800,
+       "MYO": 700
+      },
+      {
+       "LV": 600,
+       "RV": 800,
+       "MYO": 700
+      },
+      {
+       "LV": 600,
+       "RV": 800,
+       "MYO": 700
+      },
+      {
+       "LV": 600,
+       "RV": 800,
+       "MYO": 700
+      }
+     ]
+    ],
+    "gapMm": 10,
+    "edPhase": 0,
+    "esPhase": 1,
+    "excludedSlices": [],
+    "bsaM2": null,
+    "heartRateBpm": null
+   },
+   "expected": {
+    "edPhase": 0,
+    "esPhase": 1,
+    "excludedSlices": [],
+    "lv": {
+     "edvMl": 60.0,
+     "esvMl": 36.0,
+     "svMl": 24.0,
+     "efPercent": 40.0
+    },
+    "rv": {
+     "edvMl": 60.0,
+     "esvMl": 48.0,
+     "svMl": 12.0,
+     "efPercent": 20.0
+    },
+    "lvMassG": 44.1,
+    "cardiacOutputLMin": null,
+    "heartRateBpm": null,
+    "bsaM2": null,
+    "indexed": null,
+    "warnings": [],
+    "lvefClass": "reduced"
+   }
+  },
+  {
+   "name": "ef_41_mildly_reduced",
+   "description": "EF 41.0 % (mildly reduced): the ESC class is read on the EF rounded to the unit",
+   "input": {
+    "areas": [
+     [
+      {
+       "LV": 1000,
+       "RV": 1000,
+       "MYO": 700
+      },
+      {
+       "LV": 1000,
+       "RV": 1000,
+       "MYO": 700
+      },
+      {
+       "LV": 1000,
+       "RV": 1000,
+       "MYO": 700
+      },
+      {
+       "LV": 1000,
+       "RV": 1000,
+       "MYO": 700
+      },
+      {
+       "LV": 1000,
+       "RV": 1000,
+       "MYO": 700
+      },
+      {
+       "LV": 1000,
+       "RV": 1000,
+       "MYO": 700
+      }
+     ],
+     [
+      {
+       "LV": 590,
+       "RV": 800,
+       "MYO": 700
+      },
+      {
+       "LV": 590,
+       "RV": 800,
+       "MYO": 700
+      },
+      {
+       "LV": 590,
+       "RV": 800,
+       "MYO": 700
+      },
+      {
+       "LV": 590,
+       "RV": 800,
+       "MYO": 700
+      },
+      {
+       "LV": 590,
+       "RV": 800,
+       "MYO": 700
+      },
+      {
+       "LV": 590,
+       "RV": 800,
+       "MYO": 700
+      }
+     ]
+    ],
+    "gapMm": 10,
+    "edPhase": 0,
+    "esPhase": 1,
+    "excludedSlices": [],
+    "bsaM2": null,
+    "heartRateBpm": null
+   },
+   "expected": {
+    "edPhase": 0,
+    "esPhase": 1,
+    "excludedSlices": [],
+    "lv": {
+     "edvMl": 60.0,
+     "esvMl": 35.4,
+     "svMl": 24.6,
+     "efPercent": 41.0
+    },
+    "rv": {
+     "edvMl": 60.0,
+     "esvMl": 48.0,
+     "svMl": 12.0,
+     "efPercent": 20.0
+    },
+    "lvMassG": 44.1,
+    "cardiacOutputLMin": null,
+    "heartRateBpm": null,
+    "bsaM2": null,
+    "indexed": null,
+    "warnings": [],
+    "lvefClass": "mildlyReduced"
+   }
+  },
+  {
+   "name": "ef_49_mildly_reduced",
+   "description": "EF 49.0 % (mildly reduced): the ESC class is read on the EF rounded to the unit",
+   "input": {
+    "areas": [
+     [
+      {
+       "LV": 1000,
+       "RV": 1000,
+       "MYO": 700
+      },
+      {
+       "LV": 1000,
+       "RV": 1000,
+       "MYO": 700
+      },
+      {
+       "LV": 1000,
+       "RV": 1000,
+       "MYO": 700
+      },
+      {
+       "LV": 1000,
+       "RV": 1000,
+       "MYO": 700
+      },
+      {
+       "LV": 1000,
+       "RV": 1000,
+       "MYO": 700
+      },
+      {
+       "LV": 1000,
+       "RV": 1000,
+       "MYO": 700
+      }
+     ],
+     [
+      {
+       "LV": 510,
+       "RV": 800,
+       "MYO": 700
+      },
+      {
+       "LV": 510,
+       "RV": 800,
+       "MYO": 700
+      },
+      {
+       "LV": 510,
+       "RV": 800,
+       "MYO": 700
+      },
+      {
+       "LV": 510,
+       "RV": 800,
+       "MYO": 700
+      },
+      {
+       "LV": 510,
+       "RV": 800,
+       "MYO": 700
+      },
+      {
+       "LV": 510,
+       "RV": 800,
+       "MYO": 700
+      }
+     ]
+    ],
+    "gapMm": 10,
+    "edPhase": 0,
+    "esPhase": 1,
+    "excludedSlices": [],
+    "bsaM2": null,
+    "heartRateBpm": null
+   },
+   "expected": {
+    "edPhase": 0,
+    "esPhase": 1,
+    "excludedSlices": [],
+    "lv": {
+     "edvMl": 60.0,
+     "esvMl": 30.6,
+     "svMl": 29.4,
+     "efPercent": 49.0
+    },
+    "rv": {
+     "edvMl": 60.0,
+     "esvMl": 48.0,
+     "svMl": 12.0,
+     "efPercent": 20.0
+    },
+    "lvMassG": 44.1,
+    "cardiacOutputLMin": null,
+    "heartRateBpm": null,
+    "bsaM2": null,
+    "indexed": null,
+    "warnings": [],
+    "lvefClass": "mildlyReduced"
+   }
+  },
+  {
+   "name": "ef_50_preserved",
+   "description": "EF 50.0 % (preserved): the ESC class is read on the EF rounded to the unit",
+   "input": {
+    "areas": [
+     [
+      {
+       "LV": 1000,
+       "RV": 1000,
+       "MYO": 700
+      },
+      {
+       "LV": 1000,
+       "RV": 1000,
+       "MYO": 700
+      },
+      {
+       "LV": 1000,
+       "RV": 1000,
+       "MYO": 700
+      },
+      {
+       "LV": 1000,
+       "RV": 1000,
+       "MYO": 700
+      },
+      {
+       "LV": 1000,
+       "RV": 1000,
+       "MYO": 700
+      },
+      {
+       "LV": 1000,
+       "RV": 1000,
+       "MYO": 700
+      }
+     ],
+     [
+      {
+       "LV": 500,
+       "RV": 800,
+       "MYO": 700
+      },
+      {
+       "LV": 500,
+       "RV": 800,
+       "MYO": 700
+      },
+      {
+       "LV": 500,
+       "RV": 800,
+       "MYO": 700
+      },
+      {
+       "LV": 500,
+       "RV": 800,
+       "MYO": 700
+      },
+      {
+       "LV": 500,
+       "RV": 800,
+       "MYO": 700
+      },
+      {
+       "LV": 500,
+       "RV": 800,
+       "MYO": 700
+      }
+     ]
+    ],
+    "gapMm": 10,
+    "edPhase": 0,
+    "esPhase": 1,
+    "excludedSlices": [],
+    "bsaM2": null,
+    "heartRateBpm": null
+   },
+   "expected": {
+    "edPhase": 0,
+    "esPhase": 1,
+    "excludedSlices": [],
+    "lv": {
+     "edvMl": 60.0,
+     "esvMl": 30.0,
+     "svMl": 30.0,
+     "efPercent": 50.0
+    },
+    "rv": {
+     "edvMl": 60.0,
+     "esvMl": 48.0,
+     "svMl": 12.0,
+     "efPercent": 20.0
+    },
+    "lvMassG": 44.1,
+    "cardiacOutputLMin": null,
+    "heartRateBpm": null,
+    "bsaM2": null,
+    "indexed": null,
+    "warnings": [],
+    "lvefClass": "preserved"
+   }
+  },
+  {
+   "name": "ef_30_reduced",
+   "description": "EF 30 % (reduced): the ESC class is read on the EF rounded to the unit",
+   "input": {
+    "areas": [
+     [
+      {
+       "LV": 1000,
+       "RV": 1000,
+       "MYO": 700
+      },
+      {
+       "LV": 1000,
+       "RV": 1000,
+       "MYO": 700
+      },
+      {
+       "LV": 1000,
+       "RV": 1000,
+       "MYO": 700
+      },
+      {
+       "LV": 1000,
+       "RV": 1000,
+       "MYO": 700
+      },
+      {
+       "LV": 1000,
+       "RV": 1000,
+       "MYO": 700
+      },
+      {
+       "LV": 1000,
+       "RV": 1000,
+       "MYO": 700
+      }
+     ],
+     [
+      {
+       "LV": 700,
+       "RV": 800,
+       "MYO": 700
+      },
+      {
+       "LV": 700,
+       "RV": 800,
+       "MYO": 700
+      },
+      {
+       "LV": 700,
+       "RV": 800,
+       "MYO": 700
+      },
+      {
+       "LV": 700,
+       "RV": 800,
+       "MYO": 700
+      },
+      {
+       "LV": 700,
+       "RV": 800,
+       "MYO": 700
+      },
+      {
+       "LV": 700,
+       "RV": 800,
+       "MYO": 700
+      }
+     ]
+    ],
+    "gapMm": 10,
+    "edPhase": 0,
+    "esPhase": 1,
+    "excludedSlices": [],
+    "bsaM2": null,
+    "heartRateBpm": null
+   },
+   "expected": {
+    "edPhase": 0,
+    "esPhase": 1,
+    "excludedSlices": [],
+    "lv": {
+     "edvMl": 60.0,
+     "esvMl": 42.0,
+     "svMl": 18.0,
+     "efPercent": 30.0
+    },
+    "rv": {
+     "edvMl": 60.0,
+     "esvMl": 48.0,
+     "svMl": 12.0,
+     "efPercent": 20.0
+    },
+    "lvMassG": 44.1,
+    "cardiacOutputLMin": null,
+    "heartRateBpm": null,
+    "bsaM2": null,
+    "indexed": null,
+    "warnings": [],
+    "lvefClass": "reduced"
+   }
+  },
+  {
+   "name": "ef_65_preserved",
+   "description": "EF 65 % (preserved): the ESC class is read on the EF rounded to the unit",
+   "input": {
+    "areas": [
+     [
+      {
+       "LV": 1000,
+       "RV": 1000,
+       "MYO": 700
+      },
+      {
+       "LV": 1000,
+       "RV": 1000,
+       "MYO": 700
+      },
+      {
+       "LV": 1000,
+       "RV": 1000,
+       "MYO": 700
+      },
+      {
+       "LV": 1000,
+       "RV": 1000,
+       "MYO": 700
+      },
+      {
+       "LV": 1000,
+       "RV": 1000,
+       "MYO": 700
+      },
+      {
+       "LV": 1000,
+       "RV": 1000,
+       "MYO": 700
+      }
+     ],
+     [
+      {
+       "LV": 350,
+       "RV": 800,
+       "MYO": 700
+      },
+      {
+       "LV": 350,
+       "RV": 800,
+       "MYO": 700
+      },
+      {
+       "LV": 350,
+       "RV": 800,
+       "MYO": 700
+      },
+      {
+       "LV": 350,
+       "RV": 800,
+       "MYO": 700
+      },
+      {
+       "LV": 350,
+       "RV": 800,
+       "MYO": 700
+      },
+      {
+       "LV": 350,
+       "RV": 800,
+       "MYO": 700
+      }
+     ]
+    ],
+    "gapMm": 10,
+    "edPhase": 0,
+    "esPhase": 1,
+    "excludedSlices": [],
+    "bsaM2": null,
+    "heartRateBpm": null
+   },
+   "expected": {
+    "edPhase": 0,
+    "esPhase": 1,
+    "excludedSlices": [],
+    "lv": {
+     "edvMl": 60.0,
+     "esvMl": 21.0,
+     "svMl": 39.0,
+     "efPercent": 65.0
+    },
+    "rv": {
+     "edvMl": 60.0,
+     "esvMl": 48.0,
+     "svMl": 12.0,
+     "efPercent": 20.0
+    },
+    "lvMassG": 44.1,
+    "cardiacOutputLMin": null,
+    "heartRateBpm": null,
+    "bsaM2": null,
+    "indexed": null,
+    "warnings": [],
+    "lvefClass": "preserved"
+   }
+  },
+  {
+   "name": "es_larger_than_ed",
+   "description": "ED and ES swapped: a negative stroke volume and EF, with the warning",
+   "input": {
+    "areas": [
+     [
+      {
+       "LV": 1000,
+       "RV": 1200,
+       "MYO": 800
+      },
+      {
+       "LV": 1000,
+       "RV": 1200,
+       "MYO": 800
+      },
+      {
+       "LV": 1000,
+       "RV": 1200,
+       "MYO": 800
+      },
+      {
+       "LV": 1000,
+       "RV": 1200,
+       "MYO": 800
+      },
+      {
+       "LV": 1000,
+       "RV": 1200,
+       "MYO": 800
+      },
+      {
+       "LV": 1000,
+       "RV": 1200,
+       "MYO": 800
+      }
+     ],
+     [
+      {
+       "LV": 400,
+       "RV": 700,
+       "MYO": 900
+      },
+      {
+       "LV": 400,
+       "RV": 700,
+       "MYO": 900
+      },
+      {
+       "LV": 400,
+       "RV": 700,
+       "MYO": 900
+      },
+      {
+       "LV": 400,
+       "RV": 700,
+       "MYO": 900
+      },
+      {
+       "LV": 400,
+       "RV": 700,
+       "MYO": 900
+      },
+      {
+       "LV": 400,
+       "RV": 700,
+       "MYO": 900
+      }
+     ]
+    ],
+    "gapMm": 10,
+    "edPhase": 1,
+    "esPhase": 0,
+    "excludedSlices": [],
+    "bsaM2": null,
+    "heartRateBpm": null
+   },
+   "expected": {
+    "edPhase": 1,
+    "esPhase": 0,
+    "excludedSlices": [],
+    "lv": {
+     "edvMl": 24.0,
+     "esvMl": 60.0,
+     "svMl": -36.0,
+     "efPercent": -150.0
+    },
+    "rv": {
+     "edvMl": 42.0,
+     "esvMl": 72.0,
+     "svMl": -30.0,
+     "efPercent": -71.42857142857143
+    },
+    "lvMassG": 56.7,
+    "cardiacOutputLMin": null,
+    "heartRateBpm": null,
+    "bsaM2": null,
+    "indexed": null,
+    "warnings": [
+     "es_volume_exceeds_ed"
+    ],
+    "lvefClass": "reduced"
+   }
+  },
+  {
+   "name": "empty_lv_at_ed",
+   "description": "no LV at ED: no EF, no class",
+   "input": {
+    "areas": [
+     [
+      {
+       "LV": 0,
+       "RV": 500,
+       "MYO": 300
+      },
+      {
+       "LV": 0,
+       "RV": 500,
+       "MYO": 300
+      },
+      {
+       "LV": 0,
+       "RV": 500,
+       "MYO": 300
+      },
+      {
+       "LV": 0,
+       "RV": 500,
+       "MYO": 300
+      },
+      {
+       "LV": 0,
+       "RV": 500,
+       "MYO": 300
+      },
+      {
+       "LV": 0,
+       "RV": 500,
+       "MYO": 300
+      }
+     ],
+     [
+      {
+       "LV": 0,
+       "RV": 400,
+       "MYO": 300
+      },
+      {
+       "LV": 0,
+       "RV": 400,
+       "MYO": 300
+      },
+      {
+       "LV": 0,
+       "RV": 400,
+       "MYO": 300
+      },
+      {
+       "LV": 0,
+       "RV": 400,
+       "MYO": 300
+      },
+      {
+       "LV": 0,
+       "RV": 400,
+       "MYO": 300
+      },
+      {
+       "LV": 0,
+       "RV": 400,
+       "MYO": 300
+      }
+     ]
+    ],
+    "gapMm": 10,
+    "edPhase": 0,
+    "esPhase": 1,
+    "excludedSlices": [],
+    "bsaM2": 1.7,
+    "heartRateBpm": 70
+   },
+   "expected": {
+    "edPhase": 0,
+    "esPhase": 1,
+    "excludedSlices": [],
+    "lv": {
+     "edvMl": 0.0,
+     "esvMl": 0.0,
+     "svMl": 0.0,
+     "efPercent": null
+    },
+    "rv": {
+     "edvMl": 30.0,
+     "esvMl": 24.0,
+     "svMl": 6.0,
+     "efPercent": 20.0
+    },
+    "lvMassG": 18.9,
+    "cardiacOutputLMin": 0.0,
+    "heartRateBpm": 70,
+    "bsaM2": 1.7,
+    "indexed": {
+     "lvEdvMlM2": 0.0,
+     "lvEsvMlM2": 0.0,
+     "lvSvMlM2": 0.0,
+     "rvEdvMlM2": 17.647058823529413,
+     "rvEsvMlM2": 14.117647058823529,
+     "lvMassGM2": 11.117647058823529,
+     "cardiacIndexLMinM2": 0.0
+    },
+    "warnings": [],
+    "lvefClass": null
+   }
+  },
+  {
+   "name": "fractional_step_and_areas",
+   "description": "non-round step and areas",
+   "input": {
+    "areas": [
+     [
+      {
+       "LV": 1234.56,
+       "RV": 1500.5,
+       "MYO": 850.5
+      },
+      {
+       "LV": 1111.11,
+       "RV": 1400.25,
+       "MYO": 820.25
+      },
+      {
+       "LV": 987.65,
+       "RV": 1300.75,
+       "MYO": 790.75
+      },
+      {
+       "LV": 765.43,
+       "RV": 1100.5,
+       "MYO": 700.5
+      },
+      {
+       "LV": 432.1,
+       "RV": 700.25,
+       "MYO": 520.25
+      },
+      {
+       "LV": 123.45,
+       "RV": 300.75,
+       "MYO": 310.75
+      },
+      {
+       "LV": 98.76,
+       "RV": 200.5,
+       "MYO": 150.5
+      }
+     ],
+     [
+      {
+       "LV": 700.5,
+       "RV": 1100.5,
+       "MYO": 900.5
+      },
+      {
+       "LV": 650.25,
+       "RV": 1000.25,
+       "MYO": 870.25
+      },
+      {
+       "LV": 600.75,
+       "RV": 900.75,
+       "MYO": 840.75
+      },
+      {
+       "LV": 500.5,
+       "RV": 800.5,
+       "MYO": 760.5
+      },
+      {
+       "LV": 300.25,
+       "RV": 500.25,
+       "MYO": 560.25
+      },
+      {
+       "LV": 100.75,
+       "RV": 250.75,
+       "MYO": 340.75
+      },
+      {
+       "LV": 60.5,
+       "RV": 150.5,
+       "MYO": 180.5
+      }
+     ]
+    ],
+    "gapMm": 7.5,
+    "edPhase": 0,
+    "esPhase": 1,
+    "excludedSlices": [],
+    "bsaM2": 1.8765,
+    "heartRateBpm": 62.5
+   },
+   "expected": {
+    "edPhase": 0,
+    "esPhase": 1,
+    "excludedSlices": [],
+    "lv": {
+     "edvMl": 35.64795,
+     "esvMl": 21.85125,
+     "svMl": 13.796699999999998,
+     "efPercent": 38.70264629522875
+    },
+    "rv": {
+     "edvMl": 48.77625,
+     "esvMl": 35.27625,
+     "svMl": 13.5,
+     "efPercent": 27.67740447451372
+    },
+    "lvMassG": 32.6300625,
+    "cardiacOutputLMin": 0.8622937499999999,
+    "heartRateBpm": 62.5,
+    "bsaM2": 1.8765,
+    "indexed": {
+     "lvEdvMlM2": 18.997042366107113,
+     "lvEsvMlM2": 11.644684252597921,
+     "lvSvMlM2": 7.352358113509192,
+     "rvEdvMlM2": 25.99320543565148,
+     "rvEsvMlM2": 18.79896083133493,
+     "lvMassGM2": 17.38878896882494,
+     "cardiacIndexLMinM2": 0.4595223820943245
+    },
+    "warnings": [],
+    "lvefClass": "reduced"
+   }
+  }
+ ]
+}

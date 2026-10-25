@@ -89,16 +89,14 @@ def _pixel_spacing(dataset) -> tuple[float, float] | None:
     return (row, column) if row > 0 and column > 0 and np.isfinite([row, column]).all() else None
 
 
-def _read_dicom(data: bytes, max_pixels: int) -> MriSlice:
-    import pydicom
-    from pydicom.errors import InvalidDicomError
-
+def slice_from_dataset(dataset, max_pixels: int) -> MriSlice:
+    """The slice of a parsed single-frame DICOM dataset (also what cardio_volume_input
+    reads for each file of a cine stack): same refusals as a single slice."""
     try:
-        dataset = pydicom.dcmread(io.BytesIO(data))
         frames = int(getattr(dataset, "NumberOfFrames", 1) or 1)
         samples = int(getattr(dataset, "SamplesPerPixel", 1) or 1)
         rows, columns = int(dataset.Rows), int(dataset.Columns)
-    except (InvalidDicomError, AttributeError, TypeError, ValueError, EOFError, OSError) as error:
+    except (AttributeError, TypeError, ValueError) as error:
         raise InvalidImage("undecodable") from error
 
     if frames > 1:
@@ -123,6 +121,17 @@ def _read_dicom(data: bytes, max_pixels: int) -> MriSlice:
         else:
             pixels = pixels.max() + pixels.min() - pixels
     return MriSlice(pixels, _pixel_spacing(dataset), "dicom")
+
+
+def _read_dicom(data: bytes, max_pixels: int) -> MriSlice:
+    import pydicom
+    from pydicom.errors import InvalidDicomError
+
+    try:
+        dataset = pydicom.dcmread(io.BytesIO(data))
+    except (InvalidDicomError, AttributeError, TypeError, ValueError, EOFError, OSError) as error:
+        raise InvalidImage("undecodable") from error
+    return slice_from_dataset(dataset, max_pixels)
 
 
 def read_slice(data: bytes, max_pixels: int) -> MriSlice:

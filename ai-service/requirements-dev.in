@@ -4,3 +4,5 @@ httpx
 # Offline evaluation (scripts/evaluate_brain.py) only: never needed by the service.
 scikit-learn
 pandas
+# Sample data for the cine volumetry (scripts/make_sample_cine_dicom.py), read ACDC's NIfTI: development only.
+nibabel

@@ -6,17 +6,22 @@
 2. Grey -> RGB (3 identical channels), resized to the card's size with
    cv2.INTER_LINEAR, / max_pixel_value, then the card's mean and std: what
    albumentations' Resize and Normalize did in training.
-3. float32 inference on CPU, one at a time; argmax of the 4 logits, the class
-   map brought back to the slice's size with cv2.INTER_NEAREST.
+3. float32 inference on CPU, one image at a time (analyze_cardio_seg) or a
+   batch of them (predict_labels_batch, the images of a cine stack: each one
+   preprocessed exactly as above, a batch being only several of them stacked);
+   argmax of the 4 logits, the class map brought back to the slice's size with
+   cv2.INTER_NEAREST.
 
-The answer is a segmentation: the class map, its colour overlay, and the
-area of each structure (in mm² when a DICOM gives its pixel spacing). Never
-a diagnosis, an ejection fraction nor a volume: one slice does not allow it.
+The answer for one slice is a segmentation: the class map, its colour overlay,
+and the area of each structure (in mm² when a DICOM gives its pixel spacing).
+Never a diagnosis, an ejection fraction nor a volume: one slice does not allow
+it (cardio_volume_pipeline does it for a whole cine stack).
 """
 
 from __future__ import annotations
 
 import time
+from collections.abc import Sequence
 from pathlib import Path
 
 import cv2
@@ -30,6 +35,9 @@ from .models import ModelRegistry
 from .pipeline import ModelNotLoaded
 
 ZSCORE_EPS = 1e-8
+# Images per forward pass of a cine stack: the memory of a batch of 3 x 256 x 256
+# images and the logits of 4 classes stays small on a CPU.
+DEFAULT_BATCH_SIZE = 8
 CARDIO_SEG_PALETTE_FILE = Path(__file__).with_name("cardio_seg_palette.json")
 
 
@@ -66,18 +74,39 @@ def model_input(pixels: np.ndarray, config: dict) -> torch.Tensor:
     return torch.from_numpy(normalized.transpose(2, 0, 1).copy()).unsqueeze(0)
 
 
+def predict_labels_batch(
+    images: Sequence[np.ndarray], entry, batch_size: int = DEFAULT_BATCH_SIZE
+) -> list[np.ndarray]:
+    """One (size, size) uint8 class map (indices 0-3) per image, at the model's
+    input size, the images going through the model `batch_size` at a time. Each
+    is preprocessed by model_input, alone: only the forward pass is shared."""
+    if batch_size < 1:
+        raise ValueError("batch_size must be at least 1.")
+    maps: list[np.ndarray] = []
+    for start in range(0, len(images), batch_size):
+        batch = torch.cat([model_input(pixels, entry.config) for pixels in images[start : start + batch_size]])
+        with entry.lock, torch.inference_mode():
+            logits = entry.module(batch)
+        maps.extend(logits.argmax(dim=1).numpy().astype(np.uint8))
+    return maps
+
+
 def predict_labels(pixels: np.ndarray, entry) -> np.ndarray:
     """(size, size) uint8 class indices 0-3, at the model's input size."""
-    batch = model_input(pixels, entry.config)
-    with entry.lock, torch.inference_mode():
-        logits = entry.module(batch)
-    return logits.argmax(dim=1)[0].numpy().astype(np.uint8)
+    return predict_labels_batch([pixels], entry)[0]
 
 
 def segment(pixels: np.ndarray, entry) -> np.ndarray:
     """(H, W) uint8 class indices 0-3, at the slice's size."""
-    height, width = pixels.shape
-    return cv2.resize(predict_labels(pixels, entry), (width, height), interpolation=cv2.INTER_NEAREST)
+    return segment_batch([pixels], entry)[0]
+
+
+def segment_batch(images: Sequence[np.ndarray], entry, batch_size: int = DEFAULT_BATCH_SIZE) -> list[np.ndarray]:
+    """One (H, W) uint8 class map per image, each at its own size."""
+    return [
+        cv2.resize(labels, (pixels.shape[1], pixels.shape[0]), interpolation=cv2.INTER_NEAREST)
+        for pixels, labels in zip(images, predict_labels_batch(images, entry, batch_size), strict=True)
+    ]
 
 
 def structure_areas(labels: np.ndarray, spacing: tuple[float, float] | None) -> dict:

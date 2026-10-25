@@ -128,13 +128,14 @@ def compare(measured: dict, card_test: dict) -> dict:
     }
 
 
-def _json_safe(value):
+def json_safe(value):
+    """The value with every NaN replaced by None (null in JSON)."""
     if isinstance(value, float) and np.isnan(value):
         return None
     if isinstance(value, dict):
-        return {key: _json_safe(item) for key, item in value.items()}
+        return {key: json_safe(item) for key, item in value.items()}
     if isinstance(value, list):
-        return [_json_safe(item) for item in value]
+        return [json_safe(item) for item in value]
     return value
 
 
@@ -142,7 +143,7 @@ def build_report(entry, volumes: dict, per_volume: list[dict], acdc_root: Path) 
     card = entry.config["card"]
     measured = summarize(per_volume)
     status = entry.status()
-    return _json_safe(
+    return json_safe(
         {
             "schemaVersion": 1,
             "pipeline": "cardio-seg-mri",
@@ -180,14 +181,23 @@ def build_report(entry, volumes: dict, per_volume: list[dict], acdc_root: Path) 
     )
 
 
-def write_report(report: dict, output_dir: Path, sha256: str, now: datetime.date | None = None) -> Path:
-    """cardio-seg-<date>-<sha8>.json, named inside, copied to cardio-seg-latest.json."""
+def write_report(
+    report: dict,
+    output_dir: Path,
+    sha256: str,
+    now: datetime.date | None = None,
+    *,
+    prefix: str = "cardio-seg",
+    latest_name: str = LATEST_REPORT_NAME,
+) -> Path:
+    """<prefix>-<date>-<sha8>.json, named inside, copied to <latest_name> (the
+    cardiac volumetry evaluation writes cardio-volume-* the same way)."""
     output_dir.mkdir(parents=True, exist_ok=True)
     day = (now or datetime.date.today()).isoformat()
-    path = output_dir / f"cardio-seg-{day}-{sha256[:8]}.json"
+    path = output_dir / f"{prefix}-{day}-{sha256[:8]}.json"
     report = {"file": path.name, **report}
     path.write_text(json.dumps(report, indent=2, ensure_ascii=False) + "\n", encoding="utf-8")
-    shutil.copyfile(path, output_dir / LATEST_REPORT_NAME)
+    shutil.copyfile(path, output_dir / latest_name)
     return path
 
 

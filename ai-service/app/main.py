@@ -19,6 +19,8 @@ os.environ.setdefault("TF_CPP_MIN_LOG_LEVEL", "1")
 
 from .cardio_seg_input import CardioSegInputError  # noqa: E402
 from .cardio_seg_pipeline import analyze_cardio_seg  # noqa: E402
+from .cardio_volume_input import CardioVolumeInputError  # noqa: E402
+from .cardio_volume_pipeline import analyze_cardio_volume  # noqa: E402
 from .ecg_input import EcgInputError  # noqa: E402
 from .ecg_pipeline import analyze_ecg  # noqa: E402
 from .label_maps import ImageDimensionsTooLarge, ImageTooSmall  # noqa: E402
@@ -85,8 +87,8 @@ def create_app(settings: Settings | None = None, registry: ModelRegistry | None 
             raise HTTPException(
                 status_code=422, detail={"code": "image_dimensions_too_large", "maxSide": error.max_side}
             ) from error
-        except (EcgInputError, CardioSegInputError) as error:
-            # ecg_*, cardio_seg_*: a refused input, with what the user needs to fix it.
+        except (EcgInputError, CardioSegInputError, CardioVolumeInputError) as error:
+            # ecg_*, cardio_seg_*, cardio_volume_*: a refused input, with what the user needs to fix it.
             raise HTTPException(status_code=422, detail={"code": error.code, **error.details}) from error
         except ModelNotLoaded as error:
             raise HTTPException(status_code=503, detail={"code": "model_not_loaded"}) from error
@@ -115,6 +117,16 @@ def create_app(settings: Settings | None = None, registry: ModelRegistry | None 
     def cardio_segmentation_mri(image: UploadFile = File(...)) -> dict:
         data = read_image(image)
         return run(lambda: analyze_cardio_seg(data, app.state.registry, settings.max_image_pixels))
+
+    # A short-axis cine stack, a .zip of single-frame DICOM files (a whole cardiac
+    # cycle, every slice): volumes, ejection fractions and the mass of the
+    # myocardium. A measurement aid, never a diagnosis. Up to 600 images.
+    @app.post("/analyze/cardio/volume-mri", dependencies=[Depends(require_token)])
+    def cardio_volume_mri(stack: UploadFile = File(...)) -> dict:
+        data = stack.file.read(settings.max_stack_bytes + 1)
+        if len(data) > settings.max_stack_bytes:
+            raise HTTPException(status_code=413, detail={"code": "stack_too_large"})
+        return run(lambda: analyze_cardio_volume(data, app.state.registry, settings.max_image_pixels))
 
     # A 12-lead signal file (CSV/TXT, or WFDB in a .zip), never an image.
     # samplingRate: required for a CSV (Hz); unit: mV (default) or uV.

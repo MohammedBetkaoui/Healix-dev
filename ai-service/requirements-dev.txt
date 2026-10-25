@@ -218,6 +218,8 @@ networkx==3.7
     # via
     #   -r requirements.txt
     #   torch
+nibabel==5.4.2
+    # via -r requirements-dev.in
 numpy==2.5.3
     # via
     #   -r requirements.txt
@@ -226,6 +228,7 @@ numpy==2.5.3
     #   keras
     #   matplotlib
     #   ml-dtypes
+    #   nibabel
     #   opencv-python-headless
     #   pandas
     #   scikit-learn
@@ -256,6 +259,7 @@ packaging==26.3
     #   huggingface-hub
     #   keras
     #   matplotlib
+    #   nibabel
     #   pytest
     #   tensorboard
     #   tensorflow-cpu
@@ -420,6 +424,7 @@ typing-extensions==4.16.0
     #   grpcio
     #   httpx2
     #   huggingface-hub
+    #   nibabel
     #   opentelemetry-api
     #   optree
     #   pydantic
