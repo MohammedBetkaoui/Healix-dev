@@ -878,6 +878,66 @@ nulles et deux index à `patient_documents` ; elle ne change aucune ligne.
 sauvegarde juste avant (section 9) : Orthanc peut migrer son index au
 démarrage.
 
+### Développement local, sans Docker
+
+Sans Caddy ni conteneur, `/viewer/` n'existe pas : la page d'une étude le dit
+(« La visionneuse d'imagerie n'est pas disponible sur ce serveur ») au lieu
+d'encadrer l'erreur du navigateur (« localhost a refusé de se connecter »).
+
+**`npm run start:dev` (dans `backend/`) lance la visionneuse avec l'API**, avec
+`npm run dev` dans `frontend/` à côté :
+
+- la visionneuse est **construite en arrière-plan** si elle manque ou si elle
+  n'est plus celle que le dépôt demande (un autre commit d'OHIF, une autre
+  base) : l'API démarre sans attendre, la page d'une étude dit « pas
+  disponible » tant que ce n'est pas fini (une dizaine de minutes la première
+  fois, installation des paquets comprise), puis il suffit de la recharger ;
+- elle est ensuite **servie** sur `http://127.0.0.1:8090/viewer/` ;
+- **tout s'arrête avec l'API** (Ctrl+C), et le serveur de la visionneuse
+  s'arrête aussi tout seul si le lanceur est tué sans pouvoir le faire (terminal
+  fermé, plantage) ;
+- jamais en travers de l'API : une construction qui échoue, ou un port pris,
+  donne un message préfixé `[viewer]`, pas un arrêt. Une visionneuse déjà en
+  service sur le port (lancée à la main, ou par un autre `start:dev`) est
+  laissée telle quelle ;
+- `VIEWER=off npm run start:dev` (ou `npm run start:dev:api`) : l'API seule ;
+  `VIEWER_PORT` change le port (il faut alors le dire à `next dev` :
+  `VIEWER_ORIGIN`).
+
+À la main, c'est `node viewer/build-local.mjs` puis `node viewer/serve-local.mjs`
+(scripts du dossier `viewer/`, lançables seuls) :
+
+- **La construction** suit `viewer/Dockerfile` : même commit d'OHIF, même pnpm,
+  même fichier de verrouillage, même base `/viewer/`, même configuration. Node 24
+  est requis par OHIF : si le vôtre est plus ancien, Node 24.15.0 est téléchargé
+  (SHA-256 vérifié) pour cette construction seulement. Tout va dans
+  `%LOCALAPPDATA%\HealixDz\viewer` (ou `~/.cache/HealixDz/viewer`,
+  `HEALIXDZ_VIEWER_DIR` pour changer), hors du dépôt : plusieurs Go, et pas dans
+  un dossier synchronisé par OneDrive. Un tampon (`dist/.healixdz-build.json`)
+  est écrit en dernier : une construction interrompue est refaite.
+- **Le serveur** (`127.0.0.1` seulement) envoie la même Content-Security-Policy
+  que Caddy, lit `viewer/app-config.js` du dépôt à chaque requête (une
+  modification se prend au rechargement) et ne sert que ce qui est sous
+  `/viewer/`.
+
+Il faut aussi **Orthanc** sur `http://localhost:8042` (compte `orthanc` /
+`orthanc`, les valeurs par défaut du backend hors production), avec le plugin
+DICOMweb (`DicomWeb.PublicRoot` = `/api/dicomweb/`) : binaires Windows et Linux
+sur <https://orthanc.uclouvain.be/downloads/>.
+
+`next dev` fait le reste (`frontend/next.config.ts`) : il transmet `/viewer/*` à
+ce serveur et `/api/dicomweb/*` au backend (`http://127.0.0.1:3001`), pour que la
+visionneuse ait l'origine, donc le cookie de session, des pages, comme derrière
+Caddy. Ces redirections n'existent que sous `next dev` (ou avec
+`LOCAL_VIEWER=1`), jamais dans la construction de production ; `VIEWER_ORIGIN` et
+`BACKEND_ORIGIN` changent les adresses. `/viewer` est exclu du proxy des pages
+(`frontend/src/proxy.ts`), dont la politique interdirait tout cadre.
+
+Le panneau latéral d'OHIF cherche aussi les autres études du patient par son
+identifiant : le proxy refuse (404, voir le tableau ci-dessus), la visionneuse
+continue et la console du navigateur le signale. Les tests : `node --test
+viewer/*.test.mjs`.
+
 ## 13. Ce qui a été vérifié, et ce qui ne l'a pas été
 
 **Imagerie DICOM, import (24 octobre 2026, sans Docker).**
@@ -932,7 +992,7 @@ Vérifié :
   renouvellement de la session), la liste, l'import et le résumé (jest), le
   CSP des pages (`frame-src 'self'`).
 
-**Analyse d'une coupe (24 octobre 2026, sans Docker ni service IA).**
+**Analyse d'une coupe (24 octobre 2026), tests automatiques.**
 
 Vérifié, sur une base MySQL de test migrée, avec Orthanc et le service IA
 remplacés : la chaîne cardiaque reçoit le fichier DICOM de l'instance et la
@@ -948,11 +1008,43 @@ aux comptes en lecture seule. Côté interface : le panneau (série, curseur,
 chaîne, consentement, lecture seule, erreurs, arabe), la redirection vers la
 page de l'analyse, et la coupe dans l'évolution.
 
-Pas vérifié : une vraie coupe d'IRM passée par Orthanc puis par le service IA
-(ni le rendu PNG d'Orthanc, ni la qualité de la prédiction de la chaîne
-cérébrale sur ce rendu, ni la lecture de l'espacement des pixels d'un vrai
-fichier), et les clics du panneau dans un navigateur (les tests rendent le
-panneau, ils ne le manipulent pas).
+**Essai avec un vrai Orthanc et de vrais fichiers DICOM (24 octobre 2026).**
+Orthanc 1.13.0 et son plugin DICOMweb 1.24 (binaires Windows, pas l'image
+Docker `orthancteam/orthanc:26.9.1`), le vrai service IA avec les poids du dépôt,
+le backend et le frontend construits, un navigateur réel ; l'étude est BRAINIX
+(IRM cérébrale Philips Achieva 1,5 T, 31 coupes en 2 séries, tirée de la base de
+tests du projet Orthanc), importée par l'interface elle-même.
+
+- **Un défaut que les tests simulés ne pouvaient pas voir.** `GET /instances/{id}`
+  d'Orthanc donne la série d'une instance (`ParentSeries`) mais pas son étude :
+  seule la réponse à un `POST /instances` la donne. Le code attendait l'étude
+  dans l'instance et répondait 404 « Image DICOM introuvable » à l'aperçu d'une
+  coupe **et** à son analyse, alors que l'import, la liste, le détail et le proxy
+  DICOMweb fonctionnaient. Corrigé (l'étude est lue dans la série). Les réponses
+  réelles d'Orthanc sont désormais enregistrées dans
+  `backend/src/dicom/orthanc-fixtures/1.13.0` et rejouées par
+  `orthanc.contract.spec.ts`, qui échoue sans le correctif.
+- **Vérifié de bout en bout :** import de 31 fichiers (0,6 s), avertissements
+  d'identité sur le nom et le sexe (`0000` dans ce fichier), aperçu PNG d'une
+  vraie coupe FLAIR, proxy DICOMweb sur le vrai plugin (étude, séries, instances,
+  métadonnées, trame multipart ; STOW, racine, recherche par nom, `..` et étude
+  inconnue refusés), analyse cérébrale (FLAIR et EPI) et segmentation cardiaque
+  (fichier DICOM de l'instance, espacement de 0,799 mm lu dans le fichier,
+  « aucune structure » sur une coupe de cerveau, comme attendu), décision, comptes
+  rendus PDF (« Coupe source : Série 401, coupe n° 14 »), chronologie, même étude
+  importée dans un autre dossier (avertissement), suppression de l'étude
+  (documents et analyses conservés). Dans le navigateur : import par le
+  sélecteur de fichiers, page de l'étude, curseur et aperçu, liste des deux séries,
+  choix de la chaîne, bouton, redirection vers la page de l'analyse avec l'image de la
+  coupe, onglet Évolution avec la coupe nommée.
+
+Pas vérifié : la qualité des prédictions (la chaîne cérébrale a rendu
+« gliome 75 % » sur une coupe FLAIR : rien n'indique dans l'application sur
+quelles séquences elle a été entraînée, ce résultat ne se lit pas cliniquement) ;
+la segmentation cardiaque sur une vraie IRM cardiaque en DICOM (aucune n'est
+accessible sans compte : ACDC est en NIfTI et sur inscription) ; la visionneuse
+OHIF (pas de Caddy ni de conteneur : le cadre de la page de l'étude est vide dans
+cet essai) ; l'image Docker d'Orthanc et ses variables d'environnement.
 
 Pas vérifié (Docker absent) :
 - la construction de l'image de la visionneuse (`pnpm install
