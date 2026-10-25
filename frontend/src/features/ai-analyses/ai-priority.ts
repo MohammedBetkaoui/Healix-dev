@@ -42,6 +42,10 @@ function formatParam(name: string, value: number | string, locale: PriorityLocal
     if (name === "probability") {
       return new Intl.NumberFormat(intlLocale(locale), { maximumFractionDigits: 0, style: "percent" }).format(value);
     }
+    // An ejection fraction is already a number of percent, read to the unit.
+    if (name === "efPercent") {
+      return new Intl.NumberFormat(intlLocale(locale), { maximumFractionDigits: 0 }).format(value);
+    }
     return new Intl.NumberFormat(intlLocale(locale), { maximumFractionDigits: name === "count" ? 0 : 2 }).format(value);
   }
   if (name === "label") return t(`aiAnalyses.classes.${value}`);

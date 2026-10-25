@@ -8,9 +8,12 @@ import {
   getAiAnalysisRunMask,
   getAiAnalysisRunOverlay,
   getAiAnalysisRunSlice,
+  getAiAnalysisVolumeImage,
   getCardioEvaluation,
   getCardioSegEvaluation,
+  getCardioVolumeEvaluation,
 } from "../ai-analysis-runs.api";
+import { type VolumetryImagePhase } from "../volumetry";
 
 const RUNNING_POLL_MS = 3_000;
 
@@ -65,6 +68,36 @@ export function useCardioSegEvaluation(weightsSha256: string | null) {
     enabled: Boolean(weightsSha256),
     queryFn: () => getCardioSegEvaluation(weightsSha256 as string),
     queryKey: ["ai-models", "cardio-seg", "evaluation", weightsSha256],
+    retry: false,
+    staleTime: Number.POSITIVE_INFINITY,
+  });
+}
+
+export function useCardioVolumeEvaluation(weightsSha256: string | null) {
+  return useQuery({
+    enabled: Boolean(weightsSha256),
+    queryFn: () => getCardioVolumeEvaluation(weightsSha256 as string),
+    queryKey: ["ai-models", "cardio-volume", "evaluation", weightsSha256],
+    retry: false,
+    staleTime: Number.POSITIVE_INFINITY,
+  });
+}
+
+// One image of a cine volumetry (a slice of the model's ED or ES, or its overlay). The slider goes back
+// and forth over the same slices: kept for a minute once nothing shows it.
+export function useAiAnalysisVolumeImage(
+  patientId: string,
+  runId: string,
+  kind: "mask" | "overlay" | "slice",
+  phase: VolumetryImagePhase,
+  slice: number,
+  options: { enabled: boolean },
+) {
+  return useQuery({
+    enabled: options.enabled && Boolean(patientId) && Boolean(runId),
+    gcTime: 60_000,
+    queryFn: () => getAiAnalysisVolumeImage(patientId, runId, kind, phase, slice),
+    queryKey: ["patients", "ai-analysis-run-volume-image", patientId, runId, kind, phase, slice],
     retry: false,
     staleTime: Number.POSITIVE_INFINITY,
   });

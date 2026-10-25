@@ -1,5 +1,11 @@
 import { Prisma } from '@prisma/client';
 
+import { cardioVolumeResult } from '../ai-analysis-runs/volumetry/cardio-volume.fixtures';
+import {
+  applyCorrection,
+  buildVolumetry,
+} from '../ai-analysis-runs/volumetry/volumetry';
+
 import { buildAiClinicalReport, aiReportCategory } from './ai-clinical-report';
 import { type PrescriptionAuthorizationService } from '../prescriptions/prescription-authorization.service';
 import { type WorkspaceContextService } from '../workspaces/workspace-context.service';
@@ -372,5 +378,64 @@ describe('toReportDetail', () => {
       kind: 'AI_REPORT',
       fileName: 'CR-IA-2026-000001.pdf',
     });
+    // The other chains add no volumetry to their details.
+    expect(detail.ai).not.toHaveProperty('volumetry');
+  });
+
+  it('lists the measures in force of a cardiac cine volumetry next to its report', () => {
+    const stored = (correction?: Parameters<typeof applyCorrection>[1]) => {
+      const volumetry = buildVolumetry(cardioVolumeResult());
+      return JSON.parse(
+        JSON.stringify(
+          correction ? applyCorrection(volumetry, correction) : volumetry,
+        ),
+      ) as unknown;
+    };
+    const detailOf = (volumetry: unknown) =>
+      toReportDetail(
+        base({
+          aiAnalysisReport: {
+            id: 'ai-1',
+            reportNumber: 'CR-IA-2026-000002',
+            run: {
+              classificationModelId: null,
+              classificationWeightsSha256: null,
+              clinicianImpression: null,
+              decisionStatus: 'VALIDATED',
+              id: 'run-cine',
+              patientId: 'patient-a',
+              pipeline: 'cardio-volume-mri',
+              predictions: { configSha256: 'b'.repeat(64) },
+              segmentationModelId: 'cardio-seg-acdc-unet-effb4',
+              segmentationWeightsSha256: 'a'.repeat(64),
+              volumetry,
+            },
+            sha256: 'b'.repeat(64),
+            sizeBytes: 5000,
+          },
+          aiAnalysisReportId: 'ai-1',
+          category: 'AI_CARDIAC_MRI',
+          sourceType: 'AI_ANALYSIS',
+          status: 'FINAL',
+        }),
+      );
+
+    // The model's measures: LVEF 38 %, EDV 43.2 ml, ESV 26.784 ml, mass 34.02 g.
+    const proposed = detailOf(stored()).ai?.volumetry;
+    expect(proposed).toMatchObject({
+      lvEdvMl: expect.closeTo(43.2, 10) as number,
+      lvEfPercent: expect.closeTo(38, 10) as number,
+      lvMassG: expect.closeTo(34.02, 10) as number,
+      lvefClass: 'reduced',
+      modified: false,
+    });
+    // The physician's, once they corrected: ES at the second phase, LVEF 20 %.
+    expect(detailOf(stored({ esPhase: 1 })).ai?.volumetry).toMatchObject({
+      lvEfPercent: expect.closeTo(20, 10) as number,
+      modified: true,
+    });
+    // A damaged or missing column lists nothing.
+    expect(detailOf(null).ai?.volumetry).toBeNull();
+    expect(detailOf({ version: 7 }).ai?.volumetry).toBeNull();
   });
 });

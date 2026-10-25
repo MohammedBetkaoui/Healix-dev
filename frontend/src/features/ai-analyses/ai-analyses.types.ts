@@ -129,7 +129,14 @@ export type AiModel = {
 // Pipelines
 // ---------------------------------------------------------------------------
 
-export const aiPipelineIds = ["brain", "pathology-breast", "pathology-nuclei", "cardio-ecg", "cardio-seg-mri"] as const;
+export const aiPipelineIds = [
+  "brain",
+  "pathology-breast",
+  "pathology-nuclei",
+  "cardio-ecg",
+  "cardio-seg-mri",
+  "cardio-volume-mri",
+] as const;
 export type AiPipelineId = (typeof aiPipelineIds)[number];
 
 /**
@@ -145,6 +152,11 @@ export type AiPipeline = {
   kind: "routed" | "single";
   entryModelId: string;
   segmenterByClass: Partial<Record<AiOutputClassKey, string>>;
+  /**
+   * Where the chain starts from. By default the analysis wizard (a document of the record);
+   * "dicom-study": a series of a DICOM study ("Mesurer le coeur"), which the wizard cannot take.
+   */
+  launch?: "dicom-study";
 };
 
 /** Microscope magnification of a histopathology slide. */
@@ -235,6 +247,138 @@ export type AiCardioSegPredictions = {
   structures: Record<CardioSegStructure, CardioSegArea>;
 };
 
+/** What a cardio-volume-mri run stores in `predictions`: the model card; the rest is in `volumetry`. */
+export type AiCardioVolumePredictions = { configSha256: string };
+
+// ---------------------------------------------------------------------------
+// Cardiac cine volumetry (backend/src/ai-analysis-runs/volumetry)
+// ---------------------------------------------------------------------------
+
+/** The LV ejection fraction classes of the 2021 ESC heart failure guidelines. */
+export const lvefClasses = ["reduced", "mildlyReduced", "preserved"] as const;
+export type LvefClass = (typeof lvefClasses)[number];
+
+export type VolumetryVentricle = {
+  edvMl: number;
+  esvMl: number;
+  svMl: number;
+  /** Percent; null when the end-diastolic volume is nil. */
+  efPercent: number | null;
+};
+
+export type VolumetryIndexed = {
+  lvEdvMlM2: number;
+  lvEsvMlM2: number;
+  lvSvMlM2: number;
+  rvEdvMlM2: number;
+  rvEsvMlM2: number;
+  lvMassGM2: number;
+  cardiacIndexLMinM2: number | null;
+};
+
+/** Nothing is rounded: rounding is for display. Phases and slices are counted from 0. */
+export type AiVolumetryMeasures = {
+  edPhase: number;
+  esPhase: number;
+  excludedSlices: number[];
+  lv: VolumetryVentricle;
+  rv: VolumetryVentricle;
+  lvMassG: number;
+  /** Only with a heart rate. */
+  cardiacOutputLMin: number | null;
+  heartRateBpm: number | null;
+  bsaM2: number | null;
+  /** Only with a body surface area. */
+  indexed: VolumetryIndexed | null;
+  lvefClass: LvefClass | null;
+  warnings: string[];
+};
+
+/** The areas of one slice, mm². */
+export type AiVolumetrySliceAreas = Record<CardioSegStructure, number>;
+
+/** What the service noticed without refusing: a code and short details. */
+export type AiVolumetryWarning = { code: string } & Record<string, number | string>;
+
+export type AiVolumetryBsaSource = "dicom" | "manual";
+
+/**
+ * GET .../ai-analysis-runs: the volumetry as the backend shows it (volumetryResponse):
+ * the model's proposal, the physician's version, what is in force, and the areas of
+ * the ED and ES in force only (the areas of every phase stay on the server).
+ */
+export type AiVolumetry = {
+  version: number;
+  phases: number;
+  /** From the base (0) toward the apex. */
+  slices: { positionMm: number; stepMm: number | null }[];
+  /** The step between slices the volumes use, mm. */
+  sliceGapMm: number;
+  sliceOrderInferred: boolean;
+  phaseTimesMs: number[] | null;
+  /** (row, column) in mm. */
+  pixelSpacingMm: [number, number];
+  /** From the DICOM height and weight; null without them. */
+  bsaM2: number | null;
+  heartRateBpm: number | null;
+  warnings: AiVolumetryWarning[];
+  /** The phases whose images are stored: the model's ED and ES, one image per slice. */
+  images: { edPhase: number; esPhase: number; slices: number };
+  /** What the model proposed. */
+  auto: {
+    edPhase: number;
+    esPhase: number;
+    lvVolumeCurveMl: number[];
+    measures: AiVolumetryMeasures;
+  };
+  /** What the physician made of it; null as long as they changed nothing. */
+  corrected: {
+    bsaM2: number | null;
+    bsaSource: AiVolumetryBsaSource | null;
+    correctedAt: string;
+    edPhase: number;
+    esPhase: number;
+    excludedSlices: number[];
+    lvVolumeCurveMl: number[];
+    measures: AiVolumetryMeasures;
+  } | null;
+  /** What is in force: the physician's version when there is one, else the model's. */
+  effective: {
+    bsaM2: number | null;
+    bsaSource: AiVolumetryBsaSource | null;
+    edPhase: number;
+    esPhase: number;
+    excludedSlices: number[];
+    lvVolumeCurveMl: number[];
+    measures: AiVolumetryMeasures;
+  };
+  /** The areas [slice] of the ED and ES in force. */
+  areas: { ed: AiVolumetrySliceAreas[]; es: AiVolumetrySliceAreas[] };
+  /** ED, ES or the slices counted differ from the model's (a height and a weight alone are not a modification). */
+  modified: boolean;
+};
+
+/** GET /ai-models/cardio-volume/evaluation/:sha: the ejection fractions against the ACDC truth. */
+export type AiAgreementFigures = {
+  n: number;
+  /** Mean absolute error, in points of ejection fraction. */
+  mae: number;
+  bias: number;
+  /** Bias +/- 1.96 SD of the differences. */
+  limitsOfAgreement: [number, number] | null;
+  pearsonR: number | null;
+};
+
+export type CardioVolumeEvaluation = {
+  source: "service";
+  file: string;
+  generatedAt: string;
+  weightsSha256: string;
+  nPatients: number;
+  lvef: AiAgreementFigures;
+  rvef: AiAgreementFigures;
+};
+
 /** GET /ai-models/cardio-seg/evaluation/:sha. */
 export type CardioSegEvaluation = {
   source: "service" | "notebook";
@@ -274,7 +418,7 @@ export type AiAnalysisRun = {
   classificationModelId: string | null;
   classificationWeightsSha256: string | null;
   /** Brain: descending, as returned by the service; ECG: probabilities, thresholds, positive classes; null unless SUCCEEDED. */
-  predictions: AiRunPrediction[] | AiEcgPredictions | AiCardioSegPredictions | null;
+  predictions: AiRunPrediction[] | AiEcgPredictions | AiCardioSegPredictions | AiCardioVolumePredictions | null;
   /** The model's answer the physician decides on: the brain top class, the BreakHis result; null for a nuclei map and an ECG. */
   modelLabel: string | null;
   /** ECG: the model's positive classes (possibly none), in class order; null for the other chains. */
@@ -299,6 +443,8 @@ export type AiAnalysisRun = {
   hasOverlay: boolean;
   /** Cardiac MRI: the analysed 8-bit slice is served by GET .../slice. */
   hasSlice: boolean;
+  /** Cardiac cine: the measures, the curve and what the physician changed; null for the other chains. */
+  volumetry?: AiVolumetry | null;
   segmentationModelId: string | null;
   segmentationWeightsSha256: string | null;
   hasMask: boolean;
@@ -363,7 +509,11 @@ export type AiPriorityReasonCode =
   | "ECG_MULTIPLE_ABNORMAL"
   | "LOW_CONFIDENCE"
   | "NO_RESULT"
-  | "NUCLEI_NONE_FOUND";
+  | "NUCLEI_NONE_FOUND"
+  | "VOLUME_ES_EXCEEDS_ED"
+  | "VOLUME_LVEF_MILDLY_REDUCED"
+  | "VOLUME_LVEF_REDUCED"
+  | "VOLUME_NOT_MEASURABLE";
 
 export type AiPriorityReason = {
   code: AiPriorityReasonCode;

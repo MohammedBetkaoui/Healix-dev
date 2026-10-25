@@ -10,6 +10,8 @@ import {
 } from "react";
 
 import { StatusBadge } from "@/components/dashboard/shared/StatusBadge";
+import { useCardioVolumeEvaluation } from "@/features/ai-analyses/hooks/use-ai-analysis-run";
+import { useAiModelsStatus } from "@/features/ai-analyses/hooks/use-ai-models-status";
 import {
   aiMagnifications,
   nucleusTypes,
@@ -33,6 +35,10 @@ import { type Locale } from "@/i18n";
 import { type TranslationFunction } from "@/lib/i18n";
 
 import { aiModelStatusTone } from "./AiModelCard";
+import { VolumeMetricsTable } from "./VolumeMetricsTable";
+
+// The model of the cardiac MRI chains: its volumetry is measured on the service itself.
+const CARDIO_SEG_ID = "cardio-seg-acdc-unet-effb4";
 
 const tabbableSelector =
   'a[href], button:not([disabled]), input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])';
@@ -43,6 +49,26 @@ type AiModelSheetProps = {
   onClose: () => void;
   t: TranslationFunction;
 };
+
+// The cine volumetry of the cardiac MRI model: the ejection fractions it measures against the ACDC truth,
+// for the weights the service has loaded (none printed when no evaluation describes them).
+function CardioVolumeSection({ locale, t }: { locale: Locale; t: TranslationFunction }) {
+  const status = useAiModelsStatus();
+  const weights = status.data?.models.find((entry) => entry.modelId === CARDIO_SEG_ID)?.weightsSha256 ?? null;
+  const evaluation = useCardioVolumeEvaluation(weights);
+
+  return (
+    <SheetSection title={t("aiAnalyses.sheet.cardioVolume")}>
+      <p className="mb-2 text-xs leading-5 text-[var(--text-secondary)]">{t("aiAnalyses.sheet.cardioVolumeHint")}</p>
+      <VolumeMetricsTable
+        evaluation={evaluation.data}
+        loading={status.isLoading || (weights !== null && evaluation.isLoading)}
+        locale={locale}
+        t={t}
+      />
+    </SheetSection>
+  );
+}
 
 function SheetSection({ children, title }: { children: ReactNode; title: string }) {
   return (
@@ -537,6 +563,8 @@ export function AiModelSheet({ locale, model, onClose, t }: AiModelSheetProps) {
                 {evaluationSource ? <p className="mt-2 text-xs text-[var(--text-secondary)]">{evaluationSource}</p> : null}
               </SheetSection>
             ) : null}
+
+            {model.id === CARDIO_SEG_ID ? <CardioVolumeSection locale={locale} t={t} /> : null}
 
             {model.id === BREAKHIS_ID ? (
               <SheetSection title={t("aiAnalyses.sheet.byMagnification")}>

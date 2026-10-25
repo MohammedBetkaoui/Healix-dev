@@ -104,6 +104,10 @@ export const adminFr = {
         description: "{actor} a validé, corrigé ou rejeté le résultat d’une analyse IA (décision définitive).",
         label: "Décision sur une analyse IA",
       },
+      AI_VOLUMETRY_CORRECTED: {
+        description: "{actor} a corrigé les mesures d’une volumétrie cardiaque (phases ou coupes retenues), sans nouvelle analyse d’image.",
+        label: "Mesures cardiaques corrigées",
+      },
       AI_ANALYSIS_REPORT_GENERATED: {
         description: "{actor} a généré le compte rendu PDF d’une analyse IA (document figé, numéroté).",
         label: "Compte rendu IA généré",

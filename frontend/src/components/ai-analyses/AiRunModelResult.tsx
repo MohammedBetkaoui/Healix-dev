@@ -12,7 +12,7 @@ type AiRunModelResultProps = {
     AiAnalysisRun,
     "decisionThreshold" | "malignancyScore" | "modelDecision" | "modelLabel" | "pipeline" | "predictions" | "status"
   > &
-    Partial<Pick<AiAnalysisRun, "modelLabels">>;
+    Partial<Pick<AiAnalysisRun, "modelLabels" | "volumetry">>;
   locale: Locale;
   /** Shown when the model gave nothing (failed run…). */
   empty: string;
@@ -29,6 +29,17 @@ export function AiRunModelResult({ empty, figureClassName, locale, run, t }: AiR
 
   if (run.pipeline === "pathology-nuclei" || run.pipeline === "cardio-seg-mri") {
     return <>{run.status === "SUCCEEDED" ? t("aiAnalyses.record.nucleiMap") : empty}</>;
+  }
+
+  // The measures in force: the physician's once they corrected, the model's before.
+  if (run.pipeline === "cardio-volume-mri") {
+    const fraction = run.volumetry?.effective.measures.lv.efPercent ?? null;
+    if (run.status !== "SUCCEEDED" || fraction === null) return <>{empty}</>;
+    return (
+      <bdi dir="ltr" className={figure}>
+        {t("aiAnalyses.record.volumetryResult", { value: new Intl.NumberFormat(locale === "ar" ? "ar-DZ" : "fr-DZ", { maximumFractionDigits: 0 }).format(fraction) })}
+      </bdi>
+    );
   }
 
   if (run.pipeline === "cardio-ecg") {

@@ -1,5 +1,31 @@
 import { type Prisma } from '@prisma/client';
 
+import {
+  effectiveMeasures,
+  isModified,
+  readVolumetry,
+} from '../../ai-analysis-runs/volumetry/volumetry';
+
+/**
+ * The few figures of a cardiac cine volumetry the reports center lists next to
+ * its report: the measures in force (the physician's, else the model's).
+ */
+export function volumetrySummary(value: unknown) {
+  const volumetry = readVolumetry(value);
+  if (!volumetry) return null;
+  const measures = effectiveMeasures(volumetry);
+  return {
+    cardiacOutputLMin: measures.cardiacOutputLMin,
+    lvEdvMl: measures.lv.edvMl,
+    lvEfPercent: measures.lv.efPercent,
+    lvEsvMl: measures.lv.esvMl,
+    lvMassG: measures.lvMassG,
+    lvefClass: measures.lvefClass,
+    modified: isModified(volumetry),
+    rvEfPercent: measures.rv.efPercent,
+  };
+}
+
 const patientSelect = {
   id: true,
   firstName: true,
@@ -60,6 +86,7 @@ export const reportDetailInclude = {
           decisionStatus: true,
           clinicianImpression: true,
           predictions: true,
+          volumetry: true,
           classificationModelId: true,
           segmentationModelId: true,
           classificationWeightsSha256: true,
@@ -277,6 +304,10 @@ export function toReportDetail(report: ReportDetail) {
           weightsSha256:
             run.classificationWeightsSha256 ?? run.segmentationWeightsSha256,
           predictions: run.predictions,
+          // A cine volumetry lists its measures; the other chains add nothing.
+          ...(run.pipeline === 'cardio-volume-mri'
+            ? { volumetry: volumetrySummary(run.volumetry) }
+            : {}),
         }
       : null,
     contentFingerprint: report.contentFingerprint,

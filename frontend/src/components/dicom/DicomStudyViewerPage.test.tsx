@@ -25,6 +25,12 @@ jest.mock("@/features/patients/hooks/use-patient", () => ({
 jest.mock("@/components/shared/VerificationRequiredNotice", () => ({
   VerificationRequiredNotice: () => <div data-verification-required="true" />,
 }));
+// The cardiac volume panel has its own tests too.
+jest.mock("./CardiacVolumePanel", () => ({
+  CardiacVolumePanel: ({ patientId, studyId }: { patientId: string; studyId: string }) => (
+    <div data-cardiac-volume-panel={`${patientId}/${studyId}`} />
+  ),
+}));
 // The analysis panel has its own tests (it needs the queries and the router).
 jest.mock("./DicomAnalysisPanel", () => ({
   DicomAnalysisPanel: ({ accountType, patientId, study }: { accountType: string; patientId: string; study: { id: string } }) => (

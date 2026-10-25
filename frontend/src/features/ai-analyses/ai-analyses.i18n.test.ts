@@ -5,9 +5,10 @@ import { dictionaries, locales } from "@/i18n";
 import { translate } from "@/lib/i18n";
 
 import { aiModelStatuses, aiModelTasks, aiModules, aiRunDecisions, nucleusTypes } from "./ai-analyses.types";
-import { aiModels, aiPipelines, pipelineSteps } from "./ai-models.registry";
+import { aiModels, aiPipelines, pipelineSteps, wizardPipelines } from "./ai-models.registry";
 import { aiDecisionLabels, getDecisionOptions, knownDecisionErrorCodes } from "./run-decision";
 import { knownLaunchErrorCodes, knownRunErrorCodes } from "./run-presentation";
+import { knownCorrectionErrorCodes, volumeRows } from "./volumetry";
 import { knownReportErrorKeys } from "./run-report";
 import { TRACKING_DECISIONS, TRACKING_PERIODS, TRACKING_PIPELINES, TRACKING_STATUSES, TRACKING_TABS } from "./runs-tracking";
 import { qualityCheckKeys, qualityCheckStatuses } from "./quality-check";
@@ -42,11 +43,15 @@ function registryKeys() {
     for (const limitation of model.knownLimitations) keys.add(`aiAnalyses.limitations.${limitation}`);
     if ("statusNote" in model && model.statusNote) keys.add(`aiAnalyses.statusNotes.${model.statusNote}`);
   }
-  for (const pipeline of aiPipelines) {
+  // The analysis wizard takes the chains that start from a document; the cine volumetry starts from a DICOM study.
+  for (const pipeline of wizardPipelines) {
     for (const field of ["documentTitle", "documentHint", "qualityTitle", "qualityHint", "readingTitle"]) {
       keys.add(`aiAnalyses.wizard.workspace.pipelines.${pipeline.id}.${field}`);
     }
     keys.add(`aiAnalyses.wizard.workspace.readingPlaceholders.${pipeline.id}`);
+    keys.add(`aiAnalyses.wizard.reading.impressionHints.${pipeline.id}`);
+  }
+  for (const pipeline of aiPipelines) {
     for (const field of ["title", "description", "input", "output"]) {
       keys.add(`aiAnalyses.hub.analyses.${pipeline.id}.${field}`);
     }
@@ -54,14 +59,41 @@ function registryKeys() {
     keys.add(`aiAnalyses.pipelines.${pipeline.id}.description`);
     keys.add(`aiAnalyses.pipelines.${pipeline.id}.launch`);
     for (const step of pipelineSteps[pipeline.id]) keys.add(`aiAnalyses.pipelines.${pipeline.id}.steps.${step}`);
-    keys.add(`aiAnalyses.wizard.reading.impressionHints.${pipeline.id}`);
-    // Decision options of the chain: a nuclei map has its own wording.
-    for (const decision of getDecisionOptions(pipeline.id)) {
-      const family = pipeline.id === "pathology-nuclei" || pipeline.id === "cardio-seg-mri" ? "nuclei" : "";
+    // Decision options of the chain: a nuclei map and the measures of a cine have their own wording.
+    for (const decision of [...getDecisionOptions(pipeline.id), ...getDecisionOptions(pipeline.id, true)]) {
+      const family =
+        pipeline.id === "pathology-nuclei" || pipeline.id === "cardio-seg-mri"
+          ? "nuclei"
+          : pipeline.id === "cardio-volume-mri"
+            ? "volumetry"
+            : "";
       keys.add(`aiAnalyses.decision.${family ? `${family}Options` : "options"}.${decision}`);
       keys.add(`aiAnalyses.decision.${family ? `${family}OptionHints` : "optionHints"}.${decision}`);
     }
   }
+  // Built by the cine volumetry page from its measures, classes, notices and refusals.
+  for (const row of volumeRows) {
+    keys.add(`aiAnalyses.run.volumetry.rows.${row.key}`);
+    keys.add(`aiAnalyses.run.volumetry.units.${row.unit}`);
+    if (row.indexed) keys.add(`aiAnalyses.run.volumetry.units.${row.indexed.unit}`);
+  }
+  for (const lvefClass of ["reduced", "mildlyReduced", "preserved"]) keys.add(`aiAnalyses.run.volumetry.classes.${lvefClass}`);
+  for (const notice of [
+    "sliceOrderInferred",
+    "slice_order_uncertain",
+    "duplicate_images_ignored",
+    "irregular_slice_spacing",
+    "phase_timing_differs",
+    "es_volume_exceeds_ed",
+    "unknown",
+  ]) {
+    keys.add(`aiAnalyses.run.volumetry.notices.${notice}`);
+  }
+  for (const code of [...knownCorrectionErrorCodes, "unknown"]) keys.add(`aiAnalyses.run.volumetry.errors.${code}`);
+  for (const change of ["phases", "slices", "body"]) keys.add(`aiAnalyses.run.volumetry.correction.changes.${change}`);
+  for (const phase of ["ed", "es"]) keys.add(`aiAnalyses.run.volumetry.phases.${phase}`);
+  for (const agreement of ["agrees", "disagrees", "rejected"]) keys.add(`aiAnalyses.decision.volumetryAgreement.${agreement}`);
+  for (const metric of ["lvef", "rvef"]) keys.add(`aiAnalyses.run.volumetry.metrics.${metric}`);
   for (const state of ["checking", "online", "offline", "unknown"]) keys.add(`aiAnalyses.hub.service.${state}`);
   for (const state of ["ready", "partial", "unavailable", "unchecked"]) keys.add(`aiAnalyses.hub.availability.${state}`);
   for (const step of ["choose", "prepare", "read"]) keys.add(`aiAnalyses.hub.journey.${step}`);
@@ -163,6 +195,20 @@ describe("aiAnalyses i18n keys", () => {
     });
 
     expect(missing).toEqual([]);
+  });
+
+  // The hub builds these keys (aiAnalyses.hub.<family>.<step>): the scan above cannot see them.
+  it.each(locales)("words the preparation steps of both kinds of analysis in %s", (locale) => {
+    for (const family of ["preparation", "preparationStudy"]) {
+      for (const step of ["patient", "document", "review"]) {
+        const key = `aiAnalyses.hub.${family}.${step}`;
+        expect(translate(dictionaries[locale], key)).not.toBe(key);
+      }
+    }
+    // The study-based steps are not those of the wizard.
+    expect(translate(dictionaries[locale], "aiAnalyses.hub.preparationStudy.document")).not.toBe(
+      translate(dictionaries[locale], "aiAnalyses.hub.preparation.document"),
+    );
   });
 
   it.each(locales)("names no model the registry does not list in %s", (locale) => {

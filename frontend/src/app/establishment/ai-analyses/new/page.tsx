@@ -2,7 +2,7 @@ import { redirect } from "next/navigation";
 
 import { AiAnalysisWizardPage } from "@/components/ai-analyses/wizard/AiAnalysisWizardPage";
 import {
-  findPipeline,
+  findWizardPipeline,
   pipelineForLegacyModel,
 } from "@/features/ai-analyses/ai-models.registry";
 import { requireAuthenticatedPage } from "@/lib/auth/server-auth";
@@ -26,8 +26,9 @@ export default async function Page({ searchParams }: PageProps) {
     `/establishment/ai-analyses/new${query.size > 0 ? `?${query}` : ""}`,
   );
 
+  // A chain that starts from a DICOM study (the cine volumetry) is not the wizard's.
   const selectedPipeline = pipelineId
-    ? findPipeline(pipelineId)
+    ? findWizardPipeline(pipelineId)
     : pipelineForLegacyModel(modelId);
 
   if (!selectedPipeline) {

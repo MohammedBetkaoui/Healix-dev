@@ -22,6 +22,7 @@ import { useSessionKeepAlive } from "@/lib/auth/use-session-keep-alive";
 import { getAccountInitials } from "@/lib/format/get-account-initials";
 import { useStoredLocale, useTranslation } from "@/lib/i18n";
 
+import { CardiacVolumePanel } from "./CardiacVolumePanel";
 import { DicomAnalysisPanel } from "./DicomAnalysisPanel";
 
 type DicomStudyViewerPageProps = {
@@ -151,6 +152,7 @@ export function DicomStudyViewerPage({ accountType, patientId, studyId }: DicomS
         )}
 
         <DicomAnalysisPanel accountType={accountType} patientId={patientId} study={study} t={t} />
+        <CardiacVolumePanel accountType={accountType} patientId={patientId} studyId={study.id} t={t} />
       </>
     );
   };

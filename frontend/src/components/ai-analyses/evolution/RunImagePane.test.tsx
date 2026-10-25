@@ -3,10 +3,14 @@ import { renderToStaticMarkup } from "react-dom/server";
 import { type AiPipelineId } from "@/features/ai-analyses/ai-analyses.types";
 import { type TimelineItem } from "@/features/ai-analyses/ai-timeline";
 import {
+  useAiAnalysisRun,
   useAiAnalysisRunMask,
   useAiAnalysisRunOverlay,
   useAiAnalysisRunSlice,
+  useAiAnalysisVolumeImage,
 } from "@/features/ai-analyses/hooks/use-ai-analysis-run";
+import { middleSlice } from "@/features/ai-analyses/volumetry";
+import { cineRunFixture, volumetryFixture } from "@/features/ai-analyses/volumetry.fixtures";
 import { usePatientDocumentView } from "@/features/patients/hooks/use-patient-document-view";
 import { dictionaries } from "@/i18n";
 import { translate } from "@/lib/i18n";
@@ -14,9 +18,11 @@ import { translate } from "@/lib/i18n";
 import { RunImagePane } from "./RunImagePane";
 
 jest.mock("@/features/ai-analyses/hooks/use-ai-analysis-run", () => ({
+  useAiAnalysisRun: jest.fn(),
   useAiAnalysisRunMask: jest.fn(),
   useAiAnalysisRunOverlay: jest.fn(),
   useAiAnalysisRunSlice: jest.fn(),
+  useAiAnalysisVolumeImage: jest.fn(),
 }));
 jest.mock("@/features/patients/hooks/use-patient-document-view", () => ({ usePatientDocumentView: jest.fn() }));
 // The viewer needs a browser: what it is given is what is checked.
@@ -58,12 +64,27 @@ function item(overrides: Partial<TimelineItem> = {}): TimelineItem {
   };
 }
 
-function render(pipeline: AiPipelineId, run: TimelineItem, queries: { document?: object; mask?: object; overlay?: object; slice?: object } = {}) {
+type Queries = {
+  cineOverlay?: object;
+  cineSlice?: object;
+  document?: object;
+  mask?: object;
+  overlay?: object;
+  run?: object;
+  slice?: object;
+};
+
+function render(pipeline: AiPipelineId, run: TimelineItem, queries: Queries = {}) {
   viewerProps = null;
   (usePatientDocumentView as jest.Mock).mockReturnValue(queries.document ?? { data: source, isError: false });
   (useAiAnalysisRunMask as jest.Mock).mockReturnValue(queries.mask ?? none);
   (useAiAnalysisRunOverlay as jest.Mock).mockReturnValue(queries.overlay ?? none);
   (useAiAnalysisRunSlice as jest.Mock).mockReturnValue(queries.slice ?? none);
+  (useAiAnalysisRun as jest.Mock).mockReturnValue(queries.run ?? none);
+  // The same hook serves the slice and its overlay of a cine, told apart by the kind asked.
+  (useAiAnalysisVolumeImage as jest.Mock).mockImplementation((_patient: string, _run: string, kind: string) =>
+    kind === "overlay" ? (queries.cineOverlay ?? none) : (queries.cineSlice ?? none),
+  );
   return renderToStaticMarkup(<RunImagePane item={run} patientId="patient-1" pipeline={pipeline} t={fr} />);
 }
 
@@ -108,6 +129,43 @@ describe("RunImagePane", () => {
     expect(enabledOf(useAiAnalysisRunSlice)).toEqual({ enabled: true });
     // The source document is not downloaded (each download is an audited view).
     expect(usePatientDocumentView).toHaveBeenLastCalledWith("patient-1", "doc-1", { enabled: false });
+  });
+
+  describe("a cardiac cine", () => {
+    const cine = (overrides: Partial<TimelineItem> = {}) => item({ hasMask: true, source: "dicom", ...overrides });
+
+    it("shows the middle slice of its end-diastole, as the model segmented it, with its overlay", () => {
+      const volumetry = volumetryFixture();
+      render("cardio-volume-mri", cine(), {
+        cineOverlay: { data: overlay, isError: false },
+        cineSlice: { data: slice, isError: false },
+        run: { data: cineRunFixture({ volumetry }), isError: false },
+      });
+
+      expect(viewerProps).toMatchObject({ blob: slice, module: "cardiology", overlay: { kind: "image", opacity: 0.6, src: overlay } });
+      const middle = middleSlice(volumetry);
+      expect(useAiAnalysisRun).toHaveBeenLastCalledWith("patient-1", "run-1");
+      expect(useAiAnalysisVolumeImage).toHaveBeenCalledWith("patient-1", "run-1", "slice", "ed", middle, { enabled: true });
+      expect(useAiAnalysisVolumeImage).toHaveBeenCalledWith("patient-1", "run-1", "overlay", "ed", middle, { enabled: true });
+      // A series of DICOM files cannot be shown as a document, and each download is an audited view.
+      expect(usePatientDocumentView).toHaveBeenLastCalledWith("patient-1", "doc-1", { enabled: false });
+      // The brain's mask and the nuclei overlay are not the cine's.
+      expect(enabledOf(useAiAnalysisRunMask)).toEqual({ enabled: false });
+      expect(enabledOf(useAiAnalysisRunSlice)).toEqual({ enabled: false });
+    });
+
+    it("fetches no image before it knows how many slices the run holds", () => {
+      render("cardio-volume-mri", cine(), { run: { data: undefined, isError: false } });
+
+      expect(useAiAnalysisVolumeImage).toHaveBeenCalledWith("patient-1", "run-1", "slice", "ed", 0, { enabled: false });
+      expect(viewerProps).toMatchObject({ blob: null, placeholder: fr("aiAnalyses.evolution.compare.imageLoading") });
+    });
+  });
+
+  it("does not load the run of an analysis that is not a cine", () => {
+    render("brain", item());
+    expect(useAiAnalysisRun).toHaveBeenLastCalledWith("", "run-1");
+    expect(enabledOf(useAiAnalysisVolumeImage)).toEqual({ enabled: false });
   });
 
   it("shows a breast slide alone: it has no mask", () => {

@@ -10,7 +10,7 @@ import {
   establishmentNavSections,
 } from "@/components/dashboard/layout/navigation";
 import { VerificationRequiredNotice } from "@/components/shared/VerificationRequiredNotice";
-import { findModel, findPipeline } from "@/features/ai-analyses/ai-models.registry";
+import { findModel, findPipeline, pipelineLimitations } from "@/features/ai-analyses/ai-models.registry";
 import {
   useAiAnalysisRun,
   useAiAnalysisRunMask,
@@ -36,6 +36,7 @@ import { AiRunReportSection } from "./AiRunReportSection";
 import { BrainResult } from "./BrainResult";
 import { BreastResult } from "./BreastResult";
 import { CardioSegResult } from "./CardioSegResult";
+import { CardioVolumeResult } from "./CardioVolumeResult";
 import { EcgResult } from "./EcgResult";
 import { NucleiResult } from "./NucleiResult";
 
@@ -83,7 +84,9 @@ export function AiAnalysisRunPage({ accountType, patientId, runId }: AiAnalysisR
     enabled:
       run?.status === "SUCCEEDED" &&
       run.pipeline !== "cardio-ecg" &&
-      run.pipeline !== "cardio-seg-mri",
+      run.pipeline !== "cardio-seg-mri" &&
+      // The source of a cine is an archive of its images, shown slice by slice by its result.
+      run.pipeline !== "cardio-volume-mri",
   });
   // The brain mask is shown at once; a nuclei map shows its colour overlay
   // (its label map is fetched by NucleiResult, only to hide types).
@@ -123,7 +126,7 @@ export function AiAnalysisRunPage({ accountType, patientId, runId }: AiAnalysisR
   const classifier = findModel(run?.classificationModelId);
   const segmenter = findModel(run?.segmentationModelId);
   const usedModels = [classifier, segmenter].filter((model) => model !== undefined);
-  const limitations = [...new Set(usedModels.flatMap((model) => model.knownLimitations))];
+  const limitations = pipelineLimitations(run?.pipeline, usedModels);
   const intlLocale = locale === "ar" ? "ar-DZ" : "fr-DZ";
   const decimal = new Intl.NumberFormat(intlLocale, { maximumFractionDigits: 2 });
   const imageName = sourceDocument?.fileName ?? run?.sourceDocumentId ?? "image";
@@ -189,6 +192,8 @@ export function AiAnalysisRunPage({ accountType, patientId, runId }: AiAnalysisR
       <>
         {run.pipeline === "cardio-ecg" ? (
           <EcgResult locale={locale} patientId={patientId} run={run} t={t} />
+        ) : run.pipeline === "cardio-volume-mri" ? (
+          <CardioVolumeResult locale={locale} patientId={patientId} run={run} t={t} />
         ) : run.pipeline === "cardio-seg-mri" ? (
           <CardioSegResult
             locale={locale}
@@ -232,7 +237,7 @@ export function AiAnalysisRunPage({ accountType, patientId, runId }: AiAnalysisR
                 </>
               ) : run.pipeline === "cardio-ecg" ? (
                 <EcgTraceability decimal={decimal} run={run} t={t} />
-              ) : run.pipeline === "cardio-seg-mri" ? (
+              ) : run.pipeline === "cardio-seg-mri" || run.pipeline === "cardio-volume-mri" ? (
                 <>
                   <dt className="text-[var(--text-secondary)]">{t("aiAnalyses.run.model")}</dt>
                   <dd className="break-words">

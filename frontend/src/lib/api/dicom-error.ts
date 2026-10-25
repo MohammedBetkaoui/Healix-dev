@@ -1,5 +1,6 @@
 import { isAxiosError } from "axios";
 
+import { cineStackRefusals } from "@/features/dicom/dicom.types";
 import type { TranslationFunction } from "@/lib/i18n";
 
 // The refusals of the DICOM routes (backend/src/dicom/dicom-errors.ts) in the
@@ -11,6 +12,7 @@ import type { TranslationFunction } from "@/lib/i18n";
 //   502 DICOM_STORE_UNAVAILABLE
 //   422 DICOM_PIPELINE_NOT_SUPPORTED { reason: PIPELINE | MODALITY }  analysing a slice
 //   422 DICOM_MULTIFRAME_NOT_SUPPORTED { frames }                     analysing a slice
+//   422 DICOM_CINE_STACK_INVALID { reason }   measuring a cine series the volumetry cannot read
 //   413 (Caddy or the backend)   the import is over 512 MiB
 const zipReasons: readonly string[] = [
   "CORRUPT",
@@ -56,6 +58,12 @@ export function getDicomErrorMessage(
       return t("dicom.errors.DICOM_MULTIFRAME_NOT_SUPPORTED", {
         frames: typeof data?.frames === "number" ? data.frames : 0,
       });
+    case "DICOM_CINE_STACK_INVALID": {
+      const reason = typeof data?.reason === "string" ? data.reason : "";
+      return (cineStackRefusals as readonly string[]).includes(reason)
+        ? t(`dicom.errors.DICOM_CINE_STACK_INVALID.${reason}`)
+        : t("dicom.errors.generic");
+    }
     case "DICOM_UPLOAD_INVALID":
     case "DICOM_STORE_UNAVAILABLE":
       return t(`dicom.errors.${code}`);

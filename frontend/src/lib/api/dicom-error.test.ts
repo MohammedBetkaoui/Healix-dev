@@ -1,5 +1,6 @@
 import { AxiosError, AxiosHeaders, type AxiosResponse } from "axios";
 
+import { cineStackRefusals } from "@/features/dicom/dicom.types";
 import { dictionaries, type Locale } from "@/i18n";
 import { translate, type TranslationFunction } from "@/lib/i18n";
 
@@ -83,6 +84,19 @@ describe("getDicomErrorMessage", () => {
     );
     expect(multiframe).toContain("25");
     expect(multiframe).toBe(t("dicom.errors.DICOM_MULTIFRAME_NOT_SUPPORTED", { frames: 25 }));
+  });
+
+  it.each<Locale>(["fr", "ar"])("explains a cine series the volumetry cannot read, by its reason (%s)", (locale) => {
+    const t = tFor(locale);
+
+    for (const reason of cineStackRefusals) {
+      const message = getDicomErrorMessage(axiosError(422, { code: "DICOM_CINE_STACK_INVALID", reason }), t);
+      expect(message).toBe(t(`dicom.errors.DICOM_CINE_STACK_INVALID.${reason}`));
+      expect(message).not.toContain("dicom.");
+    }
+    expect(
+      getDicomErrorMessage(axiosError(422, { code: "DICOM_CINE_STACK_INVALID", reason: "NEW" }), t),
+    ).toBe(t("dicom.errors.generic"));
   });
 
   it("reads a 413 (Caddy, with no code) as an import that is too large", () => {

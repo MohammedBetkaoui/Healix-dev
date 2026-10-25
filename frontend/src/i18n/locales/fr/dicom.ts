@@ -1,4 +1,38 @@
 export const dicomFr = {
+  cine: {
+    title: "Mesurer le cœur",
+    subtitle:
+      "Volumes, fraction d'éjection et masse du myocarde sur toute une série ciné en petit axe. La série est enregistrée dans le dossier comme document (une archive ZIP de ses images), puis mesurée comme une image importée : consentement, quota et décision du médecin s'appliquent.",
+    loading: "Recherche des séries ciné de l'étude…",
+    error: "Impossible de lister les séries ciné de cette étude.",
+    none: "Aucune série ciné dans cette étude : il faut une série d'IRM avec plusieurs phases à chaque position de coupe.",
+    seriesLabel: "Série ciné",
+    option: "Série {number} — {description} ({phases} phases × {slices} coupes)",
+    optionPlain: "Série {number} ({phases} phases × {slices} coupes)",
+    optionRefused: "Série {number} : non mesurable",
+    noNumber: "sans numéro",
+    facts: "{phases} phases × {slices} coupes, {count} images, {size}.",
+    shortAxisYes: "La description de la série indique un petit axe.",
+    shortAxisNo: "La description de la série indique une autre vue (grand axe ou 2, 3, 4 cavités) : la volumétrie est faite pour le petit axe.",
+    shortAxisUnknown: "La description de la série ne dit pas la vue : vérifiez qu'il s'agit d'un petit axe.",
+    shortAxisConfirm: "Je confirme que cette série est une coupe ciné en petit axe couvrant les ventricules.",
+    refusals: {
+      MIXED_ORIENTATION: "Les images de cette série n'ont pas toutes la même orientation : ce n'est pas une pile de coupes parallèles.",
+      MULTIFRAME: "Cette série est faite de fichiers multi-image : la volumétrie lit des fichiers à image unique.",
+      TOO_FEW_SLICES: "Au moins 6 coupes sont nécessaires pour calculer des volumes.",
+      TOO_LARGE: "Cette série dépasse la taille que le service peut analyser (300 Mo).",
+      TOO_MANY_FILES: "Cette série compte plus de 600 images.",
+      TOO_MANY_PHASES: "Une série ciné compte au plus 30 phases.",
+      UNEQUAL_PHASES: "Toutes les coupes n'ont pas le même nombre de phases : la série est incomplète ou mélange plusieurs acquisitions.",
+    },
+    consentMissing:
+      "Le consentement « Analyse IA diagnostique » de ce patient n'est pas signé : la mesure est impossible.",
+    openConsents: "Ouvrir les consentements du dossier",
+    launch: "Mesurer le cœur",
+    launching: "Analyse en cours… (3 minutes au plus)",
+    launchingHint: "Chaque coupe de chaque phase est segmentée : sur un ordinateur sans carte graphique, comptez une demi-minute à une minute et demie. Ne fermez pas la page.",
+    errorLaunch: "Impossible de lancer la mesure de cette série.",
+  },
   analysis: {
     chain: "Chaîne d'analyse",
     consentMissing:
@@ -36,6 +70,15 @@ export const dicomFr = {
     title: "Supprimer cette étude DICOM ?",
   },
   errors: {
+    DICOM_CINE_STACK_INVALID: {
+      MIXED_ORIENTATION: "Les images de cette série n'ont pas toutes la même orientation : ce n'est pas une pile de coupes parallèles.",
+      MULTIFRAME: "Cette série est faite de fichiers multi-image : la volumétrie lit des fichiers à image unique.",
+      TOO_FEW_SLICES: "Au moins 6 coupes sont nécessaires pour calculer des volumes.",
+      TOO_LARGE: "Cette série dépasse la taille que le service peut analyser (300 Mo).",
+      TOO_MANY_FILES: "Cette série compte plus de 600 images.",
+      TOO_MANY_PHASES: "Une série ciné compte au plus 30 phases.",
+      UNEQUAL_PHASES: "Toutes les coupes n'ont pas le même nombre de phases : la série est incomplète ou mélange plusieurs acquisitions.",
+    },
     DICOM_MULTIFRAME_NOT_SUPPORTED:
       "Cette image DICOM contient plusieurs images ({frames}) : choisissez une coupe d'une série d'images simples.",
     DICOM_NO_VALID_FILE: "Aucun fichier DICOM valide n'a été trouvé ({skipped} ignoré(s)).",

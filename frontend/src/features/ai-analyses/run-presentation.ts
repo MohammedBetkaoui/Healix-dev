@@ -7,12 +7,19 @@ import { type Locale } from "@/i18n";
 import {
   type AiAnalysisRun,
   type AiCardioSegPredictions,
+  type AiCardioVolumePredictions,
   type AiEcgPredictions,
   type AiRunPrediction,
   type AiServiceStatus,
 } from "./ai-analyses.types";
 
-type StoredPredictions = readonly AiRunPrediction[] | AiEcgPredictions | AiCardioSegPredictions | null | undefined;
+type StoredPredictions =
+  | readonly AiRunPrediction[]
+  | AiEcgPredictions
+  | AiCardioSegPredictions
+  | AiCardioVolumePredictions
+  | null
+  | undefined;
 
 /** Descending probability, on a copy; none for the predictions of an ECG (an object). */
 export function sortPredictions(predictions: StoredPredictions): AiRunPrediction[] {
@@ -104,6 +111,22 @@ export const knownRunErrorCodes = [
   "ECG_FILE_TOO_LARGE",
   "CARDIO_SEG_NOT_GRAYSCALE",
   "CARDIO_SEG_MULTIFRAME",
+  // A refused cine stack (ai-service/app/cardio_volume_input.py).
+  "CARDIO_VOLUME_UNSUPPORTED_FORMAT",
+  "CARDIO_VOLUME_NO_DICOM",
+  "CARDIO_VOLUME_UNSAFE_ARCHIVE",
+  "CARDIO_VOLUME_NOT_MR",
+  "CARDIO_VOLUME_MULTIFRAME",
+  "CARDIO_VOLUME_NOT_GRAYSCALE",
+  "CARDIO_VOLUME_UNDECODABLE",
+  "CARDIO_VOLUME_MISSING_GEOMETRY",
+  "CARDIO_VOLUME_MIXED_ORIENTATION",
+  "CARDIO_VOLUME_MIXED_GEOMETRY",
+  "CARDIO_VOLUME_UNEQUAL_PHASES",
+  "CARDIO_VOLUME_TOO_FEW_SLICES",
+  "CARDIO_VOLUME_TOO_FEW_PHASES",
+  "CARDIO_VOLUME_TOO_MANY_PHASES",
+  "CARDIO_VOLUME_TOO_LARGE",
 ] as const;
 const KNOWN_RUN_ERRORS = new Set<string>(knownRunErrorCodes);
 

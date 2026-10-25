@@ -16,7 +16,21 @@ import {
 export type ReportResult = { code: string; label: string; score?: number; value: string };
 
 /** What the table of results of an AI report shows, from the raw output of the model. */
-export function aiResults(ai: Pick<ReportAiDetails, "pipeline" | "predictions">): ReportResult[] {
+export function aiResults(ai: Pick<ReportAiDetails, "pipeline" | "predictions"> & Partial<Pick<ReportAiDetails, "volumetry">>): ReportResult[] {
+  // A cine volumetry: the measures in force, as the abbreviations the reports use.
+  if (ai.pipeline === "cardio-volume-mri") {
+    const summary = ai.volumetry;
+    if (!summary) return [];
+    const rows: [string, number | null, string][] = [
+      ["LVEF", summary.lvEfPercent, "%"],
+      ["EDV", summary.lvEdvMl, "ml"],
+      ["ESV", summary.lvEsvMl, "ml"],
+      ["MASS", summary.lvMassG, "g"],
+      ["RVEF", summary.rvEfPercent, "%"],
+    ];
+    return rows.flatMap(([code, value, unit]) => (value === null ? [] : [{ code, label: code, value: `${Math.round(value)} ${unit}` }]));
+  }
+
   const predictions = ai.predictions as AiRunListItem["predictions"];
   if (Array.isArray(predictions)) {
     return predictions.slice(0, 5).map((prediction) => ({

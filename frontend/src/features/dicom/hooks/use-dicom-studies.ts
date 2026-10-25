@@ -5,16 +5,19 @@ import { useCallback, useState } from "react";
 
 import { type DicomAnalysisPipeline } from "../dicom-analysis";
 import {
+  analyzeCineStack,
   analyzeDicomInstance,
   checkViewerAvailable,
   deleteDicomStudy,
   getDicomInstancePreview,
+  getCineStacks,
   getDicomStudies,
   getDicomStudy,
   importDicomStudies,
 } from "../dicom.api";
 
 export const dicomKeys = {
+  cineStacks: (studyId: string) => ["dicom", "cine-stacks", studyId] as const,
   preview: (instanceId: string) => ["dicom", "preview", instanceId] as const,
   studies: (patientId: string) => ["dicom", "studies", patientId] as const,
   study: (studyId: string) => ["dicom", "study", studyId] as const,
@@ -27,6 +30,17 @@ export function useDicomStudies(patientId: string) {
     queryKey: dicomKeys.studies(patientId),
     retry: false,
     staleTime: 15_000,
+  });
+}
+
+// The cine series of a study.
+export function useCineStacks(studyId: string) {
+  return useQuery({
+    enabled: Boolean(studyId),
+    queryFn: () => getCineStacks(studyId),
+    queryKey: dicomKeys.cineStacks(studyId),
+    retry: false,
+    staleTime: 30_000,
   });
 }
 
@@ -101,6 +115,20 @@ export function useDicomPreview(instanceId: string | null) {
     queryKey: dicomKeys.preview(instanceId ?? ""),
     retry: false,
     staleTime: Number.POSITIVE_INFINITY,
+  });
+}
+
+// "Mesurer le coeur" on a cine series. Like the analysis of a slice, the run is recorded even when it
+// fails, and the series is now a document of the record: the lists are refreshed on any outcome.
+export function useAnalyzeCineStack(patientId: string, studyId: string) {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: ({ seriesId }: { seriesId: string }) => analyzeCineStack(studyId, seriesId),
+    onSettled: () => {
+      void queryClient.invalidateQueries({ queryKey: ["patients", "ai-analysis-runs", patientId] });
+      void queryClient.invalidateQueries({ queryKey: ["patients", "documents", patientId] });
+    },
   });
 }
 

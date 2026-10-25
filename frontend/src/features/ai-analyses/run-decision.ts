@@ -28,6 +28,8 @@ export const correctionLabels = {
   "pathology-nuclei": [],
   "cardio-ecg": [],
   "cardio-seg-mri": [],
+  // Measures, not a class: a correction is made on the measures (volumetry.ts).
+  "cardio-volume-mri": [],
 } as const satisfies Record<AiPipelineId, readonly AiOutputClassKey[]>;
 
 /** Every class a decision may retain, whatever the chain. */
@@ -53,11 +55,14 @@ export function toggleEcgLabel(current: readonly EcgClass[], label: EcgClass): E
 const sameLabels = (a: readonly string[], b: readonly string[]) =>
   a.length === b.length && a.every((label) => b.includes(label));
 
-/** The decisions a chain offers: a nuclei map is validated or rejected, never corrected. */
-export function getDecisionOptions(pipeline: AiPipelineId): readonly AiRunDecision[] {
-  return pipeline === "pathology-nuclei" || pipeline === "cardio-seg-mri"
-    ? ["VALIDATED", "REJECTED"]
-    : aiRunDecisions;
+/**
+ * The decisions a chain offers: a segmentation map is validated or rejected, never
+ * corrected. The measures of a cine are validated as the model gave them, or
+ * corrected once the physician changed them (ED, ES, the slices counted), or rejected.
+ */
+export function getDecisionOptions(pipeline: AiPipelineId, volumetryModified = false): readonly AiRunDecision[] {
+  if (pipeline === "cardio-volume-mri") return volumetryModified ? ["CORRECTED", "REJECTED"] : ["VALIDATED", "REJECTED"];
+  return pipeline === "pathology-nuclei" || pipeline === "cardio-seg-mri" ? ["VALIDATED", "REJECTED"] : aiRunDecisions;
 }
 
 export const DECISION_REASON_MIN_LENGTH = 5;
@@ -114,6 +119,8 @@ export function getDecisionAgreement(run: DecisionFields): DecisionAgreement {
     if (!modelLabels || !run.decisionLabels) return "notApplicable";
     return sameLabels(run.decisionLabels, modelLabels) ? "agrees" : "disagrees";
   }
+  // The measures of a cine have no label: the physician kept them as they were, or changed them.
+  if (run.pipeline === "cardio-volume-mri") return run.decisionStatus === "VALIDATED" ? "agrees" : "disagrees";
   const modelLabel = getModelLabel(run);
   if (modelLabel === null) return "notApplicable";
   return run.decisionLabel !== null && run.decisionLabel === modelLabel ? "agrees" : "disagrees";
@@ -181,12 +188,18 @@ export function validateDecisionDraft(
   pipeline: AiPipelineId,
   /** ECG: the model's positive classes. */
   modelLabels: readonly EcgClass[] | null = null,
+  /** A cine: whether the physician changed the measures (a correction then, a validation otherwise). */
+  volumetryModified = false,
 ): DecisionDraftErrors {
-  if (draft.status === null || !getDecisionOptions(pipeline).includes(draft.status)) return { status: "required" };
+  if (draft.status === null || !getDecisionOptions(pipeline, volumetryModified).includes(draft.status)) {
+    return { status: "required" };
+  }
   if (draft.status === "VALIDATED") return {};
 
   const errors: DecisionDraftErrors = {};
-  if (draft.status === "CORRECTED" && pipeline === "cardio-ecg") {
+  if (draft.status === "CORRECTED" && pipeline === "cardio-volume-mri") {
+    // Nothing to name: the measures are the ones saved before the decision. Only the reason.
+  } else if (draft.status === "CORRECTED" && pipeline === "cardio-ecg") {
     const labels = sortEcgLabels(draft.correctedLabels ?? []);
     if (labels.length === 0) errors.correctedLabels = "required";
     else if (labels.includes(ECG_NORMAL_CLASS) && labels.length > 1) errors.correctedLabels = "normExclusive";
@@ -213,6 +226,9 @@ export function toDecisionPayload(
     case "VALIDATED":
       return { status: "VALIDATED" };
     case "CORRECTED":
+      if (pipeline === "cardio-volume-mri") {
+        return { measuresCorrected: true, reason: normalizeDecisionReason(draft.reason), status: "CORRECTED" };
+      }
       return pipeline === "cardio-ecg"
         ? {
             correctedLabels: sortEcgLabels(draft.correctedLabels ?? []),
@@ -236,6 +252,9 @@ export const knownDecisionErrorCodes = [
   "AI_CORRECTED_LABELS_REQUIRED",
   "AI_CORRECTED_LABELS_INVALID",
   "AI_CORRECTED_LABELS_NOT_APPLICABLE",
+  "AI_VOLUMETRY_MODIFIED",
+  "AI_MEASURES_CORRECTED_UNEXPECTED",
+  "AI_MEASURES_CORRECTED_NOT_APPLICABLE",
 ] as const;
 const KNOWN_DECISION_ERRORS = new Set<string>(knownDecisionErrorCodes);
 

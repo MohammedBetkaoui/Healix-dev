@@ -9,9 +9,12 @@ import {
   aiPipelines,
   findLaunchableModel,
   findPipeline,
+  findWizardPipeline,
   getPipelineRole,
   pipelineForLegacyModel,
   pipelineSteps,
+  startsFromDicomStudy,
+  wizardPipelines,
 } from "./ai-models.registry";
 import {
   brainClassificationEvaluation,
@@ -276,13 +279,15 @@ describe("aiModels registry", () => {
     expect(findLaunchableModel(undefined)).toBeUndefined();
   });
 
-  it("launches five chains, each from its entry model, and maps every legacy component to its chain", () => {
+  it("launches six chains, each from its entry model, and maps every legacy component to its chain", () => {
     expect(aiPipelines.map((pipeline) => [pipeline.id, pipeline.kind, pipeline.entryModelId])).toEqual([
       ["brain", "routed", "brain-efficientnetb4-tumor-classification"],
       ["pathology-breast", "single", "pathology-breakhis-classification"],
       ["pathology-nuclei", "single", "pathology-unet-pannuke-segmentation"],
       ["cardio-ecg", "single", "cardio-ecg-resnet1d-ptbxl-superdiagnostic"],
       ["cardio-seg-mri", "single", "cardio-seg-acdc-unet-effb4"],
+      // The same model, run on every slice of a cine stack.
+      ["cardio-volume-mri", "single", "cardio-seg-acdc-unet-effb4"],
     ]);
     expect(getPipelineRole("cardio-ecg-resnet1d-ptbxl-superdiagnostic")).toMatchObject({ role: "entry", pipeline: { id: "cardio-ecg" } });
     expect(findPipeline("brain")?.entryModelId).toBe("brain-efficientnetb4-tumor-classification");
@@ -298,6 +303,23 @@ describe("aiModels registry", () => {
     expect(pipelineForLegacyModel("brain-unet-pituitary-segmentation")?.id).toBe("brain");
     expect(pipelineForLegacyModel("brain-unet-glioma-segmentation")).toBeUndefined();
     expect(pipelineForLegacyModel("pathology-breakhis-classification")?.id).toBe("pathology-breast");
+  });
+
+  it("starts the cine volumetry from a DICOM study, the others from the wizard", () => {
+    expect(aiPipelines.filter(startsFromDicomStudy).map((pipeline) => pipeline.id)).toEqual(["cardio-volume-mri"]);
+    expect(wizardPipelines.map((pipeline) => pipeline.id)).toEqual([
+      "brain",
+      "pathology-breast",
+      "pathology-nuclei",
+      "cardio-ecg",
+      "cardio-seg-mri",
+    ]);
+    // The wizard cannot take it: its route finds no such chain, the result page still does.
+    expect(findWizardPipeline("cardio-volume-mri")).toBeUndefined();
+    expect(findWizardPipeline("cardio-seg-mri")?.id).toBe("cardio-seg-mri");
+    expect(findPipeline("cardio-volume-mri")?.id).toBe("cardio-volume-mri");
+    // The legacy link of the shared model still opens the single-slice chain.
+    expect(pipelineForLegacyModel("cardio-seg-acdc-unet-effb4")?.id).toBe("cardio-seg-mri");
   });
 
   it("lists the hub steps of every chain", () => {

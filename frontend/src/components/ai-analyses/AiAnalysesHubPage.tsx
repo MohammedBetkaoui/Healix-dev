@@ -12,7 +12,7 @@ import { DashboardShell } from "@/components/dashboard/layout/DashboardShell";
 import { doctorNavSections, establishmentNavSections } from "@/components/dashboard/layout/navigation";
 import { HealixLogo } from "@/components/shared/HealixLogo";
 import { aiModules, type AiModule, type AiPipelineId } from "@/features/ai-analyses/ai-analyses.types";
-import { aiModels, aiPipelines, findModel, getPipelineRole, type AiModelId } from "@/features/ai-analyses/ai-models.registry";
+import { aiModels, aiPipelines, findModel, getPipelineRole, startsFromDicomStudy, type AiModelId } from "@/features/ai-analyses/ai-models.registry";
 import { isolate } from "@/features/ai-analyses/evaluation-presentation";
 import { getPipelineAvailability } from "@/features/ai-analyses/hub-presentation";
 import { useAiModelsStatus } from "@/features/ai-analyses/hooks/use-ai-models-status";
@@ -87,6 +87,10 @@ export function AiAnalysesHubPage({ accountType }: AiAnalysesHubPageProps) {
   const planLabel = (pipelineId: string) =>
     t("subscription.hub.planBadge", { plan: planFor(pipelineId)?.name ? t(planFor(pipelineId)?.name ?? "") : t("subscription.hub.premiumName") });
   const subscriptionHref = `${roleBase}/subscription`;
+  // The cine volumetry starts from a DICOM study of a patient's record, not from the wizard.
+  const fromStudy = startsFromDicomStudy(selected);
+  const continueHref = fromStudy ? `${roleBase}/patients` : `${roleBase}/ai-analyses/new?pipeline=${encodeURIComponent(selected.id)}`;
+  const continueLabel = fromStudy ? t("aiAnalyses.hub.continueFromStudy") : t("aiAnalyses.hub.continue");
   const startUpgrade = () => {
     if (!upgradePlan) return;
     void upgrade.createIntent({ billingPeriod: "MONTHLY", paymentMethod: "SYNTHETIC_CHARGILY", planId: upgradePlan.id });
@@ -219,7 +223,7 @@ export function AiAnalysesHubPage({ accountType }: AiAnalysesHubPageProps) {
               </dl>
               <div className="ai-hub-preparation">
                 <h3>{t("aiAnalyses.hub.nextTitle")}</h3>
-                <ol>{preparationSteps.map(({ key, icon: Icon }) => <li key={key}><span><Icon size={14} aria-hidden="true" /></span>{t(`aiAnalyses.hub.preparation.${key}`)}</li>)}</ol>
+                <ol>{preparationSteps.map(({ key, icon: Icon }) => <li key={key}><span><Icon size={14} aria-hidden="true" /></span>{t(`aiAnalyses.hub.${fromStudy ? "preparationStudy" : "preparation"}.${key}`)}</li>)}</ol>
               </div>
               <div className="ai-hub-models">
                 <span>{t("aiAnalyses.hub.models")}</span>
@@ -244,12 +248,13 @@ export function AiAnalysesHubPage({ accountType }: AiAnalysesHubPageProps) {
                   {upgrade.error ? <p role="alert" className="text-sm font-medium text-[var(--danger-ink)]">{upgrade.error}</p> : null}
                 </div>
               ) : write.disabled ? (
-                <button type="button" className="ai-hub-continue" disabled title={write.title}>{t("aiAnalyses.hub.continue")}<ArrowRight size={17} aria-hidden="true" className="clinical-directional" /></button>
+                <button type="button" className="ai-hub-continue" disabled title={write.title}>{continueLabel}<ArrowRight size={17} aria-hidden="true" className="clinical-directional" /></button>
               ) : (
-                <Link href={`${roleBase}/ai-analyses/new?pipeline=${encodeURIComponent(selected.id)}`} className="ai-hub-continue" aria-label={t("aiAnalyses.hub.continueWith", { name: t(`aiAnalyses.hub.analyses.${selected.id}.title`) })}>
-                  {t("aiAnalyses.hub.continue")}<ArrowRight size={17} aria-hidden="true" className="clinical-directional" />
+                <Link href={continueHref} className="ai-hub-continue" aria-label={t("aiAnalyses.hub.continueWith", { name: t(`aiAnalyses.hub.analyses.${selected.id}.title`) })}>
+                  {continueLabel}<ArrowRight size={17} aria-hidden="true" className="clinical-directional" />
                 </Link>
               )}
+              {fromStudy ? <p className="ai-hub-launch-note"><ShieldCheck size={13} aria-hidden="true" />{t("aiAnalyses.hub.startsFromStudy")}</p> : null}
               <p className="ai-hub-launch-note">{availability === "ready" ? <Check size={13} aria-hidden="true" /> : <ShieldCheck size={13} aria-hidden="true" />}{availability === "ready" ? t("aiAnalyses.hub.readyHint") : t("aiAnalyses.hub.checkHint")}</p>
               {selectedModel?.acceptedFormats ? <p className="ai-hub-summary-formats"><bdi dir="ltr">{selectedModel.acceptedFormats.join(" · ").toUpperCase()}</bdi></p> : null}
             </div>
@@ -261,8 +266,8 @@ export function AiAnalysesHubPage({ accountType }: AiAnalysesHubPageProps) {
                 {lockedPipeline && upgradePlan ? t("subscription.hub.upgrade", { plan: t(upgradePlan.name) }) : t("aiAnalyses.hub.continue")}<ArrowRight size={16} aria-hidden="true" className="clinical-directional" />
               </button>
             ) : (
-              <Link href={`${roleBase}/ai-analyses/new?pipeline=${encodeURIComponent(selected.id)}`} className="ai-hub-continue" aria-label={t("aiAnalyses.hub.continueWith", { name: t(`aiAnalyses.hub.analyses.${selected.id}.title`) })}>
-                {t("aiAnalyses.hub.continue")}<ArrowRight size={16} aria-hidden="true" className="clinical-directional" />
+              <Link href={continueHref} className="ai-hub-continue" aria-label={t("aiAnalyses.hub.continueWith", { name: t(`aiAnalyses.hub.analyses.${selected.id}.title`) })}>
+                {continueLabel}<ArrowRight size={16} aria-hidden="true" className="clinical-directional" />
               </Link>
             )}
           </div>

@@ -1,6 +1,7 @@
 import {
   ecgClasses,
   type AiDatasetKey,
+  type AiLimitationKey,
   type AiModel,
   type AiModelMetric,
   type AiPipeline,
@@ -296,6 +297,9 @@ export const aiModels = [
       "cardioSegSingleSlice",
       "cardioSegAcdcPopulation",
       "cardioSegShortAxisOnly",
+      "cardioVolumeSliceBySlice",
+      "cardioVolumeCompleteStack",
+      "cardioVolumeNoLocalValidation",
     ],
     underrepresentedPopulations: null,
     status: "available",
@@ -438,6 +442,16 @@ export const aiPipelines = [
     entryModelId: "cardio-seg-acdc-unet-effb4",
     segmenterByClass: {},
   },
+  // The same model, run on every slice of every phase of a cine stack. It starts from
+  // a DICOM study (aiAnalyses.pipelines.cardio-volume-mri), not from the analysis wizard.
+  {
+    id: "cardio-volume-mri",
+    module: "cardiology",
+    kind: "single",
+    entryModelId: "cardio-seg-acdc-unet-effb4",
+    segmenterByClass: {},
+    launch: "dicom-study",
+  },
 ] as const satisfies readonly AiPipeline[];
 
 /** The steps the hub lists for each chain (aiAnalyses.pipelines.<id>.steps.<step>). */
@@ -447,6 +461,7 @@ export const pipelineSteps: Readonly<Record<AiPipelineId, readonly string[]>> = 
   "pathology-nuclei": ["tiles", "classes"],
   "cardio-ecg": ["windows", "filter", "classes"],
   "cardio-seg-mri": ["normalize", "segment", "measure"],
+  "cardio-volume-mri": ["segmentStack", "simpson", "measures"],
 };
 
 export function findModel(modelId: string | null | undefined): AiModel | undefined {
@@ -467,6 +482,30 @@ export function findLaunchableModel(modelId: string | undefined) {
 /** ?pipeline= of the "new analysis" route; undefined when unknown. */
 export function findPipeline(pipelineId: string | undefined): AiPipeline | undefined {
   return aiPipelines.find((pipeline) => pipeline.id === pipelineId);
+}
+
+// The model of the cardiac MRI chains is the same for the single slice and for the cine stack, but
+// their limits are not: an isolated slice gives no volume, a stack must be complete.
+const VOLUME_ONLY_LIMITATIONS: readonly string[] = ["cardioVolumeSliceBySlice", "cardioVolumeCompleteStack", "cardioVolumeNoLocalValidation"];
+const SINGLE_SLICE_ONLY_LIMITATIONS: readonly string[] = ["cardioSegSingleSlice"];
+
+/** The known limitations that apply to a run of the chain, from the models it used. */
+export function pipelineLimitations(pipelineId: string | undefined, models: readonly Pick<AiModel, "knownLimitations">[]): AiLimitationKey[] {
+  const all = [...new Set(models.flatMap((model) => model.knownLimitations))];
+  if (pipelineId === "cardio-volume-mri") return all.filter((key) => !SINGLE_SLICE_ONLY_LIMITATIONS.includes(key));
+  if (pipelineId === "cardio-seg-mri") return all.filter((key) => !VOLUME_ONLY_LIMITATIONS.includes(key));
+  return all;
+}
+
+/** Whether the chain starts from a series of a DICOM study, not from the analysis wizard. */
+export const startsFromDicomStudy = (pipeline: object): boolean => "launch" in pipeline && pipeline.launch === "dicom-study";
+
+/** The chains the analysis wizard launches. */
+export const wizardPipelines = aiPipelines.filter((pipeline) => !startsFromDicomStudy(pipeline));
+
+/** ?pipeline= of the wizard route: a chain that starts from a DICOM study is not one it can take. */
+export function findWizardPipeline(pipelineId: string | undefined): AiPipeline | undefined {
+  return wizardPipelines.find((pipeline) => pipeline.id === pipelineId);
 }
 
 /** Where a model sits in a pipeline, or null when it is in none. */

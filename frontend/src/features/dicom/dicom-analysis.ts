@@ -1,7 +1,7 @@
 import { getFailedRunId } from "@/features/ai-analyses/run-presentation";
 import { type TranslationFunction } from "@/lib/i18n";
 
-import { type DicomInstance, type DicomSeries, type DicomStudyDetail } from "./dicom.types";
+import { type CineStack, type DicomInstance, type DicomSeries, type DicomStudyDetail } from "./dicom.types";
 
 // The chains that read a slice of a DICOM study (backend/src/dicom/
 // dicom-analysis.service.ts): the brain chain and the cardiac MRI segmentation.
@@ -35,6 +35,34 @@ export function formatDicomSlice(
     instance: slice.instanceNumber ?? none,
     series: slice.seriesNumber ?? none,
   });
+}
+
+/** The cine series the volumetry can read: no refusal. */
+export const measurableStacks = (stacks: readonly CineStack[]): CineStack[] => stacks.filter((stack) => stack.refusal === null);
+
+/**
+ * The series offered first: a short axis that can be read (the volumetry is made for it), else any series
+ * that can be read, else none. A series whose description says nothing is not excluded: the physician
+ * confirms the view.
+ */
+export function defaultCineStack(stacks: readonly CineStack[]): CineStack | null {
+  const readable = measurableStacks(stacks);
+  return readable.find((stack) => stack.shortAxisLikely === true) ?? readable.find((stack) => stack.shortAxisLikely === null) ?? readable[0] ?? null;
+}
+
+/**
+ * Whether the button may measure the heart: a series that can be read is chosen, the physician confirmed
+ * it is a short axis, the patient signed the AI consent (while it is unknown the server decides), the
+ * account may write, and nothing is running.
+ */
+export function canLaunchCineMeasure(state: {
+  busy: boolean;
+  consentMissing: boolean;
+  readOnly: boolean;
+  shortAxisConfirmed: boolean;
+  stack: CineStack | null;
+}): boolean {
+  return state.stack !== null && state.stack.refusal === null && state.shortAxisConfirmed && !state.consentMissing && !state.readOnly && !state.busy;
 }
 
 /** The result page of a run, in the workspace of the account. */

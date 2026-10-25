@@ -7,7 +7,7 @@ import { type ReactNode } from "react";
 import { StatusBadge } from "@/components/dashboard/shared/StatusBadge";
 import { VerificationRequiredNotice } from "@/components/shared/VerificationRequiredNotice";
 import { type AiAnalysisRun, type AiPipelineId } from "@/features/ai-analyses/ai-analyses.types";
-import { aiPipelines } from "@/features/ai-analyses/ai-models.registry";
+import { wizardPipelines } from "@/features/ai-analyses/ai-models.registry";
 import { useAiAnalysisRuns } from "@/features/ai-analyses/hooks/use-ai-analysis-runs";
 import { useDownloadAiReport } from "@/features/ai-analyses/hooks/use-download-ai-report";
 import { decisionTones, getDisplayedLabel, getLatestRetainedRun } from "@/features/ai-analyses/run-decision";
@@ -67,7 +67,7 @@ export function NewAiAnalysisMenu({
       <div className="absolute end-0 z-20 mt-2 w-72 max-w-[calc(100vw-2rem)] rounded-[var(--radius-md)] border border-[var(--border)] bg-[var(--surface)] p-2 shadow-[var(--shadow-raised)]">
         <p className="px-2 pb-1.5 pt-1 text-xs font-medium text-[var(--text-secondary)]">{t("aiAnalyses.record.newAnalysisChoose")}</p>
         <ul>
-          {aiPipelines.map((pipeline) => (
+          {wizardPipelines.map((pipeline) => (
             <li key={pipeline.id}>
               <Link
                 href={getNewAiAnalysisHref(accountType, patientId, pipeline.id)}
@@ -78,6 +78,7 @@ export function NewAiAnalysisMenu({
             </li>
           ))}
         </ul>
+        <p className="px-2 pb-1 pt-2 text-xs leading-5 text-[var(--text-secondary)]">{t("aiAnalyses.record.cineHint")}</p>
       </div>
     </details>
   );
@@ -272,14 +273,26 @@ export function LatestRetainedAiRun({ accountType, locale, patientId, t }: Lates
   const isMap =
     (latest?.pipeline === "pathology-nuclei" || latest?.pipeline === "cardio-seg-mri") &&
     latest.decisionStatus === "VALIDATED";
-  if (!latest || latest.decisionStatus === null || latest.decisionStatus === "REJECTED" || (displayed?.source !== "physician" && !isMap)) {
+  // A cine keeps its measures (validated as the model gave them, or as corrected), not a class.
+  const retainedFraction =
+    latest?.pipeline === "cardio-volume-mri" ? (latest.volumetry?.effective.measures.lv.efPercent ?? null) : null;
+  if (
+    !latest ||
+    latest.decisionStatus === null ||
+    latest.decisionStatus === "REJECTED" ||
+    (displayed?.source !== "physician" && !isMap && retainedFraction === null)
+  ) {
     return <p className="mt-1 text-sm font-medium text-[var(--ink)]">{t("aiAnalyses.record.latest.none")}</p>;
   }
 
   return (
     <div className="mt-1 space-y-1">
       <p className="flex flex-wrap items-center gap-2 text-sm font-medium text-[var(--ink)]">
-        {displayed?.source === "physician" ? t(`aiAnalyses.classes.${displayed.label}`) : t("aiAnalyses.decision.mapAccepted")}
+        {displayed?.source === "physician"
+          ? t(`aiAnalyses.classes.${displayed.label}`)
+          : retainedFraction !== null
+            ? t("aiAnalyses.record.volumetryResult", { value: new Intl.NumberFormat(locale === "ar" ? "ar-DZ" : "fr-DZ", { maximumFractionDigits: 0 }).format(retainedFraction) })
+            : t("aiAnalyses.decision.mapAccepted")}
         <StatusBadge label={t(`aiAnalyses.decision.statuses.${latest.decisionStatus}`)} tone={decisionTones[latest.decisionStatus]} />
       </p>
       <p className="text-xs text-[var(--ink-faint)]">

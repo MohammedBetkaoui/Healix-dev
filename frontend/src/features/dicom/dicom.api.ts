@@ -1,10 +1,12 @@
 import { ANALYSIS_REQUEST_TIMEOUT_MS } from "@/features/ai-analyses/ai-analysis-runs.api";
 import { type AiAnalysisRun } from "@/features/ai-analyses/ai-analyses.types";
+import { CINE_REQUEST_TIMEOUT_MS } from "@/features/ai-analyses/volumetry";
 import { apiClient } from "@/lib/api/http-client";
 
 import { type DicomAnalysisPipeline } from "./dicom-analysis";
 import { VIEWER_PROBE_PATH } from "./dicom-import";
 import {
+  type CineStack,
   type DicomImportResult,
   type DicomStudy,
   type DicomStudyDetail,
@@ -79,6 +81,25 @@ export async function analyzeDicomInstance(
     `/dicom/instances/${encodeURIComponent(orthancInstanceId)}/analyze`,
     { pipeline },
     { timeout: ANALYSIS_REQUEST_TIMEOUT_MS },
+  );
+  return response.data;
+}
+
+// The MRI series of a study that hold a cine (several phases at each slice position), the ones the
+// volumetry cannot read shown with their reason.
+export async function getCineStacks(studyId: string): Promise<CineStack[]> {
+  const response = await apiClient.get<CineStack[]>(`/dicom/studies/${encodeURIComponent(studyId)}/cine-stacks`);
+  return response.data;
+}
+
+// "Mesurer le coeur": the backend zips the series into a document of the record and runs the cine
+// volumetry on it like any analysis. It waits for the service up to 3 minutes: the answer is the run
+// whatever its outcome is, or a refusal before it exists (consent, plan, quota, a series it cannot read).
+export async function analyzeCineStack(studyId: string, seriesId: string): Promise<AiAnalysisRun> {
+  const response = await apiClient.post<AiAnalysisRun>(
+    `/dicom/studies/${encodeURIComponent(studyId)}/cardiac-volume`,
+    { seriesId },
+    { timeout: CINE_REQUEST_TIMEOUT_MS },
   );
   return response.data;
 }

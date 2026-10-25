@@ -123,6 +123,18 @@ export type ReportAiInfo = {
   pipeline: AiPipelineId;
 };
 
+/** The figures of a cardiac cine volumetry the reports center lists: the measures in force (backend volumetrySummary). */
+export type ReportVolumetrySummary = {
+  cardiacOutputLMin: number | null;
+  lvEdvMl: number;
+  lvEfPercent: number | null;
+  lvEsvMl: number;
+  lvMassG: number;
+  lvefClass: "reduced" | "mildlyReduced" | "preserved" | null;
+  modified: boolean;
+  rvEfPercent: number | null;
+};
+
 export type ReportAiDetails = ReportAiInfo & {
   decisionStatus: "VALIDATED" | "CORRECTED" | "REJECTED" | null;
   clinicianImpression: string | null;
@@ -131,6 +143,8 @@ export type ReportAiDetails = ReportAiInfo & {
   weightsSha256: string | null;
   /** Raw output of the model (shape depends on the pipeline). */
   predictions: unknown;
+  /** Cardiac cine volumetry only. */
+  volumetry?: ReportVolumetrySummary | null;
 };
 
 /** One row of GET /reports and GET /reports/patients/:id. */

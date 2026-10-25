@@ -70,7 +70,7 @@ export function HealixSpecialtyArtwork({ pipeline, className }: HealixSpecialtyA
         </g>
       )}
 
-      {pipeline === "cardio-seg-mri" && (
+      {(pipeline === "cardio-seg-mri" || pipeline === "cardio-volume-mri") && (
         <g>
           {/* Transverse thorax and soft-tissue landmarks of a cine-MRI slice. */}
           <path

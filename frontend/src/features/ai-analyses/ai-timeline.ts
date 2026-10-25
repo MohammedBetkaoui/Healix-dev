@@ -12,7 +12,8 @@ import {
   type AiRunDecision,
 } from "./ai-analyses.types";
 
-export type MeasureUnit = "mm2" | "probability" | "px" | "ratio" | "score";
+/** percent: a number of percent (an ejection fraction of 38 is 38 %), unlike ratio and probability, which are shares from 0 to 1. */
+export type MeasureUnit = "g" | "l_min" | "ml" | "mm2" | "percent" | "probability" | "px" | "ratio" | "score";
 
 export type MeasureInfo = {
   key: string;
@@ -233,6 +234,14 @@ export function formatMeasure(value: number | null, unit: MeasureUnit, locale: L
       return new Intl.NumberFormat(tag, { maximumFractionDigits: 2, minimumFractionDigits: 2 }).format(value);
     case "mm2":
       return `${new Intl.NumberFormat(tag, { maximumFractionDigits: 1 }).format(value)} mm²`;
+    case "ml":
+      return `${new Intl.NumberFormat(tag, { maximumFractionDigits: 0 }).format(value)} ml`;
+    case "g":
+      return `${new Intl.NumberFormat(tag, { maximumFractionDigits: 0 }).format(value)} g`;
+    case "l_min":
+      return `${new Intl.NumberFormat(tag, { maximumFractionDigits: 1, minimumFractionDigits: 1 }).format(value)} L/min`;
+    case "percent":
+      return `${new Intl.NumberFormat(tag, { maximumFractionDigits: 0 }).format(value)} %`;
     default:
       return `${new Intl.NumberFormat(tag, { maximumFractionDigits: 0 }).format(value)} px`;
   }
@@ -254,6 +263,15 @@ export function formatDelta(delta: Delta | null, unit: MeasureUnit, locale: Loca
       return signed(2);
     case "mm2":
       return `${signed(1)} mm²`;
+    case "ml":
+      return `${signed(0)} ml`;
+    case "g":
+      return `${signed(0)} g`;
+    case "l_min":
+      return `${signed(1)} L/min`;
+    case "percent":
+      // A change in a fraction is a number of points, not of percent.
+      return `${signed(0)} pt`;
     default:
       return `${signed(0)} px`;
   }

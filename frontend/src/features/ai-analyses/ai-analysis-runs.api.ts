@@ -15,11 +15,13 @@ import {
   type AiServiceStatus,
   type CardioEvaluation,
   type CardioSegEvaluation,
+  type CardioVolumeEvaluation,
   type EcgClass,
   type EcgUnit,
 } from "./ai-analyses.types";
 import { type AiTimeline } from "./ai-timeline";
 import { type ModelMonitoring, type ModelMonitoringParams } from "./model-monitoring";
+import { type CorrectVolumetryPayload, type VolumetryImagePhase } from "./volumetry";
 
 // The backend waits up to 60 s for the inference service: the default 10 s
 // client timeout would abort a valid analysis.
@@ -103,6 +105,8 @@ export type DecideAiAnalysisRunPayload = {
   correctedLabel?: string;
   /** ECG, CORRECTED only: the classes kept, NORM alone or without it. */
   correctedLabels?: EcgClass[];
+  /** Cardiac cine, CORRECTED only: the decision keeps the measures the physician saved (PATCH .../volumetry). */
+  measuresCorrected?: boolean;
   /** Required for CORRECTED and REJECTED. */
   reason?: string;
 };
@@ -183,6 +187,46 @@ export async function getCardioSegEvaluation(weightsSha256: string): Promise<Car
     `/ai-models/cardio-seg/evaluation/${encodeURIComponent(weightsSha256)}`,
   );
   return response.data.evaluation;
+}
+
+/** The figures of the cardiac cine volumetry for these weights (ejection fractions against the truth), or null. */
+export async function getCardioVolumeEvaluation(weightsSha256: string): Promise<CardioVolumeEvaluation | null> {
+  const response = await apiClient.get<{ evaluation: CardioVolumeEvaluation | null }>(
+    `/ai-models/cardio-volume/evaluation/${encodeURIComponent(weightsSha256)}`,
+  );
+  return response.data.evaluation;
+}
+
+/**
+ * PATCH .../volumetry: the physician's changes to the phases, the slices counted or the body surface
+ * area. The backend calculates the measures again from the stored areas (no new inference) and answers
+ * with the run. 409 once the run is decided or when another correction was saved at the same time.
+ */
+export async function correctAiAnalysisVolumetry(
+  patientId: string,
+  runId: string,
+  payload: CorrectVolumetryPayload,
+): Promise<AiAnalysisRun> {
+  const response = await apiClient.patch<AiAnalysisRun>(
+    `/patients/${patientId}/ai-analysis-runs/${runId}/volumetry`,
+    payload,
+  );
+  return response.data;
+}
+
+/** One image of a cine volumetry: the class map, its colour overlay or the slice, for the model's ED or ES. */
+export async function getAiAnalysisVolumeImage(
+  patientId: string,
+  runId: string,
+  kind: "mask" | "overlay" | "slice",
+  phase: VolumetryImagePhase,
+  slice: number,
+): Promise<Blob> {
+  const response = await apiClient.get<Blob>(`/patients/${patientId}/ai-analysis-runs/${runId}/${kind}`, {
+    params: { phase, slice },
+    responseType: "blob",
+  });
+  return response.data;
 }
 
 /** The colour overlay of a nuclei map (PNG, background transparent). */

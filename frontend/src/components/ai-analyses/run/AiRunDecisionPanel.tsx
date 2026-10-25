@@ -46,13 +46,19 @@ const decisionIcons = {
 const isMapPipeline = (pipeline: AiPipelineId) =>
   pipeline === "pathology-nuclei" || pipeline === "cardio-seg-mri";
 const optionKey = (pipeline: AiPipelineId, status: AiRunDecision) =>
-  isMapPipeline(pipeline) ? `aiAnalyses.decision.nucleiOptions.${status}` : `aiAnalyses.decision.options.${status}`;
+  pipeline === "cardio-volume-mri"
+    ? `aiAnalyses.decision.volumetryOptions.${status}`
+    : isMapPipeline(pipeline)
+      ? `aiAnalyses.decision.nucleiOptions.${status}`
+      : `aiAnalyses.decision.options.${status}`;
 const optionHintKey = (pipeline: AiPipelineId, status: AiRunDecision) =>
-  isMapPipeline(pipeline)
-    ? `aiAnalyses.decision.nucleiOptionHints.${status}`
-    : pipeline === "cardio-ecg"
-      ? `aiAnalyses.decision.ecgOptionHints.${status}`
-      : `aiAnalyses.decision.optionHints.${status}`;
+  pipeline === "cardio-volume-mri"
+    ? `aiAnalyses.decision.volumetryOptionHints.${status}`
+    : isMapPipeline(pipeline)
+      ? `aiAnalyses.decision.nucleiOptionHints.${status}`
+      : pipeline === "cardio-ecg"
+        ? `aiAnalyses.decision.ecgOptionHints.${status}`
+        : `aiAnalyses.decision.optionHints.${status}`;
 
 /** ECG classes named in a sentence; "none at its threshold" for an empty set. */
 function ecgClassesText(labels: readonly EcgClass[] | null, t: TranslationFunction) {
@@ -73,6 +79,8 @@ function retainedText(
   if (pipeline === "cardio-ecg" && status !== "REJECTED") {
     return labels && labels.length > 0 ? ecgClassesText(labels, t) : t("aiAnalyses.decision.noClassRetained");
   }
+  // The measures of a cine have no class: they are kept as the model gave them, or as corrected.
+  if (pipeline === "cardio-volume-mri" && status !== "REJECTED") return t("aiAnalyses.decision.measuresAccepted");
   if (label) return t(`aiAnalyses.classes.${label}`);
   if (isMapPipeline(pipeline) && status === "VALIDATED") return t("aiAnalyses.decision.mapAccepted");
   return t("aiAnalyses.decision.noRetainedLabel");
@@ -187,7 +195,9 @@ function DecisionRecord({ locale, run, t }: { locale: Locale; run: AiAnalysisRun
   const agreementText =
     agreement === "pending" || agreement === "notApplicable"
       ? t("aiAnalyses.run.none")
-      : modelLabels
+      : run.pipeline === "cardio-volume-mri"
+        ? t(`aiAnalyses.decision.volumetryAgreement.${agreement}`)
+        : modelLabels
         ? t(`aiAnalyses.decision.ecgAgreement.${agreement}`, { classes: ecgClassesText(modelLabels, t) })
         : modelLabel
           ? t(`aiAnalyses.decision.agreement.${agreement}`, { class: t(`aiAnalyses.classes.${modelLabel}`) })
@@ -202,7 +212,9 @@ function DecisionRecord({ locale, run, t }: { locale: Locale; run: AiAnalysisRun
           <StatusBadge label={t(`aiAnalyses.decision.statuses.${status}`)} tone={decisionTones[status]} />
           <span className="text-[var(--text-primary)]">{t(optionKey(run.pipeline, status))}</span>
         </dd>
-        <dt className="text-[var(--text-secondary)]">{t("aiAnalyses.decision.fields.retainedLabel")}</dt>
+        <dt className="text-[var(--text-secondary)]">
+          {run.pipeline === "cardio-volume-mri" ? t("aiAnalyses.decision.retainedMeasures") : t("aiAnalyses.decision.fields.retainedLabel")}
+        </dt>
         <dd className="font-semibold text-[var(--text-primary)]">
           {retainedText(run.pipeline, status, run.decisionLabel, t, run.decisionLabels)}
         </dd>
@@ -245,7 +257,7 @@ function DecisionForm({ mutation, run, t }: { mutation: DecisionMutation; run: A
     reasonHint: `${id}-reason-hint`,
     statusError: `${id}-status-error`,
   };
-  const [draft, setDraft] = useState<DecisionDraft>({ correctedLabel: "", correctedLabels: [], reason: "", status: null });
+  const [chosen, setDraft] = useState<DecisionDraft>({ correctedLabel: "", correctedLabels: [], reason: "", status: null });
   const [showErrors, setShowErrors] = useState(false);
   const [isConfirming, setConfirming] = useState(false);
   const submitRef = useRef<HTMLButtonElement>(null);
@@ -258,8 +270,16 @@ function DecisionForm({ mutation, run, t }: { mutation: DecisionMutation; run: A
     : modelLabel
       ? t(`aiAnalyses.classes.${modelLabel}`)
       : "";
-  const errors = validateDecisionDraft(draft, modelLabel, run.pipeline, modelLabels);
+  // A cine: the options depend on whether the physician changed the measures above.
+  const isCine = run.pipeline === "cardio-volume-mri";
+  const measuresModified = run.volumetry?.modified === true;
+  const options = getDecisionOptions(run.pipeline, measuresModified);
+  // A choice made before the measures were corrected (or reset) may no longer be offered: it is dropped.
+  const draft: DecisionDraft =
+    chosen.status !== null && !options.includes(chosen.status) ? { ...chosen, status: null } : chosen;
+  const errors = validateDecisionDraft(draft, modelLabel, run.pipeline, modelLabels, measuresModified);
   const visible = showErrors ? errors : {};
+
   const needsReason = draft.status === "CORRECTED" || draft.status === "REJECTED";
   const reasonLength = normalizeDecisionReason(draft.reason).length;
   const limits = { max: DECISION_REASON_MAX_LENGTH, min: DECISION_REASON_MIN_LENGTH };
@@ -307,8 +327,13 @@ function DecisionForm({ mutation, run, t }: { mutation: DecisionMutation; run: A
       <fieldset>
         <legend className="text-sm font-semibold text-[var(--text-primary)]">{t("aiAnalyses.decision.choicesLabel")}</legend>
         <p className="mt-1 text-xs text-[var(--text-secondary)]">{t("aiAnalyses.decision.pendingHint")}</p>
+        {isCine ? (
+          <p role="note" className="mt-2 text-xs font-medium text-[var(--text-primary)]">
+            {measuresModified ? t("aiAnalyses.decision.volumetryModified") : t("aiAnalyses.decision.volumetryUnmodified")}
+          </p>
+        ) : null}
         <div className="mt-3 grid gap-2">
-          {getDecisionOptions(run.pipeline).map((status) => {
+          {options.map((status) => {
             const isSelected = draft.status === status;
             const Icon = decisionIcons[status];
 
@@ -530,7 +555,9 @@ function ConfirmDecisionDialog({ draft, modelLabel, modelLabels, mutation, onClo
             <StatusBadge label={t(`aiAnalyses.decision.statuses.${draft.status}`)} tone={decisionTones[draft.status]} />
             {t(optionKey(pipeline, draft.status))}
           </dd>
-          <dt className="text-[var(--text-secondary)]">{t("aiAnalyses.decision.confirm.retainedLabel")}</dt>
+          <dt className="text-[var(--text-secondary)]">
+            {pipeline === "cardio-volume-mri" ? t("aiAnalyses.decision.retainedMeasures") : t("aiAnalyses.decision.confirm.retainedLabel")}
+          </dt>
           <dd className="font-semibold">{retainedText(pipeline, draft.status, retainedLabel, t, retainedLabels)}</dd>
           {payload.reason ? (
             <>
