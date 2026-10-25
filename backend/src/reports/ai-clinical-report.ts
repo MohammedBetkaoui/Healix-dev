@@ -9,12 +9,14 @@ const CATEGORY_BY_PIPELINE: Record<string, ClinicalReportCategory> = {
   brain: ClinicalReportCategory.AI_BRAIN,
   'cardio-ecg': ClinicalReportCategory.AI_ECG,
   'cardio-seg-mri': ClinicalReportCategory.AI_CARDIAC_MRI,
+  'cardio-volume-mri': ClinicalReportCategory.AI_CARDIAC_MRI,
 };
 
 const TITLE_BY_PIPELINE: Record<string, string> = {
   brain: 'Compte rendu IA — Brain',
   'cardio-ecg': 'Compte rendu IA — ECG',
   'cardio-seg-mri': 'Compte rendu IA — IRM cardiaque',
+  'cardio-volume-mri': 'Compte rendu IA — Volumétrie cardiaque (IRM ciné)',
   'pathology-nuclei': 'Compte rendu IA — segmentation nucléaire',
   'pathology-breast': 'Compte rendu IA — Pathology',
 };

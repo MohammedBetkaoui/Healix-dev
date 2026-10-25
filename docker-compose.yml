@@ -173,6 +173,7 @@ services:
       AI_CARDIO_MODEL_CARD_PATH: /app/model-cards/cardio-ecg-resnet1d-ptbxl.json
       AI_CARDIO_SEG_EVALUATION_PATH: /app/evaluation/cardio-seg-latest.json
       AI_CARDIO_SEG_MODEL_CARD_PATH: /app/model-cards/cardio-seg-acdc-unet-effb4.json
+      AI_CARDIO_VOLUME_EVALUATION_PATH: /app/evaluation/cardio-volume-latest.json
       UPLOAD_ROOT: /app/uploads
       # The DICOM store, on the internal network. In production the backend
       # refuses to start when the password is shorter than 24 characters.

@@ -29,9 +29,20 @@ import {
   isUncertain,
   UNCERTAINTY_THRESHOLD,
 } from './ai-report-rules';
+import {
+  effectiveState,
+  isModified,
+  type Volumetry,
+} from '../volumetry/volumetry';
+import {
+  LVEF_CLASS_SOURCE,
+  type LvefClass,
+  type VolumetryMeasures,
+} from '../volumetry/volumetry-measures';
 import { type CardioEvaluation } from './cardio-evaluation';
 import { CARDIO_SEG_PALETTE } from './cardio-seg-palette';
 import { type CardioSegEvaluation } from './cardio-seg-evaluation';
+import { type CardioVolumeEvaluation } from './cardio-volume-evaluation';
 import { NUCLEI_PALETTE } from './nuclei-palette';
 import {
   type BreakhisEvaluation,
@@ -152,6 +163,32 @@ export type ReportStructure =
     }
   | { kind: 'unknown' };
 
+/** A slice of the model's ED or ES phase and its colour overlay, as the report shows it. */
+export type ReportVolumeFigure = {
+  phase: 'ed' | 'es';
+  /** From the base (0). */
+  slice: number;
+  width: number;
+  height: number;
+  image: { data: Buffer; sha256: string };
+  overlay: { data: Buffer; sha256: string };
+};
+
+/** Cardiac cine volumetry: what the report prints of it. */
+export type ReportVolumetry = {
+  volumetry: Volumetry;
+  figures: ReportVolumeFigure[];
+  /** SHA-256 of the model card. */
+  configSha256: string | null;
+  /** The DICOM series the archive was made from, when it came from a study. */
+  series: {
+    description: string | null;
+    instances: number;
+    number: number | null;
+  } | null;
+  evaluation: CardioVolumeEvaluation | null;
+};
+
 export type ReportInput = {
   reportNumber: string;
   editedAt: Date;
@@ -240,6 +277,8 @@ export type ReportInput = {
   slice?: { data: Buffer; sha256: string } | null;
   /** Cardiac MRI: the service's evaluation of these weights, else the notebook's, or null. */
   cardioSegEvaluation?: CardioSegEvaluation | null;
+  /** Cardiac cine volumetry (absent for the other chains). */
+  volumetry?: ReportVolumetry | null;
   /** Lead II of the stored ECG trace (first 10 s, filtered, mV), as drawn. */
   ecgTrace: { samplingRate: number; leadII: number[]; sha256: string } | null;
   /** Cardiology: the service's evaluation of these weights, else the notebook's, or null. */
@@ -609,14 +648,35 @@ function results(input: ReportInput, evaluationApplies: boolean): string {
 // Chains whose result is a map to review: validated, never corrected.
 const MAP_PIPELINES = new Set(['pathology-nuclei', 'cardio-seg-mri']);
 
+function volumeConclusionRow(input: ReportInput): string {
+  const stack = input.volumetry;
+  if (!stack) return '';
+  const { measures } = effectiveState(stack.volumetry);
+  const parts = [
+    `FEVG ${withUnit(measures.lv.efPercent, '%', 0)}`,
+    `VTD ${withUnit(measures.lv.edvMl, 'ml', 0)}`,
+    `VTS ${withUnit(measures.lv.esvMl, 'ml', 0)}`,
+    `masse ${withUnit(measures.lvMassG, 'g', 0)}`,
+    ...(measures.rv.efPercent === null
+      ? []
+      : [`FEVD ${withUnit(measures.rv.efPercent, '%', 0)}`]),
+  ];
+  return row('Mesures retenues', escapeHtml(parts.join(' · ')));
+}
+
 function conclusion(input: ReportInput): string {
   const { run } = input;
   const nuclei = MAP_PIPELINES.has(run.pipeline);
+  const volume = run.pipeline === 'cardio-volume-mri';
   const verdict = nuclei
     ? 'Carte de segmentation relue et acceptée'
-    : run.decisionStatus === 'CORRECTED'
-      ? 'Résultat corrigé'
-      : 'Résultat validé';
+    : volume
+      ? run.decisionStatus === 'CORRECTED'
+        ? 'Mesures corrigées par le médecin'
+        : 'Mesures validées'
+      : run.decisionStatus === 'CORRECTED'
+        ? 'Résultat corrigé'
+        : 'Résultat validé';
   const ecgLabels = run.pipeline === 'cardio-ecg' ? run.decisionLabels : null;
   const labelRow = ecgLabels
     ? row(
@@ -641,13 +701,15 @@ function conclusion(input: ReportInput): string {
   const reasonRow = run.decisionReason
     ? row('Motif', escapeHtml(run.decisionReason))
     : '';
+  const measuresRow = volume ? volumeConclusionRow(input) : '';
   return `<section class="conclusion">
   <h2>Conclusion du médecin</h2>
   <p class="verdict">${verdict}</p>
   ${
-    labelRow || reasonRow
+    labelRow || reasonRow || measuresRow
       ? `<table class="facts">
     ${labelRow}
+    ${measuresRow}
     ${reasonRow}
   </table>`
       : ''
@@ -1274,6 +1336,444 @@ function cardioSegLegal(): string {
 </section>`;
 }
 
+// --- Cardiac cine volumetry ----------------------------------------------------
+
+const NBSP = ' ';
+const signed = new Intl.NumberFormat('fr-FR', {
+  maximumFractionDigits: 1,
+  minimumFractionDigits: 1,
+  signDisplay: 'exceptZero',
+});
+const whole = decimals(0);
+
+/** Phases and slices are numbered from 1 on the page; they are stored from 0 (the base for a slice). */
+const phaseNumber = (phase: number) => phase + 1;
+const sliceNumber = (slice: number) => slice + 1;
+
+function cardioVolumeApplies(input: ReportInput): boolean {
+  return evaluationMatchesWeights(
+    input.run.segmentationWeightsSha256,
+    input.volumetry?.evaluation?.weightsSha256 ?? null,
+  );
+}
+
+type VolumeRow = {
+  digits: number;
+  group: 'lv' | 'rv';
+  indexed?: (measures: VolumetryMeasures) => number | null | undefined;
+  indexedUnit?: string;
+  label: string;
+  of: (measures: VolumetryMeasures) => number | null;
+  /** No line at all when there is no value (the cardiac output without a heart rate). */
+  optional?: boolean;
+  unit: string;
+};
+
+// The measures printed, in the order they are read.
+const VOLUME_ROWS: readonly VolumeRow[] = [
+  {
+    digits: 0,
+    group: 'lv',
+    indexed: (m) => m.indexed?.lvEdvMlM2,
+    indexedUnit: 'ml/m²',
+    label: 'VG — volume télédiastolique (VTD)',
+    of: (m) => m.lv.edvMl,
+    unit: 'ml',
+  },
+  {
+    digits: 0,
+    group: 'lv',
+    indexed: (m) => m.indexed?.lvEsvMlM2,
+    indexedUnit: 'ml/m²',
+    label: 'VG — volume télésystolique (VTS)',
+    of: (m) => m.lv.esvMl,
+    unit: 'ml',
+  },
+  {
+    digits: 0,
+    group: 'lv',
+    indexed: (m) => m.indexed?.lvSvMlM2,
+    indexedUnit: 'ml/m²',
+    label: "VG — volume d'éjection systolique (VES)",
+    of: (m) => m.lv.svMl,
+    unit: 'ml',
+  },
+  {
+    digits: 0,
+    group: 'lv',
+    label: "VG — fraction d'éjection (FEVG)",
+    of: (m) => m.lv.efPercent,
+    unit: '%',
+  },
+  {
+    digits: 0,
+    group: 'lv',
+    indexed: (m) => m.indexed?.lvMassGM2,
+    indexedUnit: 'g/m²',
+    label: 'VG — masse myocardique',
+    of: (m) => m.lvMassG,
+    unit: 'g',
+  },
+  {
+    digits: 1,
+    group: 'lv',
+    indexed: (m) => m.indexed?.cardiacIndexLMinM2,
+    indexedUnit: 'L/min/m²',
+    label: 'Débit cardiaque',
+    of: (m) => m.cardiacOutputLMin,
+    optional: true,
+    unit: 'L/min',
+  },
+  {
+    digits: 0,
+    group: 'rv',
+    indexed: (m) => m.indexed?.rvEdvMlM2,
+    indexedUnit: 'ml/m²',
+    label: 'VD — volume télédiastolique (VTD)',
+    of: (m) => m.rv.edvMl,
+    unit: 'ml',
+  },
+  {
+    digits: 0,
+    group: 'rv',
+    indexed: (m) => m.indexed?.rvEsvMlM2,
+    indexedUnit: 'ml/m²',
+    label: 'VD — volume télésystolique (VTS)',
+    of: (m) => m.rv.esvMl,
+    unit: 'ml',
+  },
+  {
+    digits: 0,
+    group: 'rv',
+    label: "VD — fraction d'éjection (FEVD)",
+    of: (m) => m.rv.efPercent,
+    unit: '%',
+  },
+];
+
+const withUnit = (
+  value: number | null | undefined,
+  unit: string,
+  digits: number,
+) =>
+  value === null || value === undefined
+    ? '—'
+    : `${decimals(digits).format(value)}${NBSP}${unit}`;
+
+// The 2021 ESC classes of the LVEF, named as the guidelines do.
+const LVEF_CLASS_NAMES: Record<LvefClass, string> = {
+  mildlyReduced: 'légèrement réduite (41–49 %)',
+  preserved: 'préservée (≥ 50 %)',
+  reduced: 'réduite (≤ 40 %)',
+};
+
+const VOLUME_WARNING_TEXTS: Record<
+  string,
+  (warning: Record<string, number | string>) => string
+> = {
+  duplicate_images_ignored: (w) =>
+    `${w.count} image(s) en double ignorée(s) dans la série.`,
+  irregular_slice_spacing: (w) =>
+    `Pas entre les coupes irrégulier (de ${w.minMm} à ${w.maxMm} mm, médiane ${w.medianMm} mm) : les volumes sont calculés avec le pas médian.`,
+  phase_timing_differs: () =>
+    "Les instants de déclenchement des phases diffèrent d'une coupe à l'autre : les phases sont appariées par rang.",
+  slice_order_uncertain: () =>
+    "L'ordre des coupes (de la base vers l'apex) a été déduit de la taille de la cavité du VG, sans certitude : à vérifier.",
+};
+
+function volumeWarnings(volumetry: Volumetry): string[] {
+  const texts = volumetry.warnings.map((warning) => {
+    const text = VOLUME_WARNING_TEXTS[warning.code];
+    return text ? text(warning) : `Avertissement du service : ${warning.code}.`;
+  });
+  if (volumetry.sliceOrderInferred) {
+    texts.unshift(
+      "Les DICOM ne disent pas dans quel sens vont les coupes : l'ordre base → apex a été déduit de la taille de la cavité du VG.",
+    );
+  }
+  if (
+    effectiveState(volumetry).measures.warnings.includes('es_volume_exceeds_ed')
+  ) {
+    texts.push(
+      'Le volume télésystolique dépasse le volume télédiastolique : les phases retenues sont à vérifier.',
+    );
+  }
+  return texts;
+}
+
+function cardioVolumeTechnique(input: ReportInput): string {
+  const { run, sourceDocument } = input;
+  const stack = input.volumetry;
+  const volumetry = stack?.volumetry ?? null;
+  const duration =
+    run.durationMs === null
+      ? 'Non renseignée'
+      : `${new Intl.NumberFormat('fr-FR', { maximumFractionDigits: 1 }).format(run.durationMs / 1000)} s`;
+  const model = run.segmentationModelId
+    ? `${escapeHtml(MODEL_NAMES[run.segmentationModelId] ?? run.segmentationModelId)}<br /><span class="sha">Poids SHA-256 : ${escapeHtml(run.segmentationWeightsSha256 ?? '—')}</span>${stack?.configSha256 ? `<br /><span class="sha">Carte du modèle SHA-256 : ${escapeHtml(stack.configSha256)}</span>` : ''}`
+    : 'Non renseigné';
+  const series = stack?.series
+    ? row(
+        'Série source',
+        escapeHtml(
+          `${stack.series.number === null ? 'Série sans numéro' : `Série ${stack.series.number}`}${stack.series.description ? ` (${stack.series.description})` : ''} — ${integer.format(stack.series.instances)} images`,
+        ),
+      )
+    : '';
+  const state = volumetry ? effectiveState(volumetry) : null;
+  const bsa = state?.bsaM2
+    ? `${decimals(2).format(state.bsaM2)} m² (Mosteller, ${state.bsaSource === 'manual' ? 'taille et poids saisis par le médecin, non conservés' : 'taille et poids du DICOM'})`
+    : 'Non renseignée : valeurs non indexées';
+  const heartRate = volumetry?.heartRateBpm
+    ? `${whole.format(volumetry.heartRateBpm)}${NBSP}bpm (DICOM)`
+    : 'Non renseignée : pas de débit cardiaque';
+  return `<section>
+  <h2>Technique</h2>
+  <table class="facts">
+    ${row('Document analysé', escapeHtml(sourceDocument.originalName))}
+    ${series}
+    ${row("Date d'import", formatDateTime(sourceDocument.createdAt))}
+    ${
+      volumetry
+        ? row(
+            'Série ciné',
+            `${integer.format(volumetry.phases)} phases × ${integer.format(volumetry.slices.length)} coupes, petit axe (déclaré lors de la demande), pixels de ${decimals(2).format(volumetry.pixelSpacingMm[0])} × ${decimals(2).format(volumetry.pixelSpacingMm[1])} mm`,
+          )
+        : ''
+    }
+    ${volumetry ? row('Pas entre les coupes', `${decimals(2).format(volumetry.sliceGapMm)}${NBSP}mm (distance entre les positions successives des coupes, et non l'épaisseur de coupe)`) : ''}
+    ${row("Chaîne d'analyse", 'Segmentation sémantique de chaque coupe à chaque phase (normalisation des intensités, 256 × 256 pixels), puis volumes par la méthode des disques de Simpson : somme des surfaces × pas entre les coupes. Masse myocardique = volume du myocarde en télédiastole × 1,05 g/ml')}
+    ${row('Surface corporelle', bsa)}
+    ${row('Fréquence cardiaque', heartRate)}
+    ${row('Modèle utilisé', model)}
+    ${row('Durée de traitement', duration)}
+  </table>
+</section>`;
+}
+
+/** The LV volume over the cycle, with end-diastole and end-systole marked. */
+export function volumeCurveSvg(
+  curve: readonly number[],
+  edPhase: number,
+  esPhase: number,
+): string {
+  const width = 180;
+  const height = 64;
+  const left = 15;
+  const right = 5;
+  const top = 6;
+  const bottom = 12;
+  const plotWidth = width - left - right;
+  const plotHeight = height - top - bottom;
+
+  const highest = Math.max(...curve, 1);
+  // A round upper bound, so that the ticks fall on round numbers.
+  const step = 10 ** Math.floor(Math.log10(highest));
+  const maximum = Math.ceil(highest / (step / 2)) * (step / 2);
+  const x = (phase: number) =>
+    left + (curve.length > 1 ? (phase / (curve.length - 1)) * plotWidth : 0);
+  const y = (volume: number) => top + plotHeight * (1 - volume / maximum);
+  const point = (phase: number) =>
+    `${Number(x(phase).toFixed(2))},${Number(y(curve[phase]).toFixed(2))}`;
+
+  const ticks = [0, 0.25, 0.5, 0.75, 1].map((fraction) => maximum * fraction);
+  const grid = ticks
+    .map(
+      (tick) =>
+        `<line class="grid" x1="${left}" x2="${width - right}" y1="${Number(y(tick).toFixed(2))}" y2="${Number(y(tick).toFixed(2))}" /><text class="tick" x="${left - 1.5}" y="${Number((y(tick) + 1).toFixed(2))}" text-anchor="end">${whole.format(tick)}</text>`,
+    )
+    .join('');
+  const every = Math.max(1, Math.ceil(curve.length / 12));
+  const phases = curve
+    .map((_, phase) => phase)
+    .filter((phase) => phase % every === 0 || phase === curve.length - 1)
+    .map(
+      (phase) =>
+        `<text class="tick" x="${Number(x(phase).toFixed(2))}" y="${height - bottom + 4.5}" text-anchor="middle">${phaseNumber(phase)}</text>`,
+    )
+    .join('');
+  const marker = (phase: number, name: string) =>
+    `<circle class="marker" cx="${Number(x(phase).toFixed(2))}" cy="${Number(y(curve[phase]).toFixed(2))}" r="1.3" /><text class="mark" x="${Number(x(phase).toFixed(2))}" y="${Number((y(curve[phase]) - 2.4).toFixed(2))}" text-anchor="middle">${name}</text>`;
+
+  return `<svg class="curve" viewBox="0 0 ${width} ${height}" role="img" aria-label="Volume du ventricule gauche au cours du cycle">
+    ${grid}
+    <line class="axis" x1="${left}" x2="${left}" y1="${top}" y2="${top + plotHeight}" />
+    <line class="axis" x1="${left}" x2="${width - right}" y1="${top + plotHeight}" y2="${top + plotHeight}" />
+    <polyline class="line" points="${curve.map((_, phase) => point(phase)).join(' ')}" />
+    ${phases}
+    ${marker(edPhase, 'TD')}
+    ${marker(esPhase, 'TS')}
+    <text class="label" x="${left + plotWidth / 2}" y="${height - 1}" text-anchor="middle">Phase du cycle</text>
+    <text class="label" x="2.5" y="${top + plotHeight / 2}" text-anchor="middle" transform="rotate(-90 2.5 ${top + plotHeight / 2})">Volume du VG (ml)</text>
+  </svg>`;
+}
+
+function volumeFigures(input: ReportInput, firstNumber: number): string {
+  const stack = input.volumetry;
+  if (!stack || stack.figures.length === 0) return '';
+  const phaseName = { ed: 'Télédiastole', es: 'Télésystole' } as const;
+  const figures = stack.figures
+    .map((figure, index) => {
+      const sliceUri = `data:image/png;base64,${figure.image.data.toString('base64')}`;
+      const overlayUri = `data:image/png;base64,${figure.overlay.data.toString('base64')}`;
+      const phase =
+        figure.phase === 'ed'
+          ? stack.volumetry.images.edPhase
+          : stack.volumetry.images.esPhase;
+      return `<figure class="thumb">
+      <div class="slice" style="aspect-ratio: ${figure.width} / ${figure.height}">
+        <img src="${sliceUri}" alt="" />
+        <svg viewBox="0 0 ${figure.width} ${figure.height}" preserveAspectRatio="none" aria-hidden="true">
+          <image href="${overlayUri}" x="0" y="0" width="${figure.width}" height="${figure.height}" preserveAspectRatio="none" />
+        </svg>
+      </div>
+      <figcaption><strong>Figure ${firstNumber + index}</strong> — ${phaseName[figure.phase]}, phase ${phaseNumber(phase)}, coupe ${sliceNumber(figure.slice)}/${stack.volumetry.images.slices}</figcaption>
+    </figure>`;
+    })
+    .join('\n    ');
+  return `<div class="figures wrap">
+    ${figures}
+  </div>`;
+}
+
+function cardioVolumeResults(input: ReportInput): string {
+  const stack = input.volumetry;
+  if (!stack) {
+    return `<section>
+  <h2>Résultats</h2>
+  <p>Mesures non disponibles.</p>
+</section>`;
+  }
+  const { volumetry } = stack;
+  const state = effectiveState(volumetry);
+  const modified = isModified(volumetry);
+  const measures = state.measures;
+  const indexed = measures.indexed !== null;
+  const automatic = volumetry.auto.measures;
+
+  const header = `<tr><th scope="col">Mesure</th><th scope="col" class="num">Valeur retenue</th>${indexed ? '<th scope="col" class="num">Indexée (par m² de surface corporelle)</th>' : ''}${modified ? '<th scope="col" class="num">Proposition du modèle</th>' : ''}</tr>`;
+  const rows = VOLUME_ROWS.filter(
+    // No cardiac output without a heart rate: no empty line.
+    (item) => !item.optional || item.of(measures) !== null,
+  )
+    .map((item) => {
+      const retained = withUnit(item.of(measures), item.unit, item.digits);
+      const index = indexed
+        ? `<td class="num">${item.indexed ? withUnit(item.indexed(measures), item.indexedUnit ?? '', item.digits === 0 ? 0 : 1) : '—'}</td>`
+        : '';
+      const proposal = modified
+        ? `<td class="num">${withUnit(item.of(automatic), item.unit, item.digits)}</td>`
+        : '';
+      return `<tr${item.label.includes('FEVG') ? ' class="top"' : ''}><td>${escapeHtml(item.label)}</td><td class="num">${retained}</td>${index}${proposal}</tr>`;
+    })
+    .join('\n      ');
+
+  const fraction = measures.lv.efPercent;
+  const classLine =
+    fraction !== null && measures.lvefClass
+      ? `<p class="model-result">FEVG ${whole.format(fraction)}${NBSP}% — classe ESC 2021 : fraction d'éjection ${LVEF_CLASS_NAMES[measures.lvefClass]}.</p>
+  <p class="note">${escapeHtml(LVEF_CLASS_SOURCE)}. Cette classe décrit la valeur mesurée ; elle ne constitue pas un diagnostic.</p>`
+      : '';
+
+  const retainedPhases = `Télédiastole : phase ${phaseNumber(state.edPhase)} ; télésystole : phase ${phaseNumber(state.esPhase)} (sur ${integer.format(volumetry.phases)})`;
+  const phaseNote = modified
+    ? `${retainedPhases}. Le modèle proposait les phases ${phaseNumber(volumetry.auto.edPhase)} et ${phaseNumber(volumetry.auto.esPhase)} ; les mesures ont été corrigées par le médecin, sans nouvelle analyse d'image.`
+    : `${retainedPhases}, choisies par le modèle (volume du VG maximal et minimal).`;
+  const excluded =
+    state.excludedSlices.length > 0
+      ? ` Coupes exclues du calcul (numérotées depuis la base) : ${state.excludedSlices.map(sliceNumber).join(', ')}.`
+      : '';
+
+  const warnings = volumeWarnings(volumetry);
+  const figureFirst = 2;
+  return `<section>
+  <h2>Résultats</h2>
+  <table class="grid">
+    <thead>${header}</thead>
+    <tbody>
+      ${rows}
+    </tbody>
+  </table>
+  <p class="note">${phaseNote}${excluded} Valeurs arrondies à l'affichage.</p>
+  ${classLine}
+  <figure class="curve-figure">
+    ${volumeCurveSvg(state.lvVolumeCurveMl, state.edPhase, state.esPhase)}
+    <figcaption><strong>Figure 1</strong> — Volume du ventricule gauche au cours du cycle (TD : télédiastole, TS : télésystole retenues)</figcaption>
+  </figure>
+  ${volumeFigures(input, figureFirst)}
+  ${
+    stack.figures.length > 0 &&
+    (state.edPhase !== volumetry.images.edPhase ||
+      state.esPhase !== volumetry.images.esPhase)
+      ? `<p class="note">Les images montrent les phases proposées par le modèle (télédiastole : phase ${phaseNumber(volumetry.images.edPhase)}, télésystole : phase ${phaseNumber(volumetry.images.esPhase)}), non celles retenues par le médecin.</p>`
+      : ''
+  }
+  ${warnings.length > 0 ? `<div class="notice"><strong>À vérifier</strong>${warnings.map(escapeHtml).join('<br />')}</div>` : ''}
+  <ul class="legend">${CARDIO_SEG_STRUCTURES.map((name) => `<li><span class="swatch" style="background:${CARDIO_SEG_PALETTE[name]}"></span>${escapeHtml(CARDIO_SEG_NAMES[name])}</li>`).join('')}</ul>
+  <p class="note">Aide à la mesure : les contours et les mesures sont à vérifier par le médecin.</p>
+</section>`;
+}
+
+function cardioVolumePerformances(input: ReportInput): string {
+  const evaluation = input.volumetry?.evaluation ?? null;
+  if (!cardioVolumeApplies(input) || !evaluation) {
+    return `<section class="small">
+  <h2>Performances de référence</h2>
+  <p>${notMeasured(input.run.segmentationWeightsSha256)}</p>
+</section>`;
+  }
+  const agreement = (
+    name: string,
+    figures: CardioVolumeEvaluation['lvef'],
+  ): string => {
+    const limits = figures.limitsOfAgreement
+      ? `limites d'accord à 95 % de ${signed.format(figures.limitsOfAgreement[0])} à ${signed.format(figures.limitsOfAgreement[1])} points`
+      : "limites d'accord non calculables";
+    const correlation =
+      figures.pearsonR === null
+        ? ''
+        : `, r de Pearson ${decimals(2).format(figures.pearsonR)}`;
+    return `${name} : erreur absolue moyenne ${decimals(1).format(figures.mae)} point, biais ${signed.format(figures.bias)} point, ${limits}${correlation} (n = ${integer.format(figures.n)})`;
+  };
+  return `<section class="small">
+  <h2>Performances de référence</h2>
+  <p>Mesurées le ${formatDate(new Date(evaluation.generatedAt as string))} par le service d'analyse lui-même sur ${integer.format(evaluation.nPatients)} patients ACDC jamais vus à l'entraînement (rapport ${escapeHtml(evaluation.file)}). Fraction d'éjection prédite contre fraction d'éjection de référence (différence en points de fraction d'éjection). ${agreement('FEVG', evaluation.lvef)} ; ${agreement('FEVD', evaluation.rvef)}.</p>
+</section>`;
+}
+
+function cardioVolumeLegal(): string {
+  const limitations = [
+    'Segmentation 2D, coupe par coupe : le modèle ne voit pas les coupes voisines ; les coupes basales et apicales sont les plus incertaines.',
+    'Modèle entraîné et évalué sur ACDC seul (un centre, une population européenne) : aucune validation sur des IRM algériennes à ce jour.',
+    'Les volumes supposent une série petit axe couvrant les ventricules sans lacune ; une autre orientation ou une série incomplète donne des mesures sans valeur.',
+    "La classe de la fraction d'éjection suit la classification ESC 2021 citée ci-dessus ; elle décrit une valeur mesurée et ne pose aucun diagnostic.",
+  ];
+  return `<section class="small">
+  <h2>Mentions légales</h2>
+  <p>Aide à la mesure, à vérifier par le médecin. Ce compte rendu ne constitue pas un diagnostic à lui seul et ne remplace pas l'avis d'un médecin. Modèle non certifié comme dispositif médical.</p>
+  <ul>${limitations.map((item) => `<li>${escapeHtml(item)}</li>`).join('')}</ul>
+</section>`;
+}
+
+/** The facts of the volumetry the report certifies (its fingerprint): the numbers and the images, not the areas. */
+function volumetryFacts(stack: ReportVolumetry) {
+  const volumetry = { ...stack.volumetry, areasMm2: undefined };
+  return {
+    configSha256: stack.configSha256,
+    evaluation: stack.evaluation
+      ? { file: stack.evaluation.file, sha256: stack.evaluation.weightsSha256 }
+      : null,
+    figures: stack.figures.map((figure) => ({
+      image: figure.image.sha256,
+      overlay: figure.overlay.sha256,
+      phase: figure.phase,
+      slice: figure.slice,
+    })),
+    series: stack.series,
+    volumetry,
+  };
+}
+
 const STYLES = `
 *{box-sizing:border-box}
 html{-webkit-print-color-adjust:exact;print-color-adjust:exact}
@@ -1323,6 +1823,17 @@ figure.ecg{width:auto;margin:4mm 0 0}
 .ecg-strip .major{stroke:#de8f8f;stroke-width:.2}
 .ecg-strip .trace,.ecg-strip .calibration{fill:none;stroke:#111;stroke-width:.3;stroke-linejoin:round}
 .ecg-strip .lead{font-size:2.6px;font-weight:700;fill:#111}
+.figures.wrap{flex-wrap:wrap;gap:4mm}
+figure.thumb{width:40mm}
+figure.curve-figure{width:auto;margin:3mm 0 2mm;break-inside:avoid}
+svg.curve{display:block;width:100%;height:auto}
+svg.curve .grid{stroke:#dcdcdc;stroke-width:.2}
+svg.curve .axis{stroke:#5a5a5a;stroke-width:.3}
+svg.curve .line{fill:none;stroke:${ACCENT_COLOR};stroke-width:.6;stroke-linejoin:round}
+svg.curve .marker{fill:#D55E00}
+svg.curve text{font-family:'Inter',Arial,sans-serif;font-size:3px;fill:#333}
+svg.curve .mark{font-weight:700;fill:#D55E00}
+svg.curve .label{fill:#4a4a4a}
 `;
 
 const TITLES: Record<string, string> = {
@@ -1330,6 +1841,8 @@ const TITLES: Record<string, string> = {
     "COMPTE RENDU D'ANALYSE D'IMAGERIE ASSISTÉE PAR INTELLIGENCE ARTIFICIELLE",
   'cardio-ecg': "Compte rendu d'électrocardiogramme analysé par IA",
   'cardio-seg-mri': "Compte rendu d'IRM cardiaque analysée par IA",
+  'cardio-volume-mri':
+    'Compte rendu de volumétrie cardiaque (IRM ciné) analysée par IA',
 };
 
 const SUBTITLES: Record<string, string> = {
@@ -1337,6 +1850,8 @@ const SUBTITLES: Record<string, string> = {
   'cardio-ecg': 'Cardiologie — ECG 12 dérivations, 5 superclasses (PTB-XL)',
   'cardio-seg-mri':
     'Cardiologie — IRM ciné petit axe, segmentation VG / VD / myocarde',
+  'cardio-volume-mri':
+    "Cardiologie — IRM ciné petit axe, volumes, fraction d'éjection et masse myocardique",
 };
 
 const PATHOLOGY_SUBTITLES: Record<string, string> = {
@@ -1371,6 +1886,13 @@ function evaluationIdentity(
             sha256: input.cardioSegEvaluation.weightsSha256,
           }
         : null;
+    case 'cardio-volume-mri':
+      return cardioVolumeApplies(input) && input.volumetry?.evaluation
+        ? {
+            file: input.volumetry.evaluation.file,
+            sha256: input.volumetry.evaluation.weightsSha256,
+          }
+        : null;
     case 'cardio-ecg':
       return cardioApplies(input) && input.cardioEvaluation
         ? {
@@ -1394,6 +1916,7 @@ export function buildReportDocument(input: ReportInput): ReportDocument {
   const brain = pipeline === 'brain';
   const cardio = pipeline === 'cardio-ecg';
   const mri = pipeline === 'cardio-seg-mri';
+  const volume = pipeline === 'cardio-volume-mri';
   const evaluationApplies =
     brain &&
     evaluationMatchesWeights(
@@ -1431,6 +1954,11 @@ export function buildReportDocument(input: ReportInput): ReportDocument {
         requestedBy: input.requestedBy,
         run: input.run,
         structure: input.structure,
+        // Present only for a cine volumetry: the other reports keep the content
+        // they were certified with.
+        ...(input.volumetry
+          ? { volumetry: volumetryFacts(input.volumetry) }
+          : {}),
       }),
       'utf8',
     ),
@@ -1451,14 +1979,14 @@ export function buildReportDocument(input: ReportInput): ReportDocument {
 </div>
 ${identification(input)}
 ${indication(input)}
-${cardio ? ecgTechnique(input) : mri ? cardioSegTechnique(input) : technique(input)}
-${brain ? results(input, evaluationApplies) : cardio ? ecgResults(input) : mri ? cardioSegResults(input) : pipeline === 'pathology-breast' ? breastResults(input) : nucleiResults(input)}
+${volume ? cardioVolumeTechnique(input) : cardio ? ecgTechnique(input) : mri ? cardioSegTechnique(input) : technique(input)}
+${volume ? cardioVolumeResults(input) : brain ? results(input, evaluationApplies) : cardio ? ecgResults(input) : mri ? cardioSegResults(input) : pipeline === 'pathology-breast' ? breastResults(input) : nucleiResults(input)}
 <div class="closing">
 ${conclusion(input)}
 ${signature(input, contentSha256)}
 </div>
-${brain ? performances(input, evaluationApplies) : cardio ? ecgPerformances(input) : mri ? cardioSegPerformances(input) : pipeline === 'pathology-breast' ? breastPerformances(input) : nucleiPerformances(input)}
-${brain ? legal(input, evaluationApplies) : cardio ? ecgLegal(input) : mri ? cardioSegLegal() : pathologyLegal(input)}
+${volume ? cardioVolumePerformances(input) : brain ? performances(input, evaluationApplies) : cardio ? ecgPerformances(input) : mri ? cardioSegPerformances(input) : pipeline === 'pathology-breast' ? breastPerformances(input) : nucleiPerformances(input)}
+${volume ? cardioVolumeLegal() : brain ? legal(input, evaluationApplies) : cardio ? ecgLegal(input) : mri ? cardioSegLegal() : pathologyLegal(input)}
 </body>
 </html>`;
 

@@ -8,11 +8,14 @@ import { ConfigService } from '@nestjs/config';
 import { randomBytes } from 'node:crypto';
 import { createReadStream, existsSync, type ReadStream } from 'node:fs';
 import { mkdir, readFile, rm, writeFile } from 'node:fs/promises';
-import { dirname } from 'node:path';
+import { dirname, join } from 'node:path';
 
 import { createSha256Checksum } from '../../common/utils/checksum.util';
 import { sanitizeOriginalFileName } from '../../common/utils/file-name.util';
 import { UploadRoot } from '../../common/utils/upload-root';
+
+// <kind>-<ed|es>-<slice>.png: the only names a volumetry folder holds.
+const VOLUMETRY_IMAGE_NAME = /^(?:label|slice)-(?:ed|es)-\d{3}\.png$/;
 
 type StoreFileInput = {
   documentType: string;
@@ -166,6 +169,70 @@ export class PatientFileStorageService {
         message: 'Une erreur est survenue lors du stockage du tracé ECG.',
       },
     );
+  }
+
+  // The images of a cardiac cine volumetry (the class maps and the slices of the ED and
+  // ES phases, one each per slice) in a folder of their own, written all or none:
+  // patients/<patientId>/ai-masks/<runId>-volumetry/<name>. The folder is what the
+  // run keeps; an image is read back by its name (readAiVolumetryImage).
+  async storeAiVolumetryImages(input: {
+    images: { name: string; png: Buffer }[];
+    patientId: string;
+    runId: string;
+  }): Promise<{ localPath: string }> {
+    const localPath = this.resolveSafePath(
+      'patients',
+      input.patientId,
+      'ai-masks',
+      `${input.runId}-volumetry`,
+    );
+
+    try {
+      await mkdir(localPath, { recursive: true });
+      for (const { name, png } of input.images) {
+        if (!VOLUMETRY_IMAGE_NAME.test(name)) {
+          throw new Error('Unexpected volumetry image name.');
+        }
+        await writeFile(this.resolveSafePath(localPath, name), png);
+      }
+      return { localPath };
+    } catch (error) {
+      await rm(localPath, { force: true, recursive: true }).catch(
+        () => undefined,
+      );
+      this.logger.error(
+        'Failed to store the images of a cardiac volumetry.',
+        error instanceof Error ? error.message : 'Unknown error',
+      );
+      throw new InternalServerErrorException(
+        'Une erreur est survenue lors du stockage des images.',
+      );
+    }
+  }
+
+  // One image of the folder of a volumetry; the name is checked, and the path made
+  // of the folder (from the database) and the name is re-checked against the upload
+  // root like any stored file.
+  async readAiVolumetryImage(folder: string, name: string): Promise<Buffer> {
+    if (!VOLUMETRY_IMAGE_NAME.test(name)) {
+      throw new NotFoundException('Image introuvable.');
+    }
+    return this.readStoredFile(join(folder, name));
+  }
+
+  // The folder of a volumetry and everything in it.
+  async deleteAiVolumetryImages(folder: string): Promise<void> {
+    const safePath = this.ensurePathInsideUploadRoot(folder);
+
+    try {
+      await rm(safePath, { force: true, recursive: true });
+      await this.removeEmptyParentDirectories(dirname(safePath));
+    } catch (error) {
+      this.logger.warn(
+        'Failed to delete the images of a cardiac volumetry from disk.',
+        error instanceof Error ? error.message : 'Unknown error',
+      );
+    }
   }
 
   private async storeAiFile(

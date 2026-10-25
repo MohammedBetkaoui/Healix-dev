@@ -20,6 +20,9 @@ const entityTypeByAction: Record<string, string> = {
   AI_ANALYSIS_RUN_CREATED: 'AiAnalysisRun',
   AI_ANALYSIS_RUN_COMPLETED: 'AiAnalysisRun',
   AI_ANALYSIS_RUN_DECIDED: 'AiAnalysisRun',
+  // The physician changed the measures of a cine volumetry (ED, ES, slices, body
+  // surface): the phases and slices only, never a height nor a weight.
+  AI_VOLUMETRY_CORRECTED: 'AiAnalysisRun',
   AI_ANALYSIS_REPORT_GENERATED: 'AiAnalysisReport',
   AI_ANALYSIS_REPORT_DOWNLOADED: 'AiAnalysisReport',
   PATIENT_AI_ANALYSIS_CREATED: 'PatientAiAnalysis',

@@ -40,6 +40,14 @@ import {
   ECG_CLASSES,
   type EcgClass,
 } from '../ai-service.client';
+import { colourLabelMap } from '../volumetry/label-overlay';
+import {
+  readVolumetry,
+  type VolumetryImagePhase,
+  VOLUMETRY_IMAGE_PHASES,
+  volumetryImageName,
+  effectiveState,
+} from '../volumetry/volumetry';
 import { AiReportRenderer } from './ai-report-renderer';
 import {
   type EvaluationReport,
@@ -50,9 +58,12 @@ import {
   type ReportInput,
   type ReportPerson,
   type ReportStructure,
+  type ReportVolumeFigure,
+  type ReportVolumetry,
 } from './ai-report-template';
 import { CardioEvaluationService } from './cardio-evaluation';
 import { CardioSegEvaluationService } from './cardio-seg-evaluation';
+import { CardioVolumeEvaluationService } from './cardio-volume-evaluation';
 import { readImageSize } from './image-size';
 import {
   type BreakhisEvaluation,
@@ -119,6 +130,7 @@ const runForReport = {
     select: {
       checksum: true,
       createdAt: true,
+      dicomSeries: true,
       dicomStudyId: true,
       instanceNumber: true,
       localPath: true,
@@ -288,6 +300,48 @@ export function readCardioSegPredictions(run: {
   };
 }
 
+/** The model card of a cine volumetry run, from its `predictions`. */
+function readCardioVolumeConfig(run: { predictions: unknown }): string | null {
+  const stored = run.predictions;
+  return isRecord(stored) && typeof stored.configSha256 === 'string'
+    ? stored.configSha256
+    : null;
+}
+
+/** The series a cine archive was made from (the `dicomSeries` of its document); null otherwise. */
+export function readDicomSeries(value: unknown): ReportVolumetry['series'] {
+  if (!isRecord(value) || !Number.isInteger(value.instances)) return null;
+  return {
+    description:
+      typeof value.description === 'string' ? value.description : null,
+    instances: value.instances as number,
+    number: Number.isInteger(value.seriesNumber)
+      ? (value.seriesNumber as number)
+      : null,
+  };
+}
+
+// Of the slices kept, the basal, the middle and the apical ones are shown: the
+// report is not an atlas of the stack.
+const FIGURE_SLICES = 3;
+
+export function pickFigureSlices(
+  slices: number,
+  excluded: readonly number[],
+): number[] {
+  const kept = Array.from({ length: slices }, (_, index) => index).filter(
+    (index) => !excluded.includes(index),
+  );
+  if (kept.length <= FIGURE_SLICES) return kept;
+  return [
+    ...new Set(
+      Array.from({ length: FIGURE_SLICES }, (_, rank) =>
+        Math.round((rank * (kept.length - 1)) / (FIGURE_SLICES - 1)),
+      ),
+    ),
+  ].map((position) => kept[position]);
+}
+
 /** What a cardiology run stored in `predictions`; null for any other shape. */
 export function readEcgPredictions(run: {
   pipeline: string;
@@ -370,6 +424,7 @@ export class AiAnalysisReportsService {
   private readonly pathologyEvaluationDir: string;
   private readonly cardioEvaluation: CardioEvaluationService;
   private readonly cardioSegEvaluation: CardioSegEvaluationService;
+  private readonly cardioVolumeEvaluation: CardioVolumeEvaluationService;
   private fonts: Promise<ReportInput['fonts']> | null = null;
 
   constructor(
@@ -394,6 +449,9 @@ export class AiAnalysisReportsService {
     );
     this.cardioEvaluation = new CardioEvaluationService(configService);
     this.cardioSegEvaluation = new CardioSegEvaluationService(configService);
+    this.cardioVolumeEvaluation = new CardioVolumeEvaluationService(
+      configService,
+    );
   }
 
   async getReport(
@@ -571,12 +629,15 @@ export class AiAnalysisReportsService {
     const decisionStatus = run.decisionStatus;
     const cardio = run.pipeline === 'cardio-ecg';
     const mri = run.pipeline === 'cardio-seg-mri';
+    const volume = run.pipeline === 'cardio-volume-mri';
     // A validated map (nuclei, cardiac MRI) has no label: it was reviewed and
-    // accepted. An ECG keeps a set of classes, possibly empty, instead of one.
+    // accepted. An ECG keeps a set of classes, possibly empty, instead of one;
+    // a cine volumetry keeps its measures.
     const decisionLabels = cardio
       ? getDecisionLabels(run.decisionLabels)
       : null;
-    const labelRequired = !MAP_PIPELINES.has(run.pipeline) && !cardio;
+    const labelRequired =
+      !MAP_PIPELINES.has(run.pipeline) && !cardio && !volume;
     if (
       !run.decidedBy ||
       !run.decidedAt ||
@@ -588,17 +649,22 @@ export class AiAnalysisReportsService {
       throw new Error('The run has no validated or corrected decision.');
     }
 
-    const image = await this.fileStorageService.readStoredFile(
-      run.sourceDocument.localPath,
-    );
+    // A cine archive is not an image (and may be large): its checksum is the
+    // document's, and its images are the ones stored with the volumetry.
+    const image = volume
+      ? Buffer.alloc(0)
+      : await this.fileStorageService.readStoredFile(
+          run.sourceDocument.localPath,
+        );
     const slice = run.slicePath
       ? await this.fileStorageService.readStoredFile(run.slicePath)
       : null;
     // A DICOM slice has no image size of its own: the analysed slice's.
     const size = readImageSize(slice ?? image);
-    const mask = run.maskPath
-      ? await this.fileStorageService.readStoredFile(run.maskPath)
-      : null;
+    const mask =
+      run.maskPath && !volume
+        ? await this.fileStorageService.readStoredFile(run.maskPath)
+        : null;
     const overlay = run.overlayPath
       ? await this.fileStorageService.readStoredFile(run.overlayPath)
       : null;
@@ -634,6 +700,7 @@ export class AiAnalysisReportsService {
       slice: slice
         ? { data: slice, sha256: createSha256Checksum(slice) }
         : null,
+      volumetry: volume ? await this.buildVolumetry(run) : null,
       overlay: overlay
         ? { data: overlay, sha256: createSha256Checksum(overlay) }
         : null,
@@ -710,6 +777,58 @@ export class AiAnalysisReportsService {
         width: size?.width ?? null,
       },
       structure: toStructure(run.patient),
+    };
+  }
+
+  // The measures in force, the model's ED and ES slices (a few, coloured from their
+  // class map) and the figures measured on the test patients.
+  private async buildVolumetry(
+    run: RunForReport,
+  ): Promise<ReportVolumetry | null> {
+    const volumetry = readVolumetry(run.volumetry);
+    if (!volumetry) {
+      throw new Error('The run has no volumetry.');
+    }
+
+    const figures: ReportVolumeFigure[] = [];
+    if (run.maskPath) {
+      const folder = run.maskPath;
+      const { excludedSlices } = effectiveState(volumetry);
+      const slices = pickFigureSlices(volumetry.images.slices, excludedSlices);
+      const phases: readonly VolumetryImagePhase[] = VOLUMETRY_IMAGE_PHASES;
+      for (const phase of phases) {
+        for (const index of slices) {
+          const data = await this.fileStorageService.readAiVolumetryImage(
+            folder,
+            volumetryImageName('slice', phase, index),
+          );
+          const overlay = colourLabelMap(
+            await this.fileStorageService.readAiVolumetryImage(
+              folder,
+              volumetryImageName('label', phase, index),
+            ),
+          );
+          const size = readImageSize(data);
+          figures.push({
+            height: size?.height ?? 256,
+            image: { data, sha256: createSha256Checksum(data) },
+            overlay: { data: overlay, sha256: createSha256Checksum(overlay) },
+            phase,
+            slice: index,
+            width: size?.width ?? 256,
+          });
+        }
+      }
+    }
+
+    return {
+      configSha256: readCardioVolumeConfig(run),
+      evaluation: await this.cardioVolumeEvaluation.find(
+        run.segmentationWeightsSha256,
+      ),
+      figures,
+      series: readDicomSeries(run.sourceDocument.dicomSeries),
+      volumetry,
     };
   }
 

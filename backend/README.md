@@ -33,7 +33,7 @@ $ npm install
 
 ### AI analysis chains
 
-`POST /api/patients/:id/ai-analysis-runs` starts one of five independent
+`POST /api/patients/:id/ai-analysis-runs` starts one of six independent
 chains (`pipeline`), never run one after the other:
 
 | `pipeline` | Service endpoint | `magnification` |
@@ -43,6 +43,7 @@ chains (`pipeline`), never run one after the other:
 | `pathology-nuclei` | `/analyze/pathology/nuclei-segmentation` (PanNuke) | required, 40 only: a 40x H&E image (400 `AI_MAGNIFICATION_NOT_SUPPORTED`) |
 | `cardio-ecg` | `/analyze/cardio/ecg` | refused; ECG rate/unit fields apply |
 | `cardio-seg-mri` | `/analyze/cardio/segmentation-mri` | refused; PNG/JPEG or single-frame DICOM |
+| `cardio-volume-mri` | `/analyze/cardio/volume-mri` | refused; a ZIP of single-frame DICOM files (a cine stack) |
 
 Every answer of the service is checked before anything is stored; any
 inconsistency is `502 AI_SERVICE_ERROR` (run `FAILED`, nothing stored):
@@ -91,6 +92,8 @@ chain:
   `400 AI_CORRECTION_NOT_APPLICABLE`.
 - `cardio-seg-mri`: validate or reject the map; correction is likewise
   refused with `400 AI_CORRECTION_NOT_APPLICABLE`.
+- `cardio-volume-mri`: measures, not a map: see "Cardiology (cine MRI
+  volumetry)" below.
 
 A label of another chain answers `400 AI_CORRECTED_LABEL_INVALID`. A brain or
 breast run without a result answers `409 AI_RUN_NOT_DECIDABLE`. The audit
@@ -133,6 +136,7 @@ The report quotes the measured performance from the evaluation reports of
 | `AI_CARDIO_MODEL_CARD_PATH` | `../models/cardio-ecg-resnet1d-ptbxl.json` (from the backend folder) |
 | `AI_CARDIO_SEG_EVALUATION_PATH` | `../ai-service/evaluation/cardio-seg-latest.json` (from the backend folder) |
 | `AI_CARDIO_SEG_MODEL_CARD_PATH` | `../models/cardio-seg-acdc-unet-effb4.json` (from the backend folder) |
+| `AI_CARDIO_VOLUME_EVALUATION_PATH` | `../ai-service/evaluation/cardio-volume-latest.json` (from the backend folder) |
 
 Brain: when the report is missing, or describes other classifier weights than
 those of the analysis, the report prints "Performances non mesurées pour cette
@@ -155,6 +159,14 @@ Cardiac MRI segmentation (`report/cardio-seg-evaluation.ts`, also served by
 `GET /ai-models/cardio-seg/evaluation/:weightsSha256`): the matching complete
 `cardio-seg-latest.json`, otherwise the matching model card figures explicitly
 marked as notebook/card values; otherwise no figure.
+
+Cardiac cine volumetry (`report/cardio-volume-evaluation.ts`, also served by
+`GET /ai-models/cardio-volume/evaluation/:weightsSha256`): the matching complete
+`cardio-volume-latest.json` of `ai-service/scripts/evaluate_cardio_volume.py`
+(ejection fractions against the ACDC truth: mean absolute error, bias, limits of
+agreement, Pearson's r). The model card holds no such figure: without that file
+for the run's weights, the report prints "Performances non mesurées pour ces
+poids" and no figure.
 
 ### Cardiology (ECG 12 leads)
 
@@ -200,6 +212,74 @@ marked as notebook/card values; otherwise no figure.
   plus overlay and legend, the areas, decision, model SHA-256 and matching
   evaluation source, with the explicit isolated-slice/no-ejection-fraction
   warning.
+
+### Cardiology (cine MRI volumetry)
+
+A short-axis cine stack (several phases of several slices, a whole cardiac
+cycle) gives the volumes, ejection fractions and myocardial mass of the left and
+right ventricles. The model is the cardiac MRI segmentation, run on every image;
+the arithmetic is Simpson's method of discs (`volumetry/volumetry-measures.ts`,
+written again from `ai-service/app/cardio_volume_measures.py` and checked
+against the same cases, `ai-service/tests/fixtures/cardio-volume/`). The
+physician may move ED and ES, leave a slice out, and give a height and a weight;
+the measures are then calculated again here from the stored areas, **with no
+new inference**.
+
+- **Source**: a ZIP document (`application/zip`) of single-frame DICOM files.
+  From a DICOM study, `GET /api/dicom/studies/:id/cine-stacks` lists the MRI
+  series that hold a cine (several phases at each slice position; the ones the
+  analysis cannot read come with their `refusal`), and
+  `POST /api/dicom/studies/:id/cardiac-volume` (`{ "seriesId": <Orthanc id> }`)
+  zips the series (`dicom/stored-zip.ts`), stores it as a `DICOM` document
+  (`dicomSeries` names the series) and creates the run through the usual flow
+  (consent, plan, quota, audit). A series outside the study, or of another
+  workspace, answers 404; one the service cannot read answers
+  `422 DICOM_CINE_STACK_INVALID` with `reason`, before anything is downloaded.
+- **Plan and quota**: like the other segmentations, the chain is reserved to the
+  premium doctor plan and the establishment plans (`403 AI_PIPELINE_NOT_IN_PLAN`)
+  and counts as one AI analysis (`403 QUOTA_EXCEEDED`).
+- **Time**: the service is given up to 180 s (`AI_CARDIO_VOLUME_TIMEOUT_MS`),
+  the other chains 60 s; there is no job queue. Over it the run is `FAILED`
+  (`SERVICE_TIMEOUT`, 504). A run left `RUNNING` is interrupted after 4 minutes
+  instead of 2. The request is synchronous: a reverse proxy in front of the
+  backend must allow it to last 3 minutes.
+- **Checked before storing**: the shapes, the areas (none larger than the
+  image), and that the curve, ED and ES and every measure the service sent are
+  the ones this backend computes from the same areas (to 1e-6): the two
+  implementations disagreeing is `502 AI_SERVICE_ERROR`, never a result.
+  A stack the service refuses is `REJECTED_INPUT` (`422 AI_INPUT_REJECTED`,
+  `reason` `CARDIO_VOLUME_*`, `details` such as the phases found per position).
+- **Stored**: `AiAnalysisRun.volumetry` (JSON): the areas `[phase][slice]` in
+  mm², the slice positions and the step, the model's ED/ES/curve/measures
+  (`auto`), and the physician's version (`corrected`, null until they change
+  something). `maskPath` is a folder holding, for the model's ED and ES, the
+  class map and the slice of every slice position. No height nor weight is ever
+  stored: the body surface area (Mosteller) is kept, and the source of it.
+- **Images**: `GET .../mask`, `/slice` and `/overlay` take `?phase=ed|es&slice=<n
+  from the base, 0>`; the overlay is coloured here from the class map.
+- **Correction**: `PATCH .../:runId/volumetry` with `edPhase`, `esPhase`,
+  `excludedSlices` (replaces the list), `automatic` (choose ED and ES again from
+  the slices kept) and `heightCm` + `weightKg`; `409 AI_RUN_ALREADY_DECIDED`
+  once decided, `409 AI_VOLUMETRY_CONFLICT` when saved at the same time as
+  another correction, `400 AI_VOLUMETRY_INVALID` for a phase or slice that does
+  not exist. Audited (`AI_VOLUMETRY_CORRECTED`): phases and slices, no height
+  nor weight.
+- **Decision**: `VALIDATED` only while the measures are the model's (a height and
+  a weight are not a correction: `400 AI_VOLUMETRY_MODIFIED` otherwise);
+  `CORRECTED` when ED, ES or the slices changed, with `measuresCorrected: true`
+  and a reason (`400 AI_CORRECTION_MATCHES_MODEL` when nothing changed); or
+  `REJECTED`. `decisionLabel` stays null.
+- **Reading priority**: by the LV ejection fraction in force, in the ESC 2021
+  classes (reduced <= 40 %: URGENT; mildly reduced 41-49 %: HIGH; preserved:
+  ROUTINE; read on the fraction rounded to the unit), HIGH when ES is above ED
+  or no fraction can be measured. An order of reading, not a diagnosis.
+- **Report**: the measures in force (with the model's proposal beside them when
+  the physician corrected), indexed when a body surface area is known, the cardiac
+  output only with a heart rate, the ESC class with its source, the volume curve
+  (SVG), three slices at ED and ES, the warnings (order of the slices inferred,
+  irregular step...), the measured performance when `cardio-volume-latest.json`
+  describes the weights, the limits. "Aide à la mesure, à vérifier par le
+  médecin": no diagnosis, no course of action.
 
 The histopathology report ("Compte rendu d'analyse histopathologique assistée
 par IA") keeps the template, the CR-IA numbering and the SHA-256 freezing:

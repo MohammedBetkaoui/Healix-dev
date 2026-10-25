@@ -1,7 +1,10 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { type DicomStudy, PatientDocumentType } from '@prisma/client';
 
-import { AiAnalysisRunsService } from '../ai-analysis-runs/ai-analysis-runs.service';
+import {
+  AiAnalysisRunsService,
+  CARDIO_VOLUME_PIPELINE,
+} from '../ai-analysis-runs/ai-analysis-runs.service';
 import { type AuthenticatedUserPayload } from '../auth/types/authenticated-request.type';
 import { PatientFileStorageService } from '../patients/documents/patient-file-storage.service';
 import { PatientAuditService } from '../patients/patient-audit.service';
@@ -13,12 +16,25 @@ import {
 } from '../subscriptions/entitlements.service';
 import { type AiPipeline } from '../subscriptions/plans/plan-quotas';
 import {
+  dicomCineStackInvalid,
   dicomMultiframeNotSupported,
   dicomPipelineNotSupported,
+  dicomSeriesNotFound,
   fromOrthancError,
 } from './dicom-errors';
 import { DicomStudiesService } from './dicom-studies.service';
-import { OrthancClient, type OrthancInstance } from './orthanc.client';
+import {
+  type CineStack,
+  type CineStackView,
+  detectCineStacks,
+  toCineStackView,
+} from './cine-stacks';
+import {
+  isOrthancId,
+  OrthancClient,
+  type OrthancInstance,
+} from './orthanc.client';
+import { buildStoredZip } from './stored-zip';
 
 // The chains that read a slice of a DICOM study, and what each is given:
 //  - cardio-seg-mri reads a DICOM: the instance's own file, which keeps the
@@ -37,6 +53,28 @@ const MRI_MODALITY = 'MR';
 
 const label = (value: number | null, fallback: string) =>
   value === null ? fallback : String(value);
+
+// The images of a cine are downloaded from the store a few at a time.
+const CINE_DOWNLOAD_CONCURRENCY = 6;
+
+async function mapConcurrently<T, R>(
+  items: readonly T[],
+  concurrency: number,
+  work: (item: T) => Promise<R>,
+): Promise<R[]> {
+  const results: R[] = new Array<R>(items.length);
+  let next = 0;
+  await Promise.all(
+    Array.from({ length: Math.min(concurrency, items.length) }, async () => {
+      while (next < items.length) {
+        const index = next;
+        next += 1;
+        results[index] = await work(items[index]);
+      }
+    }),
+  );
+  return results;
+}
 
 @Injectable()
 export class DicomAnalysisService {
@@ -110,6 +148,160 @@ export class DicomAnalysisService {
       });
     } catch (error) {
       await this.dropUnusedDocument(document.id, document.localPath);
+      throw error;
+    }
+  }
+
+  // The cine stacks of a study: the MRI series with several phases at each slice
+  // position, the ones the analysis cannot read shown with their reason. A study
+  // of another workspace answers 404.
+  async listCineStacks(
+    user: AuthenticatedUserPayload,
+    studyId: string,
+  ): Promise<CineStackView[]> {
+    const study = await this.studies.getStudyInScope(user, studyId);
+    const stacks = await this.cineStacksOf(study);
+    return stacks.map(toCineStackView);
+  }
+
+  // "Mesurer le cœur": a cine series of a study becomes one document of the record
+  // (a ZIP of its DICOM files), and the document goes through the same flow as any
+  // run (consent, plan, quota, inference, audit), which answers with the run.
+  //  - 404: a series that is not in a study of the caller's workspace;
+  //  - 422 DICOM_CINE_STACK_INVALID: a series the analysis cannot read, before
+  //    anything is downloaded.
+  async analyzeCineStack(
+    user: AuthenticatedUserPayload,
+    studyId: string,
+    seriesId: string,
+  ) {
+    const study = await this.studies.getStudyInScope(user, studyId);
+    if (!isOrthancId(seriesId)) {
+      throw dicomSeriesNotFound();
+    }
+    const stack = (await this.cineStacksOf(study)).find(
+      (item) => item.seriesId === seriesId,
+    );
+    if (!stack) {
+      throw dicomSeriesNotFound();
+    }
+    if (stack.refusal) {
+      throw dicomCineStackInvalid(stack.refusal);
+    }
+
+    const patient = await this.patients.getPatientInScope(
+      user,
+      study.patientId,
+    );
+    // The same refusals as the run itself, before anything is read or stored.
+    await this.patients.assertDiagnosticAiConsentSigned(patient.id);
+    assertQuotaAvailable(
+      await this.entitlements.getEntitlements(study.workspaceId),
+      'aiAnalysesPerMonth',
+      CARDIO_VOLUME_PIPELINE,
+    );
+
+    const document = await this.storeCineStack(user, {
+      patientId: patient.id,
+      stack,
+      study,
+    });
+
+    try {
+      return await this.runs.create(user, patient.id, {
+        pipeline: CARDIO_VOLUME_PIPELINE,
+        sourceDocumentId: document.id,
+      });
+    } catch (error) {
+      await this.dropUnusedDocument(document.id, document.localPath);
+      throw error;
+    }
+  }
+
+  private async cineStacksOf(study: DicomStudy): Promise<CineStack[]> {
+    try {
+      const [series, instances] = await Promise.all([
+        this.orthanc.getStudySeries(study.orthancStudyId),
+        this.orthanc.getStudyInstances(study.orthancStudyId),
+      ]);
+      return detectCineStacks(series, instances);
+    } catch (error) {
+      throw fromOrthancError(error, dicomSeriesNotFound);
+    }
+  }
+
+  private async storeCineStack(
+    user: AuthenticatedUserPayload,
+    input: { patientId: string; stack: CineStack; study: DicomStudy },
+  ) {
+    const { patientId, stack, study } = input;
+
+    let files: Buffer[];
+    try {
+      files = await mapConcurrently(
+        stack.instanceIds,
+        CINE_DOWNLOAD_CONCURRENCY,
+        (id) => this.orthanc.getInstanceFile(id),
+      );
+    } catch (error) {
+      throw fromOrthancError(error, dicomSeriesNotFound);
+    }
+    // The names only keep the order the service reads them in.
+    const zip = buildStoredZip(
+      files.map((data, index) => ({
+        data,
+        name: `${String(index + 1).padStart(4, '0')}.dcm`,
+      })),
+    );
+
+    const documentType = PatientDocumentType.DICOM;
+    const mimeType = 'application/zip';
+    const originalName = `serie-${label(stack.number, 'x')}-cine.zip`;
+    const stored = await this.files.storePatientDocument({
+      documentType,
+      extension: '.zip',
+      file: {
+        buffer: zip,
+        mimetype: mimeType,
+        originalname: originalName,
+        size: zip.length,
+      } as Express.Multer.File,
+      patientId,
+    });
+
+    try {
+      const document = await this.prisma.patientDocument.create({
+        data: {
+          checksum: stored.checksum,
+          dicomSeries: {
+            description: stack.description,
+            instances: stack.instances,
+            phases: stack.phases,
+            seriesInstanceUid: stack.seriesInstanceUid || null,
+            seriesNumber: stack.number,
+            slices: stack.slices,
+          },
+          dicomStudyId: study.id,
+          documentType,
+          localPath: stored.localPath,
+          mimeType,
+          originalName: stored.originalName,
+          patientId,
+          seriesInstanceUid: stack.seriesInstanceUid || null,
+          seriesNumber: stack.number,
+          size: zip.length,
+          storedName: stored.storedName,
+          uploadedById: user.sub,
+        },
+      });
+      await this.audit.log(user, 'PATIENT_DOCUMENT_UPLOADED', document.id, {
+        dicomStudyId: study.id,
+        documentType,
+        source: 'DICOM_STUDY',
+      });
+      return document;
+    } catch (error) {
+      await this.files.deleteLocalFile(stored.localPath);
       throw error;
     }
   }

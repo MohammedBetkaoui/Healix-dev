@@ -16,8 +16,18 @@ import {
   isDicomDocument,
 } from '../ai-analysis-runs.service';
 import { type AiPipeline } from '../dto/create-ai-analysis-run.dto';
+import { effectiveMeasures, readVolumetry } from '../volumetry/volumetry';
 
-export type MeasureUnit = 'mm2' | 'probability' | 'px' | 'ratio' | 'score';
+export type MeasureUnit =
+  | 'g'
+  | 'l_min'
+  | 'ml'
+  | 'mm2'
+  | 'percent'
+  | 'probability'
+  | 'px'
+  | 'ratio'
+  | 'score';
 
 export type MeasureInfo = {
   key: string;
@@ -34,6 +44,18 @@ const CARDIO_STRUCTURES = [
   ['rv', 'RV'],
   ['myo', 'MYO'],
 ] as const;
+// Cardiac cine volumetry: the measures in force (the physician's, else the model's).
+const VOLUME_MEASURES: readonly MeasureInfo[] = [
+  { area: false, key: 'lvEfPercent', unit: 'percent' },
+  { area: false, key: 'lvEdvMl', unit: 'ml' },
+  { area: false, key: 'lvEsvMl', unit: 'ml' },
+  { area: false, key: 'lvSvMl', unit: 'ml' },
+  { area: false, key: 'rvEfPercent', unit: 'percent' },
+  { area: false, key: 'rvEdvMl', unit: 'ml' },
+  { area: false, key: 'rvEsvMl', unit: 'ml' },
+  { area: false, key: 'lvMassG', unit: 'g' },
+  { area: false, key: 'cardiacOutputLMin', unit: 'l_min' },
+];
 const ECG_CLASSES = [
   ['probNorm', 'NORM'],
   ['probMi', 'MI'],
@@ -66,6 +88,7 @@ export const MEASURES: Readonly<Record<AiPipeline, readonly MeasureInfo[]>> = {
       unit: 'px' as const,
     })),
   ],
+  'cardio-volume-mri': VOLUME_MEASURES,
   'pathology-breast': [{ area: false, key: 'malignancyScore', unit: 'score' }],
   'pathology-nuclei': [{ area: false, key: 'maskAreaRatio', unit: 'ratio' }],
 };
@@ -105,6 +128,8 @@ export type TimelineRun = {
   };
   sourceDocumentId: string;
   tracePath: string | null;
+  /** Cardiac cine only. */
+  volumetry?: Prisma.JsonValue | null;
 };
 
 export const TIMELINE_RUN_SELECT = {
@@ -139,6 +164,7 @@ export const TIMELINE_RUN_SELECT = {
   },
   sourceDocumentId: true,
   tracePath: true,
+  volumetry: true,
 } as const satisfies Prisma.AiAnalysisRunSelect;
 
 export type Delta = {
@@ -214,6 +240,9 @@ const numberOrNull = (value: unknown): number | null =>
   typeof value === 'number' && Number.isFinite(value) ? value : null;
 
 function pixelSpacingOf(run: TimelineRun): [number, number] | null {
+  if (run.pipeline === 'cardio-volume-mri') {
+    return readVolumetry(run.volumetry)?.pixelSpacingMm ?? null;
+  }
   if (run.pipeline !== 'cardio-seg-mri' || !isRecord(run.predictions)) {
     return null;
   }
@@ -229,6 +258,8 @@ function pixelSpacingOf(run: TimelineRun): [number, number] | null {
 /** An MRI says so itself; otherwise the document tells a DICOM from an image, an ECG is a signal. */
 export function sourceKindOf(run: TimelineRun): SourceKind {
   if (run.pipeline === 'cardio-ecg') return 'signal';
+  // A stack of DICOM files, whatever the archive is called.
+  if (run.pipeline === 'cardio-volume-mri') return 'dicom';
   if (
     run.pipeline === 'cardio-seg-mri' &&
     isRecord(run.predictions) &&
@@ -268,6 +299,22 @@ export function extractMeasures(
       for (const [key, name] of ECG_CLASSES) {
         measures[key] = numberOrNull(probabilities[name]);
       }
+      break;
+    }
+    case 'cardio-volume-mri': {
+      const volumetry = readVolumetry(run.volumetry);
+      if (!volumetry) break;
+      const { cardiacOutputLMin, lv, lvMassG, rv } =
+        effectiveMeasures(volumetry);
+      measures.lvEfPercent = numberOrNull(lv.efPercent);
+      measures.lvEdvMl = numberOrNull(lv.edvMl);
+      measures.lvEsvMl = numberOrNull(lv.esvMl);
+      measures.lvSvMl = numberOrNull(lv.svMl);
+      measures.rvEfPercent = numberOrNull(rv.efPercent);
+      measures.rvEdvMl = numberOrNull(rv.edvMl);
+      measures.rvEsvMl = numberOrNull(rv.esvMl);
+      measures.lvMassG = numberOrNull(lvMassG);
+      measures.cardiacOutputLMin = numberOrNull(cardiacOutputLMin);
       break;
     }
     case 'cardio-seg-mri': {
@@ -413,6 +460,8 @@ function primaryMeasureOf(
       return populated('maskAreaPx') >= 2 ? 'maskAreaPx' : 'topProbability';
     case 'cardio-seg-mri':
       return populated('lvAreaMm2') >= 2 ? 'lvAreaMm2' : 'lvPixels';
+    case 'cardio-volume-mri':
+      return 'lvEfPercent';
     case 'pathology-breast':
       return 'malignancyScore';
     case 'pathology-nuclei':

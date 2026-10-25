@@ -386,24 +386,27 @@ describe('EntitlementsService.withQuota', () => {
     ).resolves.toBe('ok');
   });
 
-  it('refuses a pipeline outside the plan before looking at the quota', async () => {
-    const { prisma, service } = readySetup();
-    prisma.aiAnalysisRun.count.mockResolvedValue(100);
-    const run = jest.fn();
+  it.each(['cardio-seg-mri', 'cardio-volume-mri'])(
+    'refuses a pipeline outside the plan before looking at the quota (%s)',
+    async (pipeline) => {
+      const { prisma, service } = readySetup();
+      prisma.aiAnalysisRun.count.mockResolvedValue(100);
+      const run = jest.fn();
 
-    const error = await errorOf(
-      service.withQuota('workspace-private', 'aiAnalysesPerMonth', run, {
-        pipeline: 'cardio-seg-mri',
-      }),
-    );
+      const error = await errorOf(
+        service.withQuota('workspace-private', 'aiAnalysesPerMonth', run, {
+          pipeline,
+        }),
+      );
 
-    expect((error as HttpException).getStatus()).toBe(403);
-    expect(bodyOf(error)).toMatchObject({
-      code: 'AI_PIPELINE_NOT_IN_PLAN',
-      pipeline: 'cardio-seg-mri',
-    });
-    expect(run).not.toHaveBeenCalled();
-  });
+      expect((error as HttpException).getStatus()).toBe(403);
+      expect(bodyOf(error)).toMatchObject({
+        code: 'AI_PIPELINE_NOT_IN_PLAN',
+        pipeline,
+      });
+      expect(run).not.toHaveBeenCalled();
+    },
+  );
 
   it('opens every pipeline during a trial', async () => {
     const { service } = readySetup(
@@ -415,7 +418,7 @@ describe('EntitlementsService.withQuota', () => {
         'workspace-private',
         'aiAnalysesPerMonth',
         () => Promise.resolve('ok'),
-        { pipeline: 'cardio-seg-mri' },
+        { pipeline: 'cardio-volume-mri' },
       ),
     ).resolves.toBe('ok');
   });

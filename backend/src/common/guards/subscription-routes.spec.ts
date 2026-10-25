@@ -67,9 +67,9 @@ const GATED: [string, Controller, string[]][] = [
   [
     'DicomController',
     DicomController as unknown as Controller,
-    // importing a study, deleting one, analysing a slice; reading the studies
-    // and their slices stays open
-    ['analyze', 'remove', 'upload'],
+    // importing a study, deleting one, analysing a slice or measuring a cine
+    // series; reading the studies, their slices and their cine stacks stays open
+    ['analyze', 'cardiacVolume', 'remove', 'upload'],
   ],
   [
     'DoctorsController',

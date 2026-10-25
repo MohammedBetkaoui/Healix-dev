@@ -51,8 +51,9 @@ Sept conteneurs applicatifs, plus celui des sauvegardes, décrits par
   - les rapports d'évaluation `ai-service/evaluation/` : `brain-latest.json`
     (`AI_EVALUATION_REPORT_PATH`), `pathology-*.json`
     (`AI_PATHOLOGY_EVALUATION_DIR`) et `cardio-latest.json`
-    (`AI_CARDIO_EVALUATION_PATH`) et `cardio-seg-latest.json`
-    (`AI_CARDIO_SEG_EVALUATION_PATH`), cités par les comptes rendus PDF ;
+    (`AI_CARDIO_EVALUATION_PATH`), `cardio-seg-latest.json`
+    (`AI_CARDIO_SEG_EVALUATION_PATH`) et `cardio-volume-latest.json`
+    (`AI_CARDIO_VOLUME_EVALUATION_PATH`), cités par les comptes rendus PDF ;
   - la configuration de Caddy (`caddy/`).
 - **Sauvegardes** : le dossier de l'hôte `BACKUP_DIR`, où écrit le service
   `backup` (section 8).
@@ -761,6 +762,25 @@ requis (lecture et liste restent ouvertes en lecture seule).
 est supprimée d'Orthanc **seulement si aucune autre ligne** (un autre espace)
 ne la référence. Les documents et analyses faits à partir de ses coupes ne
 sont pas touchés.
+
+**Volumétrie d'une série ciné** (`GET /api/dicom/studies/:id/cine-stacks`,
+`POST /api/dicom/studies/:id/cardiac-volume`). La liste donne les séries IRM
+qui portent un ciné (plusieurs phases à chaque position de coupe), avec la
+raison de refus de celles que l'analyse ne lit pas (multi-frame, moins de 6
+coupes, plus de 30 phases, plus de 600 images ou 300 Mio, coupes non
+parallèles, phases inégales). La demande télécharge les images de la série
+depuis Orthanc (6 à la fois), en fait un ZIP **en mémoire** (jusqu'à 300 Mio,
+le double un instant), le range comme document DICOM du dossier, puis crée
+l'analyse par le circuit habituel (consentement, forfait, quota). Elle est
+**synchrone et peut durer 3 minutes** : le service d'analyse a 180 s
+(`AI_CARDIO_VOLUME_TIMEOUT_MS`, 60 s pour les autres chaînes), sur un CPU une
+série de 250 images demande une trentaine de secondes. Caddy n'impose pas de
+délai de réponse ; tout autre intermédiaire doit en accepter un de 3 minutes.
+Une analyse restée `RUNNING` est interrompue après 4 minutes (2 pour les
+autres chaînes). Le service d'analyse refuse une archive de plus de 300 Mio
+(`AI_MAX_STACK_BYTES`). Journal d'audit : `AI_VOLUMETRY_CORRECTED` (phases et
+coupes retenues, jamais la taille ni le poids saisis). Réservée, comme les
+autres segmentations, au forfait Premium IA et aux forfaits des établissements.
 
 **Isolation.** Une étude, ou une coupe, d'un autre espace répond 404, comme
 une étude inconnue. Les identifiants d'Orthanc reçus du navigateur sont

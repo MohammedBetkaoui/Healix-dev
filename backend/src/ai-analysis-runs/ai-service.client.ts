@@ -1,6 +1,15 @@
 import { Injectable } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 
+import {
+  automaticPhases,
+  computeMeasures,
+  lvVolumeCurveMl,
+  type SliceAreas,
+  VOLUMETRY_STRUCTURES,
+  type VolumetryMeasures,
+} from './volumetry/volumetry-measures';
+
 // Client of the Python inference service (ai-service/). It only ever sends
 // the bytes of an image or of an ECG signal file: no patient identity leaves
 // the backend.
@@ -79,6 +88,16 @@ export const CARDIO_SEG_STRUCTURES = ['LV', 'RV', 'MYO'] as const;
 export type CardioSegStructure = (typeof CARDIO_SEG_STRUCTURES)[number];
 
 export const AI_SERVICE_TIMEOUT_MS = 60_000;
+// The cardiac volumetry segments every slice of every phase of a cine (up to 600
+// images, about 130 ms each on a CPU): three times the usual wait. No job queue:
+// beyond it the run is FAILED with SERVICE_TIMEOUT, as for any other chain.
+export const AI_CARDIO_VOLUME_TIMEOUT_MS = 180_000;
+const AI_SERVICE_TIMEOUT_BY_PIPELINE: Readonly<Record<string, number>> = {
+  'cardio-volume-mri': AI_CARDIO_VOLUME_TIMEOUT_MS,
+};
+/** How long the backend waits for the service to answer a chain. */
+export const aiServiceTimeoutMs = (pipeline: string): number =>
+  AI_SERVICE_TIMEOUT_BY_PIPELINE[pipeline] ?? AI_SERVICE_TIMEOUT_MS;
 const STATUS_TIMEOUT_MS = 5_000;
 const PNG_SIGNATURE = Buffer.from([
   0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a,
@@ -192,12 +211,80 @@ export type CardioSegAnalysisResult = {
   durationMs: number;
 };
 
+export type CardioVolumeSlice = {
+  /** From the base (0) toward the apex, mm. */
+  positionMm: number;
+  /** The distance to the next slice, mm; null for the last one. */
+  stepMm: number | null;
+};
+
+/** What the service noticed without refusing: a code and short details. */
+export type CardioVolumeWarning = { code: string } & Record<
+  string,
+  number | string
+>;
+
+/**
+ * POST /analyze/cardio/volume-mri: a cine stack segmented slice by slice and phase
+ * by phase. The areas are in mm² [phase][slice]; only the ED and ES phases of the
+ * model come with images (one per slice).
+ */
+export type CardioVolumeAnalysisResult = {
+  modelId: string;
+  weightsSha256: string;
+  configSha256: string;
+  phases: number;
+  slices: CardioVolumeSlice[];
+  /** The step between slices the volumes use, mm. */
+  sliceGapMm: number;
+  sliceOrderInferred: boolean;
+  phaseTimesMs: number[] | null;
+  /** (row, column) in mm. */
+  pixelSpacingMm: [number, number];
+  imageWidth: number;
+  imageHeight: number;
+  areasMm2: SliceAreas[][];
+  lvVolumeCurveMl: number[];
+  edPhase: number;
+  esPhase: number;
+  /** From the DICOM height and weight, when both are there. */
+  bsaM2: number | null;
+  heartRateBpm: number | null;
+  /** The service's measures, checked against ours: the ones stored are ours. */
+  measures: VolumetryMeasures;
+  labelMapsPng: { ed: Buffer[]; es: Buffer[] };
+  slicesPng: { ed: Buffer[]; es: Buffer[] };
+  warnings: CardioVolumeWarning[];
+  durationMs: number;
+};
+
 // Why the service refused an MRI slice, beyond the image refusals.
 export const CARDIO_SEG_REJECTIONS = [
   'CARDIO_SEG_NOT_GRAYSCALE',
   'CARDIO_SEG_MULTIFRAME',
 ] as const;
 export type CardioSegRejection = (typeof CARDIO_SEG_REJECTIONS)[number];
+
+// Why the service refused a cine stack (ai-service/app/cardio_volume_input.py).
+export const CARDIO_VOLUME_REJECTIONS = [
+  'CARDIO_VOLUME_UNSUPPORTED_FORMAT',
+  'CARDIO_VOLUME_NO_DICOM',
+  'CARDIO_VOLUME_UNSAFE_ARCHIVE',
+  'CARDIO_VOLUME_NOT_MR',
+  'CARDIO_VOLUME_MULTIFRAME',
+  'CARDIO_VOLUME_NOT_GRAYSCALE',
+  'CARDIO_VOLUME_UNDECODABLE',
+  'CARDIO_VOLUME_MISSING_GEOMETRY',
+  'CARDIO_VOLUME_MIXED_ORIENTATION',
+  'CARDIO_VOLUME_MIXED_GEOMETRY',
+  'CARDIO_VOLUME_UNEQUAL_PHASES',
+  'CARDIO_VOLUME_TOO_FEW_SLICES',
+  'CARDIO_VOLUME_TOO_FEW_PHASES',
+  'CARDIO_VOLUME_TOO_MANY_PHASES',
+  // 413 stack_too_large.
+  'CARDIO_VOLUME_TOO_LARGE',
+] as const;
+export type CardioVolumeRejection = (typeof CARDIO_VOLUME_REJECTIONS)[number];
 
 // Why the service refused an ECG file (ai-service/app/ecg_input.py).
 export const ECG_REJECTIONS = [
@@ -219,6 +306,7 @@ export type EcgRejection = (typeof ECG_REJECTIONS)[number];
 export type AiServiceFailure =
   | EcgRejection
   | CardioSegRejection
+  | CardioVolumeRejection
   | 'SERVICE_NOT_CONFIGURED'
   | 'SERVICE_UNAVAILABLE'
   | 'SERVICE_TIMEOUT'
@@ -238,10 +326,14 @@ export const INPUT_REJECTIONS: readonly AiServiceFailure[] = [
   'IMAGE_DIMENSIONS_TOO_LARGE',
   ...ECG_REJECTIONS,
   ...CARDIO_SEG_REJECTIONS,
+  ...CARDIO_VOLUME_REJECTIONS,
 ];
 
 /** What a refusal says about the input (missing leads, duration...), never a signal value. */
-export type RejectionDetails = Record<string, number | string | string[]>;
+export type RejectionDetails = Record<
+  string,
+  number | string | string[] | number[]
+>;
 
 export class AiServiceError extends Error {
   constructor(
@@ -675,7 +767,12 @@ export function ecgRejection(code: unknown): AiServiceFailure {
 const DETAIL_KEYS = [
   'accepted',
   'channelSpread',
+  'found',
   'frames',
+  'maxAngleDeg',
+  'modality',
+  'phasesPerPosition',
+  'toleranceDeg',
   'maxSide',
   'minSide',
   'duplicateLead',
@@ -694,6 +791,7 @@ const DETAIL_KEYS = [
 ] as const;
 const isShortText = (value: unknown): value is string =>
   typeof value === 'string' && value.length <= 40;
+const MAX_NUMBER_LIST = 100;
 
 /** The known details of a refusal: numbers, short texts or short lists of them. */
 export function rejectionDetails(body: unknown): RejectionDetails {
@@ -711,6 +809,13 @@ export function rejectionDetails(body: unknown): RejectionDetails {
       value.every(isShortText)
     ) {
       details[key] = [...value];
+    } else if (
+      Array.isArray(value) &&
+      value.length <= MAX_NUMBER_LIST &&
+      value.every((item) => typeof item === 'number' && Number.isFinite(item))
+    ) {
+      // The number of phases at each position, for instance.
+      details[key] = [...(value as number[])];
     }
   }
   return details;
@@ -822,6 +927,264 @@ export function parseCardioSegAnalysis(body: unknown): CardioSegAnalysisResult {
   };
 }
 
+/** The cine stack refusals (cardio_volume_*), then the image ones. */
+export function cardioVolumeRejection(code: unknown): AiServiceFailure {
+  const upper = typeof code === 'string' ? code.toUpperCase() : '';
+  return (CARDIO_VOLUME_REJECTIONS as readonly string[]).includes(upper)
+    ? (upper as CardioVolumeRejection)
+    : pathologyRejection(code);
+}
+
+// A cine holds up to 600 images over at most 30 phases: a few dozen slices.
+const MAX_VOLUME_PHASES = 30;
+const MIN_VOLUME_SLICES = 6;
+const MAX_VOLUME_SLICES = 100;
+const MAX_VOLUME_WARNINGS = 20;
+// What the service computed and what we compute again must agree this closely.
+const MEASURES_TOLERANCE = 1e-6;
+
+function parsePngList(value: unknown, count: number, what: string): Buffer[] {
+  if (!Array.isArray(value) || value.length !== count) throw invalid(what);
+  return value.map((item) => {
+    if (typeof item !== 'string') throw invalid(what);
+    const png = Buffer.from(item, 'base64');
+    if (!isPng(png)) throw invalid(`${what} non PNG`);
+    return png;
+  });
+}
+
+function parseVolumeWarnings(value: unknown): CardioVolumeWarning[] {
+  if (!Array.isArray(value) || value.length > MAX_VOLUME_WARNINGS) {
+    throw invalid('avertissements');
+  }
+  return value.map((item) => {
+    if (!isRecord(item) || typeof item.code !== 'string' || item.code === '') {
+      throw invalid('avertissement');
+    }
+    const warning: CardioVolumeWarning = { code: item.code.slice(0, 60) };
+    for (const [key, detail] of Object.entries(item)) {
+      if (key === 'code') continue;
+      if (typeof detail === 'number' && Number.isFinite(detail)) {
+        warning[key] = detail;
+      } else if (isShortText(detail)) {
+        warning[key] = detail;
+      }
+    }
+    return warning;
+  });
+}
+
+// Every number of `actual` within the tolerance of the one of `expected`, the rest equal.
+function sameMeasures(actual: unknown, expected: unknown): boolean {
+  if (typeof expected === 'number') {
+    return (
+      typeof actual === 'number' &&
+      Math.abs(actual - expected) <=
+        MEASURES_TOLERANCE * Math.max(1, Math.abs(expected))
+    );
+  }
+  if (Array.isArray(expected)) {
+    return (
+      Array.isArray(actual) &&
+      actual.length === expected.length &&
+      expected.every((item, index) => sameMeasures(actual[index], item))
+    );
+  }
+  if (isRecord(expected)) {
+    return (
+      isRecord(actual) &&
+      Object.keys(actual).length === Object.keys(expected).length &&
+      Object.entries(expected).every(([key, item]) =>
+        sameMeasures(actual[key], item),
+      )
+    );
+  }
+  return actual === expected;
+}
+
+/**
+ * Validates POST /analyze/cardio/volume-mri: the shapes, the areas, the images
+ * (PNG, one per slice, ED and ES only), the curve and ED / ES the areas give, and
+ * the measures, which must be the ones this backend computes from the same areas
+ * (volumetry-measures.ts): the two implementations disagreeing is a service error,
+ * never a result a physician would read. The measures kept are ours.
+ */
+export function parseCardioVolumeAnalysis(
+  body: unknown,
+): CardioVolumeAnalysisResult {
+  if (!isRecord(body)) throw invalid('forme');
+  if (body.modelId !== CARDIO_SEG_MODEL_ID) throw invalid('modèle');
+  if (!isSha256(body.weightsSha256)) throw invalid('empreinte');
+  if (!isSha256(body.configSha256)) throw invalid('empreinte de la carte');
+
+  const { phases } = body;
+  if (
+    !Number.isInteger(phases) ||
+    (phases as number) < 2 ||
+    (phases as number) > MAX_VOLUME_PHASES
+  ) {
+    throw invalid('phases');
+  }
+  const phaseCount = phases as number;
+  if (
+    !isPositiveInteger(body.imageWidth) ||
+    !isPositiveInteger(body.imageHeight)
+  ) {
+    throw invalid('dimensions');
+  }
+  const spacing: unknown = body.pixelSpacingMm;
+  if (
+    !(
+      Array.isArray(spacing) &&
+      spacing.length === 2 &&
+      spacing.every(
+        (value) => isFiniteBetween(value, 0, 1000) && (value as number) > 0,
+      )
+    )
+  ) {
+    throw invalid('espacement des pixels');
+  }
+  const pixelMm2 = (spacing[0] as number) * (spacing[1] as number);
+
+  const rawSlices: unknown = body.slices;
+  if (
+    !Array.isArray(rawSlices) ||
+    rawSlices.length < MIN_VOLUME_SLICES ||
+    rawSlices.length > MAX_VOLUME_SLICES
+  ) {
+    throw invalid('coupes');
+  }
+  const slices = rawSlices.map((item, index): CardioVolumeSlice => {
+    const last = index === rawSlices.length - 1;
+    if (
+      !isRecord(item) ||
+      !isFiniteBetween(item.positionMm, 0, 100_000) ||
+      (last
+        ? item.stepMm !== null
+        : !isFiniteBetween(item.stepMm, 0, 1000) ||
+          (item.stepMm as number) <= 0)
+    ) {
+      throw invalid('coupe');
+    }
+    return {
+      positionMm: item.positionMm as number,
+      stepMm: last ? null : (item.stepMm as number),
+    };
+  });
+  const sliceCount = slices.length;
+  const rawGap: unknown = body.sliceGapMm;
+  if (!isFiniteBetween(rawGap, 0, 1000) || (rawGap as number) <= 0) {
+    throw invalid('pas entre les coupes');
+  }
+  const gap = rawGap as number;
+  if (typeof body.sliceOrderInferred !== 'boolean') {
+    throw invalid('ordre des coupes');
+  }
+
+  let phaseTimesMs: number[] | null = null;
+  if (body.phaseTimesMs !== null && body.phaseTimesMs !== undefined) {
+    const times: unknown = body.phaseTimesMs;
+    if (
+      !Array.isArray(times) ||
+      times.length !== phaseCount ||
+      !times.every((value) => isFiniteBetween(value, 0, 600_000))
+    ) {
+      throw invalid('instants des phases');
+    }
+    phaseTimesMs = [...(times as number[])];
+  }
+
+  const rawAreas: unknown = body.areasMm2;
+  if (!Array.isArray(rawAreas) || rawAreas.length !== phaseCount) {
+    throw invalid('surfaces');
+  }
+  const maxArea = body.imageWidth * body.imageHeight * pixelMm2;
+  const areas = rawAreas.map((phase: unknown): SliceAreas[] => {
+    if (!Array.isArray(phase) || phase.length !== sliceCount) {
+      throw invalid('surfaces');
+    }
+    return phase.map((cell: unknown): SliceAreas => {
+      if (
+        !isRecord(cell) ||
+        Object.keys(cell).length !== VOLUMETRY_STRUCTURES.length ||
+        !VOLUMETRY_STRUCTURES.every((name) =>
+          isFiniteBetween(cell[name], 0, maxArea * 1.0001),
+        )
+      ) {
+        throw invalid('surface');
+      }
+      return {
+        LV: cell.LV as number,
+        MYO: cell.MYO as number,
+        RV: cell.RV as number,
+      };
+    });
+  });
+
+  const curve = lvVolumeCurveMl(areas, gap);
+  if (!sameMeasures(body.lvVolumeCurveMl, curve)) throw invalid('courbe');
+  const [ed, es] = automaticPhases(curve);
+  if (body.edPhase !== ed || body.esPhase !== es) throw invalid('ED et ES');
+
+  const bsa: unknown = body.bsaM2;
+  if (bsa !== null && !(isFiniteBetween(bsa, 0.1, 6) && (bsa as number) > 0)) {
+    throw invalid('surface corporelle');
+  }
+  const heartRate: unknown = body.heartRateBpm;
+  if (heartRate !== null && !isFiniteBetween(heartRate, 20, 300)) {
+    throw invalid('fréquence cardiaque');
+  }
+
+  const measures = computeMeasures(
+    areas,
+    gap,
+    ed,
+    es,
+    [],
+    bsa as number | null,
+    heartRate as number | null,
+  );
+  if (!sameMeasures(body.measures, measures)) throw invalid('mesures');
+
+  const labelMaps: unknown = body.labelMapsPng;
+  const shown: unknown = body.slicesPng;
+  if (!isRecord(labelMaps) || !isRecord(shown)) throw invalid('images');
+  if (!isFiniteBetween(body.durationMs, 0, Number.MAX_SAFE_INTEGER)) {
+    throw invalid('durée');
+  }
+
+  return {
+    areasMm2: areas,
+    bsaM2: bsa as number | null,
+    configSha256: body.configSha256,
+    durationMs: Math.round(body.durationMs as number),
+    edPhase: ed,
+    esPhase: es,
+    heartRateBpm: heartRate as number | null,
+    imageHeight: body.imageHeight,
+    imageWidth: body.imageWidth,
+    labelMapsPng: {
+      ed: parsePngList(labelMaps.ed, sliceCount, 'cartes ED'),
+      es: parsePngList(labelMaps.es, sliceCount, 'cartes ES'),
+    },
+    lvVolumeCurveMl: curve,
+    measures,
+    modelId: CARDIO_SEG_MODEL_ID,
+    phaseTimesMs,
+    phases: phaseCount,
+    pixelSpacingMm: [spacing[0] as number, spacing[1] as number],
+    sliceGapMm: gap,
+    sliceOrderInferred: body.sliceOrderInferred,
+    slices,
+    slicesPng: {
+      ed: parsePngList(shown.ed, sliceCount, 'coupes ED'),
+      es: parsePngList(shown.es, sliceCount, 'coupes ES'),
+    },
+    warnings: parseVolumeWarnings(body.warnings),
+    weightsSha256: body.weightsSha256,
+  };
+}
+
 const detailCode = (body: unknown): unknown =>
   isRecord(body) && isRecord(body.detail) ? body.detail.code : undefined;
 
@@ -897,6 +1260,25 @@ export class AiServiceClient {
   }
 
   /**
+   * A short-axis cine stack: a .zip of single-frame DICOM files (multipart field
+   * "stack"), a whole cardiac cycle. It waits up to AI_CARDIO_VOLUME_TIMEOUT_MS.
+   */
+  async analyzeCardioVolume(
+    zip: Buffer,
+    fileName: string,
+  ): Promise<CardioVolumeAnalysisResult> {
+    const body = await this.postFile(
+      '/analyze/cardio/volume-mri',
+      { data: zip, field: 'stack', fileName, mimeType: 'application/zip' },
+      {},
+      cardioVolumeRejection,
+      'CARDIO_VOLUME_TOO_LARGE',
+      AI_CARDIO_VOLUME_TIMEOUT_MS,
+    );
+    return parseCardioVolumeAnalysis(body);
+  }
+
+  /**
    * A 12-lead ECG file (multipart field "file"). samplingRate (Hz) and unit
    * are those the physician gave for a CSV/TXT; a WFDB header has its own.
    */
@@ -932,6 +1314,7 @@ export class AiServiceClient {
     fields: Record<string, string>,
     rejection: (code: unknown) => AiServiceFailure,
     tooLarge: AiServiceFailure = 'IMAGE_TOO_LARGE',
+    timeoutMs: number = AI_SERVICE_TIMEOUT_MS,
   ): Promise<unknown> {
     if (!this.token) {
       throw new AiServiceError('SERVICE_NOT_CONFIGURED');
@@ -951,7 +1334,7 @@ export class AiServiceClient {
     let body: unknown;
     try {
       // The timeout covers the whole exchange, body included.
-      const signal = AbortSignal.timeout(AI_SERVICE_TIMEOUT_MS);
+      const signal = AbortSignal.timeout(timeoutMs);
       response = await this.fetch(path, {
         body: form,
         method: 'POST',

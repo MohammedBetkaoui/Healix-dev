@@ -191,7 +191,8 @@ export class DicomStudiesService {
     return { instance, study };
   }
 
-  private async getStudyInScope(
+  // The row of a study of the caller's workspace; 404 for another one's.
+  async getStudyInScope(
     user: AuthenticatedUserPayload,
     id: string,
   ): Promise<DicomStudy> {

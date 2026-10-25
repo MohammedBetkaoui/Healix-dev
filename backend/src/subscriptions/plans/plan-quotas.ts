@@ -1,18 +1,20 @@
 // What a plan allows, in numbers. The platform enforces these; the texts of
 // SubscriptionPlan.limits only display them (a test keeps both in agreement).
 
-// Five independent chains, never run one after the other.
+// Six independent chains, never run one after the other.
 export const AI_PIPELINES = [
   'brain',
   'pathology-breast',
   'pathology-nuclei',
   'cardio-ecg',
   'cardio-seg-mri',
+  'cardio-volume-mri',
 ] as const;
 export type AiPipeline = (typeof AI_PIPELINES)[number];
 
-// The chains that classify. Segmentation (nuclei, cardiac MRI) is reserved to
-// the premium plans.
+// The chains that classify. Segmentation (nuclei, cardiac MRI) and the cardiac
+// volumetry of a cine stack are reserved to the premium plans, and count for one
+// AI analysis each.
 export const CLASSIFICATION_PIPELINES: AiPipeline[] = [
   'brain',
   'pathology-breast',

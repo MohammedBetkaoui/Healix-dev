@@ -114,7 +114,12 @@ describe('the plan catalog', () => {
       plan('DOCTOR_STARTER').quotas.aiPipelines,
     );
     expect(plan('DOCTOR_PREMIUM_AI').quotas.aiPipelines).toBeNull();
-    for (const segmentation of ['pathology-nuclei', 'cardio-seg-mri']) {
+    for (const segmentation of [
+      'pathology-nuclei',
+      'cardio-seg-mri',
+      // The volumes of a cine stack come from the same segmentation model.
+      'cardio-volume-mri',
+    ]) {
       expect(isPipelineAllowed(plan('DOCTOR_PRO').quotas, segmentation)).toBe(
         false,
       );

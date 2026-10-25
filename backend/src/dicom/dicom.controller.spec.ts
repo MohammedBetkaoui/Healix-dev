@@ -60,6 +60,8 @@ describe('the DICOM routes over HTTP', () => {
   let app: INestApplication;
   const importStudy = jest.fn();
   const analyze = jest.fn();
+  const listCineStacks = jest.fn();
+  const analyzeCineStack = jest.fn();
   const studies = {
     findOne: jest.fn(),
     listForPatient: jest.fn(),
@@ -73,7 +75,10 @@ describe('the DICOM routes over HTTP', () => {
     const module = await Test.createTestingModule({
       controllers: [DicomController],
       providers: [
-        { provide: DicomAnalysisService, useValue: { analyze } },
+        {
+          provide: DicomAnalysisService,
+          useValue: { analyze, analyzeCineStack, listCineStacks },
+        },
         { provide: DicomImportService, useValue: { import: importStudy } },
         { provide: DicomStudiesService, useValue: studies },
         { provide: EntitlementsService, useValue: entitlements },
@@ -336,6 +341,99 @@ describe('the DICOM routes over HTTP', () => {
         (await post({ pipeline: 'brain' }, UserRole.SUPER_ADMIN)).status,
       ).toBe(403);
       expect(analyze).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('the cine stacks of a study and "Mesurer le cœur"', () => {
+    const cineStacks = (role: string = UserRole.INDEPENDENT_DOCTOR) =>
+      request(app.getHttpServer())
+        .get('/dicom/studies/study-1/cine-stacks')
+        .set('x-test-user', as(role));
+    const measure = (
+      body: object,
+      role: string = UserRole.INDEPENDENT_DOCTOR,
+    ) =>
+      request(app.getHttpServer())
+        .post('/dicom/studies/study-1/cardiac-volume')
+        .set('x-test-user', as(role))
+        .send(body);
+
+    it('lists the cine stacks of a study, even on a read-only account', async () => {
+      listCineStacks.mockResolvedValue([{ seriesId: 's', phases: 25 }]);
+      entitlements.getEntitlementsForUser.mockResolvedValue({
+        expiresAt: null,
+        readOnly: true,
+        status: 'EXPIRED',
+      });
+
+      const response = await cineStacks();
+
+      expect(response.status).toBe(200);
+      expect(response.body).toEqual([{ phases: 25, seriesId: 's' }]);
+      expect(listCineStacks).toHaveBeenCalledWith(
+        expect.objectContaining({ sub: 'user-1' }),
+        'study-1',
+      );
+    });
+
+    it('hands the series to the analysis and answers with the run it creates', async () => {
+      analyzeCineStack.mockResolvedValue({
+        id: 'run-1',
+        pipeline: 'cardio-volume-mri',
+      });
+
+      const response = await measure({ seriesId: 'aaaa-bbbb' });
+
+      expect(response.status).toBe(201);
+      expect(response.body).toEqual({
+        id: 'run-1',
+        pipeline: 'cardio-volume-mri',
+      });
+      expect(analyzeCineStack).toHaveBeenCalledWith(
+        expect.objectContaining({ sub: 'user-1' }),
+        'study-1',
+        'aaaa-bbbb',
+      );
+    });
+
+    it('is refused with 403 SUBSCRIPTION_INACTIVE on a read-only account', async () => {
+      entitlements.getEntitlementsForUser.mockResolvedValue({
+        expiresAt: null,
+        readOnly: true,
+        status: 'EXPIRED',
+      });
+
+      const response = await measure({ seriesId: 'aaaa-bbbb' });
+
+      expect(response.status).toBe(403);
+      expect(response.body).toMatchObject({ code: 'SUBSCRIPTION_INACTIVE' });
+      expect(analyzeCineStack).not.toHaveBeenCalled();
+    });
+
+    it.each([
+      ['no series', {}],
+      ['an empty series', { seriesId: '' }],
+      ['another field', { pipeline: 'cardio-volume-mri', seriesId: 'a' }],
+      ['a series that is not text', { seriesId: 12 }],
+    ])('refuses %s with 400', async (_label, body) => {
+      expect((await measure(body)).status).toBe(400);
+      expect(analyzeCineStack).not.toHaveBeenCalled();
+    });
+
+    it('is closed to the other roles', async () => {
+      expect((await cineStacks(UserRole.SUPER_ADMIN)).status).toBe(403);
+      expect(
+        (await measure({ seriesId: 'a' }, UserRole.SUPER_ADMIN)).status,
+      ).toBe(403);
+      expect(listCineStacks).not.toHaveBeenCalled();
+      expect(analyzeCineStack).not.toHaveBeenCalled();
+    });
+
+    it('is refused without a session', async () => {
+      const response = await request(app.getHttpServer()).get(
+        '/dicom/studies/study-1/cine-stacks',
+      );
+      expect(response.status).toBe(403);
     });
   });
 

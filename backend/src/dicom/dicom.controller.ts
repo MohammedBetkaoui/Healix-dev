@@ -34,6 +34,7 @@ import {
   dicomUploadStorage,
 } from './dicom-upload';
 import { DICOM_IMPORT_LIMITS } from './dicom-zip';
+import { AnalyzeCineStackDto } from './dto/analyze-cine-stack.dto';
 import { AnalyzeDicomInstanceDto } from './dto/analyze-dicom-instance.dto';
 import { RenderDicomInstanceQueryDto } from './dto/render-dicom-instance-query.dto';
 import { UploadDicomStudyDto } from './dto/upload-dicom-study.dto';
@@ -90,6 +91,16 @@ export class DicomController {
     return this.studies.findOne(user, id);
   }
 
+  // The cine stacks of a study: the MRI series with several phases at each slice
+  // position, the ones the volumetry cannot read shown with their reason.
+  @Get('studies/:id/cine-stacks')
+  cineStacks(
+    @CurrentUser() user: AuthenticatedUserPayload,
+    @Param('id') id: string,
+  ) {
+    return this.analysis.listCineStacks(user, id);
+  }
+
   // The slice as an 8-bit PNG, rendered by Orthanc.
   @Get('instances/:orthancInstanceId/preview')
   async preview(
@@ -119,6 +130,19 @@ export class DicomController {
     @Body() dto: AnalyzeDicomInstanceDto,
   ) {
     return this.analysis.analyze(user, orthancInstanceId, dto.pipeline);
+  }
+
+  // "Mesurer le cœur": starts a volumetry run on a cine series of a study. The
+  // series becomes a document of the record and goes through the usual flow of a
+  // run. Synchronous, like the run it creates (3 minutes at most).
+  @Post('studies/:id/cardiac-volume')
+  @RequiresActiveSubscription()
+  cardiacVolume(
+    @CurrentUser() user: AuthenticatedUserPayload,
+    @Param('id') id: string,
+    @Body() dto: AnalyzeCineStackDto,
+  ) {
+    return this.analysis.analyzeCineStack(user, id, dto.seriesId);
   }
 
   @Delete('studies/:id')

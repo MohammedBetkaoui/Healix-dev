@@ -18,6 +18,7 @@ import { AiAnalysisReportsService } from './report/ai-analysis-reports.service';
 import { AiReportRenderer } from './report/ai-report-renderer';
 import { CardioEvaluationService } from './report/cardio-evaluation';
 import { CardioSegEvaluationService } from './report/cardio-seg-evaluation';
+import { CardioVolumeEvaluationService } from './report/cardio-volume-evaluation';
 
 @Module({
   imports: [
@@ -41,6 +42,7 @@ import { CardioSegEvaluationService } from './report/cardio-seg-evaluation';
     AiTimelineService,
     CardioEvaluationService,
     CardioSegEvaluationService,
+    CardioVolumeEvaluationService,
   ],
   // The analysis of a slice of a DICOM study goes through the same creation
   // flow as any run.

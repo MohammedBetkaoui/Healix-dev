@@ -738,6 +738,10 @@ model PatientDocument {
   sopInstanceUid    String?             @map("sop_instance_uid") @db.VarChar(64)
   seriesNumber      Int?                @map("series_number")
   instanceNumber    Int?                @map("instance_number")
+  // The cine stack a ZIP document was made from (cardiac volumetry): the series
+  // of the study it holds, as [{ seriesInstanceUid, seriesNumber, description,
+  // images }]. null for any other document.
+  dicomSeries       Json?               @map("dicom_series")
   createdAt         DateTime            @default(now()) @map("created_at")
   updatedAt         DateTime            @updatedAt @map("updated_at")
 
@@ -1506,6 +1510,12 @@ model AiAnalysisRun {
   // Cardiac MRI segmentation: the slice as analysed (8-bit PNG), shown under
   // the overlay: a DICOM source cannot be shown as it is.
   slicePath                   String?             @map("slice_path") @db.VarChar(512)
+  // Cardiac volumetry (cardio-volume-mri): the areas of LV, RV and MYO of every
+  // slice and phase, the curve, the measures the model's ED and ES give, and the
+  // physician's corrections with the measures recalculated from them (no new
+  // inference). The images of the ED and ES phases are files named after the run,
+  // next to the masks (patients/<patientId>/ai-masks/<runId>-vol-*.png).
+  volumetry                   Json?
   clinicianImpression         String?             @map("clinician_impression") @db.Text
   errorCode                   String?             @map("error_code") @db.VarChar(60)
   durationMs                  Int?                @map("duration_ms")

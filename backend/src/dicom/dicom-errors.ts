@@ -5,6 +5,7 @@ import {
   UnprocessableEntityException,
 } from '@nestjs/common';
 
+import { CINE_STACK_LIMITS, type CineStackRefusal } from './cine-stacks';
 import { OrthancError } from './orthanc.client';
 
 // An object body is sent as-is by Nest's default exception filter, so the
@@ -17,6 +18,7 @@ export const DICOM_STORE_UNAVAILABLE_CODE = 'DICOM_STORE_UNAVAILABLE';
 export const DICOM_PIPELINE_NOT_SUPPORTED_CODE = 'DICOM_PIPELINE_NOT_SUPPORTED';
 export const DICOM_MULTIFRAME_NOT_SUPPORTED_CODE =
   'DICOM_MULTIFRAME_NOT_SUPPORTED';
+export const DICOM_CINE_STACK_INVALID_CODE = 'DICOM_CINE_STACK_INVALID';
 
 export type ZipRefusalReason =
   | 'CORRUPT'
@@ -81,6 +83,33 @@ export function dicomMultiframeNotSupported(frames: number) {
     frames,
     message:
       "Cette instance DICOM contient plusieurs images (multi-frame) : choisissez une coupe d'une série d'images simples.",
+  });
+}
+
+export function dicomSeriesNotFound() {
+  return new NotFoundException('Série DICOM introuvable.');
+}
+
+const CINE_REFUSAL_MESSAGES: Record<CineStackRefusal, string> = {
+  MIXED_ORIENTATION:
+    "Les images de cette série n'ont pas toutes la même orientation : ce n'est pas une pile de coupes parallèles.",
+  MULTIFRAME:
+    'Cette série est faite de fichiers multi-image (multi-frame) : la volumétrie lit une série de fichiers à image unique.',
+  TOO_FEW_SLICES: `Au moins ${CINE_STACK_LIMITS.minSlices} coupes sont nécessaires pour calculer des volumes.`,
+  TOO_LARGE: 'Cette série dépasse la taille que le service peut analyser.',
+  TOO_MANY_FILES: `Cette série compte plus de ${CINE_STACK_LIMITS.maxFiles} images.`,
+  TOO_MANY_PHASES: `Une série ciné compte au plus ${CINE_STACK_LIMITS.maxPhases} phases.`,
+  UNEQUAL_PHASES:
+    "Toutes les coupes n'ont pas le même nombre de phases : la série est incomplète ou mélange plusieurs acquisitions.",
+};
+
+// The series is not a cine stack the analysis can read (reason says why), before
+// anything is downloaded from the store.
+export function dicomCineStackInvalid(refusal: CineStackRefusal) {
+  return new UnprocessableEntityException({
+    code: DICOM_CINE_STACK_INVALID_CODE,
+    message: CINE_REFUSAL_MESSAGES[refusal],
+    reason: refusal,
   });
 }
 

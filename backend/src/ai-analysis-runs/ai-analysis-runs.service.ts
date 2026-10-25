@@ -36,10 +36,13 @@ import { EntitlementsService } from '../subscriptions/entitlements.service';
 import { NotificationProducerService } from '../notifications/notification-producer.service';
 import {
   AI_SERVICE_TIMEOUT_MS,
+  aiServiceTimeoutMs,
   AiServiceClient,
   AiServiceError,
   type AiServiceFailure,
+  CARDIO_VOLUME_REJECTIONS,
   type CardioSegAnalysisResult,
+  type CardioVolumeAnalysisResult,
   ECG_CLASSES,
   ECG_REJECTIONS,
   type EcgAnalysisResult,
@@ -48,6 +51,7 @@ import {
   type NucleiFractions,
   type RejectionDetails,
 } from './ai-service.client';
+import { CorrectVolumetryDto } from './dto/correct-volumetry.dto';
 import {
   type AiPipeline,
   CreateAiAnalysisRunDto,
@@ -58,18 +62,51 @@ import {
   DecideAiAnalysisRunDto,
   ECG_NORMAL_CLASS,
 } from './dto/decide-ai-analysis-run.dto';
+import { colourLabelMap, LabelMapError } from './volumetry/label-overlay';
+import {
+  applyCorrection,
+  automaticFor,
+  buildVolumetry,
+  isModified,
+  readVolumetry,
+  type Volumetry,
+  type VolumetryImageKind,
+  type VolumetryImagePhase,
+  volumetryImageName,
+  volumetryResponse,
+  VOLUMETRY_IMAGE_PHASES,
+} from './volumetry/volumetry';
+import { VolumetryInputError } from './volumetry/volumetry-measures';
 
 // The inference service decodes PNG and JPEG; the cardiac MRI chain also
-// reads a single-frame DICOM.
+// reads a single-frame DICOM, and the cine volumetry a ZIP of them.
 const SUPPORTED_IMAGE_TYPES = new Set(['image/png', 'image/jpeg']);
 const DICOM_MIME_TYPE = 'application/dicom';
+const ZIP_MIME_TYPES = new Set([
+  'application/zip',
+  'application/x-zip-compressed',
+]);
 
 // Chains whose result is a map to review: validated or rejected, never
-// corrected to a class.
+// corrected to a class. The cine volumetry is not one of them: it is measures the
+// physician corrects (ED, ES, slices) and the decision then is CORRECTED.
 export const MAP_PIPELINES: ReadonlySet<string> = new Set([
   'pathology-nuclei',
   'cardio-seg-mri',
 ]);
+
+export const CARDIO_VOLUME_PIPELINE = 'cardio-volume-mri';
+
+/** A ZIP of DICOM files (a cine stack): declared so, or a .zip sent without a MIME type. */
+export function isZipDocument(document: {
+  mimeType: string;
+  originalName: string;
+}): boolean {
+  return (
+    ZIP_MIME_TYPES.has(document.mimeType) ||
+    (!document.mimeType && document.originalName.toLowerCase().endsWith('.zip'))
+  );
+}
 
 /** A DICOM document: declared so, or a .dcm sent without a MIME type. */
 export function isDicomDocument(document: {
@@ -110,8 +147,11 @@ export type EcgPredictions = Pick<
 >;
 
 // A run still RUNNING this long after its creation lost its request (backend
-// restarted mid-analysis): the service call itself stops at the timeout.
+// restarted mid-analysis): the service call itself stops at the timeout, which is
+// longer for a cine volumetry.
 export const STALE_RUN_AFTER_MS = AI_SERVICE_TIMEOUT_MS + 60_000;
+export const staleRunAfterMs = (pipeline: string): number =>
+  aiServiceTimeoutMs(pipeline) + 60_000;
 
 type RunErrorCode =
   | AiServiceFailure
@@ -225,7 +265,8 @@ export function checkMagnification(
   if (
     pipeline === 'brain' ||
     pipeline === 'cardio-ecg' ||
-    pipeline === 'cardio-seg-mri'
+    pipeline === 'cardio-seg-mri' ||
+    pipeline === CARDIO_VOLUME_PIPELINE
   ) {
     if (magnification != null) {
       throw new BadRequestException({
@@ -272,19 +313,37 @@ export function checkEcgOptions(
   }
 }
 
+/** Which image of a cine volumetry is asked for: the model's ED or ES, and the slice from the base. */
+export type VolumetryImageSelector = {
+  phase?: VolumetryImagePhase;
+  slice?: number;
+};
+
+/** What a cine volumetry run stores in `predictions`: the model card; the rest is in `volumetry`. */
+export type CardioVolumePredictions = Pick<
+  CardioVolumeAnalysisResult,
+  'configSha256'
+>;
+
 type FinishData = Partial<
   Omit<
     AiAnalysisRun,
-    'predictions' | 'ttaScores' | 'nucleiFractions' | 'decisionLabels'
+    | 'predictions'
+    | 'ttaScores'
+    | 'nucleiFractions'
+    | 'decisionLabels'
+    | 'volumetry'
   >
 > & {
   errorCode?: RunErrorCode;
   predictions?:
     | { label: string; probability: number }[]
     | EcgPredictions
-    | CardioSegPredictions;
+    | CardioSegPredictions
+    | CardioVolumePredictions;
   ttaScores?: number[];
   nucleiFractions?: NucleiFractions;
+  volumetry?: Volumetry;
   status: AiAnalysisRunStatus;
 };
 
@@ -342,7 +401,20 @@ export class AiAnalysisRunsService {
           'Seules une image PNG ou JPEG, ou un DICOM, peuvent être analysés par cette chaîne.',
       });
     }
-    if (!ecg && !mri && !SUPPORTED_IMAGE_TYPES.has(document.mimeType)) {
+    const volume = dto.pipeline === CARDIO_VOLUME_PIPELINE;
+    if (volume && !isZipDocument(document)) {
+      throw new UnprocessableEntityException({
+        code: 'AI_UNSUPPORTED_DOCUMENT',
+        message:
+          'Seule une archive ZIP de fichiers DICOM (une série ciné) peut être analysée par cette chaîne.',
+      });
+    }
+    if (
+      !ecg &&
+      !mri &&
+      !volume &&
+      !SUPPORTED_IMAGE_TYPES.has(document.mimeType)
+    ) {
       throw new UnprocessableEntityException({
         code: 'AI_UNSUPPORTED_DOCUMENT',
         message: 'Seules les images PNG ou JPEG peuvent être analysées.',
@@ -419,6 +491,8 @@ export class AiAnalysisRunsService {
         return this.runNuclei(user, run, file);
       case 'cardio-seg-mri':
         return this.runCardioSeg(user, run, file);
+      case 'cardio-volume-mri':
+        return this.runCardioVolume(user, run, file);
       case 'cardio-ecg':
         // A WFDB header gives its own rate and unit: sent for text only.
         return this.runEcg(
@@ -586,6 +660,61 @@ export class AiAnalysisRunsService {
       segmentationWeightsSha256: result.weightsSha256,
       slicePath,
       status: AiAnalysisRunStatus.SUCCEEDED,
+    });
+    return this.toRunResponse(completed);
+  }
+
+  // Cardiac cine: a short-axis stack over a whole cycle. The areas of every slice at
+  // every phase go to `volumetry` (the measures are calculated again from them when
+  // the physician changes ED, ES or the slices counted, with no new inference); the
+  // class maps and the slices of the model's ED and ES, one image each per slice, go
+  // to a folder of their own (maskPath). No overlay is stored: it is coloured from
+  // the class map when asked for.
+  private async runCardioVolume(
+    user: AuthenticatedUserPayload,
+    run: AiAnalysisRun,
+    file: { image: Buffer; mimeType: string; name: string },
+  ) {
+    const result = await this.analyze(user, run.id, () =>
+      this.aiServiceClient.analyzeCardioVolume(file.image, file.name),
+    );
+
+    const images = VOLUMETRY_IMAGE_PHASES.flatMap((phase) =>
+      result.slicesPng[phase].flatMap((slice, index) => [
+        {
+          name: volumetryImageName('slice', phase, index),
+          png: slice,
+        },
+        {
+          name: volumetryImageName('label', phase, index),
+          png: result.labelMapsPng[phase][index],
+        },
+      ]),
+    );
+    let maskPath: string;
+    try {
+      ({ localPath: maskPath } =
+        await this.fileStorageService.storeAiVolumetryImages({
+          images,
+          patientId: run.patientId,
+          runId: run.id,
+        }));
+    } catch {
+      await this.finish(user, run.id, {
+        errorCode: 'MASK_STORAGE_FAILED',
+        status: AiAnalysisRunStatus.FAILED,
+      });
+      throw this.toHttpError('MASK_STORAGE_FAILED', run.id);
+    }
+
+    const completed = await this.finish(user, run.id, {
+      durationMs: result.durationMs,
+      maskPath,
+      predictions: { configSha256: result.configSha256 },
+      segmentationModelId: result.modelId,
+      segmentationWeightsSha256: result.weightsSha256,
+      status: AiAnalysisRunStatus.SUCCEEDED,
+      volumetry: buildVolumetry(result),
     });
     return this.toRunResponse(completed);
   }
@@ -762,6 +891,16 @@ export class AiAnalysisRunsService {
       throw alreadyDecided();
     }
 
+    if (run.pipeline === CARDIO_VOLUME_PIPELINE) {
+      return this.decideVolumetry(user, patientId, run, dto);
+    }
+    if (dto.measuresCorrected !== undefined) {
+      throw new BadRequestException({
+        code: 'AI_MEASURES_CORRECTED_NOT_APPLICABLE',
+        message:
+          "La correction des mesures ne concerne que la volumétrie d'une IRM ciné.",
+      });
+    }
     if (run.pipeline === 'cardio-ecg') {
       return this.decideEcg(user, patientId, run, dto);
     }
@@ -843,6 +982,187 @@ export class AiAnalysisRunsService {
             : decisionLabel === modelLabel,
         decisionLabel,
         modelLabel,
+        status: dto.status,
+      },
+    );
+  }
+
+  // The physician's changes to the measures of a cine volumetry (ED, ES, slices
+  // counted, body surface), saved before the decision: the measures are calculated
+  // again from the areas the service sent, with no new inference, and the model's
+  // proposal stays next to them. Refused once the run has its decision.
+  async correctVolumetry(
+    user: AuthenticatedUserPayload,
+    patientId: string,
+    runId: string,
+    dto: CorrectVolumetryDto,
+  ) {
+    const run = await this.getRunInScope(user, patientId, runId);
+
+    if (run.pipeline !== CARDIO_VOLUME_PIPELINE) {
+      throw new ConflictException({
+        code: 'AI_VOLUMETRY_NOT_APPLICABLE',
+        message: "Seule la volumétrie d'une IRM ciné se corrige ainsi.",
+      });
+    }
+    if (run.status !== AiAnalysisRunStatus.SUCCEEDED) {
+      throw new ConflictException({
+        code: 'AI_RUN_NOT_DECIDABLE',
+        message: 'Seule une analyse réussie peut être corrigée.',
+      });
+    }
+    if (run.decisionStatus !== null) {
+      throw alreadyDecided();
+    }
+    const volumetry = readVolumetry(run.volumetry);
+    if (!volumetry) {
+      throw new ConflictException({
+        code: 'AI_RUN_NOT_DECIDABLE',
+        message: "Cette analyse n'a pas de mesures.",
+      });
+    }
+
+    const corrected = this.correctedVolumetry(volumetry, dto);
+    const { count } = await this.prisma.aiAnalysisRun.updateMany({
+      data: { volumetry: corrected },
+      // Of two corrections saved at once, the second is told so: it would
+      // otherwise erase the first without having seen it.
+      where: {
+        decisionStatus: null,
+        id: run.id,
+        status: AiAnalysisRunStatus.SUCCEEDED,
+        updatedAt: run.updatedAt,
+      },
+    });
+    if (count === 0) {
+      const current = await this.prisma.aiAnalysisRun.findFirst({
+        select: { decisionStatus: true },
+        where: { id: run.id },
+      });
+      throw current?.decisionStatus
+        ? alreadyDecided()
+        : new ConflictException({
+            code: 'AI_VOLUMETRY_CONFLICT',
+            message:
+              "Ces mesures viennent d'être modifiées ailleurs : rechargez l'analyse.",
+          });
+    }
+
+    // The phases and the slices left out, never the height and the weight.
+    const state = corrected.corrected;
+    await this.patientAuditService.log(user, 'AI_VOLUMETRY_CORRECTED', run.id, {
+      bsaSource: state?.bsaSource ?? null,
+      edPhase: state?.edPhase ?? null,
+      esPhase: state?.esPhase ?? null,
+      excludedSlices: state?.excludedSlices ?? [],
+      patientId,
+    });
+
+    return this.findOne(user, patientId, run.id);
+  }
+
+  private correctedVolumetry(
+    volumetry: Volumetry,
+    dto: CorrectVolumetryDto,
+  ): Volumetry {
+    const invalid = (reason: string) =>
+      new BadRequestException({
+        code: 'AI_VOLUMETRY_INVALID',
+        message:
+          'Cette correction est impossible avec cette série (phase ou coupe inexistante, aucune coupe conservée, taille et poids incomplets).',
+        reason,
+      });
+
+    const { automatic, ...fields } = dto;
+    if (
+      Object.values(fields).every((value) => value === undefined) &&
+      !automatic
+    ) {
+      throw invalid('nothing to correct');
+    }
+    if (
+      automatic &&
+      (fields.edPhase !== undefined || fields.esPhase !== undefined)
+    ) {
+      throw invalid('automatic phases cannot be given with ED or ES');
+    }
+
+    try {
+      const correction = { ...fields };
+      if (automatic) {
+        const excluded =
+          fields.excludedSlices ?? volumetry.corrected?.excludedSlices ?? [];
+        [correction.edPhase, correction.esPhase] = automaticFor(
+          volumetry,
+          excluded,
+        );
+        correction.excludedSlices = excluded;
+      }
+      return applyCorrection(volumetry, correction);
+    } catch (error) {
+      if (error instanceof VolumetryInputError) {
+        throw invalid(error.message);
+      }
+      throw error;
+    }
+  }
+
+  // Validated: the measures as they stand are the model's. Corrected: the physician
+  // changed ED, ES or the slices counted (a height and a weight only give the
+  // surface to index with: they do not make a correction). Rejected: none is kept.
+  private async decideVolumetry(
+    user: AuthenticatedUserPayload,
+    patientId: string,
+    run: RunWithDecider,
+    dto: DecideAiAnalysisRunDto,
+  ) {
+    const volumetry = readVolumetry(run.volumetry);
+    if (!volumetry) {
+      throw new ConflictException({
+        code: 'AI_RUN_NOT_DECIDABLE',
+        message: "Cette analyse n'a pas de mesures.",
+      });
+    }
+    if (dto.correctedLabel !== undefined || dto.correctedLabels !== undefined) {
+      throw new BadRequestException({
+        code: 'AI_CORRECTED_LABEL_UNEXPECTED',
+        message:
+          "Les mesures d'une IRM ciné se corrigent avant la décision (measuresCorrected), pas par une classe.",
+      });
+    }
+    if (dto.status !== AiRunDecision.CORRECTED && dto.measuresCorrected) {
+      throw new BadRequestException({
+        code: 'AI_MEASURES_CORRECTED_UNEXPECTED',
+        message: "Des mesures corrigées n'accompagnent qu'une correction.",
+      });
+    }
+
+    const modified = isModified(volumetry);
+    if (dto.status === AiRunDecision.VALIDATED && modified) {
+      throw new BadRequestException({
+        code: 'AI_VOLUMETRY_MODIFIED',
+        message:
+          'Les mesures ont été modifiées : la décision est une correction (ou un rejet).',
+      });
+    }
+    if (dto.status === AiRunDecision.CORRECTED && !modified) {
+      throw new BadRequestException({
+        code: 'AI_CORRECTION_MATCHES_MODEL',
+        message:
+          "Aucune mesure n'a été modifiée par rapport à celles du modèle : validez-les, ou corrigez la phase ou les coupes.",
+      });
+    }
+
+    return this.recordDecision(
+      user,
+      patientId,
+      run,
+      dto,
+      { decisionLabel: null },
+      {
+        agreesWithModel:
+          dto.status === AiRunDecision.REJECTED ? null : !modified,
+        modified,
         status: dto.status,
       },
     );
@@ -974,7 +1294,7 @@ export class AiAnalysisRunsService {
   ): Promise<RunWithDecider> {
     if (
       run.status !== AiAnalysisRunStatus.RUNNING ||
-      now.getTime() - run.createdAt.getTime() < STALE_RUN_AFTER_MS
+      now.getTime() - run.createdAt.getTime() < staleRunAfterMs(run.pipeline)
     ) {
       return run;
     }
@@ -1014,11 +1334,15 @@ export class AiAnalysisRunsService {
     user: AuthenticatedUserPayload,
     patientId: string,
     runId: string,
+    image: VolumetryImageSelector = {},
   ) {
     const run = await this.getRunInScope(user, patientId, runId);
 
     if (!run.maskPath) {
       throw new NotFoundException('Masque introuvable.');
+    }
+    if (run.pipeline === CARDIO_VOLUME_PIPELINE) {
+      return this.volumetryImage(run, 'label', image);
     }
 
     return {
@@ -1032,9 +1356,13 @@ export class AiAnalysisRunsService {
     user: AuthenticatedUserPayload,
     patientId: string,
     runId: string,
+    image: VolumetryImageSelector = {},
   ) {
     const run = await this.getRunInScope(user, patientId, runId);
 
+    if (run.pipeline === CARDIO_VOLUME_PIPELINE) {
+      return this.volumetryImage(run, 'overlay', image);
+    }
     if (!run.overlayPath) {
       throw new NotFoundException('Superposition introuvable.');
     }
@@ -1050,9 +1378,13 @@ export class AiAnalysisRunsService {
     user: AuthenticatedUserPayload,
     patientId: string,
     runId: string,
+    image: VolumetryImageSelector = {},
   ) {
     const run = await this.getRunInScope(user, patientId, runId);
 
+    if (run.pipeline === CARDIO_VOLUME_PIPELINE) {
+      return this.volumetryImage(run, 'slice', image);
+    }
     if (!run.slicePath) {
       throw new NotFoundException('Coupe introuvable.');
     }
@@ -1061,6 +1393,54 @@ export class AiAnalysisRunsService {
       fileName: `coupe-${run.id}.png`,
       png: await this.fileStorageService.readStoredFile(run.slicePath),
     };
+  }
+
+  // One image of a cine volumetry: the class map, its colour overlay (made from the
+  // map) or the slice, at the model's ED or ES, for a slice counted from the base.
+  private async volumetryImage(
+    run: RunWithDecider,
+    kind: VolumetryImageKind | 'overlay',
+    image: VolumetryImageSelector,
+  ): Promise<{ fileName: string; png: Buffer }> {
+    const volumetry = readVolumetry(run.volumetry);
+    if (!run.maskPath || !volumetry) {
+      throw new NotFoundException('Image introuvable.');
+    }
+
+    const { phase, slice } = image;
+    if (phase === undefined || slice === undefined) {
+      throw new BadRequestException({
+        code: 'AI_VOLUMETRY_IMAGE_SELECTOR',
+        message: 'Indiquez la phase (ed ou es) et la coupe.',
+      });
+    }
+    if (slice >= volumetry.images.slices) {
+      throw new NotFoundException('Coupe introuvable.');
+    }
+
+    const stored = await this.fileStorageService.readAiVolumetryImage(
+      run.maskPath,
+      volumetryImageName(kind === 'overlay' ? 'label' : kind, phase, slice),
+    );
+    const names = {
+      label: 'masque',
+      overlay: 'superposition',
+      slice: 'coupe',
+    } as const;
+    const fileName = `${names[kind]}-${run.id}-${phase}-${slice}.png`;
+    if (kind !== 'overlay') {
+      return { fileName, png: stored };
+    }
+    try {
+      return { fileName, png: colourLabelMap(stored) };
+    } catch (error) {
+      if (error instanceof LabelMapError) {
+        throw new InternalServerErrorException(
+          'La carte de segmentation stockée est illisible.',
+        );
+      }
+      throw error;
+    }
   }
 
   // The trace of an ECG analysis: the first 10 s, filtered, in mV, per lead.
@@ -1162,6 +1542,15 @@ export class AiAnalysisRunsService {
       ...(Object.keys(details).length > 0 ? { details } : {}),
     });
 
+    if ((CARDIO_VOLUME_REJECTIONS as readonly string[]).includes(code)) {
+      // A refused stack says why in `details` (the modality, the phases found...).
+      return new UnprocessableEntityException(
+        body(
+          'AI_INPUT_REJECTED',
+          "La série ciné a été refusée par le service d'analyse.",
+        ),
+      );
+    }
     if ((ECG_REJECTIONS as readonly string[]).includes(code)) {
       return new UnprocessableEntityException(
         body(
@@ -1224,6 +1613,14 @@ export class AiAnalysisRunsService {
     }
   }
 
+  private volumetryOf(run: RunWithDecider) {
+    const volumetry =
+      run.pipeline === CARDIO_VOLUME_PIPELINE
+        ? readVolumetry(run.volumetry)
+        : null;
+    return volumetry ? volumetryResponse(volumetry) : null;
+  }
+
   // maskPath, overlayPath, tracePath and slicePath stay server-side; the
   // client gets hasMask, hasOverlay, hasTrace, hasSlice and their routes.
   toRunResponse(run: RunWithDecider) {
@@ -1249,6 +1646,7 @@ export class AiAnalysisRunsService {
       hasOverlay: Boolean(run.overlayPath),
       hasTrace: Boolean(run.tracePath),
       hasSlice: Boolean(run.slicePath),
+      volumetry: this.volumetryOf(run),
       maskAreaPx: run.maskAreaPx,
       maskAreaRatio: run.maskAreaRatio,
       nucleiFractions: run.nucleiFractions,

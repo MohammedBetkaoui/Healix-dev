@@ -16,6 +16,8 @@
 //   cardio-seg-mri    `predictions`: { structures: { LV, RV, MYO: { pixels } },
 //                     noStructureFound }.
 //   pathology-nuclei  `nucleiFractions`: { background, nucleusTypes }.
+//   cardio-volume-mri `volumetry`: the measures in force, whose LV ejection
+//                     fraction is read in the ESC 2021 classes.
 
 import {
   AiAnalysisRunStatus,
@@ -27,6 +29,8 @@ import {
   BRAIN_CLASS_LABELS,
   UNCERTAINTY_THRESHOLD,
 } from '../report/ai-report-rules';
+import { effectiveMeasures, readVolumetry } from '../volumetry/volumetry';
+import { LVEF_MILDLY_REDUCED_MAX } from '../volumetry/volumetry-measures';
 
 export const AI_PRIORITY_LEVELS = ['URGENT', 'HIGH', 'ROUTINE'] as const;
 export type AiPriorityLevel = (typeof AI_PRIORITY_LEVELS)[number];
@@ -46,7 +50,11 @@ export type AiPriorityReasonCode =
   | 'ECG_MULTIPLE_ABNORMAL'
   | 'LOW_CONFIDENCE'
   | 'NO_RESULT'
-  | 'NUCLEI_NONE_FOUND';
+  | 'NUCLEI_NONE_FOUND'
+  | 'VOLUME_ES_EXCEEDS_ED'
+  | 'VOLUME_LVEF_MILDLY_REDUCED'
+  | 'VOLUME_LVEF_REDUCED'
+  | 'VOLUME_NOT_MEASURABLE';
 
 export type AiPriorityReason = {
   code: AiPriorityReasonCode;
@@ -119,6 +127,8 @@ export type PriorityRun = {
   pipeline: string;
   predictions: Prisma.JsonValue | null;
   status: AiAnalysisRunStatus;
+  /** Cardiac cine only. */
+  volumetry?: Prisma.JsonValue | null;
 };
 
 export const PRIORITY_RUN_SELECT = {
@@ -132,6 +142,7 @@ export const PRIORITY_RUN_SELECT = {
   pipeline: true,
   predictions: true,
   status: true,
+  volumetry: true,
 } as const satisfies Prisma.AiAnalysisRunSelect;
 
 // ------------------------------------------------------------------ rules
@@ -362,6 +373,56 @@ function cardioSegFinding(predictions: unknown): Finding {
     : routine();
 }
 
+/**
+ * Cardiac cine. The LV ejection fraction in force (the physician's if they
+ * changed the measures, else the model's) in the ESC 2021 classes: reduced
+ * (<= 40 %) is URGENT, mildly reduced (41-49 %) HIGH, preserved ROUTINE; the lower
+ * the fraction, the stronger within the level. An ES volume above the ED volume (the
+ * fraction is then negative: the two phases are probably wrong) or a fraction that
+ * cannot be measured is HIGH and says so, not "reduced": the measures are to be
+ * checked first. An order of reading, not a diagnosis.
+ */
+function cardioVolumeFinding(value: unknown): Finding {
+  const volumetry = readVolumetry(value);
+  if (!volumetry) return routine();
+
+  const measures = effectiveMeasures(volumetry);
+  const fraction = measures.lv.efPercent;
+  if (fraction === null) {
+    return {
+      level: 'HIGH',
+      reasons: [{ code: 'VOLUME_NOT_MEASURABLE' }],
+      strength: 1,
+    };
+  }
+
+  if (measures.warnings.includes('es_volume_exceeds_ed')) {
+    return {
+      level: 'HIGH',
+      reasons: [{ code: 'VOLUME_ES_EXCEEDS_ED' }],
+      strength: 1,
+    };
+  }
+
+  const params = { efPercent: fraction };
+  const strength = clamp01(1 - fraction / (LVEF_MILDLY_REDUCED_MAX + 1));
+  if (measures.lvefClass === 'reduced') {
+    return {
+      level: 'URGENT',
+      reasons: [{ code: 'VOLUME_LVEF_REDUCED', params }],
+      strength,
+    };
+  }
+  if (measures.lvefClass === 'mildlyReduced') {
+    return {
+      level: 'HIGH',
+      reasons: [{ code: 'VOLUME_LVEF_MILDLY_REDUCED', params }],
+      strength,
+    };
+  }
+  return routine(strength);
+}
+
 function nucleiFinding(fractions: unknown): Finding {
   if (!isRecord(fractions) || !isNumber(fractions.background)) return routine();
 
@@ -388,6 +449,8 @@ function findingOf(run: PriorityRun): Finding {
       return ecgFinding(run.predictions);
     case 'cardio-seg-mri':
       return cardioSegFinding(run.predictions);
+    case 'cardio-volume-mri':
+      return cardioVolumeFinding(run.volumetry);
     case 'pathology-nuclei':
       return nucleiFinding(run.nucleiFractions);
     default:
