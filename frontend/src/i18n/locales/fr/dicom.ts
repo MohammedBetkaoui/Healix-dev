@@ -133,5 +133,11 @@ export const dicomFr = {
     pageTitle: "Visionneuse DICOM",
     sessionEnded: "Votre session a expiré : reconnectez-vous pour continuer à consulter les images.",
     unavailable: "Le serveur d'imagerie ne répond pas. Réessayez dans un instant.",
+    viewerDevHint:
+      "En développement local, la visionneuse se construit avec « node viewer/build-local.mjs » puis se sert avec « node viewer/serve-local.mjs » (DEPLOIEMENT.md).",
+    viewerLoading: "Ouverture de la visionneuse…",
+    viewerUnavailable: "La visionneuse d'imagerie n'est pas disponible sur ce serveur.",
+    viewerUnavailableBody:
+      "Les images de l'étude restent consultables en aperçu, et chaque coupe peut être analysée ci-dessous. Contactez l'administrateur si la visionneuse devrait être en service.",
   },
 };

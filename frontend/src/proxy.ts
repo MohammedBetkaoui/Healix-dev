@@ -328,5 +328,9 @@ export async function proxy(request: NextRequest) {
 }
 
 export const config = {
-  matcher: ["/((?!api|_next/static|_next/image|favicon.ico|.*\\..*).*)"],
+  // /viewer is the DICOM viewer, a separate application with its own policy
+  // (Caddy in production, viewer/serve-local.mjs in development): not a page of
+  // this one, and the CSP of the pages (frame-ancestors 'none') would make it
+  // unusable in a frame.
+  matcher: ["/((?!api|viewer(?:/|$)|_next/static|_next/image|favicon.ico|.*\\..*).*)"],
 };

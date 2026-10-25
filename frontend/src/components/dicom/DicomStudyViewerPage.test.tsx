@@ -2,14 +2,14 @@ import { AxiosError, AxiosHeaders, type AxiosResponse } from "axios";
 import { renderToStaticMarkup } from "react-dom/server";
 
 import { type DicomStudyDetail } from "@/features/dicom/dicom.types";
-import { useDicomStudy } from "@/features/dicom/hooks/use-dicom-studies";
+import { useDicomStudy, useViewerAvailable } from "@/features/dicom/hooks/use-dicom-studies";
 import { dictionaries } from "@/i18n";
 import { useSessionKeepAlive } from "@/lib/auth/use-session-keep-alive";
 import { translate } from "@/lib/i18n";
 
 import { DicomStudyViewerPage } from "./DicomStudyViewerPage";
 
-jest.mock("@/features/dicom/hooks/use-dicom-studies", () => ({ useDicomStudy: jest.fn() }));
+jest.mock("@/features/dicom/hooks/use-dicom-studies", () => ({ useDicomStudy: jest.fn(), useViewerAvailable: jest.fn() }));
 jest.mock("@/lib/auth/use-session-keep-alive", () => ({ useSessionKeepAlive: jest.fn() }));
 jest.mock("@/features/auth/hooks/use-current-user", () => ({
   useCurrentUser: () => ({ data: { fullName: "Dr Test" } }),
@@ -65,7 +65,7 @@ function axiosError(status: number) {
 
 function render(
   query: object = {},
-  options: { accountType?: "DOCTOR" | "ESTABLISHMENT"; ended?: boolean } = {},
+  options: { accountType?: "DOCTOR" | "ESTABLISHMENT"; ended?: boolean; viewer?: object } = {},
 ) {
   (useDicomStudy as jest.Mock).mockReturnValue({
     data: study,
@@ -74,6 +74,7 @@ function render(
     isLoading: false,
     ...query,
   });
+  (useViewerAvailable as jest.Mock).mockReturnValue({ data: true, isLoading: false, ...options.viewer });
   (useSessionKeepAlive as jest.Mock).mockReturnValue({ ended: options.ended ?? false });
   return renderToStaticMarkup(
     <DicomStudyViewerPage
@@ -111,6 +112,47 @@ describe("the page of a DICOM study", () => {
   it("offers it only once the study is loaded", () => {
     expect(render({ data: undefined, isLoading: true })).not.toContain("data-analysis-panel");
     expect(render({ data: undefined, error: axiosError(404), isError: true })).not.toContain("data-analysis-panel");
+  });
+
+  describe("when the viewer does not answer at /viewer/", () => {
+    it("says so, instead of framing the browser's own error page", () => {
+      const html = render({}, { viewer: { data: false } });
+
+      expect(html).not.toContain("<iframe");
+      expect(html).toContain('data-viewer-state="unavailable"');
+      expect(html).toContain('role="note"');
+      expect(html).toContain(escaped(fr("dicom.viewer.viewerUnavailable")));
+      expect(html).toContain(escaped(fr("dicom.viewer.viewerUnavailableBody")));
+    });
+
+    it("explains how to start it in development, and only there", () => {
+      const html = render({}, { viewer: { data: false } });
+
+      // NODE_ENV is "test" here: not production.
+      expect(html).toContain(escaped(fr("dicom.viewer.viewerDevHint")));
+      expect(html).toContain("node viewer/build-local.mjs");
+      expect(html).toContain("node viewer/serve-local.mjs");
+    });
+
+    it("keeps the rest of the page: the study, its warnings and the analysis of a slice", () => {
+      const html = render(
+        { data: { ...study, identityWarnings: [{ dicomValue: "X", field: "PatientName" }] } },
+        { viewer: { data: false } },
+      );
+
+      expect(html).toContain("IRM CARDIAQUE");
+      expect(html).toContain('role="note"');
+      expect(html).toContain('data-analysis-panel="DOCTOR/patient-1/study-1"');
+    });
+
+    it("waits for the answer before showing a frame or a notice", () => {
+      const html = render({}, { viewer: { data: undefined, isLoading: true } });
+
+      expect(html).toContain('data-viewer-state="loading"');
+      expect(html).toContain(escaped(fr("dicom.viewer.viewerLoading")));
+      expect(html).not.toContain("<iframe");
+      expect(html).not.toContain('data-viewer-state="unavailable"');
+    });
   });
 
   it("renews the session while it is open", () => {

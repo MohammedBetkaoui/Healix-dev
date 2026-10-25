@@ -3,6 +3,7 @@ import { type AiAnalysisRun } from "@/features/ai-analyses/ai-analyses.types";
 import { apiClient } from "@/lib/api/http-client";
 
 import { type DicomAnalysisPipeline } from "./dicom-analysis";
+import { VIEWER_PROBE_PATH } from "./dicom-import";
 import {
   type DicomImportResult,
   type DicomStudy,
@@ -80,4 +81,20 @@ export async function analyzeDicomInstance(
     { timeout: ANALYSIS_REQUEST_TIMEOUT_MS },
   );
   return response.data;
+}
+
+// Is the viewer there? /viewer/ is another application (its container behind
+// Caddy; viewer/serve-local.mjs in development): a request that fails, or
+// answers anything but 2xx, means the frame has nothing to show.
+export async function checkViewerAvailable(): Promise<boolean> {
+  try {
+    const response = await fetch(VIEWER_PROBE_PATH, {
+      cache: "no-store",
+      credentials: "same-origin",
+      method: "HEAD",
+    });
+    return response.ok;
+  } catch {
+    return false;
+  }
 }

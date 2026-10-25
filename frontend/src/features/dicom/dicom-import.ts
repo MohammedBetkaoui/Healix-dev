@@ -109,6 +109,11 @@ export function buildViewerUrl(studyInstanceUid: string): string {
   return `/viewer/viewer?StudyInstanceUIDs=${encodeURIComponent(studyInstanceUid)}`;
 }
 
+// A file every build of the viewer serves (the image's own configuration, the
+// repository's in development): a request for it tells whether /viewer/ answers
+// at all. Without it the frame would show the browser's own error page.
+export const VIEWER_PROBE_PATH = "/viewer/app-config.js";
+
 export function dicomStudyPagePath(
   accountType: "DOCTOR" | "ESTABLISHMENT",
   patientId: string,

@@ -6,6 +6,7 @@ import { useCallback, useState } from "react";
 import { type DicomAnalysisPipeline } from "../dicom-analysis";
 import {
   analyzeDicomInstance,
+  checkViewerAvailable,
   deleteDicomStudy,
   getDicomInstancePreview,
   getDicomStudies,
@@ -26,6 +27,16 @@ export function useDicomStudies(patientId: string) {
     queryKey: dicomKeys.studies(patientId),
     retry: false,
     staleTime: 15_000,
+  });
+}
+
+// Whether the viewer application answers (see checkViewerAvailable).
+export function useViewerAvailable() {
+  return useQuery({
+    queryFn: checkViewerAvailable,
+    queryKey: ["dicom", "viewer-available"],
+    retry: false,
+    staleTime: 30_000,
   });
 }
 

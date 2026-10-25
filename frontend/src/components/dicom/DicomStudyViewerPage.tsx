@@ -13,7 +13,7 @@ import {
 import { VerificationRequiredNotice } from "@/components/shared/VerificationRequiredNotice";
 import { useCurrentUser } from "@/features/auth/hooks/use-current-user";
 import { buildViewerUrl } from "@/features/dicom/dicom-import";
-import { useDicomStudy } from "@/features/dicom/hooks/use-dicom-studies";
+import { useDicomStudy, useViewerAvailable } from "@/features/dicom/hooks/use-dicom-studies";
 import { usePatient } from "@/features/patients/hooks/use-patient";
 import { formatPatientDate } from "@/features/patients/patient-registry";
 import { useEstablishmentVerificationPrefill } from "@/features/verification/hooks/use-establishment-verification-prefill";
@@ -41,6 +41,7 @@ export function DicomStudyViewerPage({ accountType, patientId, studyId }: DicomS
   const prefill = useEstablishmentVerificationPrefill({ enabled: accountType === "ESTABLISHMENT" });
   const initials = getAccountInitials(currentUser.data?.fullName);
   const studyQuery = useDicomStudy(studyId);
+  const viewerQuery = useViewerAvailable();
   const patientQuery = usePatient(patientId);
   const keepAlive = useSessionKeepAlive();
   const study = studyQuery.data;
@@ -123,13 +124,31 @@ export function DicomStudyViewerPage({ accountType, patientId, studyId }: DicomS
           </p>
         ) : null}
 
-        <iframe
-          allowFullScreen
-          className="h-[calc(100dvh-16rem)] min-h-[32rem] w-full rounded-[var(--radius-sm)] border border-[var(--line)] bg-black"
-          referrerPolicy="same-origin"
-          src={buildViewerUrl(study.studyInstanceUid)}
-          title={t("dicom.viewer.frameTitle")}
-        />
+        {viewerQuery.isLoading ? (
+          <p className="surface-section flex items-center gap-3 p-5 text-sm text-[var(--text-secondary)]" aria-live="polite" data-viewer-state="loading">
+            <RefreshCw size={18} className="animate-spin" aria-hidden="true" />
+            {t("dicom.viewer.viewerLoading")}
+          </p>
+        ) : viewerQuery.data ? (
+          <iframe
+            allowFullScreen
+            className="h-[calc(100dvh-16rem)] min-h-[32rem] w-full rounded-[var(--radius-sm)] border border-[var(--line)] bg-black"
+            referrerPolicy="same-origin"
+            src={buildViewerUrl(study.studyInstanceUid)}
+            title={t("dicom.viewer.frameTitle")}
+          />
+        ) : (
+          // Nothing answers at /viewer/: say so, rather than frame the browser's
+          // own error page ("localhost a refusé de se connecter").
+          <div role="note" className="surface-section flex items-start gap-3 p-5 text-sm text-[var(--text-secondary)]" data-viewer-state="unavailable">
+            <ShieldAlert size={18} className="mt-px shrink-0 text-[var(--warning-ink)]" aria-hidden="true" />
+            <div className="space-y-1.5">
+              <p className="font-medium text-[var(--ink)]">{t("dicom.viewer.viewerUnavailable")}</p>
+              <p>{t("dicom.viewer.viewerUnavailableBody")}</p>
+              {process.env.NODE_ENV !== "production" ? <p className="clinical-caption">{t("dicom.viewer.viewerDevHint")}</p> : null}
+            </div>
+          </div>
+        )}
 
         <DicomAnalysisPanel accountType={accountType} patientId={patientId} study={study} t={t} />
       </>

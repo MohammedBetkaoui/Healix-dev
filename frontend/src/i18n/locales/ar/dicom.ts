@@ -133,5 +133,11 @@ export const dicomAr = {
     pageTitle: "عارض DICOM",
     sessionEnded: "انتهت جلستك: أعد تسجيل الدخول لمواصلة الاطلاع على الصور.",
     unavailable: "خادم التصوير لا يستجيب. أعد المحاولة بعد قليل.",
+    viewerDevHint:
+      "في بيئة التطوير المحلية، تُبنى العارضة بالأمر «node viewer/build-local.mjs» ثم تُشغَّل بالأمر «node viewer/serve-local.mjs» (DEPLOIEMENT.md).",
+    viewerLoading: "جارٍ فتح العارضة…",
+    viewerUnavailable: "عارضة التصوير غير متاحة على هذا الخادم.",
+    viewerUnavailableBody:
+      "تبقى صور الدراسة متاحة للمعاينة، ويمكن تحليل كل مقطع أدناه. تواصل مع المسؤول إذا كان يُفترض أن تكون العارضة قيد الخدمة.",
   },
 };
