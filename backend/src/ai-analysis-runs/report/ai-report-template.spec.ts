@@ -403,12 +403,12 @@ describe('a report on a slice of a DICOM study', () => {
     const html = text(withSlice(slice));
 
     expect(html).toContain(
-      '<tr><th scope="row">Coupe DICOM</th><td>Série 3, coupe n° 12</td></tr>',
+      '<tr><th scope="row">Coupe source</th><td>Série 3, coupe n° 12</td></tr>',
     );
     expect(html.indexOf('Document analysé')).toBeLessThan(
-      html.indexOf('Coupe DICOM'),
+      html.indexOf('Coupe source'),
     );
-    expect(html.indexOf('Coupe DICOM')).toBeLessThan(
+    expect(html.indexOf('Coupe source')).toBeLessThan(
       html.indexOf('Dimensions'),
     );
   });
@@ -420,8 +420,8 @@ describe('a report on a slice of a DICOM study', () => {
   });
 
   it('prints nothing of the kind for an ordinary document', () => {
-    expect(text(reportInput())).not.toContain('Coupe DICOM');
-    expect(text(withSlice(null))).not.toContain('Coupe DICOM');
+    expect(text(reportInput())).not.toContain('Coupe source');
+    expect(text(withSlice(null))).not.toContain('Coupe source');
   });
 
   it('changes the fingerprint of the report only for a slice: a report made before keeps its own', () => {

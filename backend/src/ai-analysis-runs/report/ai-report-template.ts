@@ -416,7 +416,7 @@ export function formatDicomSlice(slice: DicomSlice): string {
 function sliceRow(sourceDocument: ReportInput['sourceDocument']): string {
   return sourceDocument.dicomSlice
     ? row(
-        'Coupe DICOM',
+        'Coupe source',
         escapeHtml(formatDicomSlice(sourceDocument.dicomSlice)),
       )
     : '';

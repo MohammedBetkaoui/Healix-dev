@@ -326,9 +326,9 @@ describe('the cardiac MRI report on a slice of a DICOM study', () => {
     };
 
     expect(textOf(sliced)).toContain(
-      '<tr><th scope="row">Coupe DICOM</th><td>Série 2, coupe n° 8</td></tr>',
+      '<tr><th scope="row">Coupe source</th><td>Série 2, coupe n° 8</td></tr>',
     );
-    expect(textOf(plain)).not.toContain('Coupe DICOM');
+    expect(textOf(plain)).not.toContain('Coupe source');
     expect(buildReportDocument(sliced).contentSha256).not.toBe(
       buildReportDocument(plain).contentSha256,
     );
