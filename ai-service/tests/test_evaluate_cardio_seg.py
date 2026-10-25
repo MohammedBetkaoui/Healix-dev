@@ -19,10 +19,12 @@ from scripts.evaluate_cardio_seg import (
     evaluate_volumes,
     find_volumes,
     main,
+    read_slice,
     remap_acdc,
     summarize,
     write_report,
 )
+from scripts.evaluate_cardio_volume import evaluate_volumes as evaluate_volume_measures
 
 CARD = json.loads((Path(__file__).resolve().parent / "fixtures" / "cardio-seg" / "model-card.json").read_text(encoding="utf-8"))
 
@@ -49,6 +51,66 @@ def test_finds_the_volumes_of_the_test_patients_only(tmp_path):
         "patient001_frame01_slice_1.h5",
         "patient001_frame01_slice_2.h5",
     ]
+
+
+def test_2d_and_3d_patients_have_the_same_ordered_slices_and_evaluation(tmp_path):
+    labels = np.zeros((3, 8, 8), dtype=np.uint8)
+    for index, value in enumerate((3, 1, 2)):
+        labels[index, 2:6, 2:6] = value
+    images = (labels * 50).astype(np.float32)
+    for index in (2, 0, 1):
+        write_slice(tmp_path / "slices", 1, 1, index, labels[index])
+    volume_path = tmp_path / "ACDC_testing_volumes" / "patient110_frame01.h5"
+    volume_path.parent.mkdir()
+    with h5py.File(volume_path, "w") as handle:
+        handle["image"] = images
+        handle["label"] = labels
+    # A complete 2D phase takes precedence even if its 3D counterpart has bad axes.
+    with h5py.File(tmp_path / "patient001_frame01.h5", "w") as handle:
+        handle["image"] = np.zeros((8, 3, 8), dtype=np.float32)
+        handle["label"] = np.zeros((8, 3, 8), dtype=np.uint8)
+
+    volumes = find_volumes(tmp_path, [110, 1])
+    assert list(volumes) == [(1, 1), (110, 1)]
+    assert [path.name for path in volumes[(1, 1)]] == [
+        f"patient001_frame01_slice_{index}.h5" for index in range(3)
+    ]
+    assert volumes[(110, 1)] == [(volume_path, index) for index in range(3)]
+    for sources in volumes.values():
+        for index, source in enumerate(sources):
+            image, label = read_slice(source)
+            np.testing.assert_array_equal(image, images[index])
+            np.testing.assert_array_equal(label, labels[index])
+
+    seen_single, seen_batch = [], []
+
+    def predict(image):
+        seen_single.append(image.copy())
+        return cv2.resize(remap_acdc((image / 50).astype(np.uint8)), (16, 16), interpolation=cv2.INTER_NEAREST)
+
+    def predict_batch(batch):
+        seen_batch.extend(image.copy() for image in batch)
+        return [cv2.resize(remap_acdc((image / 50).astype(np.uint8)), (16, 16), interpolation=cv2.INTER_NEAREST) for image in batch]
+
+    segmented = evaluate_volumes(volumes, predict, 16)
+    measured = evaluate_volume_measures(volumes, predict_batch, 16)
+    assert [(v["patient"], v["frame"], v["slices"]) for v in segmented] == [(1, 1, 3), (110, 1, 3)]
+    assert [v["dice"] for v in segmented] == [v["dice"] for v in measured] == [
+        {"LV": 1.0, "RV": 1.0, "MYO": 1.0}
+    ] * 2
+    for seen in (seen_single, seen_batch):
+        for index, image in enumerate(seen):
+            np.testing.assert_array_equal(image, images[index % 3])
+
+
+def test_3d_volume_rejects_an_axis_zero_that_is_not_the_smallest(tmp_path):
+    path = tmp_path / "patient110_frame01.h5"
+    with h5py.File(path, "w") as handle:
+        handle["image"] = np.zeros((8, 3, 8), dtype=np.float32)
+        handle["label"] = np.zeros((8, 3, 8), dtype=np.uint8)
+
+    with pytest.raises(ValueError, match=r"patient110_frame01\.h5: axis 0 must be the smallest axis.*\(8, 3, 8\)"):
+        find_volumes(tmp_path, [110])
 
 
 def test_remaps_acdc_labels_to_the_models():

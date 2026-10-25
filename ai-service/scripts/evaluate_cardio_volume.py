@@ -8,8 +8,8 @@ on the test patients of the model card, and compares with the ground truth:
     .venv/Scripts/python -m scripts.evaluate_cardio_volume --acdc <ACDC_preprocessed> \\
         --acdc-nifti <ACDC database folder> --figures <a folder outside the repository>
 
-1. With the preprocessed slices (Kaggle anhoangvo/acdc-dataset, the files of
-   evaluate_cardio_seg.py), which hold only the ED and ES phases and no pixel
+1. With the preprocessed slices or 3D volumes (Kaggle anhoangvo/acdc-dataset,
+   read by evaluate_cardio_seg.py), which hold only the ED and ES phases and no pixel
    spacing: the ejection fraction of the LV and of the RV, from the predicted
    masks and from the ground truth. The spacing cancels out in the ratio of two
    volumes of the same patient. ED is the phase whose ground-truth LV is the
@@ -380,7 +380,7 @@ def describe(name: str, stats: dict) -> str:
 
 def main(argv=None) -> int:
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
-    parser.add_argument("--acdc", type=Path, required=True, help="ACDC_preprocessed folder (patientXXX_frameYY_slice_Z.h5)")
+    parser.add_argument("--acdc", type=Path, required=True, help="ACDC_preprocessed folder (2D slices and/or 3D volumes)")
     parser.add_argument("--acdc-nifti", type=Path, default=None, help="ACDC database folder (training/ and testing/ with the NIfTI and Info.cfg)")
     parser.add_argument("--figures", type=Path, default=None, help="folder for the PDF figures, outside the repository")
     parser.add_argument("--models-dir", type=Path, default=DEFAULT_MODELS_DIR)

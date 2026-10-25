@@ -2,9 +2,10 @@
 
 Replays the service's own code (app.cardio_seg_pipeline.predict_labels:
 to_uint8, grey -> RGB, resize, normalisation, inference, argmax) on the test
-patients of the model card, from the preprocessed ACDC slices
-(Kaggle anhoangvo/acdc-dataset): every patientXXX_frameYY_slice_Z.h5 file
-(keys "image" and "label") of those patients, at any depth.
+patients of the model card, from the preprocessed ACDC data
+(Kaggle anhoangvo/acdc-dataset): patientXXX_frameYY_slice_Z.h5 files when
+available, otherwise slices along axis 0 of patientXXX_frameYY.h5 volumes
+(keys "image" and "label"), at any depth.
 
     .venv/Scripts/python -m scripts.evaluate_cardio_seg --acdc <ACDC_preprocessed folder>
 
@@ -30,6 +31,8 @@ import sys
 from collections import defaultdict
 from pathlib import Path
 
+import h5py
+
 if __package__ in (None, ""):
     sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
@@ -46,19 +49,38 @@ OUTPUT_DIR = Path(__file__).resolve().parents[1] / "evaluation"
 LATEST_REPORT_NAME = "cardio-seg-latest.json"
 MAX_MEAN_DICE_GAP = 0.005
 SLICE_NAME = re.compile(r"patient(\d+)_frame(\d+)_slice_(\d+)\.h5$")
+VOLUME_NAME = re.compile(r"patient(\d+)_frame(\d+)\.h5$")
+SliceSource = Path | tuple[Path, int]
 # ACDC (1 RV, 2 MYO, 3 LV) -> model (1 LV, 2 RV, 3 MYO).
 ACDC_TO_MODEL = {1: 2, 2: 3, 3: 1}
 
 
-def find_volumes(root: Path, patients: list[int]) -> dict[tuple[int, int], list[Path]]:
-    """{(patient, frame): slice files in slice order} for the given patients."""
+def find_volumes(root: Path, patients: list[int]) -> dict[tuple[int, int], list[SliceSource]]:
+    """Find ordered slices, preferring 2D files over a 3D file for each phase."""
     volumes: dict[tuple[int, int], list[tuple[int, Path]]] = defaultdict(list)
     wanted = set(patients)
     for path in root.rglob("patient*_frame*_slice_*.h5"):
         match = SLICE_NAME.search(path.name)
         if match and int(match.group(1)) in wanted:
             volumes[(int(match.group(1)), int(match.group(2)))].append((int(match.group(3)), path))
-    return {key: [path for _, path in sorted(files)] for key, files in sorted(volumes.items())}
+    found: dict[tuple[int, int], list[SliceSource]] = {
+        key: [path for _, path in sorted(files)] for key, files in volumes.items()
+    }
+    for path in root.rglob("patient*_frame*.h5"):
+        match = VOLUME_NAME.fullmatch(path.name)
+        if not match or int(match.group(1)) not in wanted:
+            continue
+        key = (int(match.group(1)), int(match.group(2)))
+        if key in found:
+            continue
+        with h5py.File(path, "r") as handle:
+            image_shape, label_shape = handle["image"].shape, handle["label"].shape
+        if len(image_shape) != 3 or image_shape != label_shape:
+            raise ValueError(f"{path}: expected matching 3D image and label shapes, got {image_shape} and {label_shape}.")
+        if image_shape[0] != min(image_shape):
+            raise ValueError(f"{path}: axis 0 must be the smallest axis (slices first), got shape {image_shape}.")
+        found[key] = [(path, index) for index in range(image_shape[0])]
+    return dict(sorted(found.items()))
 
 
 def remap_acdc(label: np.ndarray) -> np.ndarray:
@@ -75,14 +97,16 @@ def dice_3d(predicted: np.ndarray, truth: np.ndarray, label: int) -> float:
     return float("nan") if total == 0 else 2.0 * int((p & g).sum()) / total
 
 
-def read_slice(path: Path) -> tuple[np.ndarray, np.ndarray]:
-    import h5py
-
+def read_slice(source: SliceSource) -> tuple[np.ndarray, np.ndarray]:
+    """Read a 2D file or one axis-0 slice of a 3D file identically."""
+    path, index = (source, None) if isinstance(source, Path) else source
     with h5py.File(path, "r") as handle:
-        return np.asarray(handle["image"], dtype=np.float32), np.asarray(handle["label"]).astype(np.uint8)
+        image = handle["image"] if index is None else handle["image"][index]
+        label = handle["label"] if index is None else handle["label"][index]
+        return np.asarray(image, dtype=np.float32), np.asarray(label).astype(np.uint8)
 
 
-def evaluate_volumes(volumes: dict[tuple[int, int], list[Path]], predict, size: int, read=read_slice) -> list[dict]:
+def evaluate_volumes(volumes: dict[tuple[int, int], list[SliceSource]], predict, size: int, read=read_slice) -> list[dict]:
     """The Dice of each volume; predict(pixels) gives the (size, size) class map."""
     results = []
     for (patient, frame), files in volumes.items():
@@ -203,7 +227,7 @@ def write_report(
 
 def main(argv=None) -> int:
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
-    parser.add_argument("--acdc", type=Path, required=True, help="ACDC_preprocessed folder (patientXXX_frameYY_slice_Z.h5)")
+    parser.add_argument("--acdc", type=Path, required=True, help="ACDC_preprocessed folder (2D slices and/or 3D volumes)")
     parser.add_argument("--models-dir", type=Path, default=DEFAULT_MODELS_DIR)
     parser.add_argument("--output-dir", type=Path, default=OUTPUT_DIR)
     args = parser.parse_args(argv)

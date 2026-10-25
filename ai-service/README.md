@@ -774,8 +774,9 @@ the figures shown today are the notebook's.
 ## Cardiology evaluation — MRI segmentation
 
 Do not run this evaluation without the complete preprocessed ACDC dataset.
-The command replays every `patientXXX_frameYY_slice_Z.h5` file (`image` and
-`label` keys) belonging to the model card's test patients:
+The command uses `patientXXX_frameYY_slice_Z.h5` files when present. For phases
+without 2D files, it reads `patientXXX_frameYY.h5` from `ACDC_testing_volumes`
+and takes slices along axis 0 (`image` and `label` keys):
 
 ```powershell
 cd <repository>\ai-service
