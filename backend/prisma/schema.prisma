@@ -501,6 +501,7 @@ model User {
   generatedAiAnalysisReports     AiAnalysisReport[]        @relation("AiAnalysisReportGeneratedBy")
   createdAppointments            Appointment[]
   workspaceMemberships           WorkspaceMembership[]
+  sentWorkspaceInvitations       WorkspaceInvitation[]     @relation("WorkspaceInvitationInvitedBy")
   createdConversations           Conversation[]            @relation("ConversationCreatedBy")
   conversationParticipations     ConversationParticipant[]
   sentMessages                   Message[]                 @relation("MessageSender")
@@ -543,13 +544,42 @@ model Establishment {
   createdAt          DateTime           @default(now()) @map("created_at")
   updatedAt          DateTime           @updatedAt @map("updated_at")
 
-  owner               User                 @relation(fields: [ownerId], references: [id], onDelete: Cascade)
+  owner               User                   @relation(fields: [ownerId], references: [id], onDelete: Cascade)
   doctorProfiles      DoctorProfile[]
   verificationRequest VerificationRequest?
   patients            Patient[]
   workspace           Workspace?
+  settings            EstablishmentSettings?
 
   @@map("establishments")
+}
+
+// Operational, non-legal workspace preferences: opening hours, default
+// appointment duration, public website and DPO contact. Legal identity stays
+// in Establishment + EstablishmentVerificationData and is never duplicated
+// here — after verification it can only change through a new verification
+// request, never through this table.
+model EstablishmentSettings {
+  id                         String   @id @default(cuid())
+  establishmentId            String   @unique @map("establishment_id")
+  website                    String?  @db.VarChar(191)
+  // Opening hours of the establishment, validated server-side:
+  // { monday: { closed: false, periods: [{ start: "08:00", end: "16:30" }] }, ... }
+  openingHours               Json?    @map("opening_hours")
+  // Default duration proposed when creating an appointment; existing
+  // appointments are never touched by a change.
+  defaultAppointmentDuration Int      @default(30) @map("default_appointment_duration")
+  // DPO contact (loi 18-07 modifiée par la loi 25-11). Organizational
+  // information only: filling these fields never means ANPDP certification.
+  dataProtectionOfficerName  String?  @map("dpo_name") @db.VarChar(120)
+  dataProtectionOfficerEmail String?  @map("dpo_email") @db.VarChar(191)
+  dataProtectionOfficerPhone String?  @map("dpo_phone") @db.VarChar(32)
+  createdAt                  DateTime @default(now()) @map("created_at")
+  updatedAt                  DateTime @updatedAt @map("updated_at")
+
+  establishment Establishment @relation(fields: [establishmentId], references: [id], onDelete: Cascade)
+
+  @@map("establishment_settings")
 }
 
 model DoctorProfile {
@@ -649,6 +679,7 @@ model Workspace {
   establishment      Establishment?        @relation(fields: [establishmentId], references: [id], onDelete: SetNull)
   ownerDoctorProfile DoctorProfile?        @relation("PrivatePracticeWorkspaceOwner", fields: [ownerDoctorProfileId], references: [id], onDelete: SetNull)
   memberships        WorkspaceMembership[]
+  invitations        WorkspaceInvitation[]
   patients           Patient[]
   conversations      Conversation[]
   notifications      Notification[]
@@ -679,6 +710,32 @@ model WorkspaceMembership {
   @@index([userId])
   @@index([workspaceId])
   @@map("workspace_memberships")
+}
+
+// An invitation to join an establishment workspace. The raw token only lives
+// in the invitation e-mail link; MySQL stores its SHA-256 hash. Compromising
+// the database therefore never hands out a usable invitation link, and the
+// token must never end up in logs or audit metadata.
+model WorkspaceInvitation {
+  id          String                  @id @default(cuid())
+  workspaceId String                  @map("workspace_id")
+  email       String                  @db.VarChar(191)
+  role        WorkspaceMembershipRole
+  invitedById String                  @map("invited_by_id")
+  tokenHash   String                  @unique @map("token_hash") @db.Char(64)
+  expiresAt   DateTime                @map("expires_at")
+  acceptedAt  DateTime?               @map("accepted_at")
+  revokedAt   DateTime?               @map("revoked_at")
+  createdAt   DateTime                @default(now()) @map("created_at")
+  updatedAt   DateTime                @updatedAt @map("updated_at")
+
+  workspace Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  invitedBy User      @relation("WorkspaceInvitationInvitedBy", fields: [invitedById], references: [id], onDelete: Restrict)
+
+  @@index([workspaceId])
+  @@index([email])
+  @@index([expiresAt])
+  @@map("workspace_invitations")
 }
 
 // A consent is its own record per purpose (type + status + timestamp + who
