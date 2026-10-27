@@ -202,9 +202,22 @@ describeWithDatabase('GET /dashboard/overview against a database', () => {
     });
   }
 
-  async function consultation(patientId: string, date: Date) {
+  async function consultation(
+    patientId: string,
+    date: Date,
+    doctor: { doctorProfileId: string; userId: string; workspaceId: string },
+  ) {
     return prisma.patientConsultation.create({
-      data: { date, diagnosis: '-', patientId, reason: '-', treatment: '-' },
+      data: {
+        completedAt: date,
+        completedById: doctor.userId,
+        createdById: doctor.userId,
+        doctorProfileId: doctor.doctorProfileId,
+        patientId,
+        startedAt: date,
+        status: 'COMPLETED',
+        workspaceId: doctor.workspaceId,
+      },
     });
   }
 
@@ -322,9 +335,21 @@ describeWithDatabase('GET /dashboard/overview against a database', () => {
       'COMPLETED',
     );
 
-    await consultation(pA1.id, new Date('2026-10-10T23:30:00Z'));
-    await consultation(pA1.id, new Date('2026-10-09T10:00:00Z'));
-    await consultation(pA2.id, ago(50 * DAY));
+    await consultation(pA1.id, new Date('2026-10-10T23:30:00Z'), {
+      doctorProfileId: doctorA.id,
+      userId: affiliatedA.id,
+      workspaceId: workspaceA.id,
+    });
+    await consultation(pA1.id, new Date('2026-10-09T10:00:00Z'), {
+      doctorProfileId: doctorA.id,
+      userId: affiliatedA.id,
+      workspaceId: workspaceA.id,
+    });
+    await consultation(pA2.id, ago(50 * DAY), {
+      doctorProfileId: doctorA.id,
+      userId: affiliatedA.id,
+      workspaceId: workspaceA.id,
+    });
 
     // Workspace B: another establishment, plenty of activity, none of it A's.
     const adminB = await user('ESTABLISHMENT_ADMIN');
@@ -356,7 +381,11 @@ describeWithDatabase('GET /dashboard/overview against a database', () => {
       new Date('2026-10-11T07:00:00Z'),
       'COMPLETED',
     );
-    await consultation(pB1.id, ago(1 * HOUR));
+    await consultation(pB1.id, ago(1 * HOUR), {
+      doctorProfileId: doctorB.id,
+      userId: doctorBUser.id,
+      workspaceId: workspaceB.id,
+    });
 
     // Workspace C: an independent doctor.
     const doctorCUser = await user('INDEPENDENT_DOCTOR');
@@ -446,8 +475,17 @@ describeWithDatabase('GET /dashboard/overview against a database', () => {
 
   afterAll(async () => {
     if (prisma) {
-      // Patients first: their runs, documents, appointments, consents and
-      // consultations go with them.
+      // The completed consultations are kept by RESTRICT: the addenda, then
+      // the consultations themselves leave first. The vital signs and the
+      // diagnoses follow their consultation, the prescriptions and the
+      // reports detach them (SetNull), and the patients then take their
+      // runs, documents, appointments and consents with them.
+      await prisma.consultationAddendum.deleteMany({
+        where: { consultation: { patientId: { in: created.patients } } },
+      });
+      await prisma.patientConsultation.deleteMany({
+        where: { patientId: { in: created.patients } },
+      });
       await prisma.patient.deleteMany({
         where: { id: { in: created.patients } },
       });

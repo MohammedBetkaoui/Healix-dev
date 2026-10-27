@@ -361,13 +361,16 @@ export class DashboardService {
   private async activity(scopes: Scopes, period: DashboardPeriod) {
     const offset = period.offsetMinutes;
     const [consultations, completed, analyses] = await Promise.all([
+      // A draft has no started_at yet: the period and the local day then use
+      // the creation date, like every other place (occurredAt).
       this.prisma.$queryRaw<DayCountRow[]>`
-        SELECT DATE_FORMAT(DATE_ADD(c.date, INTERVAL ${offset} MINUTE), '%Y-%m-%d') AS day,
+        SELECT DATE_FORMAT(DATE_ADD(COALESCE(c.started_at, c.created_at), INTERVAL ${offset} MINUTE), '%Y-%m-%d') AS day,
                COUNT(*) AS count
         FROM patient_consultations c
         INNER JOIN patients p ON p.id = c.patient_id
         WHERE p.workspace_id = ${scopes.workspaceId}
-          AND c.date >= ${period.from} AND c.date < ${period.to}
+          AND COALESCE(c.started_at, c.created_at) >= ${period.from}
+          AND COALESCE(c.started_at, c.created_at) < ${period.to}
         GROUP BY day`,
       this.prisma.$queryRaw<DayCountRow[]>`
         SELECT DATE_FORMAT(DATE_ADD(a.scheduled_at, INTERVAL ${offset} MINUTE), '%Y-%m-%d') AS day,
