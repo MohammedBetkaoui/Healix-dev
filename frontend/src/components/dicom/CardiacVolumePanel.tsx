@@ -84,21 +84,31 @@ export function CardiacVolumePanel({ accountType, patientId, studyId, t }: Cardi
   return (
     <section
       aria-labelledby={`${baseId}-title`}
-      className="mt-5 rounded-xl border border-[var(--line)] bg-[var(--panel)] p-5"
+      className="dicom-tool-panel mt-5 rounded-xl border border-[var(--line)] bg-[var(--panel)] p-5"
       data-cardiac-volume="true"
     >
-      <h2 id={`${baseId}-title`} className="flex items-center gap-2 font-[var(--font-auth-display)] text-xl font-medium text-[var(--ink)]">
-        <HeartPulse size={20} strokeWidth={1.7} className="text-[var(--accent-dark)]" aria-hidden="true" />
-        {t("dicom.cine.title")}
-      </h2>
-      <p className="clinical-caption mt-0.5">{t("dicom.cine.subtitle")}</p>
+      <div className="dicom-tool-heading">
+        <span className="dicom-tool-icon dicom-tool-icon-cardiac"><HeartPulse size={19} strokeWidth={1.8} aria-hidden="true" /></span>
+        <div className="min-w-0">
+          <span className="dicom-tool-kicker">{t("dicom.cine.badge")}</span>
+          <h2 id={`${baseId}-title`}>{t("dicom.cine.title")}</h2>
+        </div>
+      </div>
+      <p className="dicom-tool-description">{t("dicom.cine.subtitle")}</p>
 
       {stacksQuery.isLoading ? (
         <p role="status" className="mt-4 text-sm text-[var(--text-secondary)]">{t("dicom.cine.loading")}</p>
       ) : stacksQuery.isError ? (
         <p role="alert" className="mt-4 text-sm text-[var(--danger-ink)]">{t("dicom.cine.error")}</p>
       ) : !stack ? (
-        <p className="mt-4 text-sm text-[var(--text-secondary)]">{t("dicom.cine.none")}</p>
+        <div className="dicom-empty-state mt-4">
+          <span className="dicom-empty-state-icon is-cardiac"><HeartPulse size={20} strokeWidth={1.8} aria-hidden="true" /></span>
+          <div>
+            <strong>{t("dicom.cine.emptyTitle")}</strong>
+            <p>{t("dicom.cine.none")}</p>
+            <span>{t("dicom.cine.emptyHint")}</span>
+          </div>
+        </div>
       ) : (
         <div className="mt-4 space-y-4">
           <div>

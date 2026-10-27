@@ -1,6 +1,6 @@
 "use client";
 
-import { Brain, HeartPulse, RefreshCw, TriangleAlert } from "lucide-react";
+import { Brain, HeartPulse, RefreshCw, ScanLine, TriangleAlert } from "lucide-react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useEffect, useId, useMemo, useState } from "react";
@@ -114,17 +114,27 @@ export function DicomAnalysisPanel({ accountType, initialPipeline, patientId, st
   const total = instances.length;
 
   return (
-    <section aria-labelledby={`${baseId}-title`} className="mt-5 rounded-xl border border-[var(--line)] bg-[var(--panel)] p-5" data-dicom-analysis="true">
-      <h2 id={`${baseId}-title`} className="font-[var(--font-auth-display)] text-xl font-medium text-[var(--ink)]">
-        {t("dicom.analysis.title")}
-      </h2>
-      <p className="clinical-caption mt-0.5">{t("dicom.analysis.subtitle")}</p>
+    <section aria-labelledby={`${baseId}-title`} className="dicom-tool-panel mt-5 rounded-xl border border-[var(--line)] bg-[var(--panel)] p-5" data-dicom-analysis="true">
+      <div className="dicom-tool-heading">
+        <span className="dicom-tool-icon dicom-tool-icon-ai"><Brain size={19} strokeWidth={1.8} aria-hidden="true" /></span>
+        <div className="min-w-0">
+          <span className="dicom-tool-kicker">{t("dicom.analysis.badge")}</span>
+          <h2 id={`${baseId}-title`}>{t("dicom.analysis.title")}</h2>
+        </div>
+      </div>
+      <p className="dicom-tool-description">{t("dicom.analysis.subtitle")}</p>
 
       {!currentSeries || !instance ? (
-        <p className="mt-4 text-sm text-[var(--text-secondary)]">{t("dicom.analysis.noSeries")}</p>
+        <div className="dicom-empty-state mt-4">
+          <span className="dicom-empty-state-icon"><ScanLine size={20} strokeWidth={1.8} aria-hidden="true" /></span>
+          <div>
+            <strong>{t("dicom.analysis.title")}</strong>
+            <p>{t("dicom.analysis.noSeries")}</p>
+          </div>
+        </div>
       ) : (
-        <div className="mt-4 grid gap-5 md:grid-cols-[minmax(0,22rem)_minmax(0,1fr)]">
-          <div className="space-y-3">
+        <div className="dicom-analysis-layout mt-4 grid gap-5 md:grid-cols-[minmax(0,22rem)_minmax(0,1fr)]">
+          <div className="dicom-analysis-preview space-y-3">
             <SlicePreview
               alt={t("dicom.analysis.previewAlt", { position, total })}
               blob={preview.data}
@@ -158,7 +168,7 @@ export function DicomAnalysisPanel({ accountType, initialPipeline, patientId, st
             </div>
           </div>
 
-          <div className="space-y-4">
+          <div className="dicom-analysis-form space-y-4">
             {series.length > 1 ? (
               <div>
                 <label htmlFor={`${baseId}-series`} className="text-xs font-medium text-[var(--ink-soft)]">
@@ -200,7 +210,7 @@ export function DicomAnalysisPanel({ accountType, initialPipeline, patientId, st
                     <label
                       key={id}
                       className={cn(
-                        "flex cursor-pointer items-start gap-3 rounded-[var(--radius-sm)] border px-3 py-2.5 text-sm transition",
+                        "dicom-pipeline-option flex cursor-pointer items-start gap-3 rounded-[var(--radius-sm)] border px-3 py-2.5 text-sm transition",
                         selected ? "border-[var(--accent)] bg-[var(--surface-muted)]" : "border-[var(--line)] hover:border-[var(--border-strong)]",
                       )}
                     >

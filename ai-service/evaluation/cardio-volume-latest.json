@@ -1,0 +1,409 @@
+{
+  "file": "cardio-volume-2026-10-25-252fb672.json",
+  "schemaVersion": 1,
+  "pipeline": "cardio-volume-mri",
+  "generatedAt": "2026-10-25T18:22:15+00:00",
+  "method": {
+    "inference": "app.cardio_seg_pipeline.predict_labels_batch (the preprocessing of the single-slice pipeline), CPU",
+    "efPreprocessed": "ejection fraction of the LV and the RV from voxel counts at 256 x 256 (the spacing cancels in the ratio); ED = the phase whose true LV is the larger",
+    "efNifti": "app.cardio_volume_measures.compute_measures at the ED and ES of Info.cfg, volumes by Simpson's discs with the step between slices of the NIfTI, each frame rescaled to [0, 1]",
+    "agreement": "mean absolute error, bias and 95 % limits of agreement (bias +/- 1.96 SD of the differences), Pearson's r"
+  },
+  "dataset": {
+    "name": "ACDC (preprocessed, Kaggle anhoangvo/acdc-dataset)",
+    "folder": "ACDC_preprocessed",
+    "testPatients": [
+      1,
+      19,
+      31,
+      33,
+      39,
+      40,
+      41,
+      62,
+      64,
+      66,
+      76,
+      84,
+      86,
+      96,
+      110,
+      120,
+      131,
+      132,
+      133,
+      134,
+      135,
+      142
+    ],
+    "nPatients": 22,
+    "nVolumes": 44,
+    "nSlices": 434,
+    "nifti": null
+  },
+  "weights": {
+    "cardio-seg-acdc-unet-effb4": {
+      "file": "cardio-seg-acdc-unet-effb4.pt",
+      "sha256": "252fb672137d89835c6acc7f10d7c3c8873b8a3925eb1f2061fa51105e23901c",
+      "loaded": true,
+      "config": {
+        "file": "cardio-seg-acdc-unet-effb4.json",
+        "sha256": "cc0abafe22ac4714cabde9c618555f055ea667d2fd2f99a94c72ac10bcae7fd7"
+      }
+    }
+  },
+  "versions": {
+    "python": "3.12.13",
+    "torch": "2.10.0+cpu",
+    "segmentation_models_pytorch": "0.5.0",
+    "numpy": "2.5.3",
+    "opencv": "4.14.0"
+  },
+  "segmentation": {
+    "metrics": {
+      "perClass": {
+        "LV": {
+          "mean": 0.9359060369014807,
+          "std": 0.04746258866067568,
+          "n": 44
+        },
+        "RV": {
+          "mean": 0.8926838530703312,
+          "std": 0.0787740943103416,
+          "n": 44
+        },
+        "MYO": {
+          "mean": 0.8807063422193003,
+          "std": 0.0325651686115926,
+          "n": 44
+        }
+      },
+      "mean": 0.903098744063704
+    },
+    "comparison": {
+      "notebookMeanDice": 0.903098744063704,
+      "serviceMeanDice": 0.903098744063704,
+      "difference": 0.0,
+      "tolerance": 0.005,
+      "ok": true
+    }
+  },
+  "metrics": {
+    "lvef": {
+      "n": 22,
+      "mae": 3.378713589332496,
+      "bias": -1.6659433067815224,
+      "sdOfDifferences": 4.53748639502129,
+      "limitsOfAgreement": [
+        -10.559416641023251,
+        7.2275300274602055
+      ],
+      "pearsonR": 0.9779990629516936,
+      "unit": "percentage points",
+      "undefined": 0
+    },
+    "rvef": {
+      "n": 22,
+      "mae": 6.322590842926144,
+      "bias": -0.6149870287703666,
+      "sdOfDifferences": 8.863852398517453,
+      "limitsOfAgreement": [
+        -17.988137729864572,
+        16.758163672323843
+      ],
+      "pearsonR": 0.861949839518373,
+      "unit": "percentage points",
+      "undefined": 0
+    }
+  },
+  "metricsNifti": null,
+  "perPatient": [
+    {
+      "patient": 1,
+      "edFrame": 1,
+      "esFrame": 12,
+      "lvef": {
+        "predicted": 24.229044498102795,
+        "truth": 23.627868052165425
+      },
+      "rvef": {
+        "predicted": 41.87161639597834,
+        "truth": 57.4355195283714
+      }
+    },
+    {
+      "patient": 19,
+      "edFrame": 1,
+      "esFrame": 11,
+      "lvef": {
+        "predicted": 26.75811016764642,
+        "truth": 27.32453016273081
+      },
+      "rvef": {
+        "predicted": 36.58095620731217,
+        "truth": 38.36105725073987
+      }
+    },
+    {
+      "patient": 31,
+      "edFrame": 1,
+      "esFrame": 10,
+      "lvef": {
+        "predicted": 75.5388045440068,
+        "truth": 73.04179649726012
+      },
+      "rvef": {
+        "predicted": 64.1069641069641,
+        "truth": 59.34019455801495
+      }
+    },
+    {
+      "patient": 33,
+      "edFrame": 1,
+      "esFrame": 14,
+      "lvef": {
+        "predicted": 63.260572987721694,
+        "truth": 71.45158927786728
+      },
+      "rvef": {
+        "predicted": 63.9116949461777,
+        "truth": 66.7466765140325
+      }
+    },
+    {
+      "patient": 39,
+      "edFrame": 1,
+      "esFrame": 10,
+      "lvef": {
+        "predicted": 73.13481145816475,
+        "truth": 71.59326041974579
+      },
+      "rvef": {
+        "predicted": 61.95670414499077,
+        "truth": 64.71377459749553
+      }
+    },
+    {
+      "patient": 40,
+      "edFrame": 1,
+      "esFrame": 13,
+      "lvef": {
+        "predicted": 46.73060156931125,
+        "truth": 50.7549220920401
+      },
+      "rvef": {
+        "predicted": 57.14059028879721,
+        "truth": 49.684387712161595
+      }
+    },
+    {
+      "patient": 41,
+      "edFrame": 1,
+      "esFrame": 11,
+      "lvef": {
+        "predicted": 28.16946959896507,
+        "truth": 36.219312602291325
+      },
+      "rvef": {
+        "predicted": 41.52255303975753,
+        "truth": 45.430003856536835
+      }
+    },
+    {
+      "patient": 62,
+      "edFrame": 1,
+      "esFrame": 9,
+      "lvef": {
+        "predicted": 52.80756482745175,
+        "truth": 56.61152980326906
+      },
+      "rvef": {
+        "predicted": 33.72775637497707,
+        "truth": 46.38109305760709
+      }
+    },
+    {
+      "patient": 64,
+      "edFrame": 1,
+      "esFrame": 12,
+      "lvef": {
+        "predicted": 54.94548286604362,
+        "truth": 55.18368414171787
+      },
+      "rvef": {
+        "predicted": 47.22020913138006,
+        "truth": 45.11212503640423
+      }
+    },
+    {
+      "patient": 66,
+      "edFrame": 1,
+      "esFrame": 11,
+      "lvef": {
+        "predicted": 67.20036080730635,
+        "truth": 64.21519689406546
+      },
+      "rvef": {
+        "predicted": 47.71465185818026,
+        "truth": 45.47508988186954
+      }
+    },
+    {
+      "patient": 76,
+      "edFrame": 1,
+      "esFrame": 12,
+      "lvef": {
+        "predicted": 58.17275747508306,
+        "truth": 58.72603184920378
+      },
+      "rvef": {
+        "predicted": 63.6980491942324,
+        "truth": 67.59836852207293
+      }
+    },
+    {
+      "patient": 84,
+      "edFrame": 1,
+      "esFrame": 10,
+      "lvef": {
+        "predicted": 58.074319657411245,
+        "truth": 61.07535532314293
+      },
+      "rvef": {
+        "predicted": 48.7445832271221,
+        "truth": 40.463946338736726
+      }
+    },
+    {
+      "patient": 86,
+      "edFrame": 1,
+      "esFrame": 8,
+      "lvef": {
+        "predicted": 49.911268855368235,
+        "truth": 61.23131831362927
+      },
+      "rvef": {
+        "predicted": 9.402918403811793,
+        "truth": 7.407660271727999
+      }
+    },
+    {
+      "patient": 96,
+      "edFrame": 1,
+      "esFrame": 8,
+      "lvef": {
+        "predicted": 53.61539621124567,
+        "truth": 51.24329844268573
+      },
+      "rvef": {
+        "predicted": 23.891436220203342,
+        "truth": 23.584334031067534
+      }
+    },
+    {
+      "patient": 110,
+      "edFrame": 1,
+      "esFrame": 11,
+      "lvef": {
+        "predicted": 65.1320871311602,
+        "truth": 66.85282522996057
+      },
+      "rvef": {
+        "predicted": 37.47260774287801,
+        "truth": 45.157819225251075
+      }
+    },
+    {
+      "patient": 120,
+      "edFrame": 1,
+      "esFrame": 8,
+      "lvef": {
+        "predicted": 42.769958898991156,
+        "truth": 35.321858052346144
+      },
+      "rvef": {
+        "predicted": 66.70428893905192,
+        "truth": 46.580253723110864
+      }
+    },
+    {
+      "patient": 131,
+      "edFrame": 1,
+      "esFrame": 9,
+      "lvef": {
+        "predicted": 14.237335967264004,
+        "truth": 12.841960918752143
+      },
+      "rvef": {
+        "predicted": 27.457806705517296,
+        "truth": 30.683211889474066
+      }
+    },
+    {
+      "patient": 132,
+      "edFrame": 1,
+      "esFrame": 15,
+      "lvef": {
+        "predicted": 12.281044474832324,
+        "truth": 13.088776592426226
+      },
+      "rvef": {
+        "predicted": 15.570672713529857,
+        "truth": 14.118965356242413
+      }
+    },
+    {
+      "patient": 133,
+      "edFrame": 1,
+      "esFrame": 10,
+      "lvef": {
+        "predicted": 13.28040212486434,
+        "truth": 14.758984352610764
+      },
+      "rvef": {
+        "predicted": 31.111809703447552,
+        "truth": 28.397097625329813
+      }
+    },
+    {
+      "patient": 134,
+      "edFrame": 1,
+      "esFrame": 15,
+      "lvef": {
+        "predicted": 51.97252835010382,
+        "truth": 62.22821774321537
+      },
+      "rvef": {
+        "predicted": 48.284960422163586,
+        "truth": 45.23596367821972
+      }
+    },
+    {
+      "patient": 135,
+      "edFrame": 1,
+      "esFrame": 10,
+      "lvef": {
+        "predicted": 19.34768138451298,
+        "truth": 20.198376916140667
+      },
+      "rvef": {
+        "predicted": 28.335191378669638,
+        "truth": 50.34076827757124
+      }
+    },
+    {
+      "patient": 142,
+      "edFrame": 1,
+      "esFrame": 12,
+      "lvef": {
+        "predicted": 80.96041730592206,
+        "truth": 81.59008023340627
+      },
+      "rvef": {
+        "predicted": 70.96633143856582,
+        "truth": 62.675756284618664
+      }
+    }
+  ],
+  "perPatientNifti": null
+}

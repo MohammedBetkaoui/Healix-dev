@@ -1,6 +1,18 @@
 "use client";
 
-import { ArrowLeft, RefreshCw, ShieldAlert, TriangleAlert } from "lucide-react";
+import {
+  ArrowLeft,
+  CalendarDays,
+  CheckCircle2,
+  FileImage,
+  HardDrive,
+  Layers3,
+  RefreshCw,
+  ScanLine,
+  ShieldAlert,
+  ShieldCheck,
+  TriangleAlert,
+} from "lucide-react";
 import Link from "next/link";
 import { isAxiosError } from "axios";
 
@@ -12,7 +24,7 @@ import {
 } from "@/components/dashboard/layout/navigation";
 import { VerificationRequiredNotice } from "@/components/shared/VerificationRequiredNotice";
 import { useCurrentUser } from "@/features/auth/hooks/use-current-user";
-import { buildViewerUrl } from "@/features/dicom/dicom-import";
+import { buildViewerUrl, formatBytes } from "@/features/dicom/dicom-import";
 import { useDicomStudy, useViewerAvailable } from "@/features/dicom/hooks/use-dicom-studies";
 import { usePatient } from "@/features/patients/hooks/use-patient";
 import { formatPatientDate } from "@/features/patients/patient-registry";
@@ -87,20 +99,57 @@ export function DicomStudyViewerPage({ accountType, patientId, studyId }: DicomS
 
     return (
       <>
-        <header className="mb-4 flex flex-wrap items-start justify-between gap-3">
-          <div className="min-w-0">
-            <h1 className="font-[var(--font-auth-display)] text-xl font-medium text-[var(--ink)]">
-              {study.studyDescription || t("dicom.viewer.pageTitle")}
-            </h1>
-            <p className="clinical-caption mt-0.5">
-              {[
-                patientName,
-                study.studyDate ? formatPatientDate(study.studyDate, locale) : "",
-                study.modalities.join(", "),
-              ].filter(Boolean).join(" · ")}
+        <header className="dicom-study-overview surface-raised">
+          <div className="dicom-study-overview-main">
+            <p className="dicom-eyebrow">
+              <ScanLine size={14} strokeWidth={1.8} aria-hidden="true" />
+              {t("dicom.viewer.pageTitle")}
             </p>
+            <h1>{study.studyDescription || t("dicom.viewer.pageTitle")}</h1>
+            <div className="dicom-patient-context">
+              <span className="dicom-patient-avatar" aria-hidden="true">
+                {patientName.trim().charAt(0).toUpperCase() || "P"}
+              </span>
+              <div className="min-w-0">
+                <strong>{patientName || t("dicom.studies.columns.identity")}</strong>
+                <span>
+                  {[study.modalities.join(" · "), study.studyDate ? formatPatientDate(study.studyDate, locale) : ""]
+                    .filter(Boolean)
+                    .join(" · ")}
+                </span>
+              </div>
+            </div>
+          </div>
+          <div className="dicom-study-overview-aside">
+            <span className={study.identityWarnings.length > 0 ? "dicom-identity-badge is-warning" : "dicom-identity-badge"}>
+              {study.identityWarnings.length > 0 ? <TriangleAlert size={14} aria-hidden="true" /> : <ShieldCheck size={14} aria-hidden="true" />}
+              {study.identityWarnings.length > 0 ? t("dicom.studies.identityWarning") : t("dicom.viewer.secure")}
+            </span>
+            <span className="dicom-study-type">
+              <FileImage size={14} strokeWidth={1.8} aria-hidden="true" />
+              DICOM · {study.modalities.join(" / ") || "—"}
+            </span>
           </div>
         </header>
+
+        <section className="dicom-study-stats" aria-label={t("dicom.viewer.pageTitle")}>
+          <div className="dicom-study-stat">
+            <span className="dicom-study-stat-icon"><CalendarDays size={16} strokeWidth={1.8} aria-hidden="true" /></span>
+            <div><span>{t("dicom.viewer.acquisition")}</span><strong>{study.studyDate ? formatPatientDate(study.studyDate, locale) : "—"}</strong></div>
+          </div>
+          <div className="dicom-study-stat">
+            <span className="dicom-study-stat-icon"><Layers3 size={16} strokeWidth={1.8} aria-hidden="true" /></span>
+            <div><span>{t("dicom.viewer.series")}</span><strong>{study.seriesCount}</strong></div>
+          </div>
+          <div className="dicom-study-stat">
+            <span className="dicom-study-stat-icon"><ScanLine size={16} strokeWidth={1.8} aria-hidden="true" /></span>
+            <div><span>{t("dicom.viewer.images")}</span><strong>{study.instancesCount}</strong></div>
+          </div>
+          <div className="dicom-study-stat">
+            <span className="dicom-study-stat-icon"><HardDrive size={16} strokeWidth={1.8} aria-hidden="true" /></span>
+            <div><span>{t("dicom.viewer.size")}</span><strong>{formatBytes(study.sizeBytes, [t("dicom.units.b"), t("dicom.units.kb"), t("dicom.units.mb"), t("dicom.units.gb")])}</strong></div>
+          </div>
+        </section>
 
         {study.identityWarnings.length > 0 ? (
           <div role="note" className="mb-4 flex items-start gap-2 rounded-[var(--radius-sm)] border border-[var(--warning-line)] bg-[var(--warning-soft)] px-3 py-2.5 text-xs leading-relaxed text-[var(--warning-ink)]">
@@ -125,34 +174,60 @@ export function DicomStudyViewerPage({ accountType, patientId, studyId }: DicomS
           </p>
         ) : null}
 
-        {viewerQuery.isLoading ? (
-          <p className="surface-section flex items-center gap-3 p-5 text-sm text-[var(--text-secondary)]" aria-live="polite" data-viewer-state="loading">
-            <RefreshCw size={18} className="animate-spin" aria-hidden="true" />
-            {t("dicom.viewer.viewerLoading")}
-          </p>
-        ) : viewerQuery.data ? (
-          <iframe
-            allowFullScreen
-            className="h-[calc(100dvh-16rem)] min-h-[32rem] w-full rounded-[var(--radius-sm)] border border-[var(--line)] bg-black"
-            referrerPolicy="same-origin"
-            src={buildViewerUrl(study.studyInstanceUid)}
-            title={t("dicom.viewer.frameTitle")}
-          />
-        ) : (
-          // Nothing answers at /viewer/: say so, rather than frame the browser's
-          // own error page ("localhost a refusé de se connecter").
-          <div role="note" className="surface-section flex items-start gap-3 p-5 text-sm text-[var(--text-secondary)]" data-viewer-state="unavailable">
-            <ShieldAlert size={18} className="mt-px shrink-0 text-[var(--warning-ink)]" aria-hidden="true" />
-            <div className="space-y-1.5">
-              <p className="font-medium text-[var(--ink)]">{t("dicom.viewer.viewerUnavailable")}</p>
-              <p>{t("dicom.viewer.viewerUnavailableBody")}</p>
-              {process.env.NODE_ENV !== "production" ? <p className="clinical-caption">{t("dicom.viewer.viewerDevHint")}</p> : null}
+        <section className="dicom-viewer-card surface-raised" aria-labelledby="dicom-viewer-heading">
+          <div className="dicom-section-heading">
+            <div>
+              <p className="dicom-eyebrow"><ScanLine size={14} strokeWidth={1.8} aria-hidden="true" />{t("dicom.viewer.pageTitle")}</p>
+              <h2 id="dicom-viewer-heading">{t("dicom.viewer.viewerSectionTitle")}</h2>
+              <p>{t("dicom.viewer.viewerSectionBody")}</p>
             </div>
+            <span className={viewerQuery.data ? "dicom-viewer-status is-connected" : "dicom-viewer-status"}>
+              {viewerQuery.data ? <CheckCircle2 size={15} aria-hidden="true" /> : <span className="dicom-status-dot" aria-hidden="true" />}
+              {viewerQuery.data ? t("dicom.viewer.viewerConnected") : t("dicom.viewer.viewerLoading")}
+            </span>
           </div>
-        )}
+          {viewerQuery.isLoading ? (
+            <p className="dicom-viewer-state" aria-live="polite" data-viewer-state="loading">
+              <RefreshCw size={18} className="animate-spin" aria-hidden="true" />
+              {t("dicom.viewer.viewerLoading")}
+            </p>
+          ) : viewerQuery.data ? (
+            <iframe
+              allowFullScreen
+              className="h-[calc(100dvh-16rem)] min-h-[32rem] w-full rounded-[var(--radius-sm)] border border-[var(--line)] bg-black"
+              referrerPolicy="same-origin"
+              src={buildViewerUrl(study.studyInstanceUid)}
+              title={t("dicom.viewer.frameTitle")}
+            />
+          ) : (
+            // Nothing answers at /viewer/: say so, rather than frame the browser's
+            // own error page ("localhost a refusé de se connecter").
+            <div role="note" className="dicom-viewer-state is-unavailable" data-viewer-state="unavailable">
+              <ShieldAlert size={18} className="mt-px shrink-0 text-[var(--warning-ink)]" aria-hidden="true" />
+              <div className="space-y-1.5">
+                <p className="font-medium text-[var(--ink)]">{t("dicom.viewer.viewerUnavailable")}</p>
+                <p>{t("dicom.viewer.viewerUnavailableBody")}</p>
+                {process.env.NODE_ENV !== "production" ? <p className="clinical-caption">{t("dicom.viewer.viewerDevHint")}</p> : null}
+              </div>
+            </div>
+          )}
+          <div className="dicom-viewer-footer">
+            <span><ShieldCheck size={14} aria-hidden="true" />{t("dicom.viewer.secure")}</span>
+            <span>{study.studyInstanceUid}</span>
+          </div>
+        </section>
 
-        <DicomAnalysisPanel accountType={accountType} patientId={patientId} study={study} t={t} />
-        <CardiacVolumePanel accountType={accountType} patientId={patientId} studyId={study.id} t={t} />
+        <section className="dicom-tools-intro" aria-labelledby="dicom-tools-heading">
+          <div>
+            <p className="dicom-eyebrow"><ShieldCheck size={14} strokeWidth={1.8} aria-hidden="true" />{t("dicom.viewer.secure")}</p>
+            <h2 id="dicom-tools-heading">{t("dicom.viewer.clinicalTools")}</h2>
+            <p>{t("dicom.viewer.clinicalToolsBody")}</p>
+          </div>
+        </section>
+        <div className="dicom-tools-grid">
+          <DicomAnalysisPanel accountType={accountType} patientId={patientId} study={study} t={t} />
+          <CardiacVolumePanel accountType={accountType} patientId={patientId} studyId={study.id} t={t} />
+        </div>
       </>
     );
   };

@@ -1,5 +1,6 @@
 export const dicomFr = {
   cine: {
+    badge: "Volumétrie cardiaque",
     title: "Mesurer le cœur",
     subtitle:
       "Volumes, fraction d'éjection et masse du myocarde sur toute une série ciné en petit axe. La série est enregistrée dans le dossier comme document (une archive ZIP de ses images), puis mesurée comme une image importée : consentement, quota et décision du médecin s'appliquent.",
@@ -32,8 +33,11 @@ export const dicomFr = {
     launching: "Analyse en cours… (3 minutes au plus)",
     launchingHint: "Chaque coupe de chaque phase est segmentée : sur un ordinateur sans carte graphique, comptez une demi-minute à une minute et demie. Ne fermez pas la page.",
     errorLaunch: "Impossible de lancer la mesure de cette série.",
+    emptyHint: "Importez une acquisition cine multi-phase pour activer cet outil.",
+    emptyTitle: "Aucune série ciné détectée",
   },
   analysis: {
+    badge: "Analyse assistée par IA",
     chain: "Chaîne d'analyse",
     consentMissing:
       "Le consentement « Analyse IA diagnostique » de ce patient n'est pas signé : l'analyse est impossible.",
@@ -169,12 +173,22 @@ export const dicomFr = {
     mb: "Mo",
   },
   viewer: {
+    acquisition: "Acquisition",
     back: "Retour au dossier",
+    clinicalTools: "Outils cliniques",
+    clinicalToolsBody: "Analysez une coupe ou lancez une mesure à partir de cette étude.",
     frameTitle: "Visionneuse d'imagerie DICOM",
+    images: "Images",
     loading: "Chargement de l'étude…",
     notFound: "Cette étude est introuvable : elle a peut-être été supprimée.",
     pageTitle: "Visionneuse DICOM",
+    secure: "Dossier sécurisé",
     sessionEnded: "Votre session a expiré : reconnectez-vous pour continuer à consulter les images.",
+    series: "Séries",
+    size: "Taille",
+    viewerConnected: "Visionneuse connectée",
+    viewerSectionBody: "Explorez les séries et ajustez la vue directement dans la visionneuse.",
+    viewerSectionTitle: "Lecture de l'étude",
     unavailable: "Le serveur d'imagerie ne répond pas. Réessayez dans un instant.",
     viewerDevHint:
       "En développement local, la visionneuse se construit avec « node viewer/build-local.mjs » puis se sert avec « node viewer/serve-local.mjs » (DEPLOIEMENT.md).",
