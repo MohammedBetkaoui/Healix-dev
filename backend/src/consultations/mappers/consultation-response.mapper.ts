@@ -10,6 +10,7 @@ const patientSelect = {
   lastNameAr: true,
   birthDate: true,
   gender: true,
+  bloodGroup: true,
   hospitalRecordNumber: true,
 } as const;
 
@@ -22,10 +23,10 @@ const doctorSelect = {
 export const consultationListInclude = {
   patient: { select: patientSelect },
   doctorProfile: { select: doctorSelect },
+  diagnoses: { orderBy: [{ isPrimary: 'desc' }, { createdAt: 'asc' }] },
   _count: {
     select: {
       prescriptions: true,
-      // The current versions only: a replaced version is the same report.
       clinicalReports: { where: { supersededAt: null } },
     },
   },
@@ -47,6 +48,13 @@ export const consultationDetailInclude = {
       reason: true,
     },
   },
+  vitalSigns: true,
+  diagnoses: { orderBy: [{ isPrimary: 'desc' }, { createdAt: 'asc' }] },
+  addenda: {
+    orderBy: { createdAt: 'asc' },
+    include: { author: { select: { id: true, fullName: true } } },
+  },
+  completedBy: { select: { id: true, fullName: true } },
 } satisfies Prisma.PatientConsultationInclude;
 
 export type ConsultationDetailRow = Prisma.PatientConsultationGetPayload<{
@@ -83,31 +91,28 @@ type LinkedReport = Prisma.ClinicalReportGetPayload<{
 }>;
 
 const toPatient = (patient: ConsultationListRow['patient']) => ({
-  id: patient.id,
-  firstName: patient.firstName,
-  firstNameAr: patient.firstNameAr,
-  lastName: patient.lastName,
-  lastNameAr: patient.lastNameAr,
+  ...patient,
   birthDate: patient.birthDate.toISOString().slice(0, 10),
-  gender: patient.gender,
-  hospitalRecordNumber: patient.hospitalRecordNumber,
 });
 
-const toDoctor = (doctor: ConsultationListRow['doctorProfile']) =>
-  doctor
-    ? {
-        id: doctor.id,
-        fullName: doctor.user.fullName,
-        speciality: doctor.speciality,
-      }
-    : null;
+const toDoctor = (doctor: ConsultationListRow['doctorProfile']) => ({
+  id: doctor.id,
+  fullName: doctor.user.fullName,
+  speciality: doctor.speciality,
+});
 
 export function toConsultationListItem(row: ConsultationListRow) {
   return {
     id: row.id,
-    date: row.date,
-    reason: row.reason,
-    diagnosis: row.diagnosis,
+    status: row.status,
+    occurredAt: row.startedAt ?? row.createdAt,
+    startedAt: row.startedAt,
+    completedAt: row.completedAt,
+    chiefComplaint: row.chiefComplaint,
+    primaryDiagnosis:
+      row.diagnoses.find((diagnosis) => diagnosis.isPrimary)?.label ??
+      row.diagnoses[0]?.label ??
+      null,
     appointmentId: row.appointmentId,
     patient: toPatient(row.patient),
     doctor: toDoctor(row.doctorProfile),
@@ -123,24 +128,33 @@ export function toConsultationDetail(
 ) {
   return {
     id: row.id,
-    date: row.date,
-    reason: row.reason,
-    diagnosis: row.diagnosis,
-    treatment: row.treatment,
+    workspaceId: row.workspaceId,
+    status: row.status,
+    startedAt: row.startedAt,
+    completedAt: row.completedAt,
+    canceledAt: row.canceledAt,
+    chiefComplaint: row.chiefComplaint,
+    historyPresentIllness: row.historyPresentIllness,
+    clinicalExamination: row.clinicalExamination,
+    assessment: row.assessment,
+    carePlan: row.carePlan,
+    followUpPlan: row.followUpPlan,
+    cancellationReason: row.cancellationReason,
     createdAt: row.createdAt,
     updatedAt: row.updatedAt,
     appointmentId: row.appointmentId,
     patient: toPatient(row.patient),
     doctor: toDoctor(row.doctorProfile),
-    appointment: row.appointment
-      ? {
-          id: row.appointment.id,
-          scheduledAt: row.appointment.scheduledAt,
-          durationMinutes: row.appointment.durationMinutes,
-          status: row.appointment.status,
-          reason: row.appointment.reason,
-        }
-      : null,
+    completedBy: row.completedBy,
+    vitalSigns: row.vitalSigns,
+    diagnoses: row.diagnoses,
+    addenda: row.addenda.map((addendum) => ({
+      id: addendum.id,
+      content: addendum.content,
+      createdAt: addendum.createdAt,
+      author: addendum.author,
+    })),
+    appointment: row.appointment,
     prescriptions: prescriptions.map((prescription) => ({
       id: prescription.id,
       number: prescription.number,

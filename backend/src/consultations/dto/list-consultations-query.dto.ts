@@ -10,6 +10,7 @@ import {
   MaxLength,
   Min,
 } from 'class-validator';
+import { ConsultationStatus } from '@prisma/client';
 
 export const PRESCRIPTION_FILTERS = ['with', 'without'] as const;
 export type PrescriptionFilter = (typeof PRESCRIPTION_FILTERS)[number];
@@ -38,6 +39,15 @@ export class ListConsultationsQueryDto {
   @IsString()
   @MaxLength(191)
   patientId?: string;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(191)
+  doctorId?: string;
+
+  @IsOptional()
+  @IsIn(Object.values(ConsultationStatus))
+  status?: ConsultationStatus;
 
   @IsOptional()
   @IsISO8601()
