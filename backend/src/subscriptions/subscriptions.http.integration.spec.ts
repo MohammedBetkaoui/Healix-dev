@@ -19,10 +19,11 @@ import {
   IntegrationFixtures,
   readTestDatabase,
 } from '../common/testing/integration-fixtures';
-import { DoctorsModule } from '../doctors/doctors.module';
 import { PatientsModule } from '../patients/patients.module';
 import { PrismaService } from '../prisma/prisma.service';
 import { SubscriptionsModule } from './subscriptions.module';
+import { createHash } from 'node:crypto';
+import { TeamModule } from '../team/team.module';
 
 // The routes themselves, over HTTP: the guards in their real order on the real
 // controllers, the answers a browser gets (403 with its code and its figures),
@@ -60,12 +61,18 @@ describeWithDatabase('the subscription over HTTP', () => {
   beforeAll(async () => {
     assertTestDatabaseName(database!);
     process.env.DATABASE_URL = database!.url;
+    // TeamModule pulls the auth module: the access-token strategy (and the
+    // real-time authenticator behind it) is built at module compile time and
+    // refuses to start without its secret, even though the sign-in is the
+    // x-test-user header and no cookie is ever verified here.
+    process.env.JWT_ACCESS_SECRET = `integration-user-access-${'c9Lw'.repeat(8)}`;
+    process.env.JWT_REFRESH_SECRET = `integration-user-refresh-${'d2Nz'.repeat(8)}`;
     const moduleRef = await Test.createTestingModule({
       imports: [
         ConfigModule.forRoot({ ignoreEnvFile: true, isGlobal: true }),
         PatientsModule,
         AiAnalysisRunsModule,
-        DoctorsModule,
+        TeamModule,
         SubscriptionsModule,
         AdminModule,
       ],
@@ -268,7 +275,7 @@ describeWithDatabase('the subscription over HTTP', () => {
       ]);
     });
 
-    it('is refused an invitation of another doctor once the plan has no seat left', async () => {
+    it('is refused the seat of an exhausted plan at the acceptance, not the invitation', async () => {
       const clinic = await fixtures.establishmentWithDoctors(1, {
         subscription: {
           customQuotas: {
@@ -280,25 +287,48 @@ describeWithDatabase('the subscription over HTTP', () => {
         },
       });
 
-      const response = await request(app.getHttpServer())
-        .post('/establishment/doctors')
+      // The invitation itself takes no seat: sending one is always allowed.
+      const invitation = await request(app.getHttpServer())
+        .post('/establishment/team/invitations')
         .set('x-test-user', as(clinic.ownerActor))
         .send({
           email: 'nouveau-' + fixtures.suffix + '@healix.test',
+          role: 'DOCTOR',
+        });
+      expect(invitation.status).toBe(201);
+
+      // The raw token never leaves the mail: for the test, the stored hash
+      // is swapped for one computed from a token the spec holds. The
+      // invitation stays otherwise untouched (pending, unexpired).
+      const token = 'x'.repeat(20) + '_' + 'A'.repeat(22);
+      const invitationId = String(invitation.body.id);
+      await prisma.workspaceInvitation.update({
+        data: {
+          tokenHash: createHash('sha256').update(token, 'utf8').digest('hex'),
+        },
+        where: { id: invitationId },
+      });
+
+      const accept = await request(app.getHttpServer())
+        .post('/team-invitations/accept')
+        .send({
+          confirmPassword: 'Nouveau-mdp-2026',
           fullName: 'Dr Nouveau',
+          password: 'Nouveau-mdp-2026',
           phone: '0661' + String(Date.now()).slice(-6),
           professionalAddress: 'Alger',
           speciality: 'Cardiologie',
+          token,
           wilaya: 'Alger',
         });
 
-      expect(response.body).toMatchObject({
+      expect(accept.body).toMatchObject({
         code: 'QUOTA_EXCEEDED',
         limit: 1,
         quota: 'maxDoctors',
         used: 1,
       });
-      expect(response.status).toBe(403);
+      expect(accept.status).toBe(403);
     });
   });
 

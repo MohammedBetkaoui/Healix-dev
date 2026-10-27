@@ -54,6 +54,8 @@ const SAFE_DATA_KEYS: Record<string, ReadonlySet<string>> = {
   TRIAL_EXTENDED: new Set(['subscriptionId', 'expiresAt', 'days']),
   SUBSCRIPTION_QUOTAS_CHANGED: new Set(['subscriptionId']),
   DOCTOR_ACCOUNT_CREATED: new Set(['doctorProfileId']),
+  TEAM_MEMBER_SUSPENDED: new Set(['membershipId', 'role']),
+  TEAM_MEMBER_REACTIVATED: new Set(['membershipId', 'role']),
   PRESCRIPTION_VALIDATED: new Set(['prescriptionId', 'number']),
   PRESCRIPTION_CANCELED: new Set(['prescriptionId', 'number']),
   REPORT_FINALIZED: new Set(['reportId', 'number']),

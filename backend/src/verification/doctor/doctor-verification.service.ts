@@ -433,7 +433,11 @@ export class DoctorVerificationService {
       },
     });
 
-    if (!doctorProfile || !doctorProfile.isIndependent) {
+    // Affiliated doctors go through verification too: their profile starts
+    // DRAFT when they accept an invitation, and only VERIFIED grants the
+    // clinical features. Being attached to an establishment is not a gate
+    // here — the request belongs to their own doctor profile.
+    if (!doctorProfile) {
       throw new NotFoundException('Profil médecin introuvable.');
     }
 

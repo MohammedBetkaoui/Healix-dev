@@ -53,6 +53,7 @@ export const userJwtModuleOptions = (configService: ConfigService) => ({
     PasswordResetCleanupScheduler,
   ],
   // The account settings hash a new password like the registration does.
-  exports: [AuthService],
+  // Team management sends a self-service reset link to a member too.
+  exports: [AuthService, PasswordResetService],
 })
 export class AuthModule {}

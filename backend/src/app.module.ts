@@ -24,6 +24,7 @@ import { MessagingModule } from './messaging/messaging.module';
 import { NotificationsModule } from './notifications/notifications.module';
 import { OrganizationModule } from './organization/organization.module';
 import { PatientsModule } from './patients/patients.module';
+import { TeamModule } from './team/team.module';
 import { PaymentsModule } from './payments/payments.module';
 import { PrescriptionsModule } from './prescriptions/prescriptions.module';
 import { ReportsModule } from './reports/reports.module';
@@ -64,6 +65,7 @@ import { WorkspaceModule } from './workspaces/workspace.module';
     AccountModule,
     WorkspaceModule,
     OrganizationModule,
+    TeamModule,
   ],
   controllers: [AppController],
   providers: [

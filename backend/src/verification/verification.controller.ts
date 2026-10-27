@@ -140,25 +140,25 @@ export class VerificationController {
   }
 
   @Get('doctor/prefill')
-  @Roles(UserRole.INDEPENDENT_DOCTOR)
+  @Roles(UserRole.INDEPENDENT_DOCTOR, UserRole.AFFILIATED_DOCTOR)
   getDoctorPrefill(@CurrentUser() user: AuthenticatedUserPayload) {
     return this.doctorVerificationService.getPrefill(user.sub);
   }
 
   @Get('doctor/status')
-  @Roles(UserRole.INDEPENDENT_DOCTOR)
+  @Roles(UserRole.INDEPENDENT_DOCTOR, UserRole.AFFILIATED_DOCTOR)
   getDoctorStatus(@CurrentUser() user: AuthenticatedUserPayload) {
     return this.doctorVerificationService.getStatus(user.sub);
   }
 
   @Get('doctor/request')
-  @Roles(UserRole.INDEPENDENT_DOCTOR)
+  @Roles(UserRole.INDEPENDENT_DOCTOR, UserRole.AFFILIATED_DOCTOR)
   getDoctorRequest(@CurrentUser() user: AuthenticatedUserPayload) {
     return this.doctorVerificationService.getRequest(user.sub);
   }
 
   @Post('doctor/draft')
-  @Roles(UserRole.INDEPENDENT_DOCTOR)
+  @Roles(UserRole.INDEPENDENT_DOCTOR, UserRole.AFFILIATED_DOCTOR)
   createDoctorDraft(
     @CurrentUser() user: AuthenticatedUserPayload,
     @Body() dto: UpdateDoctorVerificationDto,
@@ -172,7 +172,7 @@ export class VerificationController {
   }
 
   @Patch('doctor/draft')
-  @Roles(UserRole.INDEPENDENT_DOCTOR)
+  @Roles(UserRole.INDEPENDENT_DOCTOR, UserRole.AFFILIATED_DOCTOR)
   updateDoctorDraft(
     @CurrentUser() user: AuthenticatedUserPayload,
     @Body() dto: UpdateDoctorVerificationDto,
@@ -186,7 +186,7 @@ export class VerificationController {
   }
 
   @Post('doctor/upload-document')
-  @Roles(UserRole.INDEPENDENT_DOCTOR)
+  @Roles(UserRole.INDEPENDENT_DOCTOR, UserRole.AFFILIATED_DOCTOR)
   @UseInterceptors(
     FileInterceptor('file', {
       storage: memoryStorage(),
@@ -212,7 +212,7 @@ export class VerificationController {
   }
 
   @Delete('doctor/document/:documentId')
-  @Roles(UserRole.INDEPENDENT_DOCTOR)
+  @Roles(UserRole.INDEPENDENT_DOCTOR, UserRole.AFFILIATED_DOCTOR)
   deleteDoctorDocument(
     @CurrentUser() user: AuthenticatedUserPayload,
     @Param('documentId') documentId: string,
@@ -226,7 +226,7 @@ export class VerificationController {
   }
 
   @Post('doctor/submit')
-  @Roles(UserRole.INDEPENDENT_DOCTOR)
+  @Roles(UserRole.INDEPENDENT_DOCTOR, UserRole.AFFILIATED_DOCTOR)
   submitDoctorVerification(
     @CurrentUser() user: AuthenticatedUserPayload,
     @Body() dto: SubmitDoctorVerificationDto,

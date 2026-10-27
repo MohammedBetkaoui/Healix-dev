@@ -7,6 +7,11 @@ import {
   type INestApplication,
   UseGuards,
 } from '@nestjs/common';
+import {
+  WorkspaceMembershipRole,
+  WorkspaceMembershipStatus,
+  WorkspaceType,
+} from '@prisma/client';
 import { Test } from '@nestjs/testing';
 import request from 'supertest';
 import { type App } from 'supertest/types';
@@ -25,12 +30,38 @@ type Account = {
   accountStatus: string;
   doctorProfile: { verificationStatus: string } | null;
   establishment: { verificationStatus: string } | null;
+  // What the membership-aware branch reads: ACTIVE OWNER/ADMIN rows of
+  // verified establishment workspaces (never anything else).
+  workspaceMemberships: Array<{
+    workspace: { establishment: { verificationStatus: string } | null };
+  }>;
 };
 
 const verificationRequiredBody = {
   code: VERIFICATION_REQUIRED_CODE,
   message:
     'Votre compte doit être vérifié pour accéder à cette fonctionnalité.',
+};
+
+const membershipSelect = {
+  select: {
+    workspace: {
+      select: {
+        establishment: { select: { verificationStatus: true } },
+      },
+    },
+  },
+  take: 1,
+  where: {
+    role: {
+      in: [WorkspaceMembershipRole.OWNER, WorkspaceMembershipRole.ADMIN],
+    },
+    status: WorkspaceMembershipStatus.ACTIVE,
+    workspace: {
+      type: WorkspaceType.ESTABLISHMENT,
+      establishment: { verificationStatus: VerificationStatus.VERIFIED },
+    },
+  },
 };
 
 function contextFor(user: Partial<AuthenticatedUserPayload> | undefined) {
@@ -47,6 +78,7 @@ function establishmentAccount(
     accountStatus,
     doctorProfile: null,
     establishment: { verificationStatus },
+    workspaceMemberships: [],
   };
 }
 
@@ -58,6 +90,25 @@ function doctorAccount(
     accountStatus,
     doctorProfile: { verificationStatus },
     establishment: null,
+    workspaceMemberships: [],
+  };
+}
+
+function doctorAccountWithEstablishment(verificationStatus: string): Account {
+  // A secondary administrator: an ACTIVE OWNER/ADMIN membership in a
+  // workspace whose establishment is VERIFIED, and no establishment of their
+  // own.
+  return {
+    accountStatus: AccountStatus.ACTIVE,
+    doctorProfile: null,
+    establishment: null,
+    workspaceMemberships: [
+      {
+        workspace: {
+          establishment: { verificationStatus },
+        },
+      },
+    ],
   };
 }
 
@@ -107,9 +158,36 @@ describe('VerifiedAccountGuard', () => {
         accountStatus: true,
         doctorProfile: { select: { verificationStatus: true } },
         establishment: { select: { verificationStatus: true } },
+        workspaceMemberships: membershipSelect,
       },
       where: { id: 'user-establishment' },
     });
+  });
+
+  it('carries a secondary administrator through their ACTIVE membership in a verified workspace', async () => {
+    findUnique.mockResolvedValue(
+      doctorAccountWithEstablishment(VerificationStatus.VERIFIED),
+    );
+
+    await expect(
+      guard.canActivate(contextFor(establishmentAdmin)),
+    ).resolves.toBe(true);
+  });
+
+  it.each([
+    VerificationStatus.NOT_STARTED,
+    VerificationStatus.DRAFT,
+    VerificationStatus.REJECTED,
+  ])('a workspace whose establishment is %s carries nobody', async (status) => {
+    // The where-filter never returns such rows: an empty list stands for it.
+    findUnique.mockResolvedValue(doctorAccountWithEstablishment(status));
+    await expectVerificationRequired(establishmentAdmin);
+
+    findUnique.mockResolvedValue({
+      ...doctorAccountWithEstablishment(VerificationStatus.VERIFIED),
+      workspaceMemberships: [],
+    });
+    await expectVerificationRequired(establishmentAdmin);
   });
 
   it('requires verification, not a subscription (VERIFIED_NO_PLAN passes)', async () => {
@@ -147,6 +225,15 @@ describe('VerifiedAccountGuard', () => {
       await expectVerificationRequired(establishmentAdmin);
     },
   );
+
+  it('refuses a suspended account even through a verified membership', async () => {
+    findUnique.mockResolvedValue({
+      ...doctorAccountWithEstablishment(VerificationStatus.VERIFIED),
+      accountStatus: AccountStatus.SUSPENDED,
+    });
+
+    await expectVerificationRequired(establishmentAdmin);
+  });
 
   it('lets a verified affiliated doctor through (no Subscription needed)', async () => {
     findUnique.mockResolvedValue(doctorAccount(VerificationStatus.VERIFIED));

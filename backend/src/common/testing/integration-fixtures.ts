@@ -439,6 +439,12 @@ export class IntegrationFixtures {
       renewals = renewals.filter((row) => based.has(row.id));
     }
 
+    // The consultation fences the patient in (Restrict): it goes first.
+    // Its vital signs, diagnoses and addenda hang on it with Cascades, and
+    // the appointment it summarizes is cascaded by the patient right after.
+    await this.prisma.patientConsultation.deleteMany({
+      where: { patientId: { in: patients } },
+    });
     await this.prisma.patient.deleteMany({ where: { id: { in: patients } } });
     await this.prisma.workspace.deleteMany({
       where: { id: { in: workspaces } },

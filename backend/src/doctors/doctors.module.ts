@@ -1,24 +1,12 @@
 import { Module } from '@nestjs/common';
 
 import { PrismaModule } from '../prisma/prisma.module';
-import { NotificationsModule } from '../notifications/notifications.module';
-import { RealtimeModule } from '../realtime/realtime.module';
-import { SubscriptionsModule } from '../subscriptions/subscriptions.module';
-import { UsersModule } from '../users/users.module';
-import { WorkspaceModule } from '../workspaces/workspace.module';
-import { DoctorsController } from './doctors.controller';
 import { DoctorsService } from './doctors.service';
 
+// Only the doctor profile the registration creates; the team module owns
+// the workspace members (invitations, suspension, reset links).
 @Module({
-  imports: [
-    PrismaModule,
-    RealtimeModule,
-    UsersModule,
-    WorkspaceModule,
-    NotificationsModule,
-    SubscriptionsModule,
-  ],
-  controllers: [DoctorsController],
+  imports: [PrismaModule],
   providers: [DoctorsService],
   exports: [DoctorsService],
 })

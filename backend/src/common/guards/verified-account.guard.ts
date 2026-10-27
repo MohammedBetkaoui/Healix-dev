@@ -4,6 +4,11 @@ import {
   ForbiddenException,
   Injectable,
 } from '@nestjs/common';
+import {
+  WorkspaceMembershipRole,
+  WorkspaceMembershipStatus,
+  WorkspaceType,
+} from '@prisma/client';
 
 import { type AuthenticatedRequest } from '../../auth/types/authenticated-request.type';
 import { PrismaService } from '../../prisma/prisma.service';
@@ -40,6 +45,12 @@ function getVerificationProfileRelation(
 // it expires, so its status is re-read here. Roles without a professional
 // profile (SUPER_ADMIN, ADMIN_VERIFICATION) are not gated: RolesGuard scopes
 // them. Also applied to the real-time connections (RealtimeAuthenticator).
+//
+// Membership-aware for establishment admins: a second administrator invited
+// to a verified establishment owns no establishment row of their own — they
+// are verified through their active OWNER/ADMIN membership in a workspace
+// whose establishment is VERIFIED. The INVITER's verification, not the
+// invitee's paperwork, vouches for the account.
 export async function isVerifiedAccount(
   prisma: PrismaService,
   user: { sub: string; role: string },
@@ -55,13 +66,42 @@ export async function isVerifiedAccount(
       accountStatus: true,
       doctorProfile: { select: { verificationStatus: true } },
       establishment: { select: { verificationStatus: true } },
+      // Only meaningful for the establishment branch (secondary admins);
+      // harmless to read for the others.
+      workspaceMemberships: {
+        select: {
+          workspace: {
+            select: {
+              establishment: { select: { verificationStatus: true } },
+            },
+          },
+        },
+        take: 1,
+        where: {
+          role: {
+            in: [WorkspaceMembershipRole.OWNER, WorkspaceMembershipRole.ADMIN],
+          },
+          status: WorkspaceMembershipStatus.ACTIVE,
+          workspace: {
+            type: WorkspaceType.ESTABLISHMENT,
+            establishment: {
+              verificationStatus: VerificationStatus.VERIFIED,
+            },
+          },
+        },
+      },
     },
     where: { id: user.sub },
   });
 
   const isVerified =
     account?.[profileRelation]?.verificationStatus ===
-    VerificationStatus.VERIFIED;
+      VerificationStatus.VERIFIED ||
+    // A verified establishment membership also carries the establishment
+    // admin: the nested path exists exactly when such a membership exists.
+    (account?.workspaceMemberships?.[0]?.workspace.establishment
+      ?.verificationStatus === VerificationStatus.VERIFIED &&
+      user.role === UserRole.ESTABLISHMENT_ADMIN);
   const isBlocked =
     account?.accountStatus === AccountStatus.SUSPENDED ||
     account?.accountStatus === AccountStatus.REJECTED;

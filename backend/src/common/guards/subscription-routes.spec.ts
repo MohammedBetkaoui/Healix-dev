@@ -4,7 +4,6 @@ import { GUARDS_METADATA, METHOD_METADATA } from '@nestjs/common/constants';
 import { AiAnalysisRunsController } from '../../ai-analysis-runs/ai-analysis-runs.controller';
 import { AppointmentsController } from '../../appointments/appointments.controller';
 import { DicomController } from '../../dicom/dicom.controller';
-import { DoctorsController } from '../../doctors/doctors.controller';
 import { PatientsController } from '../../patients/patients.controller';
 import { PrescriptionsController } from '../../prescriptions/prescriptions.controller';
 import { ReportsController } from '../../reports/reports.controller';
@@ -71,12 +70,10 @@ const GATED: [string, Controller, string[]][] = [
     // series; reading the studies, their slices and their cine stacks stays open
     ['analyze', 'cardiacVolume', 'remove', 'upload'],
   ],
-  [
-    'DoctorsController',
-    DoctorsController as unknown as Controller,
-    // the invitation of a doctor
-    ['create'],
-  ],
+  // The team invitation of a doctor is NOT here any more: the seat is taken
+  // at the (public, anonymous) acceptance of the invitation, inside the
+  // subscription lock — EntitlementsService.withQuota refuses a full plan
+  // there, and a decorator would hold nothing to gate on an anonymous call.
 ];
 
 describe('the routes that need a live subscription', () => {
