@@ -130,6 +130,7 @@ export const dashboardFr = {
       notifications: "Notifications",
       verification: "Vérification",
       subscription: "Abonnement",
+      organization: "Organisation",
       settings: "Paramètres",
       logout: "Déconnexion",
     },

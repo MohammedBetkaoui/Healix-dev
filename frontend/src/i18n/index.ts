@@ -1,22 +1,3 @@
-import { adminAuthAr } from "./locales/ar/admin-auth";
-import { accountAr } from "./locales/ar/account";
-import { aiAnalysesAr } from "./locales/ar/ai-analyses";
-import { adminAr } from "./locales/ar/admin";
-import { commonAr } from "./locales/ar/common";
-import { consultationsAr } from "./locales/ar/consultations";
-import { dashboardAr } from "./locales/ar/dashboard";
-import { dicomAr } from "./locales/ar/dicom";
-import { doctorVerificationAr } from "./locales/ar/doctor-verification";
-import { loginAr } from "./locales/ar/login";
-import { landingAr } from "./locales/ar/landing";
-import { passwordResetAr } from "./locales/ar/password-reset";
-import { patientsAr } from "./locales/ar/patients";
-import { notificationsAr } from "./locales/ar/notifications";
-import { prescriptionsAr } from "./locales/ar/prescriptions";
-import { reportsAr } from "./locales/ar/reports";
-import { registerAr } from "./locales/ar/register";
-import { subscriptionAr } from "./locales/ar/subscription";
-import { verificationAr } from "./locales/ar/verification";
 import { adminAuthFr } from "./locales/fr/admin-auth";
 import { accountFr } from "./locales/fr/account";
 import { aiAnalysesFr } from "./locales/fr/ai-analyses";
@@ -28,6 +9,7 @@ import { dicomFr } from "./locales/fr/dicom";
 import { doctorVerificationFr } from "./locales/fr/doctor-verification";
 import { loginFr } from "./locales/fr/login";
 import { landingFr } from "./locales/fr/landing";
+import { organizationFr } from "./locales/fr/organization";
 import { passwordResetFr } from "./locales/fr/password-reset";
 import { patientsFr } from "./locales/fr/patients";
 import { notificationsFr } from "./locales/fr/notifications";
@@ -36,6 +18,26 @@ import { reportsFr } from "./locales/fr/reports";
 import { registerFr } from "./locales/fr/register";
 import { subscriptionFr } from "./locales/fr/subscription";
 import { verificationFr } from "./locales/fr/verification";
+import { adminAuthAr } from "./locales/ar/admin-auth";
+import { accountAr } from "./locales/ar/account";
+import { aiAnalysesAr } from "./locales/ar/ai-analyses";
+import { adminAr } from "./locales/ar/admin";
+import { commonAr } from "./locales/ar/common";
+import { consultationsAr } from "./locales/ar/consultations";
+import { dashboardAr } from "./locales/ar/dashboard";
+import { dicomAr } from "./locales/ar/dicom";
+import { doctorVerificationAr } from "./locales/ar/doctor-verification";
+import { loginAr } from "./locales/ar/login";
+import { landingAr } from "./locales/ar/landing";
+import { organizationAr } from "./locales/ar/organization";
+import { passwordResetAr } from "./locales/ar/password-reset";
+import { patientsAr } from "./locales/ar/patients";
+import { notificationsAr } from "./locales/ar/notifications";
+import { prescriptionsAr } from "./locales/ar/prescriptions";
+import { reportsAr } from "./locales/ar/reports";
+import { registerAr } from "./locales/ar/register";
+import { subscriptionAr } from "./locales/ar/subscription";
+import { verificationAr } from "./locales/ar/verification";
 
 export const locales = ["fr", "ar"] as const;
 export type Locale = (typeof locales)[number];
@@ -55,6 +57,7 @@ export const dictionaries = {
     doctorVerification: doctorVerificationFr,
     login: loginFr,
     landing: landingFr,
+    organization: organizationFr,
     passwordReset: passwordResetFr,
     patients: patientsFr,
     notifications: notificationsFr,
@@ -76,6 +79,7 @@ export const dictionaries = {
     doctorVerification: doctorVerificationAr,
     login: loginAr,
     landing: landingAr,
+    organization: organizationAr,
     passwordReset: passwordResetAr,
     patients: patientsAr,
     notifications: notificationsAr,
