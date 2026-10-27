@@ -510,8 +510,11 @@ export class PrescriptionsService {
             encounter: prescription.encounter
               ? {
                   id: prescription.encounter.id,
-                  date: prescription.encounter.date.toISOString(),
-                  reason: prescription.encounter.reason,
+                  date: (
+                    prescription.encounter.startedAt ??
+                    prescription.encounter.createdAt
+                  ).toISOString(),
+                  reason: prescription.encounter.chiefComplaint,
                 }
               : null,
           };
@@ -938,12 +941,13 @@ export class PrescriptionsService {
     const patient = await this.patients.getPatientInScope(user, patientId);
     const encounters = await this.prisma.patientConsultation.findMany({
       where: { patientId },
-      orderBy: { date: 'desc' },
+      orderBy: [{ startedAt: 'desc' }, { createdAt: 'desc' }],
       take: 50,
       select: {
         id: true,
-        date: true,
-        reason: true,
+        startedAt: true,
+        createdAt: true,
+        chiefComplaint: true,
         doctorProfileId: true,
         doctorProfile: { select: { user: { select: { fullName: true } } } },
       },
@@ -964,10 +968,10 @@ export class PrescriptionsService {
       },
       encounters: encounters.map((encounter) => ({
         id: encounter.id,
-        date: encounter.date,
+        date: encounter.startedAt ?? encounter.createdAt,
         practitionerId: encounter.doctorProfileId,
-        practitionerName: encounter.doctorProfile?.user.fullName ?? null,
-        label: encounter.reason,
+        practitionerName: encounter.doctorProfile.user.fullName,
+        label: encounter.chiefComplaint ?? '',
       })),
     };
   }
@@ -1053,7 +1057,7 @@ export class PrescriptionsService {
       where: {
         id: encounterId,
         patientId,
-        OR: [{ doctorProfileId }, { doctorProfileId: null }],
+        doctorProfileId,
       },
       select: { id: true },
     });

@@ -287,6 +287,13 @@ enum AppointmentStatus {
   NO_SHOW
 }
 
+enum ConsultationStatus {
+  DRAFT
+  IN_PROGRESS
+  COMPLETED
+  CANCELED
+}
+
 enum WorkspaceType {
   ESTABLISHMENT
   PRIVATE_PRACTICE
@@ -514,6 +521,9 @@ model User {
   canceledClinicalReports        ClinicalReport[]          @relation("ClinicalReportCanceledBy")
   clinicalReportDocuments        ClinicalReportDocument[]  @relation("ClinicalReportDocumentGeneratedBy")
   generatedPrescriptionDocuments PrescriptionDocument[]    @relation("PrescriptionDocumentGeneratedBy")
+  createdConsultations           PatientConsultation[]     @relation("ConsultationCreatedBy")
+  completedConsultations         PatientConsultation[]     @relation("ConsultationCompletedBy")
+  consultationAddenda            ConsultationAddendum[]
 
   @@map("users")
 }
@@ -642,6 +652,7 @@ model Workspace {
   patients           Patient[]
   conversations      Conversation[]
   notifications      Notification[]
+  consultations      PatientConsultation[]
   prescriptions      Prescription[]
   clinicalReports    ClinicalReport[]
   dicomStudies       DicomStudy[]
@@ -696,25 +707,95 @@ model PatientConsent {
 }
 
 model PatientConsultation {
-  id              String   @id @default(cuid())
-  patientId       String   @map("patient_id")
-  doctorProfileId String?  @map("doctor_profile_id")
-  appointmentId   String?  @unique @map("appointment_id")
-  date            DateTime
-  reason          String   @db.Text
-  diagnosis       String   @db.Text
-  treatment       String   @db.Text
-  createdAt       DateTime @default(now()) @map("created_at")
-  updatedAt       DateTime @updatedAt @map("updated_at")
+  id                    String             @id @default(cuid())
+  workspaceId           String             @map("workspace_id")
+  patientId             String             @map("patient_id")
+  doctorProfileId       String             @map("doctor_profile_id")
+  appointmentId         String?            @unique @map("appointment_id")
+  status                ConsultationStatus @default(DRAFT)
+  startedAt             DateTime?          @map("started_at")
+  completedAt           DateTime?          @map("completed_at")
+  canceledAt            DateTime?          @map("canceled_at")
+  chiefComplaint        String?            @map("chief_complaint") @db.Text
+  historyPresentIllness String?            @map("history_present_illness") @db.Text
+  clinicalExamination   String?            @map("clinical_examination") @db.Text
+  assessment            String?            @db.Text
+  carePlan              String?            @map("care_plan") @db.Text
+  followUpPlan          String?            @map("follow_up_plan") @db.Text
+  cancellationReason    String?            @map("cancellation_reason") @db.Text
+  createdById           String             @map("created_by_id")
+  completedById         String?            @map("completed_by_id")
+  createdAt             DateTime           @default(now()) @map("created_at")
+  updatedAt             DateTime           @updatedAt @map("updated_at")
 
-  patient         Patient          @relation(fields: [patientId], references: [id], onDelete: Cascade)
-  doctorProfile   DoctorProfile?   @relation(fields: [doctorProfileId], references: [id], onDelete: SetNull)
-  appointment     Appointment?     @relation(fields: [appointmentId], references: [id], onDelete: SetNull)
+  workspace       Workspace               @relation(fields: [workspaceId], references: [id], onDelete: Restrict)
+  patient         Patient                 @relation(fields: [patientId], references: [id], onDelete: Restrict)
+  doctorProfile   DoctorProfile           @relation(fields: [doctorProfileId], references: [id], onDelete: Restrict)
+  appointment     Appointment?            @relation(fields: [appointmentId], references: [id], onDelete: SetNull)
+  createdBy       User                    @relation("ConsultationCreatedBy", fields: [createdById], references: [id], onDelete: Restrict)
+  completedBy     User?                   @relation("ConsultationCompletedBy", fields: [completedById], references: [id], onDelete: Restrict)
+  vitalSigns      ConsultationVitalSigns?
+  diagnoses       ConsultationDiagnosis[]
+  addenda         ConsultationAddendum[]
   prescriptions   Prescription[]
   clinicalReports ClinicalReport[]
 
+  @@index([workspaceId])
   @@index([patientId])
+  @@index([doctorProfileId])
+  @@index([status])
+  @@index([startedAt])
   @@map("patient_consultations")
+}
+
+model ConsultationVitalSigns {
+  id               String   @id @default(cuid())
+  consultationId   String   @unique @map("consultation_id")
+  systolicBp       Int?     @map("systolic_bp")
+  diastolicBp      Int?     @map("diastolic_bp")
+  heartRate        Int?     @map("heart_rate")
+  respiratoryRate  Int?     @map("respiratory_rate")
+  oxygenSaturation Float?   @map("oxygen_saturation")
+  temperature      Float?
+  weightKg         Float?   @map("weight_kg")
+  heightCm         Float?   @map("height_cm")
+  createdAt        DateTime @default(now()) @map("created_at")
+  updatedAt        DateTime @updatedAt @map("updated_at")
+
+  consultation PatientConsultation @relation(fields: [consultationId], references: [id], onDelete: Cascade)
+
+  @@map("consultation_vital_signs")
+}
+
+model ConsultationDiagnosis {
+  id             String   @id @default(cuid())
+  consultationId String   @map("consultation_id")
+  label          String   @db.VarChar(500)
+  code           String?  @db.VarChar(80)
+  codeSystem     String?  @map("code_system") @db.VarChar(80)
+  isPrimary      Boolean  @default(false) @map("is_primary")
+  note           String?  @db.Text
+  createdAt      DateTime @default(now()) @map("created_at")
+
+  consultation PatientConsultation @relation(fields: [consultationId], references: [id], onDelete: Cascade)
+
+  @@index([consultationId])
+  @@map("consultation_diagnoses")
+}
+
+model ConsultationAddendum {
+  id             String   @id @default(cuid())
+  consultationId String   @map("consultation_id")
+  authorId       String   @map("author_id")
+  content        String   @db.Text
+  createdAt      DateTime @default(now()) @map("created_at")
+
+  consultation PatientConsultation @relation(fields: [consultationId], references: [id], onDelete: Restrict)
+  author       User                @relation(fields: [authorId], references: [id], onDelete: Restrict)
+
+  @@index([consultationId])
+  @@index([authorId])
+  @@map("consultation_addenda")
 }
 
 model PatientDocument {

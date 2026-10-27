@@ -7,6 +7,7 @@ import {
 } from '@nestjs/common';
 import {
   type AuditLog,
+  ConsultationStatus,
   ConversationType,
   type Patient,
   type PatientAiAnalysis,
@@ -284,7 +285,7 @@ export class PatientsService {
     const consultations = await this.prisma.patientConsultation.findMany({
       where: { patientId },
       include: consultationDoctorInclude,
-      orderBy: { date: 'desc' },
+      orderBy: [{ startedAt: 'desc' }, { createdAt: 'desc' }],
     });
 
     return consultations.map((consultation) =>
@@ -297,7 +298,7 @@ export class PatientsService {
     patientId: string,
     dto: CreatePatientConsultationDto,
   ) {
-    await this.getPatientInScope(user, patientId);
+    const patient = await this.getPatientInScope(user, patientId);
     this.assertCanCreateConsultation(user.role);
 
     const doctorProfile = await this.prisma.doctorProfile.findUnique({
@@ -306,6 +307,9 @@ export class PatientsService {
 
     if (!doctorProfile) {
       throw new NotFoundException('Profil médecin introuvable.');
+    }
+    if (!patient.workspaceId) {
+      throw new NotFoundException('Workspace patient introuvable.');
     }
 
     if (dto.appointmentId) {
@@ -336,21 +340,25 @@ export class PatientsService {
 
     const consultation = await this.prisma.patientConsultation.create({
       data: {
+        workspaceId: patient.workspaceId,
         patientId,
         doctorProfileId: doctorProfile.id,
         appointmentId: dto.appointmentId ?? null,
-        date: new Date(dto.date),
-        reason: sanitizeTextInput(dto.reason),
-        diagnosis: sanitizeTextInput(dto.diagnosis),
-        treatment: sanitizeTextInput(dto.treatment),
+        status: ConsultationStatus.IN_PROGRESS,
+        startedAt: new Date(dto.date),
+        chiefComplaint: sanitizeTextInput(dto.reason),
+        assessment: sanitizeTextInput(dto.diagnosis),
+        carePlan: sanitizeTextInput(dto.treatment),
+        createdById: user.sub,
       },
       include: consultationDoctorInclude,
     });
 
     await this.patientAuditService.log(
       user,
-      'PATIENT_CONSULTATION_CREATED',
+      'CONSULTATION_CREATED',
       consultation.id,
+      { status: ConsultationStatus.IN_PROGRESS },
     );
 
     return this.toConsultationResponse(consultation);
@@ -658,11 +666,12 @@ export class PatientsService {
       id: consultation.id,
       patientId: consultation.patientId,
       appointmentId: consultation.appointmentId,
-      date: consultation.date,
-      reason: consultation.reason,
-      diagnosis: consultation.diagnosis,
-      treatment: consultation.treatment,
-      doctor: consultation.doctorProfile?.user.fullName ?? '',
+      date: consultation.startedAt ?? consultation.createdAt,
+      reason: consultation.chiefComplaint ?? '',
+      diagnosis: consultation.assessment ?? '',
+      treatment: consultation.carePlan ?? '',
+      status: consultation.status,
+      doctor: consultation.doctorProfile.user.fullName,
       createdAt: consultation.createdAt,
       updatedAt: consultation.updatedAt,
     };

@@ -59,7 +59,14 @@ export const reportDetailInclude = {
   },
   finalizedBy: { select: { id: true, fullName: true } },
   canceledBy: { select: { id: true, fullName: true } },
-  encounter: { select: { id: true, date: true, reason: true } },
+  encounter: {
+    select: {
+      id: true,
+      startedAt: true,
+      createdAt: true,
+      chiefComplaint: true,
+    },
+  },
   document: { select: { id: true, size: true, checksum: true } },
   replaces: { select: { id: true, number: true, version: true } },
   replacedBy: { select: { id: true, number: true, version: true } },
@@ -268,8 +275,8 @@ export function toReportDetail(report: ReportDetail) {
     encounter: report.encounter
       ? {
           id: report.encounter.id,
-          date: report.encounter.date,
-          label: report.encounter.reason,
+          date: report.encounter.startedAt ?? report.encounter.createdAt,
+          label: report.encounter.chiefComplaint ?? '',
         }
       : null,
     replaces: report.replaces,

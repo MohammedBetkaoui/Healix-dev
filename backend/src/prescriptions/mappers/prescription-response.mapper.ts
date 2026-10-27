@@ -27,8 +27,9 @@ export const prescriptionDetailInclude = {
   encounter: {
     select: {
       id: true,
-      date: true,
-      reason: true,
+      startedAt: true,
+      createdAt: true,
+      chiefComplaint: true,
       doctorProfileId: true,
     },
   },
@@ -121,9 +122,11 @@ export function toPrescriptionResponse(prescription: PrescriptionDetail) {
     encounter: prescription.encounter
       ? {
           id: prescription.encounter.id,
-          date: prescription.encounter.date,
+          date:
+            prescription.encounter.startedAt ??
+            prescription.encounter.createdAt,
           practitionerId: prescription.encounter.doctorProfileId,
-          label: prescription.encounter.reason,
+          label: prescription.encounter.chiefComplaint ?? '',
         }
       : null,
     prescribedAt: prescription.prescribedAt,
