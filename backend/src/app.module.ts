@@ -22,6 +22,7 @@ import { DashboardModule } from './dashboard/dashboard.module';
 import { DicomModule } from './dicom/dicom.module';
 import { MessagingModule } from './messaging/messaging.module';
 import { NotificationsModule } from './notifications/notifications.module';
+import { OrganizationModule } from './organization/organization.module';
 import { PatientsModule } from './patients/patients.module';
 import { PaymentsModule } from './payments/payments.module';
 import { PrescriptionsModule } from './prescriptions/prescriptions.module';
@@ -62,6 +63,7 @@ import { WorkspaceModule } from './workspaces/workspace.module';
     ConsultationsModule,
     AccountModule,
     WorkspaceModule,
+    OrganizationModule,
   ],
   controllers: [AppController],
   providers: [
