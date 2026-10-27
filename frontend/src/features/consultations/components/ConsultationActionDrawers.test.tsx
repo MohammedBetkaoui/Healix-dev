@@ -17,11 +17,12 @@ const reportDrawer = CreateReportDrawer as unknown as jest.Mock;
 const t = (key: string) => translate(dictionaries.fr, key);
 
 const consultation = {
-  date: "2026-10-20T09:00:00.000Z",
   id: "consultation-7",
+  createdAt: "2026-10-20T09:30:00.000Z",
   patient: { birthDate: "1985-03-12", firstName: "Amina", firstNameAr: "أمينة", gender: "FEMALE", hospitalRecordNumber: "DOS-001", id: "patient-3", lastName: "Benali", lastNameAr: "بن علي" },
-  reason: "Douleur thoracique",
-} as ConsultationDetail;
+  startedAt: "2026-10-20T09:00:00.000Z",
+  chiefComplaint: "Douleur thoracique",
+} as unknown as ConsultationDetail;
 
 const noop = () => undefined;
 

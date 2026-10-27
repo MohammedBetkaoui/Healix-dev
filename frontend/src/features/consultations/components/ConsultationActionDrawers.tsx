@@ -16,7 +16,7 @@ export function consultationContext(consultation: ConsultationDetail, locale: Lo
   const record = consultation.patient.hospitalRecordNumber;
   return {
     encounterId: consultation.id,
-    encounterLabel: consultationLabel(consultation.date, consultation.reason, locale),
+    encounterLabel: consultationLabel(consultation.startedAt ?? consultation.createdAt, consultation.chiefComplaint, locale),
     patient: {
       id: consultation.patient.id,
       label: `${getPatientDisplayName(consultation.patient, locale)}${record ? ` · ${record}` : ""}`,

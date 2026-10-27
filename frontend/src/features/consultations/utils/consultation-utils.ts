@@ -1,21 +1,24 @@
 import { isAxiosError } from "axios";
 
-import { type ConsultationListFilters } from "../types/consultation.types";
+import { type ConsultationListFilters, type ConsultationStatus } from "../types/consultation.types";
 
 export type ConsultationFilterValue = {
+  doctor: string;
   from: string;
   mine: boolean;
   patient: string;
   prescription: "" | "with" | "without";
   query: string;
+  status: "" | ConsultationStatus;
   to: string;
 };
 
-export const initialConsultationFilters: ConsultationFilterValue = { from: "", mine: false, patient: "", prescription: "", query: "", to: "" };
+export const initialConsultationFilters: ConsultationFilterValue = { doctor: "", from: "", mine: false, patient: "", prescription: "", query: "", status: "", to: "" };
 
 /** The filters of the form as the query of GET /consultations (a day is the whole day, UTC). */
 export function toConsultationListFilters(filters: ConsultationFilterValue, query: string, page: number, limit: number): ConsultationListFilters {
   return {
+    doctorId: filters.doctor || undefined,
     from: filters.from ? `${filters.from}T00:00:00.000Z` : undefined,
     limit,
     mine: filters.mine || undefined,
@@ -23,6 +26,7 @@ export function toConsultationListFilters(filters: ConsultationFilterValue, quer
     patientId: filters.patient || undefined,
     prescription: filters.prescription || undefined,
     query: query || undefined,
+    status: filters.status || undefined,
     to: filters.to ? `${filters.to}T23:59:59.999Z` : undefined,
   };
 }
@@ -48,7 +52,7 @@ export function getConsultationErrorKey(error: unknown): string {
 }
 
 /** Label of the consultation for the places that need to name it (`encounter` of a prescription or a report). */
-export function consultationLabel(date: string, reason: string, locale: "fr" | "ar") {
+export function consultationLabel(date: string, reason: string | null, locale: "fr" | "ar") {
   const formatted = new Intl.DateTimeFormat(locale === "ar" ? "ar-DZ" : "fr-DZ", { day: "2-digit", month: "2-digit", year: "numeric" }).format(new Date(date));
-  return `${formatted} — ${truncateText(reason, 60)}`;
+  return `${formatted} — ${reason ? truncateText(reason, 60) : ""}`;
 }

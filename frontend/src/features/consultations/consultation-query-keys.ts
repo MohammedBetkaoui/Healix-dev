@@ -7,4 +7,5 @@ export const consultationKeys = {
   stats: ["consultations", "stats"] as const,
   capabilities: ["consultations", "capabilities"] as const,
   detail: (id: string) => ["consultations", "detail", id] as const,
+  context: (id: string) => ["consultations", "context", id] as const,
 };

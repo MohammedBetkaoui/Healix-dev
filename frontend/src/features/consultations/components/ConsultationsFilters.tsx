@@ -8,11 +8,12 @@ import { getPatientDisplayName } from "@/features/prescriptions/utils/prescripti
 import { type Locale } from "@/i18n";
 import { type TranslationFunction } from "@/lib/i18n";
 
-import { type ConsultationPatient } from "../types/consultation.types";
+import { type ConsultationDoctor, type ConsultationPatient, type ConsultationStatus } from "../types/consultation.types";
 import { type ConsultationFilterValue } from "../utils/consultation-utils";
 
 type ConsultationsFiltersProps = {
   filters: ConsultationFilterValue;
+  doctors: ConsultationDoctor[];
   locale: Locale;
   onChange: (filters: ConsultationFilterValue) => void;
   onReset: () => void;
@@ -21,7 +22,9 @@ type ConsultationsFiltersProps = {
   t: TranslationFunction;
 };
 
-export function ConsultationsFilters({ filters, locale, onChange, onReset, patients, resultCount, t }: ConsultationsFiltersProps) {
+const statuses: ConsultationStatus[] = ["DRAFT", "IN_PROGRESS", "COMPLETED", "CANCELED"];
+
+export function ConsultationsFilters({ doctors, filters, locale, onChange, onReset, patients, resultCount, t }: ConsultationsFiltersProps) {
   const id = useId();
   const update = <Key extends keyof ConsultationFilterValue>(key: Key, value: ConsultationFilterValue[Key]) => onChange({ ...filters, [key]: value });
   const active = Object.values(filters).some(Boolean);
@@ -52,6 +55,20 @@ export function ConsultationsFilters({ filters, locale, onChange, onReset, patie
             <Select id={`${id}-patient`} className="border-[var(--border)] text-xs shadow-none" value={filters.patient} onChange={(event) => update("patient", event.target.value)}>
               <option value="">{t("consultations.filters.all")}</option>
               {patients.map((patient) => <option key={patient.id} value={patient.id}>{getPatientDisplayName(patient, locale)}</option>)}
+            </Select>
+          </label>
+          <label htmlFor={`${id}-doctor`}>
+            <span className="mb-1.5 block text-[0.65rem] font-semibold text-[var(--text-secondary)]">{t("consultations.filters.doctor")}</span>
+            <Select id={`${id}-doctor`} className="border-[var(--border)] text-xs shadow-none" value={filters.doctor} onChange={(event) => update("doctor", event.target.value)}>
+              <option value="">{t("consultations.filters.all")}</option>
+              {doctors.map((doctor) => <option key={doctor.id} value={doctor.id}>{doctor.fullName}</option>)}
+            </Select>
+          </label>
+          <label htmlFor={`${id}-status`}>
+            <span className="mb-1.5 block text-[0.65rem] font-semibold text-[var(--text-secondary)]">{t("consultations.filters.status")}</span>
+            <Select id={`${id}-status`} className="border-[var(--border)] text-xs shadow-none" value={filters.status} onChange={(event) => update("status", event.target.value as ConsultationFilterValue["status"])}>
+              <option value="">{t("consultations.filters.all")}</option>
+              {statuses.map((status) => <option key={status} value={status}>{t(`consultations.statuses.${status}`)}</option>)}
             </Select>
           </label>
           <label htmlFor={`${id}-prescription`}>

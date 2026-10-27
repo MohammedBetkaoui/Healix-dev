@@ -28,7 +28,18 @@ export function useConsultationCapabilities() {
     retry: false,
     staleTime: 5 * 60_000,
   });
-  return { ...query, capabilities: query.data ?? { canCreateConsultation: false } };
+  return {
+    ...query,
+    capabilities: query.data ?? {
+      canViewConsultations: false,
+      canCreateConsultation: false,
+      canEditConsultation: false,
+      canStartConsultation: false,
+      canCompleteConsultation: false,
+      canCancelConsultation: false,
+      canAddAddendum: false,
+    },
+  };
 }
 
 // Patients of the latest consultations, for the patient filter (the API has no
@@ -38,7 +49,10 @@ export function useConsultationFilterOptions() {
     queryFn: () => listConsultations({ limit: 50 }),
     queryKey: consultationKeys.list({ limit: 50 }),
     retry: false,
-    select: (page) => ({ patients: [...new Map(page.data.map((row) => [row.patient.id, row.patient])).values()] }),
+    select: (page) => ({
+      patients: [...new Map(page.data.map((row) => [row.patient.id, row.patient])).values()],
+      doctors: [...new Map(page.data.map((row) => [row.doctor.id, row.doctor])).values()],
+    }),
     staleTime: 60_000,
   });
 }

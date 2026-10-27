@@ -4,11 +4,11 @@ import { AlertTriangle, CheckCircle2, ChevronLeft, ChevronRight, ShieldCheck } f
 import { useSearchParams } from "next/navigation";
 import { useEffect, useMemo, useState } from "react";
 
-import { CreateConsultationModal } from "@/components/patients/CreateConsultationModal";
 import { DashboardShell } from "@/components/dashboard/layout/DashboardShell";
 import { doctorNavSections, establishmentNavSections } from "@/components/dashboard/layout/navigation";
 import { useDebouncedValue } from "@/features/ai-analyses/hooks/use-debounced-value";
 import { useCurrentUser } from "@/features/auth/hooks/use-current-user";
+import { getPatientDisplayName } from "@/features/prescriptions/utils/prescription-format";
 import { type BuilderResult } from "@/features/prescriptions/components/NewPrescriptionDrawer";
 import { usePrescriptionCapabilities } from "@/features/prescriptions/hooks/use-prescription-capabilities";
 import { type ReportDraftResult } from "@/features/reports/components/CreateReportDrawer";
@@ -23,6 +23,7 @@ import { type ConsultationDetail } from "../types/consultation.types";
 import { getConsultationErrorKey, initialConsultationFilters, toConsultationListFilters, type ConsultationFilterValue } from "../utils/consultation-utils";
 import { ConsultationPrescribeDrawer, ConsultationReportDrawer } from "./ConsultationActionDrawers";
 import { ConsultationDetailDrawer } from "./ConsultationDetailDrawer";
+import { ConsultationEditorDrawer } from "./ConsultationEditorDrawer";
 import { ConsultationErrorState, ConsultationsListSkeleton } from "./ConsultationStateViews";
 import { ConsultationsFilters } from "./ConsultationsFilters";
 import { ConsultationsHeader } from "./ConsultationsHeader";
@@ -53,7 +54,8 @@ export function ConsultationsPage({ accountType }: ConsultationsPageProps) {
   const requestedConsultation = useSearchParams()?.get("consultation") ?? null;
   const [selectedId, setSelectedId] = useState<string | null>(requestedConsultation);
   const [choosingPatient, setChoosingPatient] = useState(false);
-  const [recordingFor, setRecordingFor] = useState<PatientChoice | null>(null);
+  const [editing, setEditing] = useState<ConsultationDetail | null>(null);
+  const [creatingFor, setCreatingFor] = useState<PatientChoice | null>(null);
   const [prescribing, setPrescribing] = useState<ConsultationDetail | null>(null);
   const [reporting, setReporting] = useState<ConsultationDetail | null>(null);
   const [notice, setNotice] = useState<Notice | null>(null);
@@ -93,6 +95,15 @@ export function ConsultationsPage({ accountType }: ConsultationsPageProps) {
     success(finalized ? t("reports.notices.finalized", { number: report.number ?? "" }) : t("reports.notices.draftSaved"));
   };
 
+  // The editor closes once its work is saved: the draft keeps its content and the
+  // finalization freezes the note (the list and the drawer refresh themselves).
+  const finishEditing = (consultation: ConsultationDetail) => {
+    setEditing(null);
+    setCreatingFor(null);
+    success(consultation.status === "COMPLETED" ? t("consultations.notices.finalized") : t("consultations.notices.saved"));
+    if (consultation.status === "COMPLETED") setSelectedId(consultation.id);
+  };
+
   const shellProps = accountType === "ESTABLISHMENT"
     ? {
         accountType: "ESTABLISHMENT" as const,
@@ -111,7 +122,7 @@ export function ConsultationsPage({ accountType }: ConsultationsPageProps) {
         <ConsultationsHeader canCreate={capabilities.canCreateConsultation} onCreate={() => setChoosingPatient(true)} t={t} />
         <section className="flex items-start gap-3 rounded-[var(--radius-md)] border border-[var(--accent-line)] bg-[var(--accent-soft)] px-4 py-3"><ShieldCheck size={18} className="mt-0.5 shrink-0 text-[var(--medical)]" strokeWidth={1.8} aria-hidden="true" /><div><p className="text-xs font-semibold text-[var(--accent-dark)]">{t("consultations.confidentiality.title")}</p><p className="mt-1 text-[0.7rem] leading-5 text-[var(--text-secondary)]">{t("consultations.confidentiality.description")}</p></div></section>
         <ConsultationsStats isLoading={stats.isLoading} stats={stats.data} t={t} />
-        <ConsultationsFilters filters={filters} locale={locale} onChange={changeFilters} onReset={() => changeFilters(initialConsultationFilters)} patients={options.data?.patients ?? []} resultCount={list.data?.meta.total ?? 0} t={t} />
+        <ConsultationsFilters doctors={options.data?.doctors ?? []} filters={filters} locale={locale} onChange={changeFilters} onReset={() => changeFilters(initialConsultationFilters)} patients={options.data?.patients ?? []} resultCount={list.data?.meta.total ?? 0} t={t} />
         {list.isLoading ? <ConsultationsListSkeleton t={t} /> : list.isError && !list.data ? <ConsultationErrorState errorKey={getConsultationErrorKey(list.error)} onRetry={() => void list.refetch()} t={t} /> : (
           <>
             <ConsultationsTable consultations={list.data?.data ?? []} locale={locale} onOpen={(consultation) => setSelectedId(consultation.id)} t={t} />
@@ -126,11 +137,12 @@ export function ConsultationsPage({ accountType }: ConsultationsPageProps) {
         )}
       </div>
 
-      {selectedId ? <ConsultationDetailDrawer accountType={accountType} canPrescribe={prescriptionCapabilities.canCreatePrescription} canWriteReport={reportCapabilities.canCreateReports} closeOnEscape={!prescribing && !reporting} id={selectedId} locale={locale} onClose={() => setSelectedId(null)} onPrescribe={setPrescribing} onWriteReport={setReporting} t={t} /> : null}
+      {selectedId ? <ConsultationDetailDrawer accountType={accountType} canAddAddendum={capabilities.canAddAddendum} canEdit={capabilities.canEditConsultation} canPrescribe={prescriptionCapabilities.canCreatePrescription} canWriteReport={reportCapabilities.canCreateReports} closeOnEscape={!prescribing && !reporting && !editing} id={selectedId} locale={locale} onClose={() => setSelectedId(null)} onEdit={setEditing} onPrescribe={setPrescribing} onWriteReport={setReporting} t={t} /> : null}
+      {editing ? <ConsultationEditorDrawer consultation={editing} direction={direction} onClose={() => setEditing(null)} onDone={finishEditing} patient={{ id: editing.patient.id, label: getPatientDisplayName(editing.patient, locale) }} t={t} /> : null}
+      {creatingFor ? <ConsultationEditorDrawer consultation={null} direction={direction} onClose={() => setCreatingFor(null)} onDone={finishEditing} patient={creatingFor} t={t} /> : null}
       {prescribing ? <ConsultationPrescribeDrawer capabilities={prescriptionCapabilities} consultation={prescribing} locale={locale} onClose={() => setPrescribing(null)} onDone={finishPrescription} t={t} /> : null}
       {reporting ? <ConsultationReportDrawer capabilities={reportCapabilities} consultation={reporting} locale={locale} onClose={() => setReporting(null)} onDone={finishReport} t={t} /> : null}
-      {choosingPatient ? <NewConsultationPatientDialog direction={direction} locale={locale} onCancel={() => setChoosingPatient(false)} onChoose={(patient) => { setChoosingPatient(false); setRecordingFor(patient); }} t={t} /> : null}
-      {recordingFor ? <CreateConsultationModal direction={direction} isOpen locale={locale} patientId={recordingFor.id} onClose={() => setRecordingFor(null)} onCreated={(consultationId) => { setSelectedId(consultationId); success(t("consultations.notices.created")); }} /> : null}
+      {choosingPatient ? <NewConsultationPatientDialog direction={direction} locale={locale} onCancel={() => setChoosingPatient(false)} onChoose={(patient) => { setChoosingPatient(false); setCreatingFor(patient); }} t={t} /> : null}
       {notice ? <div role={notice.tone === "error" ? "alert" : "status"} className={`fixed bottom-5 end-5 z-[90] flex max-w-sm items-start gap-2 rounded-[var(--radius-md)] border bg-[var(--surface-elevated)] px-4 py-3 text-xs font-medium text-[var(--text-primary)] shadow-[var(--shadow-raised)] ${notice.tone === "error" ? "border-[var(--danger-line)]" : "border-[var(--success-line)]"}`}>{notice.tone === "error" ? <AlertTriangle size={16} className="mt-0.5 shrink-0 text-[var(--danger-ink)]" aria-hidden="true" /> : <CheckCircle2 size={16} className="mt-0.5 shrink-0 text-[var(--success-ink)]" aria-hidden="true" />}{notice.message}</div> : null}
     </DashboardShell>
   );
