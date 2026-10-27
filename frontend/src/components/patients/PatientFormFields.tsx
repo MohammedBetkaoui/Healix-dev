@@ -99,7 +99,7 @@ export function PatientFormFields({
               ))}
             </Select>
           </Field>
-          <Field label={t("patients.modal.fields.nationalId")} error={errors.nationalId?.message}>
+          <Field label={t("patients.modal.fields.nationalId")} error={errors.nationalId?.message} required>
             <Input className={fieldClass} inputMode="numeric" maxLength={18} placeholder="000000000000000000" {...register("nationalId")} />
           </Field>
           <Field label={t("patients.modal.fields.hospitalRecordNumber")}>

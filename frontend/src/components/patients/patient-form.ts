@@ -15,19 +15,26 @@ import {
 } from "@/types/patient";
 
 export function createPatientFormSchema(t: TranslationFunction) {
+  // Aligned with backend/src/patients/dto/create-patient.dto.ts: the same
+  // minimum lengths (2-character names and commune, 18-digit mandatory NIN,
+  // 6-digit contact phone), otherwise a value accepted here would only fail
+  // with a 400 once reaching the API.
   return z.object({
     address: z.string().trim().min(5, t("patients.modal.errors.address")),
     birthDate: z.string().min(1, t("patients.modal.errors.birthDate")),
-    commune: z.string().trim().min(1, t("patients.modal.errors.commune")),
+    commune: z.string().trim().min(2, t("patients.modal.errors.commune")),
     doctorRegistrationNumber: z.string().trim().min(1, t("patients.modal.errors.doctorRegistrationNumber")),
     email: z.string().trim().refine(
       (value) => !value || z.email().safeParse(value).success,
       { message: t("patients.modal.errors.email") },
     ),
     emergencyContactName: z.string().trim().min(2, t("patients.modal.errors.emergencyContactName")),
-    emergencyContactPhone: z.string().trim().min(6, t("patients.modal.errors.emergencyContactPhone")),
-    firstName: z.string().trim().min(1, t("patients.modal.errors.firstName")),
-    firstNameAr: z.string().trim().min(1, t("patients.modal.errors.firstNameAr")),
+    emergencyContactPhone: z.string().trim().refine(
+      (value) => /^\d{6,32}$/.test(value.replace(/\D/g, "")),
+      { message: t("patients.modal.errors.emergencyContactPhone") },
+    ),
+    firstName: z.string().trim().min(2, t("patients.modal.errors.firstName")),
+    firstNameAr: z.string().trim().min(2, t("patients.modal.errors.firstNameAr")),
     gender: z.string().refine(
       (value) => patientGenderValues.includes(value as PatientGender),
       { message: t("patients.modal.errors.gender") },
@@ -41,10 +48,10 @@ export function createPatientFormSchema(t: TranslationFunction) {
       { message: t("patients.modal.errors.insurance") },
     ),
     insuredNumber: z.string().trim(),
-    lastName: z.string().trim().min(1, t("patients.modal.errors.lastName")),
-    lastNameAr: z.string().trim().min(1, t("patients.modal.errors.lastNameAr")),
+    lastName: z.string().trim().min(2, t("patients.modal.errors.lastName")),
+    lastNameAr: z.string().trim().min(2, t("patients.modal.errors.lastNameAr")),
     nationalId: z.string().trim().refine(
-      (value) => !value || /^\d{18}$/.test(value.replace(/\s/g, "")),
+      (value) => /^\d{18}$/.test(value.replace(/\s/g, "")),
       { message: t("patients.modal.errors.nationalId") },
     ),
     phone: z.string().trim().refine(
