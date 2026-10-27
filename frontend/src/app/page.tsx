@@ -2,21 +2,15 @@ import type { Metadata } from "next";
 import { headers } from "next/headers";
 import Script from "next/script";
 
-import { AiSection } from "@/components/landing/AiSection";
-import { AlgeriaSection } from "@/components/landing/AlgeriaSection";
-import { AudienceSection } from "@/components/landing/AudienceSection";
-import { ClinicalWorkflow } from "@/components/landing/ClinicalWorkflow";
+import { AlgeriaContext, AudienceSplit, ClinicalJourney, HealixAiStory, TrustArchitecture } from "@/components/landing/EditorialSections";
 import { FaqSection } from "@/components/landing/FaqSection";
 import { FinalCta } from "@/components/landing/FinalCta";
 import { HeroSection } from "@/components/landing/HeroSection";
-import { InteroperabilitySection } from "@/components/landing/InteroperabilitySection";
 import { LandingFooter } from "@/components/landing/LandingFooter";
 import { LandingHeader } from "@/components/landing/LandingHeader";
 import { LocaleDocumentSync } from "@/components/landing/LocaleDocumentSync";
-import { PlatformBento } from "@/components/landing/PlatformBento";
 import { PlansSection } from "@/components/landing/PlansSection";
-import { ProductTour } from "@/components/landing/ProductTour";
-import { SecurityArchitecture } from "@/components/landing/SecurityArchitecture";
+import { ProductStage } from "@/components/landing/ProductStage";
 import { TrustBar } from "@/components/landing/TrustBar";
 import styles from "@/components/landing/landing.module.css";
 import { isLocale, type Locale } from "@/i18n";
@@ -62,6 +56,7 @@ export default async function Home({ searchParams }: HomeProps) {
 
   return (
     <div className={styles.landingRoot} lang={locale} dir={direction}>
+      <a className={styles.skipLink} href="#main-content">{locale === "ar" ? "تجاوز إلى المحتوى" : "Aller au contenu"}</a>
       <LocaleDocumentSync locale={locale} />
       {/* next/script (not raw <script>): raw scripts in the RSC payload are
           mounted — never executed — on client-side navigation, which React
@@ -82,23 +77,18 @@ export default async function Home({ searchParams }: HomeProps) {
         dangerouslySetInnerHTML={{ __html: JSON.stringify(structuredData) }}
       />
       <LandingHeader locale={locale} nav={content.nav} />
-      <main>
-        <HeroSection hero={content.hero} />
-        <TrustBar trust={content.trustBar} />
-        <PlatformBento
-          context={content.context}
-          features={content.features}
-        />
-        <ClinicalWorkflow journey={content.journey} />
-        <ProductTour showcase={content.showcase} />
-        <AudienceSection audience={content.audience} screenUi={content.showcase.ui} />
-        <AiSection ai={content.ai} />
-        <InteroperabilitySection interoperability={content.interoperability} />
-        <SecurityArchitecture verification={content.verification} security={content.security} />
-        <AlgeriaSection algeria={content.algeria} />
+      <main id="main-content">
+        <HeroSection locale={locale} />
+        <TrustBar locale={locale} />
+        <ProductStage locale={locale} />
+        <ClinicalJourney locale={locale} />
+        <AudienceSplit locale={locale} />
+        <HealixAiStory locale={locale} />
+        <TrustArchitecture locale={locale} />
+        <AlgeriaContext locale={locale} />
         <PlansSection locale={locale} plans={content.plans} />
         <FaqSection faq={content.faq} />
-        <FinalCta cta={content.finalCta} />
+        <FinalCta locale={locale} />
       </main>
       <LandingFooter footer={content.footer} />
     </div>

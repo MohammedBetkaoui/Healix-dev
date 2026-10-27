@@ -2,10 +2,11 @@ import Link from "next/link";
 import { ArrowUpRight } from "lucide-react";
 
 import { SectionReveal } from "./SectionReveal";
+import { editorialCopy } from "./editorial-copy";
 import styles from "./landing.module.css";
-import type { LandingContent } from "./types";
 
-export function FinalCta({ cta }: { cta: LandingContent["finalCta"] }) {
+export function FinalCta({ locale }: { locale: "fr" | "ar" }) {
+  const cta = editorialCopy[locale].cta;
   return (
     <section className={styles.finalCta} aria-labelledby="final-cta-title">
       <div className={styles.finalCtaPattern} aria-hidden="true" />

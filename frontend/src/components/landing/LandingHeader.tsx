@@ -29,15 +29,13 @@ type LandingHeaderProps = {
 
 const navLinks = [
   ["platform", "#plateforme"],
-  ["solutions", "#product"],
-  ["establishments", "#etablissements"],
-  ["doctors", "#medecins"],
+  ["solutions", "#etablissements"],
   ["ai", "#healix-ai"],
   ["security", "#securite"],
   ["plans", "#offres"],
 ] as const;
 
-const OPEN_BACKGROUND = "rgb(245 241 232 / 92%)";
+const OPEN_BACKGROUND = "rgb(247 244 237 / 96%)";
 const OPEN_BORDER = "rgb(16 47 43 / 12%)";
 
 export function LandingHeader({ locale, nav }: LandingHeaderProps) {
@@ -75,7 +73,7 @@ export function LandingHeader({ locale, nav }: LandingHeaderProps) {
   const backgroundColor = useMotionTemplate`rgb(245 241 232 / ${backgroundAlpha})`;
   const borderAlpha = useTransform(scrollY, [8, 120], [0, 0.12]);
   const borderBottomColor = useMotionTemplate`rgb(16 47 43 / ${borderAlpha})`;
-  const blur = useTransform(scrollY, range, [0, 18]);
+  const blur = useTransform(scrollY, range, [0, 6]);
   const backdropFilter = useMotionTemplate`blur(${blur}px)`;
 
   const switchLocale = (nextLocale: Locale) => {
@@ -106,7 +104,7 @@ export function LandingHeader({ locale, nav }: LandingHeaderProps) {
           : {
               backgroundColor: isOpen ? OPEN_BACKGROUND : backgroundColor,
               borderBottomColor: isOpen ? OPEN_BORDER : borderBottomColor,
-              backdropFilter: isOpen ? "blur(18px)" : backdropFilter,
+              backdropFilter: isOpen ? "blur(6px)" : backdropFilter,
             }
       }
     >
@@ -118,7 +116,6 @@ export function LandingHeader({ locale, nav }: LandingHeaderProps) {
             width={150}
             height={80}
             loading="eager"
-            fetchPriority="high"
             className={styles.logo}
           />
         </Link>

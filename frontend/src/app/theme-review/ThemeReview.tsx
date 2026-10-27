@@ -134,6 +134,11 @@ export function ThemeReview({ view }: { view: string }) {
     for (const days of DASHBOARD_PERIODS) {
       query.setQueryData(["dashboard", "overview", { days }], previewDashboardOverview(days, view !== "doctor"));
     }
+    // The priority card has its own request. Keep the preview offline and
+    // consistent with urgentPending: 0 instead of showing a 401 error.
+    query.setQueryData(["ai-analysis-runs", "list", { decision: "pending", limit: 5, page: 1, sort: "priority" }], {
+      items: [], page: 1, limit: 5, total: 0, totalPages: 0,
+    });
     seedAppointmentsPreview(query);
     seedAiAnalysisWizardPreview(query);
     // GET /subscription/me shape (features/subscriptions/subscriptions.api.ts):

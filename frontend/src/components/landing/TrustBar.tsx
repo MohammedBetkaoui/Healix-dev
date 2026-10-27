@@ -1,23 +1,13 @@
-import { Building2, FlaskConical, ScanLine, Stethoscope, UsersRound } from "lucide-react";
+import { editorialCopy } from "./editorial-copy";
+import styles from "./editorial.module.css";
 
-import { SectionReveal } from "./SectionReveal";
-import styles from "./landing.module.css";
-import type { LandingContent } from "./types";
-
-const trustIcons = [Building2, Stethoscope, UsersRound, ScanLine, FlaskConical];
-
-export function TrustBar({ trust }: { trust: LandingContent["trustBar"] }) {
-  return (
-    <section className={styles.trustBar} aria-label={trust.title}>
-      <SectionReveal className={styles.trustBarInner}>
-        <p>{trust.title}</p>
-        <div>
-          {trust.items.map((item, index) => {
-            const Icon = trustIcons[index];
-            return <span key={item}><Icon aria-hidden="true" />{item}</span>;
-          })}
-        </div>
-      </SectionReveal>
-    </section>
-  );
+export function TrustBar({ locale }: { locale: "fr" | "ar" }) {
+  const copy = editorialCopy[locale].trust;
+  return <section className={styles.trust} aria-label={copy.label}>
+    <div className={styles.trustInner}>
+      <p>{copy.label}</p>
+      <ul>{copy.audiences.map((audience) => <li key={audience}>{audience}</li>)}</ul>
+      <span>{copy.languages}</span>
+    </div>
+  </section>;
 }
