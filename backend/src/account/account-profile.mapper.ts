@@ -18,27 +18,21 @@ export type AccountKind = 'DOCTOR' | 'ESTABLISHMENT';
 
 // The identity the professional verification checked: read-only once the
 // account is VERIFIED. Changing it goes through a new verification request.
+// An establishment account only carries its user-level identity here: the
+// establishment's own identity lives in the verification, not in the account,
+// and the account settings are no longer a back door into it.
 const IDENTITY_FIELDS: Record<AccountKind, readonly ProfileField[]> = {
   DOCTOR: ['fullName', 'speciality', 'wilaya'],
-  ESTABLISHMENT: [
-    'fullName',
-    'establishmentName',
-    'establishmentType',
-    'wilaya',
-  ],
+  ESTABLISHMENT: [],
 };
 
-// What each kind of account has: a doctor has no establishment name.
+// What each kind of account has. An establishment account manages only its
+// personal data (the administrator's own name and phone): the establishment
+// name, type, address and professional contacts belong to the organization
+// module; the legal identity stays in the verification data.
 const KIND_FIELDS: Record<AccountKind, readonly ProfileField[]> = {
   DOCTOR: ['fullName', 'speciality', 'wilaya', 'phone', 'address'],
-  ESTABLISHMENT: [
-    'fullName',
-    'establishmentName',
-    'establishmentType',
-    'wilaya',
-    'phone',
-    'address',
-  ],
+  ESTABLISHMENT: ['fullName', 'phone'],
 };
 
 export const accountProfileSelect = {

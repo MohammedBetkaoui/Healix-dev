@@ -91,7 +91,7 @@ const clinic = (overrides: Partial<AccountProfile> = {}): AccountProfile =>
     establishment: { address: "5 avenue de l’ALN, Blida", managerFullName: "Nadia Hamidi", name: "Clinique El Amel", phone: "0550000002", professionalEmail: "clinic@example.dz", type: "CLINIC", wilaya: "Blida" },
     fullName: "Nadia Hamidi",
     kind: "ESTABLISHMENT",
-    lockedFields: ["fullName", "establishmentName", "establishmentType", "wilaya"],
+    lockedFields: [],
     role: "ESTABLISHMENT_ADMIN",
     ...overrides,
   });
@@ -153,15 +153,20 @@ describe("AccountSettingsPage — profile", () => {
     expect(html).toContain(fr("account.profile.verificationStatuses.PENDING_VERIFICATION"));
   });
 
-  it("locks the name and the type of a verified establishment, and shows the way to the verification", () => {
+  it("keeps only the personal data of an establishment account and points to the organization module", () => {
     answer(mockedProfile, { data: clinic() });
 
     const html = render("ESTABLISHMENT");
 
-    for (const id of ["account-fullName", "account-establishmentName", "account-establishmentType", "account-wilaya"]) {
-      expect(isDisabled(html, id)).toBe(true);
+    // Personal identity and personal phone only: the establishment row is
+    // never a side effect of the account settings.
+    expect(isDisabled(html, "account-fullName")).toBe(false);
+    expect(isDisabled(html, "account-phone")).toBe(false);
+    for (const id of ["account-establishmentName", "account-establishmentType", "account-wilaya", "account-address", "account-speciality"]) {
+      expect(controlTag(html, id)).toBe("");
     }
-    expect(isDisabled(html, "account-address")).toBe(false);
+    expect(html).toContain(fr("account.profile.organizationNote.message"));
+    expect(html).toContain('href="/establishment/organization"');
     expect(html).toContain(fr("account.profile.verificationStatuses.VERIFIED"));
     expect(html).toContain('href="/establishment/verification"');
     expect(html).toContain('href="/establishment/subscription"');

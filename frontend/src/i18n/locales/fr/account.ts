@@ -32,17 +32,20 @@ export const accountFr = {
     },
     fields: {
       fullName: "Nom complet",
-      managerFullName: "Nom du responsable",
       speciality: "Spécialité",
       wilaya: "Wilaya",
-      establishmentName: "Nom de l’établissement",
-      establishmentType: "Type d’établissement",
       email: "E-mail de connexion",
       phone: "Téléphone",
       doctorAddress: "Adresse professionnelle",
-      establishmentAddress: "Adresse de l’établissement",
       professionalEmail: "E-mail professionnel",
       affiliation: "Rattachement",
+    },
+    // Where the establishment data went: the account settings no longer
+    // duplicate the organization form.
+    organizationNote: {
+      message:
+        "Le nom, l’adresse, les contacts professionnels, les horaires et la protection des données de votre établissement se gèrent dans le module Organisation.",
+      open: "Ouvrir l’Organisation",
     },
     affiliation: {
       independent: "Médecin indépendant",

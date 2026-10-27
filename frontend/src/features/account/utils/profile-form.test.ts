@@ -4,7 +4,7 @@ import { dictionaries } from "@/i18n";
 import { translate } from "@/lib/i18n";
 
 import { type AccountProfile, type UpdateProfilePayload } from "../types/account.types";
-import { buildProfilePatch, isFieldLocked, profileFormValues, submitProfile, validateProfile } from "./profile-form";
+import { buildProfilePatch, isFieldLocked, profileFieldsOf, profileFormValues, submitProfile, validateProfile } from "./profile-form";
 
 const t = (key: string, params?: Record<string, string | number>) => translate(dictionaries.fr, key, params);
 
@@ -73,6 +73,56 @@ describe("locked fields", () => {
   });
 });
 
+describe("profile of an establishment account", () => {
+  const establishment = (overrides: Partial<AccountProfile> = {}): AccountProfile => ({
+    ...doctor(),
+    doctor: null,
+    email: "clinic@example.dz",
+    establishment: {
+      address: "5 avenue de l'ALN, Blida",
+      managerFullName: "Nadia Hamidi",
+      name: "Clinique El Amel",
+      phone: "0550000002",
+      professionalEmail: "clinic@example.dz",
+      type: "CLINIC",
+      wilaya: "Blida",
+    },
+    fullName: "Nadia Hamidi",
+    kind: "ESTABLISHMENT",
+    lockedFields: [],
+    phone: "0550000002",
+    role: "ESTABLISHMENT_ADMIN",
+    ...overrides,
+  });
+
+  it("edits only the personal data: fullName and phone", () => {
+    const profile = establishment();
+
+    expect(profileFieldsOf("ESTABLISHMENT")).toEqual(["fullName", "phone"]);
+    expect(buildProfilePatch({ ...profileFormValues(profile), establishmentName: "Autre clinique", fullName: "Nadia Hamidi-Kaci", phone: "0770112233", wilaya: "Oran" }, profile)).toEqual({
+      fullName: "Nadia Hamidi-Kaci",
+      phone: "0770112233",
+    });
+  });
+
+  it("validates the personal fields only, and sends them", async () => {
+    const profile = establishment();
+    const saved = establishment({ isPhoneVerified: false, fullName: "Nadia Hamidi-Kaci", phone: "0770112233" });
+    send.mockResolvedValue(saved);
+
+    await expect(submitProfile({ ...profileFormValues(profile), fullName: "N", address: "ab" }, profile, { send, t })).resolves.toMatchObject({
+      errors: { fullName: t("account.common.required") },
+      status: "invalid",
+    });
+
+    await expect(submitProfile({ ...profileFormValues(profile), fullName: "Nadia Hamidi-Kaci" }, profile, { send, t })).resolves.toEqual({
+      profile: saved,
+      status: "success",
+    });
+    expect(send).toHaveBeenCalledWith({ fullName: "Nadia Hamidi-Kaci" });
+  });
+});
+
 describe("validateProfile", () => {
   it("flags an invalid phone and an address that is too short", () => {
     const profile = doctor();
@@ -90,9 +140,7 @@ describe("submitProfile", () => {
 
     await expect(submitProfile(profileFormValues(profile), profile, { send, t })).resolves.toEqual({ status: "unchanged" });
     expect(send).not.toHaveBeenCalled();
-  });
-
-  it("returns the profile the server answers", async () => {
+  });  it("returns the profile the server answers", async () => {
     const profile = doctor();
     const saved = doctor({ isPhoneVerified: false, phone: "0661234567" });
     send.mockResolvedValue(saved);

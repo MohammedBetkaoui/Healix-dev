@@ -41,18 +41,20 @@ const PROFILE_FIELDS: readonly ProfileField[] = [
 ];
 
 // What each field holds today, to tell a field that changes from one that is
-// sent back as it is (a form sends all of its fields).
+// sent back as it is (a form sends all of its fields). Only the doctor-kind
+// fields can come from a professional profile now: an establishment account
+// edits its user-level data only.
 function currentValues(
   profile: AccountProfile,
 ): Record<ProfileField, string | undefined> {
   return {
-    address: profile.doctor?.address ?? profile.establishment?.address,
-    establishmentName: profile.establishment?.name,
-    establishmentType: profile.establishment?.type,
+    address: profile.doctor?.address,
+    establishmentName: undefined,
+    establishmentType: undefined,
     fullName: profile.fullName,
     phone: profile.phone,
     speciality: profile.doctor?.speciality,
-    wilaya: profile.doctor?.wilaya ?? profile.establishment?.wilaya,
+    wilaya: profile.doctor?.wilaya,
   };
 }
 
@@ -352,29 +354,10 @@ export class AccountService {
           where: { ownerDoctorProfile: { userId } },
         });
       }
-
-      return;
     }
-
-    // The establishment also holds the manager's name and the phone given at
-    // registration: they follow the account.
-    await transaction.establishment.update({
-      data: {
-        ...(has('establishmentName') ? { name: dto.establishmentName } : {}),
-        ...(has('establishmentType') ? { type: dto.establishmentType } : {}),
-        ...(has('wilaya') ? { wilaya: dto.wilaya } : {}),
-        ...(has('address') ? { address: dto.address } : {}),
-        ...(has('fullName') ? { managerFullName: dto.fullName } : {}),
-        ...(has('phone') ? { phone: dto.phone } : {}),
-      },
-      where: { ownerId: userId },
-    });
-
-    if (has('establishmentName') && dto.establishmentName) {
-      await transaction.workspace.updateMany({
-        data: { name: dto.establishmentName },
-        where: { establishment: { ownerId: userId } },
-      });
-    }
+    // An establishment account stops here: the establishment row, its
+    // professional contacts and its workspace name are the organization
+    // module's concern, and the manager's name is not the legal
+    // representative of the establishment.
   }
 }

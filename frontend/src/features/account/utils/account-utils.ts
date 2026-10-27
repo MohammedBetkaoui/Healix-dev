@@ -33,6 +33,10 @@ export function verificationHref(accountType: "DOCTOR" | "ESTABLISHMENT"): strin
   return accountType === "ESTABLISHMENT" ? "/establishment/verification" : "/doctor/verification";
 }
 
+// The organization module: identity, legal information, contacts, hours and
+// the DPO of the establishment. Not an account setting.
+export const organizationHref = "/establishment/organization";
+
 export function subscriptionHref(accountType: "DOCTOR" | "ESTABLISHMENT"): string {
   return accountType === "ESTABLISHMENT" ? "/establishment/subscription" : "/doctor/subscription";
 }

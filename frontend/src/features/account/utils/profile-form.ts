@@ -13,10 +13,12 @@ import { classifyAccountError } from "./account-errors";
 export type ProfileFormValues = Record<ProfileField, string>;
 export type ProfileFormErrors = Partial<Record<ProfileField, string>>;
 
-// Same as backend/src/account: what each kind of account has.
+// Same as backend/src/account: what each kind of account has. An
+// establishment account manages only its personal data; the establishment row
+// (name, type, address, professional contacts) is the organization module's.
 const FIELDS_OF_KIND: Record<AccountKind, readonly ProfileField[]> = {
   DOCTOR: ["fullName", "speciality", "wilaya", "phone", "address"],
-  ESTABLISHMENT: ["fullName", "establishmentName", "establishmentType", "wilaya", "phone", "address"],
+  ESTABLISHMENT: ["fullName", "phone"],
 };
 
 const PHONE_REGEX = /^\+?[0-9\s().-]{8,20}$/;

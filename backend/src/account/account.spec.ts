@@ -587,31 +587,25 @@ describe('AccountService.updateProfile', () => {
     expect(audits).toHaveLength(0);
   });
 
-  it('refuses the identity of an establishment once the account is verified', async () => {
+  it('refuses establishment fields from an establishment account: they live in the organization module', async () => {
     const { account, database } = await setup('VERIFIED');
 
-    const refusal = await account
-      .updateProfile(
+    await expect(
+      account.updateProfile(
         'user-clinic',
         profileChange({
           establishmentName: 'Autre clinique',
           establishmentType: 'HOSPITAL',
           wilaya: 'Oran',
         }),
-      )
-      .catch((error: unknown) => error as ConflictException);
-
-    expect(refusal).toBeInstanceOf(ConflictException);
-    const body = (refusal as ConflictException).getResponse() as {
-      code: string;
-      fields: string[];
-    };
-    expect(body.code).toBe('PROFILE_FIELD_LOCKED');
-    expect([...body.fields].sort()).toEqual([
-      'establishmentName',
-      'establishmentType',
-      'wilaya',
-    ]);
+      ),
+    ).rejects.toMatchObject({
+      response: {
+        code: 'PROFILE_FIELD_NOT_APPLICABLE',
+        fields: ['wilaya', 'establishmentName', 'establishmentType'],
+      },
+      status: 400,
+    });
     expect(database.establishments[0].name).toBe('Clinique El Amel');
   });
 
@@ -642,24 +636,23 @@ describe('AccountService.updateProfile', () => {
     },
   );
 
-  it('accepts the identity of an establishment before the approval, with its workspace and manager', async () => {
+  it('lets an establishment account change only its personal name, and its establishment stays untouched', async () => {
     const { account, database } = await setup('DRAFT');
 
     const profile = await account.updateProfile(
       'user-clinic',
-      profileChange({
-        establishmentName: 'Clinique Ibn Sina',
-        establishmentType: 'HOSPITAL',
-        fullName: 'Nadia Hamidi-Kaci',
-      }),
+      profileChange({ fullName: 'Nadia Hamidi-Kaci' }),
     );
 
-    expect(profile.establishment).toMatchObject({
-      managerFullName: 'Nadia Hamidi-Kaci',
-      name: 'Clinique Ibn Sina',
-      type: 'HOSPITAL',
+    expect(profile).toMatchObject({ fullName: 'Nadia Hamidi-Kaci' });
+    expect(database.users[1].fullName).toBe('Nadia Hamidi-Kaci');
+    // The establishment identity and its workspace name are the organization
+    // module's concern, never a side effect of the account settings.
+    expect(database.establishments[0]).toMatchObject({
+      managerFullName: 'Nadia Hamidi',
+      name: 'Clinique El Amel',
     });
-    expect(database.workspaces[1].name).toBe('Clinique Ibn Sina');
+    expect(database.workspaces[1].name).toBe('Clinique El Amel');
   });
 
   it('lets a verified account send its locked fields back unchanged', async () => {
@@ -707,23 +700,35 @@ describe('AccountService.updateProfile', () => {
     expect(JSON.stringify(audits)).not.toContain('0661');
   });
 
-  it('gives an establishment its new phone and address too', async () => {
+  it('gives an establishment account its personal phone, and the establishment keeps its own contacts', async () => {
     const { account, database } = await setup('VERIFIED');
+
+    await expect(
+      account.updateProfile(
+        'user-clinic',
+        profileChange({
+          address: '9 rue de la Paix, Blida',
+          phone: '0770 11 22 33',
+        }),
+      ),
+    ).rejects.toMatchObject({
+      response: {
+        code: 'PROFILE_FIELD_NOT_APPLICABLE',
+        fields: ['address'],
+      },
+      status: 400,
+    });
 
     const profile = await account.updateProfile(
       'user-clinic',
-      profileChange({
-        address: '9 rue de la Paix, Blida',
-        phone: '0770 11 22 33',
-      }),
+      profileChange({ phone: '0770 11 22 33' }),
     );
 
     expect(profile.phone).toBe('0770 11 22 33');
-    expect(profile.establishment).toMatchObject({
-      address: '9 rue de la Paix, Blida',
-      phone: '0770 11 22 33',
-    });
     expect(database.users[1].phone).toBe('0770 11 22 33');
+    // The professional phone of the establishment is not the personal phone
+    // of its administrator any more.
+    expect(database.establishments[0].phone).toBe('0550000002');
   });
 
   it('refuses a phone number another account holds, and writes nothing', async () => {
@@ -799,12 +804,10 @@ describe('AccountService.updateProfile', () => {
     });
     expect(clinic).toMatchObject({
       kind: 'ESTABLISHMENT',
-      lockedFields: [
-        'fullName',
-        'establishmentName',
-        'establishmentType',
-        'wilaya',
-      ],
+      // Nothing on the account form is the verified establishment identity:
+      // the account only carries personal data, the establishment reads its
+      // authority from the verification.
+      lockedFields: [],
     });
     expect(doctor).not.toHaveProperty('passwordHash');
   });

@@ -1,16 +1,16 @@
 "use client";
 
-import { BadgeCheck, CreditCard, ShieldAlert, ShieldCheck } from "lucide-react";
+import { BadgeCheck, Building2, CreditCard, ShieldAlert, ShieldCheck } from "lucide-react";
 import Link from "next/link";
 import { type FormEvent, useState } from "react";
 
 import { type TranslationFunction } from "@/lib/i18n";
-import { ALGERIAN_WILAYAS, ESTABLISHMENT_TYPE_OPTIONS } from "@/types/auth";
+import { ALGERIAN_WILAYAS } from "@/types/auth";
 
 import { useAccountProfile, useUpdateAccountProfile } from "../hooks/use-account";
 import { type AccountKind, type AccountProfile, type AccountVerificationStatus, type ProfileField } from "../types/account.types";
 import { classifyAccountError } from "../utils/account-errors";
-import { subscriptionHref, verificationHref } from "../utils/account-utils";
+import { organizationHref, subscriptionHref, verificationHref } from "../utils/account-utils";
 import { buildProfilePatch, isFieldLocked, type ProfileFormErrors, type ProfileFormValues, profileFormValues, submitProfile } from "../utils/profile-form";
 import { SelectField, TextField } from "./AccountFields";
 import { AccountErrorState, AccountSkeleton, InlineMessage, SectionCard } from "./AccountStateViews";
@@ -114,23 +114,21 @@ export function ProfileForm({ accountType, profile, t }: { accountType: AccountK
   };
 
   const wilayaOptions = ALGERIAN_WILAYAS.map((wilaya) => ({ label: wilaya, value: wilaya }));
-  const typeOptions = ESTABLISHMENT_TYPE_OPTIONS.map(({ translationKey, value }) => ({ label: t(`register.establishmentTypes.${translationKey}`), value }));
-  const placeholder = t("account.profile.selectPlaceholder");
 
   return (
     <form onSubmit={(event) => void onSubmit(event)} noValidate aria-busy={update.isPending} className="space-y-5">
+      {isEstablishment ? <OrganizationNotice t={t} /> : null}
       <SectionCard title={t("account.profile.sections.identity")} description={t("account.profile.subtitle")}>
         <div className="grid gap-4 md:grid-cols-2">
-          <TextField id="account-fullName" label={t(isEstablishment ? "account.profile.fields.managerFullName" : "account.profile.fields.fullName")} value={values.fullName} onChange={change("fullName")} locked={locked("fullName")} error={errors.fullName} autoComplete="name" t={t} />
-          {isEstablishment ? (
+          {/* The name of the connected person only: the establishment identity
+              is not the account's and lives in the organization module. */}
+          <TextField id="account-fullName" label={t("account.profile.fields.fullName")} value={values.fullName} onChange={change("fullName")} locked={locked("fullName")} error={errors.fullName} autoComplete="name" t={t} />
+          {!isEstablishment ? (
             <>
-              <TextField id="account-establishmentName" label={t("account.profile.fields.establishmentName")} value={values.establishmentName} onChange={change("establishmentName")} locked={locked("establishmentName")} error={errors.establishmentName} t={t} />
-              <SelectField id="account-establishmentType" label={t("account.profile.fields.establishmentType")} value={values.establishmentType} onChange={change("establishmentType")} options={typeOptions} placeholder={placeholder} locked={locked("establishmentType")} error={errors.establishmentType} t={t} />
+              <TextField id="account-speciality" label={t("account.profile.fields.speciality")} value={values.speciality} onChange={change("speciality")} locked={locked("speciality")} error={errors.speciality} t={t} />
+              <SelectField id="account-wilaya" label={t("account.profile.fields.wilaya")} value={values.wilaya} onChange={change("wilaya")} options={wilayaOptions} placeholder={t("account.profile.selectPlaceholder")} locked={locked("wilaya")} error={errors.wilaya} t={t} />
             </>
-          ) : (
-            <TextField id="account-speciality" label={t("account.profile.fields.speciality")} value={values.speciality} onChange={change("speciality")} locked={locked("speciality")} error={errors.speciality} t={t} />
-          )}
-          <SelectField id="account-wilaya" label={t("account.profile.fields.wilaya")} value={values.wilaya} onChange={change("wilaya")} options={wilayaOptions} placeholder={placeholder} locked={locked("wilaya")} error={errors.wilaya} t={t} />
+          ) : null}
           {profile.doctor ? (
             <div>
               <p className="text-[.8rem] font-medium text-[var(--text-primary)]">{t("account.profile.fields.affiliation")}</p>
@@ -157,7 +155,9 @@ export function ProfileForm({ accountType, profile, t }: { accountType: AccountK
             dir="ltr"
             t={t}
           />
-          <TextField className="md:col-span-2" id="account-address" label={t(isEstablishment ? "account.profile.fields.establishmentAddress" : "account.profile.fields.doctorAddress")} value={values.address} onChange={change("address")} error={errors.address} autoComplete="street-address" t={t} />
+          {profile.doctor ? (
+            <TextField className="md:col-span-2" id="account-address" label={t("account.profile.fields.doctorAddress")} value={values.address} onChange={change("address")} error={errors.address} autoComplete="street-address" t={t} />
+          ) : null}
         </div>
       </SectionCard>
 
@@ -171,5 +171,22 @@ export function ProfileForm({ accountType, profile, t }: { accountType: AccountK
         </button>
       </div>
     </form>
+  );
+}
+
+// The establishment data are not account data: the settings page says where
+// they live instead of duplicating the organization form.
+function OrganizationNotice({ t }: { t: TranslationFunction }) {
+  return (
+    <section className="flex flex-col gap-3 rounded-[var(--radius-md)] border border-[var(--line-soft)] bg-[var(--surface-muted)] p-4 sm:flex-row sm:items-center sm:justify-between" role="note">
+      <div className="flex min-w-0 items-start gap-3">
+        <Building2 className="mt-0.5 shrink-0 text-[var(--text-secondary)]" size={17} strokeWidth={1.7} aria-hidden="true" />
+        <p className="text-xs leading-5 text-[var(--text-secondary)]">{t("account.profile.organizationNote.message")}</p>
+      </div>
+      <Link href={organizationHref} className="clinical-link shrink-0 text-xs">
+        <CreditCard size={13} className="me-1 inline" aria-hidden="true" />
+        {t("account.profile.organizationNote.open")}
+      </Link>
+    </section>
   );
 }

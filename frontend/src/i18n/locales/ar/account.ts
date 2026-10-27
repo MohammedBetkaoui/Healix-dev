@@ -32,17 +32,20 @@ export const accountAr = {
     },
     fields: {
       fullName: "الاسم الكامل",
-      managerFullName: "اسم المسؤول",
       speciality: "التخصص",
       wilaya: "الولاية",
-      establishmentName: "اسم المؤسسة",
-      establishmentType: "نوع المؤسسة",
       email: "البريد الإلكتروني للدخول",
       phone: "الهاتف",
       doctorAddress: "العنوان المهني",
-      establishmentAddress: "عنوان المؤسسة",
       professionalEmail: "البريد الإلكتروني المهني",
       affiliation: "الانتماء",
+    },
+    // Where the establishment data went: the account settings no longer
+    // duplicate the organization form.
+    organizationNote: {
+      message:
+        "يتم تسيير اسم مؤسستكم وعنوانها وجهات الاتصال المهنية وأوقات العمل وحماية البيانات من وحدة المؤسسة.",
+      open: "فتح وحدة المؤسسة",
     },
     affiliation: {
       independent: "طبيب مستقل",
