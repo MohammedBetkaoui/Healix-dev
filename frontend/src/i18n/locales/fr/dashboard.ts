@@ -131,6 +131,7 @@ export const dashboardFr = {
       verification: "Vérification",
       subscription: "Abonnement",
       organization: "Organisation",
+      team: "Équipe",
       settings: "Paramètres",
       logout: "Déconnexion",
     },

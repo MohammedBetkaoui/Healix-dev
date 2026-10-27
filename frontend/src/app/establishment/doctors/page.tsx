@@ -1,11 +1,7 @@
-import { DoctorsTeamPage } from "@/components/doctors/DoctorsTeamPage";
-import { requireAuthenticatedPage } from "@/lib/auth/server-auth";
+import { permanentRedirect } from "next/navigation";
 
-export default async function Page() {
-  await requireAuthenticatedPage(
-    ["ESTABLISHMENT_ADMIN"],
-    "/establishment/doctors",
-  );
-
-  return <DoctorsTeamPage />;
+// The team module: the doctors page of the establishment, replaced by the
+// team management itself. Bookmarks in the older address still work.
+export default function Page() {
+  permanentRedirect("/establishment/team");
 }

@@ -17,6 +17,7 @@ import { prescriptionsFr } from "./locales/fr/prescriptions";
 import { reportsFr } from "./locales/fr/reports";
 import { registerFr } from "./locales/fr/register";
 import { subscriptionFr } from "./locales/fr/subscription";
+import { teamFr } from "./locales/fr/team";
 import { verificationFr } from "./locales/fr/verification";
 import { adminAuthAr } from "./locales/ar/admin-auth";
 import { accountAr } from "./locales/ar/account";
@@ -37,6 +38,7 @@ import { prescriptionsAr } from "./locales/ar/prescriptions";
 import { reportsAr } from "./locales/ar/reports";
 import { registerAr } from "./locales/ar/register";
 import { subscriptionAr } from "./locales/ar/subscription";
+import { teamAr } from "./locales/ar/team";
 import { verificationAr } from "./locales/ar/verification";
 
 export const locales = ["fr", "ar"] as const;
@@ -65,6 +67,7 @@ export const dictionaries = {
     reports: reportsFr,
     register: registerFr,
     subscription: subscriptionFr,
+    team: teamFr,
     verification: verificationFr,
   },
   ar: {
@@ -87,6 +90,7 @@ export const dictionaries = {
     reports: reportsAr,
     register: registerAr,
     subscription: subscriptionAr,
+    team: teamAr,
     verification: verificationAr,
   },
 } as const;

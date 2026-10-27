@@ -52,12 +52,6 @@ export const establishmentNavSections: DashboardNavSection[] = [
         key: "consultations",
         labelKey: "dashboard.sidebar.establishment.consultations",
       },
-      {
-        href: "/establishment/doctors",
-        icon: Stethoscope,
-        key: "doctors",
-        labelKey: "dashboard.clinical.nav.team",
-      },
     ],
   },
   {
@@ -155,6 +149,12 @@ export const establishmentNavSections: DashboardNavSection[] = [
         icon: Building2,
         key: "organization",
         labelKey: "dashboard.sidebar.establishment.organization",
+      },
+      {
+        href: "/establishment/team",
+        icon: Users,
+        key: "team",
+        labelKey: "dashboard.sidebar.establishment.team",
       },
       {
         href: "/establishment/settings",

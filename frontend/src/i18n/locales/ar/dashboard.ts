@@ -129,6 +129,7 @@ export const dashboardAr = {
       verification: "التحقق",
       subscription: "الاشتراك",
       organization: "المنظمة",
+      team: "الفريق",
       settings: "الإعدادات",
       logout: "تسجيل الخروج",
     },
