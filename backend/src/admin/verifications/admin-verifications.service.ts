@@ -18,6 +18,7 @@ import { resolve } from 'node:path';
 
 import { AuditLogsService } from '../../audit-logs/audit-logs.service';
 import { AccountStatus } from '../../common/enums/account-status.enum';
+import { AccountType } from '../../common/enums/account-type.enum';
 import { DoctorType } from '../../common/enums/doctor-type.enum';
 import {
   requiredDoctorDocumentTypes,
@@ -54,6 +55,21 @@ type DocumentStreamResult = {
   mimeType: string;
   size: number;
 };
+
+// How a verification request maps to the account of the user: every doctor
+// type (independent or affiliated) flips the same DoctorProfile and User, and
+// only the billable accounts — the establishment itself and the independent
+// doctor — start a free trial (an affiliated doctor has no subscription of
+// their own: they work under the one of their affiliation).
+function isDoctorVerification(type: string): boolean {
+  return type === 'INDEPENDENT_DOCTOR' || type === 'AFFILIATED_DOCTOR';
+}
+
+function billableAccountTypeOf(type: string): AccountType | null {
+  if (type === 'ESTABLISHMENT') return AccountType.ESTABLISHMENT;
+  if (type === 'INDEPENDENT_DOCTOR') return AccountType.INDEPENDENT_DOCTOR;
+  return null;
+}
 
 @Injectable()
 export class AdminVerificationsService {
@@ -198,7 +214,9 @@ export class AdminVerificationsService {
         });
       }
 
-      if (request.type === 'INDEPENDENT_DOCTOR' && request.doctorProfileId) {
+      // Both doctor types update the same profile with the same status: only
+      // the request type tells them apart.
+      if (isDoctorVerification(request.type) && request.doctorProfileId) {
         await transaction.doctorProfile.update({
           data: { verificationStatus: VerificationStatus.VERIFIED },
           where: { id: request.doctorProfileId },
@@ -212,12 +230,16 @@ export class AdminVerificationsService {
 
       // The free trial (14 days), given once per account, in the same
       // transaction as the verification: the account is ACTIVE and TRIALING
-      // when it commits. Null if the account already had a subscription.
-      const startedTrial = await this.subscriptionsService.startTrial(
-        request.userId,
-        request.type,
-        transaction,
-      );
+      // when it commits. Null when the account already had a subscription,
+      // or when the account cannot hold one (an affiliated doctor).
+      const accountType = billableAccountTypeOf(request.type);
+      const startedTrial = accountType
+        ? await this.subscriptionsService.startTrial(
+            request.userId,
+            accountType,
+            transaction,
+          )
+        : null;
 
       await this.auditLogsService.createAuditLog(
         {
@@ -287,7 +309,8 @@ export class AdminVerificationsService {
         });
       }
 
-      if (request.type === 'INDEPENDENT_DOCTOR' && request.doctorProfileId) {
+      // Both doctor types reject the same profile the same way.
+      if (isDoctorVerification(request.type) && request.doctorProfileId) {
         await transaction.doctorProfile.update({
           data: { verificationStatus: VerificationStatus.REJECTED },
           where: { id: request.doctorProfileId },

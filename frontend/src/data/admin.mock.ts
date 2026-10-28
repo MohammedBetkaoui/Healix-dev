@@ -97,6 +97,22 @@ export const mockVerificationRequests: VerificationRequest[] = [
     updatedAt: "2026-06-20",
     wilaya: "Constantine",
   },
+  {
+    completenessScore: 92,
+    commune: "Centre",
+    documentsCompleted: 6,
+    documentsTotal: 6,
+    email: "dr.ferahtia@clinique-amel.dz",
+    id: "vr_doc_aff_001",
+    phone: "+213555888999",
+    priority: "NORMAL",
+    requesterName: "Dr Ramzi Ferahtia",
+    status: "PENDING_VERIFICATION",
+    submittedAt: "2026-06-20",
+    type: "AFFILIATED_DOCTOR",
+    updatedAt: "2026-06-24",
+    wilaya: "Blida",
+  },
 ];
 
 export const mockVerificationDetails: VerificationDetail[] = [

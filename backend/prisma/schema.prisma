@@ -70,6 +70,7 @@ enum SubscriptionEventType {
 enum VerificationRequestType {
   ESTABLISHMENT
   INDEPENDENT_DOCTOR
+  AFFILIATED_DOCTOR
 }
 
 enum AccountType {

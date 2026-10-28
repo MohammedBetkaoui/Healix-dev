@@ -56,7 +56,10 @@ export type AdminDashboardStats = {
   independentDoctors: number;
 };
 
-export type VerificationRequestType = "ESTABLISHMENT" | "INDEPENDENT_DOCTOR";
+export type VerificationRequestType =
+  | "ESTABLISHMENT"
+  | "INDEPENDENT_DOCTOR"
+  | "AFFILIATED_DOCTOR";
 
 export type VerificationStatus =
   | "NOT_STARTED"

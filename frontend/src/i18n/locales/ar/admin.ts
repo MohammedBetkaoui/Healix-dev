@@ -281,6 +281,7 @@ export const adminAr = {
     type: {
       ESTABLISHMENT: "مؤسسة صحية",
       INDEPENDENT_DOCTOR: "طبيب مستقل",
+      AFFILIATED_DOCTOR: "طبيب تابع لمؤسسة",
     },
   },
   common: {

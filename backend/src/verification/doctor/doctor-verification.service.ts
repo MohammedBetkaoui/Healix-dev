@@ -470,7 +470,12 @@ export class DoctorVerificationService {
         doctorProfileId: doctorProfile.id,
         establishmentId: null,
         userId,
-        type: 'INDEPENDENT_DOCTOR',
+        // The request carries the practice of the doctor: an affiliated
+        // doctor's request is distinguishable from an independent doctor's
+        // one, approved and rejected the same way by the back-office.
+        type: doctorProfile.isIndependent
+          ? 'INDEPENDENT_DOCTOR'
+          : 'AFFILIATED_DOCTOR',
         status: VerificationStatus.DRAFT,
         doctorCurrentStep: DoctorVerificationStep.IDENTITY,
         doctorData: {

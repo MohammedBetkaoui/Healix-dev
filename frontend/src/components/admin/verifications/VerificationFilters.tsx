@@ -28,6 +28,7 @@ type VerificationFiltersProps = {
 const verificationTypes: VerificationRequestType[] = [
   "ESTABLISHMENT",
   "INDEPENDENT_DOCTOR",
+  "AFFILIATED_DOCTOR",
 ];
 
 const verificationStatuses: VerificationStatus[] = [

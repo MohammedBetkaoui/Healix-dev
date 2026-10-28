@@ -12,7 +12,11 @@ import {
 import { VerificationStatus } from '../../../common/enums/verification-status.enum';
 import { trimStringValue } from '../../../common/utils/transform-input';
 
-const verificationTypes = ['ESTABLISHMENT', 'INDEPENDENT_DOCTOR'] as const;
+const verificationTypes = [
+  'ESTABLISHMENT',
+  'INDEPENDENT_DOCTOR',
+  'AFFILIATED_DOCTOR',
+] as const;
 const sortFields = ['submittedAt', 'updatedAt', 'status', 'type'] as const;
 const sortOrders = ['asc', 'desc'] as const;
 

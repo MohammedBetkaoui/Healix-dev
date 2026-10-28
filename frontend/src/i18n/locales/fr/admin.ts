@@ -295,6 +295,7 @@ export const adminFr = {
     type: {
       ESTABLISHMENT: "Établissement",
       INDEPENDENT_DOCTOR: "Médecin indépendant",
+      AFFILIATED_DOCTOR: "Médecin affilié",
     },
   },
   common: {
