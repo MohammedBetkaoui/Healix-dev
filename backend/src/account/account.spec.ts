@@ -917,6 +917,27 @@ describe('AccountService — profiles across the workspace roles', () => {
       type: 'CLINIC',
       wilaya: 'Blida',
     });
+    // The owner's workspace access, computed by the server: every capability
+    // of the matrix, subscription, verification and the invitations of
+    // admins included.
+    expect(profile.workspaceAccess).toEqual({
+      capabilities: [
+        'organization.read',
+        'organization.update',
+        'organization.updateOperational',
+        'team.read',
+        'team.readBasic',
+        'team.inviteDoctor',
+        'team.inviteAdmin',
+        'team.revokeInvitation',
+        'team.suspendMember',
+        'team.reactivateMember',
+        'team.sendPasswordReset',
+        'subscription.manage',
+        'verification.manage',
+      ],
+      role: 'OWNER',
+    });
   });
 
   it('opens the account of an invited secondary administrator through their workspace', async () => {
@@ -948,6 +969,24 @@ describe('AccountService — profiles across the workspace roles', () => {
       professionalEmail: 'clinic@example.dz',
       type: 'CLINIC',
       wilaya: 'Blida',
+    });
+    // The invited administrator runs the workspace day to day — operational,
+    // never owner-only: no subscription, no verification, no invitation of
+    // another administrator.
+    expect(profile.workspaceAccess).toEqual({
+      capabilities: [
+        'organization.read',
+        'organization.readBasic',
+        'organization.updateOperational',
+        'team.read',
+        'team.readBasic',
+        'team.inviteDoctor',
+        'team.revokeInvitation',
+        'team.suspendMember',
+        'team.reactivateMember',
+        'team.sendPasswordReset',
+      ],
+      role: 'ADMIN',
     });
   });
 
@@ -1066,6 +1105,8 @@ describe('AccountService — profiles across the workspace roles', () => {
       verificationStatus: 'VERIFIED',
     });
     expect(profile.establishment).toBeNull();
+    // A doctor account carries no workspace management access.
+    expect(profile.workspaceAccess).toBeNull();
   });
 });
 

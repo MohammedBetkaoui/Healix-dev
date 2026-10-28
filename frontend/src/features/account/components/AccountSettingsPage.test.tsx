@@ -81,6 +81,7 @@ const doctor = (overrides: Partial<AccountProfile> = {}): AccountProfile => ({
   role: "INDEPENDENT_DOCTOR",
   subscriptionStatus: "NO_PLAN",
   verificationStatus: "VERIFIED",
+  workspaceAccess: null,
   ...overrides,
 });
 

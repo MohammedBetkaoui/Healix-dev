@@ -24,6 +24,13 @@ export type AccountSubscriptionStatus = "NO_PLAN" | "PAYMENT_PENDING" | "TRIALIN
 
 export type EstablishmentTypeValue = "CLINIC" | "HOSPITAL" | "IMAGING_CENTER" | "LABORATORY" | "GROUP_PRACTICE";
 
+/** The workspace management access, computed by the backend (see the account mapper). */
+export type WorkspaceAccess = {
+  role: "OWNER" | "ADMIN";
+  /** The capabilities of the role, listed by the server alone. */
+  capabilities: string[];
+};
+
 /** GET /account. */
 export type AccountProfile = {
   id: string;
@@ -57,6 +64,8 @@ export type AccountProfile = {
   } | null;
   /** Read-only once the verification is approved. */
   lockedFields: ProfileField[];
+  /** The workspace management access of an establishment account; doctors answer null. */
+  workspaceAccess: WorkspaceAccess | null;
 };
 
 /** PATCH /account/profile: only what changes. */

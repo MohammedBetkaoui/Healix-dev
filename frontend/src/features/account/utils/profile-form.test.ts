@@ -24,6 +24,7 @@ const doctor = (overrides: Partial<AccountProfile> = {}): AccountProfile => ({
   role: "INDEPENDENT_DOCTOR",
   subscriptionStatus: "NO_PLAN",
   verificationStatus: "NOT_STARTED",
+  workspaceAccess: null,
   ...overrides,
 });
 const verifiedDoctor = () => doctor({ lockedFields: ["fullName", "speciality", "wilaya"], verificationStatus: "VERIFIED" });

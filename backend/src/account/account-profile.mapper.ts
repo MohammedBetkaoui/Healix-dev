@@ -6,6 +6,10 @@ import {
   type Prisma,
 } from '@prisma/client';
 
+import {
+  capabilitiesForWorkspaceRole,
+  type WorkspaceCapability,
+} from '../common/authorization/capabilities';
 import { UserRole } from '../common/enums/user-role.enum';
 import { VerificationStatus } from '../common/enums/verification-status.enum';
 
@@ -123,6 +127,30 @@ export type EstablishmentAccountContext = {
   membershipRole: WorkspaceMembershipRole | null;
   profile: EstablishmentAccountRow;
 };
+
+// The access the workspace grants, computed by the backend: the role of the
+// member plus the capabilities of that role (the matrix is the server's
+// alone). The account never lets the client re-derive them.
+export type WorkspaceAccess = {
+  capabilities: WorkspaceCapability[];
+  role: WorkspaceMembershipRole;
+};
+
+export function workspaceAccessOf(
+  context: EstablishmentAccountContext,
+): WorkspaceAccess {
+  // No membership row read the establishment: the manager scope is the
+  // owner's one (the account of the founder).
+  const role = context.membershipRole ?? WorkspaceMembershipRole.OWNER;
+
+  return {
+    capabilities: capabilitiesForWorkspaceRole(
+      role,
+      WorkspaceType.ESTABLISHMENT,
+    ),
+    role,
+  };
+}
 
 export function accountKindOf(role: string): AccountKind | null {
   if (role === UserRole.ESTABLISHMENT_ADMIN) {
@@ -242,6 +270,12 @@ export function toAccountProfile(user: AccountUserRow) {
         }
       : null,
     lockedFields: [...lockedFieldsOf(kind, verificationStatus)],
+    // The workspace access of the account, when it manages an
+    // establishment: doctors answer null — their workspace membership is
+    // a clinical one, the capabilities above are management-only.
+    workspaceAccess: establishmentContext
+      ? workspaceAccessOf(establishmentContext)
+      : null,
   };
 }
 
