@@ -13,6 +13,7 @@ import {
   IntegrationFixtures,
   readTestDatabase,
 } from '../common/testing/integration-fixtures';
+import { nextSequenceValue } from '../common/utils/clinical-document-number';
 import { PrescriptionsModule } from '../prescriptions/prescriptions.module';
 import { PrescriptionsService } from '../prescriptions/prescriptions.service';
 import { PrismaService } from '../prisma/prisma.service';
@@ -46,7 +47,9 @@ describeWithDatabase(
     const uploadRoot = mkdtempSync(join(tmpdir(), 'healix-numbering-'));
 
     const resetYear = () =>
-      prisma.clinicalDocumentSequence.deleteMany({ where: { year: YEAR } });
+      prisma.clinicalDocumentSequence.deleteMany({
+        where: { year: { in: [YEAR, YEAR + 1] } },
+      });
     const sequenceOf = (type: string) =>
       prisma.clinicalDocumentSequence.findUnique({
         where: { type_year: { type, year: YEAR } },
@@ -249,6 +252,40 @@ describeWithDatabase(
       );
       // The two types count apart.
       expect((await sequenceOf('PRESCRIPTION'))?.lastValue).toBe(PARALLEL);
+    }, 60_000);
+
+    it('counts the same type apart from one year to the next', async () => {
+      const otherYear = YEAR + 1;
+      const sequenceOfOtherYear = () =>
+        prisma.clinicalDocumentSequence.findUnique({
+          where: { type_year: { type: 'CLINICAL_REPORT', year: otherYear } },
+        });
+      expect(await sequenceOfOtherYear()).toBeNull();
+      const before = (await sequenceOf('CLINICAL_REPORT'))!.lastValue;
+
+      const first = await prisma.$transaction((tx) =>
+        nextSequenceValue(tx, 'CLINICAL_REPORT', otherYear),
+      );
+      const second = await prisma.$transaction((tx) =>
+        nextSequenceValue(tx, 'CLINICAL_REPORT', otherYear),
+      );
+      expect([first, second]).toEqual([1, 2]);
+
+      // The counter of the first year is not touched by the other one.
+      expect((await sequenceOf('CLINICAL_REPORT'))!.lastValue).toBe(before);
+    }, 60_000);
+
+    it('gives its number back to the year when a transaction is rolled back', async () => {
+      const before = (await sequenceOf('CLINICAL_REPORT'))!.lastValue;
+
+      await expect(
+        prisma.$transaction(async (tx) => {
+          await nextSequenceValue(tx, 'CLINICAL_REPORT', YEAR);
+          throw new Error('the caller aborts');
+        }),
+      ).rejects.toThrow('the caller aborts');
+
+      expect((await sequenceOf('CLINICAL_REPORT'))!.lastValue).toBe(before);
     }, 60_000);
   },
 );

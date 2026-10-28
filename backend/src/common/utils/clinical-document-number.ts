@@ -35,13 +35,15 @@ export async function nextSequenceValue(
   type: ClinicalDocumentType,
   year: number,
 ): Promise<number> {
+  // `last_value` is quoted: MySQL 8.0+ reserves LAST_VALUE (window
+  // function), and an unquoted column of that name dies with error 1064.
   await transaction.$executeRaw`
-    INSERT INTO clinical_document_sequences (id, type, year, last_value)
+    INSERT INTO \`clinical_document_sequences\` (\`id\`, \`type\`, \`year\`, \`last_value\`)
     VALUES (UUID(), ${type}, ${year}, 1)
-    ON DUPLICATE KEY UPDATE last_value = last_value + 1`;
+    ON DUPLICATE KEY UPDATE \`last_value\` = \`last_value\` + 1`;
   const rows = await transaction.$queryRaw<Array<{ last_value: number }>>`
-    SELECT last_value FROM clinical_document_sequences
-    WHERE type = ${type} AND year = ${year}`;
+    SELECT \`last_value\` FROM \`clinical_document_sequences\`
+    WHERE \`type\` = ${type} AND \`year\` = ${year}`;
 
   return Number(rows[0].last_value);
 }
