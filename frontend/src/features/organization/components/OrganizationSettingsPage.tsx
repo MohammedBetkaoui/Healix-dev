@@ -3,7 +3,7 @@
 import { DashboardShell } from "@/components/dashboard/layout/DashboardShell";
 import { establishmentNavSections } from "@/components/dashboard/layout/navigation";
 import { useCurrentUser } from "@/features/auth/hooks/use-current-user";
-import { useEstablishmentVerificationPrefill } from "@/features/verification/hooks/use-establishment-verification-prefill";
+import { useAccountProfile } from "@/features/account/hooks/use-account";
 import { getAccountInitials } from "@/lib/format/get-account-initials";
 import { useStoredLocale, useTranslation } from "@/lib/i18n";
 
@@ -23,7 +23,7 @@ export function OrganizationSettingsPage() {
   const { locale } = useStoredLocale();
   const { t } = useTranslation(locale);
   const currentUser = useCurrentUser(undefined, { enabled: true });
-  const prefill = useEstablishmentVerificationPrefill({ enabled: true });
+  const account = useAccountProfile();
   const query = useOrganization();
   const initials = getAccountInitials(currentUser.data?.fullName);
 
@@ -43,7 +43,7 @@ export function OrganizationSettingsPage() {
         roleKey: "dashboard.common.roles.establishment",
         workspaceSubtitle:
           query.data?.identity.name ||
-          prefill.data?.establishment.name ||
+          account.data?.establishment?.name ||
           t("dashboard.clinical.workspace"),
       }}
     >

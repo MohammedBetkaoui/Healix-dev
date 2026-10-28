@@ -5,7 +5,7 @@ import { useState } from "react";
 import { DashboardShell } from "@/components/dashboard/layout/DashboardShell";
 import { doctorNavSections, establishmentNavSections } from "@/components/dashboard/layout/navigation";
 import { useCurrentUser } from "@/features/auth/hooks/use-current-user";
-import { useEstablishmentVerificationPrefill } from "@/features/verification/hooks/use-establishment-verification-prefill";
+import { useAccountProfile } from "@/features/account/hooks/use-account";
 import { getAccountInitials } from "@/lib/format/get-account-initials";
 import { useStoredLocale, useTranslation } from "@/lib/i18n";
 import { cn } from "@/lib/utils";
@@ -26,7 +26,7 @@ export function NotificationsPage({ accountType }: { accountType: "ESTABLISHMENT
   const query = useNotifications(filters);
   const actions = useNotificationActions();
   const currentUser = useCurrentUser(undefined, { enabled: true });
-  const prefill = useEstablishmentVerificationPrefill({ enabled: accountType === "ESTABLISHMENT" });
+  const profile = useAccountProfile();
   const account = accountType === "ESTABLISHMENT" ? "establishment" : "doctor";
   const items = query.data?.pages.flatMap((page) => page.data) ?? [];
   const groups = groupNotifications(items);
@@ -41,7 +41,7 @@ export function NotificationsPage({ accountType }: { accountType: "ESTABLISHMENT
   const initials = getAccountInitials(currentUser.data?.fullName);
   const shellProps = accountType === "ESTABLISHMENT" ? {
     accountType: "ESTABLISHMENT" as const, navSections: establishmentNavSections,
-    user: { accountType: "ESTABLISHMENT" as const, footerSubtitle: t("dashboard.clinical.administration"), initials, name: currentUser.data?.fullName || t("dashboard.clinical.administration"), roleKey: "dashboard.common.roles.establishment", workspaceSubtitle: prefill.data?.establishment.name || t("dashboard.clinical.workspace") },
+    user: { accountType: "ESTABLISHMENT" as const, footerSubtitle: t("dashboard.clinical.administration"), initials, name: currentUser.data?.fullName || t("dashboard.clinical.administration"), roleKey: "dashboard.common.roles.establishment", workspaceSubtitle: profile.data?.establishment?.name || t("dashboard.clinical.workspace") },
   } : {
     accountType: "INDEPENDENT_DOCTOR" as const, navSections: doctorNavSections,
     user: { accountType: "INDEPENDENT_DOCTOR" as const, footerSubtitle: t("dashboard.clinical.doctor.practice"), initials, name: currentUser.data?.fullName || t("dashboard.clinical.doctor.workspace"), roleKey: "dashboard.common.roles.doctor", workspaceSubtitle: t("dashboard.clinical.doctor.workspace") },

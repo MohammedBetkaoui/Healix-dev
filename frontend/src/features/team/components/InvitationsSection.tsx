@@ -1,6 +1,6 @@
 "use client";
 
-import { Send, XCircle } from "lucide-react";
+import { Clock3, Mail, Send, XCircle } from "lucide-react";
 import { useState } from "react";
 
 import { type Locale } from "@/i18n";
@@ -15,7 +15,6 @@ import {
 } from "../utils/team-utils";
 import { type TeamActions } from "./team-actions";
 import { InlineMessage, SectionCard, StatusBadge } from "./TeamStateViews";
-import { InviteDrawer } from "./InviteDrawer";
 
 type InvitationsSectionProps = {
   actions: Pick<
@@ -39,7 +38,6 @@ export function InvitationsSection({
     message: string;
     tone: "error" | "success";
   } | null>(null);
-  const [drawerOpen, setDrawerOpen] = useState(false);
 
   // Resend and revoke are decided by the server per invitation role: the
   // interface only opens the door when the actor can govern invitations.
@@ -75,61 +73,61 @@ export function InvitationsSection({
       <SectionCard
         title={t("team.invitations.title")}
         description={t("team.invitations.subtitle")}
+        count={invitations?.length ?? 0}
       >
-        {canManage ? (
-          <div className="mb-4">
-            <button
-              className="clinical-button clinical-button-primary text-xs"
-              onClick={() => setDrawerOpen(true)}
-              type="button"
-            >
-              {t("team.members.invite")}
-            </button>
-          </div>
-        ) : null}
-        {drawerOpen ? (
-          <InviteDrawer
-            canInviteAdmin={capabilities.includes("team.inviteAdmin")}
-            mutation={actions.createInvitation}
-            onClosed={() => setDrawerOpen(false)}
-            onInvited={(email) =>
-              setNotice({
-                message: t("team.notices.invited", { email }),
-                tone: "success",
-              })
-            }
-            t={t}
-          />
-        ) : null}
-        <div className="divide-y divide-[var(--line-soft)]">
+        <div className="team-invitation-list">
+          {(invitations?.length ?? 0) > 0 ? (
+            <div className="team-invitation-head" aria-hidden="true">
+              <span>{t("team.invitations.recipient")}</span>
+              <span>{t("team.invitations.tracking")}</span>
+              <span>{t("team.members.columns.actions")}</span>
+            </div>
+          ) : null}
           {(invitations ?? []).length === 0 ? (
-            <p className="py-4 text-xs text-[var(--text-secondary)]">
-              {t("team.invitations.empty")}
-            </p>
+            <div className="team-empty">
+              <Mail size={26} strokeWidth={1.5} aria-hidden="true" />
+              <p>{t("team.invitations.empty")}</p>
+              <span>{t("team.invitations.emptyHint")}</span>
+            </div>
           ) : (
             (invitations ?? []).map((invitation) => (
               <article
-                className="flex flex-col gap-3 py-4"
+                className="team-invitation-row"
                 data-invitation-id={invitation.id}
                 key={invitation.id}
               >
-                <div className="flex flex-wrap items-center gap-2">
-                  <span
-                    className="text-sm font-semibold text-[var(--text-primary)]"
-                    dir="ltr"
-                  >
-                    {invitation.email}
+                <div className="flex min-w-0 items-start gap-3">
+                  <span className="team-avatar" aria-hidden="true">
+                    <Mail size={18} strokeWidth={1.8} />
                   </span>
-                  <StatusBadge
-                    label={t(`team.members.roles.${invitation.role}`)}
-                    tone={memberRoleTone(invitation.role)}
-                  />
+                  <div className="min-w-0">
+                    <span
+                      className="block break-all text-sm font-semibold text-[var(--text-primary)]"
+                      dir="ltr"
+                    >
+                      {invitation.email}
+                    </span>
+                    <div className="mt-2 flex flex-wrap items-center gap-1.5">
+                      <StatusBadge
+                        label={t(`team.members.roles.${invitation.role}`)}
+                        tone={memberRoleTone(invitation.role)}
+                      />
+                    </div>
+                    {invitation.invitedByFullName ? (
+                      <p className="team-joined">
+                        {t("team.invitations.sentBy", {
+                          name: invitation.invitedByFullName,
+                        })}
+                      </p>
+                    ) : null}
+                  </div>
+                </div>
+                <div className="team-invitation-tracking">
                   <StatusBadge
                     label={t(`team.invitations.statuses.${invitation.status}`)}
                     tone={invitationStatusTone(invitation.status)}
+                    dot
                   />
-                </div>
-                <div className="text-xs leading-5 text-[var(--text-secondary)]">
                   <p>
                     {t("team.invitations.sentOn", {
                       date: formatTeamDate(invitation.createdAt, locale),
@@ -140,18 +138,11 @@ export function InvitationsSection({
                       date: formatTeamDate(invitation.expiresAt, locale),
                     })}
                   </p>
-                  {invitation.invitedByFullName ? (
-                    <p>
-                      {t("team.invitations.sentBy", {
-                        name: invitation.invitedByFullName,
-                      })}
-                    </p>
-                  ) : null}
                 </div>
                 {canManage &&
                 (invitation.status === "PENDING" ||
                   invitation.status === "EXPIRED") ? (
-                  <div className="flex flex-wrap items-center gap-2">
+                  <div className="team-invitation-actions">
                     <button
                       className="clinical-button text-xs"
                       disabled={actions.resendInvitation.isPending}
@@ -169,7 +160,7 @@ export function InvitationsSection({
                     </button>
                     {invitation.status === "PENDING" ? (
                       <button
-                        className="clinical-button text-xs"
+                        className="clinical-button team-action-danger text-xs"
                         disabled={actions.revokeInvitation.isPending}
                         onClick={() => onRevoke(invitation)}
                         title={t("team.invitations.actions.revokeNote")}
@@ -190,6 +181,12 @@ export function InvitationsSection({
             ))
           )}
         </div>
+        <footer className="team-directory-footer">
+          <p className="team-plan-note">
+            <Clock3 size={14} aria-hidden="true" />
+            {t("team.invitations.validity")}
+          </p>
+        </footer>
       </SectionCard>
       {notice ? (
         <InlineMessage message={notice.message} tone={notice.tone} />

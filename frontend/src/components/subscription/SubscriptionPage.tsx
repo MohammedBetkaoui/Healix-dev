@@ -31,7 +31,7 @@ import {
   toSubscriptionContext,
   toSubscriptionPlan,
 } from "@/features/subscriptions/subscriptions.api";
-import { useEstablishmentVerificationPrefill } from "@/features/verification/hooks/use-establishment-verification-prefill";
+import { useAccountProfile } from "@/features/account/hooks/use-account";
 import { getAccountInitials } from "@/lib/format/get-account-initials";
 import { getVerificationHref } from "@/lib/auth/auth-routes";
 import { useStoredLocale, useTranslation } from "@/lib/i18n";
@@ -100,7 +100,7 @@ export function SubscriptionPage({ accountType }: SubscriptionPageProps) {
   const currentUser = useCurrentUser(undefined, { enabled: true });
   // Establishment name for the workspace subtitle; skipped for doctor
   // accounts (ESTABLISHMENT_ADMIN-only endpoint).
-  const prefill = useEstablishmentVerificationPrefill({ enabled: accountType === "ESTABLISHMENT" });
+  const account = useAccountProfile();
   const initials = getAccountInitials(currentUser.data?.fullName);
   const dashboardUser =
     accountType === "ESTABLISHMENT"
@@ -110,7 +110,7 @@ export function SubscriptionPage({ accountType }: SubscriptionPageProps) {
           initials,
           name: currentUser.data?.fullName || t("dashboard.clinical.administration"),
           roleKey: "dashboard.common.roles.establishment",
-          workspaceSubtitle: prefill.data?.establishment.name || t("dashboard.clinical.workspace"),
+          workspaceSubtitle: account.data?.establishment?.name || t("dashboard.clinical.workspace"),
         }
       : {
           accountType,

@@ -385,6 +385,146 @@
 }
 .clinical-theme .workspace-stack { display: grid; grid-template-columns: minmax(0, 1fr); gap: 24px; }
 .clinical-theme .workspace-stack > * { min-width: 0; }
+
+/* Establishment team: a compact clinical directory, shared by light and dark themes. */
+.clinical-theme .team-workspace { gap: 26px; }
+.clinical-theme .team-page-heading { display: flex; align-items: center; justify-content: space-between; gap: 24px; padding-block: 4px; }
+.clinical-theme .team-workspace-label { display: flex; align-items: center; gap: 7px; color: var(--text-secondary); font-size: .75rem; font-weight: 500; }
+.clinical-theme .team-workspace-label svg { color: var(--medical); flex-shrink: 0; }
+.clinical-theme .team-page-heading h1 { margin-top: 9px; color: var(--text-primary); font-size: clamp(1.65rem, 2.4vw, 2rem); font-weight: 650; letter-spacing: -.045em; line-height: 1.25; }
+.clinical-theme .team-page-description { margin-top: 8px; color: var(--text-secondary); font-size: .825rem; line-height: 1.7; }
+.clinical-theme .team-overview { display: grid; grid-auto-flow: column; grid-auto-columns: minmax(0, 1fr); overflow: hidden; border: 1px solid var(--border); border-radius: var(--radius-md); background: var(--surface); }
+.clinical-theme .team-summary-card { min-width: 0; padding: 20px 24px; border-inline-end: 1px solid var(--border); }
+.clinical-theme .team-summary-card:last-child { border-inline-end: 0; }
+.clinical-theme .team-summary-heading { display: flex; align-items: center; justify-content: space-between; gap: 12px; color: var(--text-secondary); font-size: .75rem; font-weight: 500; }
+.clinical-theme .team-summary-heading svg { color: var(--medical); flex-shrink: 0; }
+.clinical-theme .team-summary-value { margin-top: 14px; color: var(--text-primary); font-size: 1.9rem; font-weight: 600; letter-spacing: -.045em; line-height: 1; }
+.clinical-theme .team-summary-suffix { margin-inline-start: 7px; color: var(--text-muted); font-size: .9rem; font-weight: 400; letter-spacing: 0; }
+.clinical-theme .team-summary-caption { margin-top: 10px; color: var(--text-muted); font-size: .68rem; line-height: 1.5; }
+.clinical-theme .team-capacity-line { display: flex; align-items: center; justify-content: space-between; gap: 20px; }
+.clinical-theme .team-capacity-track { display: block; width: 86px; height: 4px; margin-top: 14px; overflow: hidden; border-radius: 4px; background: var(--surface-muted); }
+.clinical-theme .team-capacity-track > span { display: block; height: 100%; border-radius: inherit; background: var(--medical); }
+.clinical-theme .team-content { min-width: 0; border: 1px solid var(--border); border-radius: var(--radius-md); background: var(--surface); box-shadow: 0 2px 4px rgb(16 47 43 / 2%); }
+.clinical-theme .team-tabs { overflow-x: auto; padding-inline: 24px; border-bottom: 1px solid var(--border); }
+.clinical-theme .team-tabs ul { display: flex; width: max-content; gap: 28px; }
+.clinical-theme .team-tab { display: inline-flex; min-height: 57px; align-items: center; gap: 8px; padding: 14px 2px 12px; border-bottom: 2px solid transparent; color: var(--text-secondary); font-size: .8rem; font-weight: 500; white-space: nowrap; transition: color 140ms, border-color 140ms; }
+.clinical-theme .team-tab:hover { color: var(--medical); }
+.clinical-theme .team-tab[aria-current="page"] { border-bottom-color: var(--medical); color: var(--medical); font-weight: 600; }
+.clinical-theme .team-tab-count { display: inline-grid; min-width: 22px; height: 20px; place-items: center; padding-inline: 5px; border-radius: 5px; background: var(--surface-muted); color: var(--text-secondary); font-size: .65rem; }
+.clinical-theme .team-tab-count[data-pending] { background: var(--warning-soft); color: var(--warning-ink); }
+.clinical-theme .team-section-heading { padding: 23px 24px 19px; }
+.clinical-theme .team-section-heading h2 { display: flex; align-items: center; gap: 9px; font-size: .95rem; font-weight: 600; }
+.clinical-theme .team-section-heading > p { margin-top: 5px; color: var(--text-secondary); font-size: .75rem; line-height: 1.6; }
+.clinical-theme .team-section-count { color: var(--text-muted); font-size: .75rem; font-weight: 400; }
+.clinical-theme .team-toolbar { display: flex; align-items: center; gap: 16px; padding: 0 24px 20px; }
+.clinical-theme .team-search { display: flex; min-width: 0; flex: 1 1 240px; max-width: 420px; align-items: center; gap: 10px; padding-inline: 12px; border: 1px solid var(--border); border-radius: var(--radius-sm); background: var(--surface); color: var(--text-muted); }
+.clinical-theme .team-search:focus-within { border-color: var(--medical); outline: 2px solid var(--medical-soft); }
+.clinical-theme .team-search svg { flex-shrink: 0; }
+.clinical-theme .team-search input { width: 100%; min-width: 0; height: 39px; border: 0; background: transparent; color: var(--text-primary); font-size: .75rem; outline: none; box-shadow: none; }
+.clinical-theme .team-search input::placeholder { color: var(--text-muted); opacity: 1; }
+.clinical-theme .team-filters { display: flex; align-items: center; gap: 8px; margin-inline-start: auto; }
+.clinical-theme .team-filter-icon { margin-inline-end: 4px; color: var(--text-muted); flex-shrink: 0; }
+.clinical-theme .team-select { position: relative; display: flex; align-items: center; }
+.clinical-theme .team-select select { max-width: 190px; height: 41px; appearance: none; padding: 0 12px; padding-inline-end: 32px; border: 1px solid var(--border); border-radius: var(--radius-sm); background: var(--surface); color: var(--text-secondary); font-size: .75rem; cursor: pointer; }
+.clinical-theme .team-select > svg { position: absolute; inset-inline-end: 10px; color: var(--text-muted); pointer-events: none; }
+.clinical-theme .team-clear-filters { display: grid; width: 34px; height: 40px; flex-shrink: 0; place-items: center; color: var(--text-secondary); border-radius: var(--radius-sm); }
+.clinical-theme .team-clear-filters:hover { background: var(--surface-muted); }
+.clinical-theme .team-directory { width: 100%; border-collapse: collapse; table-layout: fixed; text-align: start; }
+.clinical-theme .team-directory th, .clinical-theme .team-invitation-head { padding: 11px 20px; border-block: 1px solid var(--border); background: color-mix(in srgb, var(--surface-muted) 65%, var(--surface)); color: var(--text-secondary); font-size: .67rem; font-weight: 500; text-align: start; }
+.clinical-theme .team-directory th:first-child { width: 40%; padding-inline-start: 24px; }
+.clinical-theme .team-directory th:nth-child(2) { width: 29%; }
+.clinical-theme .team-directory th:last-child { width: 68px; }
+.clinical-theme .team-directory td { padding: 19px 20px; border-bottom: 1px solid var(--line-soft); vertical-align: middle; overflow-wrap: anywhere; }
+.clinical-theme .team-directory td:first-child { padding-inline-start: 24px; }
+.clinical-theme .team-directory tbody tr:last-child td { border-bottom: 0; }
+.clinical-theme .team-member-row:hover { background: color-mix(in srgb, var(--surface-muted) 35%, var(--surface)); }
+.clinical-theme .team-member-identity { display: flex; min-width: 0; align-items: center; gap: 12px; }
+.clinical-theme .team-avatar { display: grid; width: 40px; height: 40px; flex: none; place-items: center; border: 1px solid var(--border); border-radius: 50%; background: var(--surface-muted); color: var(--text-secondary); font-size: .75rem; font-weight: 600; letter-spacing: .02em; }
+.clinical-theme .team-avatar[data-role="DOCTOR"] { background: var(--medical-soft); border-color: var(--accent-line); color: var(--medical); }
+.clinical-theme .team-self-label { padding: 1px 5px; border-radius: 4px; background: var(--surface-muted); color: var(--text-secondary); font-size: .6rem; font-weight: 500; }
+.clinical-theme .team-joined { margin-top: 5px; color: var(--text-muted); font-size: .65rem; line-height: 1.5; }
+.clinical-theme .team-role-label { display: flex; align-items: center; gap: 6px; color: var(--text-primary); font-size: .75rem; font-weight: 500; }
+.clinical-theme .team-role-label svg { color: var(--text-muted); flex-shrink: 0; }
+.clinical-theme .team-doctor-details { display: grid; justify-items: start; gap: 5px; margin-top: 6px; color: var(--text-secondary); font-size: .67rem; line-height: 1.5; }
+.clinical-theme .team-doctor-details .team-status-badge { padding: 0; border: 0; background: transparent; font-size: .64rem; font-weight: 500; }
+.clinical-theme .team-status-dot { width: 5px; height: 5px; flex-shrink: 0; border-radius: 50%; background: currentColor; }
+.clinical-theme .team-email-warning { margin-top: 6px; color: var(--warning-ink); font-size: .65rem; line-height: 1.5; }
+.clinical-theme .team-member-menu { position: relative; }
+.clinical-theme .team-member-menu > summary { display: grid; width: 34px; height: 34px; place-items: center; border: 1px solid transparent; border-radius: var(--radius-sm); color: var(--text-secondary); cursor: pointer; list-style: none; }
+.clinical-theme .team-member-menu > summary::-webkit-details-marker { display: none; }
+.clinical-theme .team-member-menu > summary:hover, .clinical-theme .team-member-menu[open] > summary { border-color: var(--border); background: var(--surface-muted); color: var(--text-primary); }
+.clinical-theme .team-member-actions { position: absolute; z-index: 10; inset-inline-end: 0; top: 39px; display: grid; width: max-content; min-width: 190px; max-width: 260px; padding: 5px; border: 1px solid var(--border); border-radius: var(--radius-sm); background: var(--surface); box-shadow: var(--shadow-raised); }
+.clinical-theme .team-menu-action { display: flex; min-height: 38px; align-items: center; gap: 7px; padding: 8px 10px; border-radius: 4px; color: var(--text-primary); font-size: .72rem; text-align: start; cursor: pointer; }
+.clinical-theme .team-menu-action:hover { background: var(--surface-muted); }
+.clinical-theme .team-menu-action:disabled { opacity: .5; cursor: wait; }
+.clinical-theme .team-workspace .team-action-danger { color: var(--danger-ink); }
+.clinical-theme .team-workspace .team-action-danger:hover { border-color: var(--danger-line); background: var(--danger-soft); }
+.clinical-theme .team-directory-footer { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 10px 20px; padding: 15px 24px; border-top: 1px solid var(--border); color: var(--text-secondary); font-size: .67rem; line-height: 1.5; }
+.clinical-theme .team-plan-note { display: flex; align-items: center; gap: 7px; }
+.clinical-theme .team-plan-note svg { flex-shrink: 0; color: var(--text-muted); }
+.clinical-theme .team-empty { display: flex; min-height: 240px; flex-direction: column; align-items: center; justify-content: center; gap: 12px; padding: 36px 24px; color: var(--text-secondary); font-size: .8rem; text-align: center; }
+.clinical-theme .team-empty > svg { color: var(--medical); }
+.clinical-theme .team-empty > span { max-width: 360px; color: var(--text-muted); font-size: .75rem; }
+.clinical-theme .team-invitation-row, .clinical-theme .team-invitation-head { display: grid; grid-template-columns: minmax(0, 1.2fr) minmax(0, 1fr) auto; align-items: center; gap: 20px; padding-inline: 24px; }
+.clinical-theme .team-invitation-head > :last-child { min-width: 176px; text-align: end; }
+.clinical-theme .team-invitation-row { padding-block: 20px; border-bottom: 1px solid var(--line-soft); }
+.clinical-theme .team-invitation-row:last-child { border-bottom: 0; }
+.clinical-theme .team-invitation-tracking > p { margin-top: 5px; color: var(--text-muted); font-size: .65rem; line-height: 1.5; }
+.clinical-theme .team-invitation-actions { display: flex; flex-wrap: wrap; gap: 8px; justify-content: flex-end; }
+.clinical-theme .team-invitation-actions .clinical-button { min-height: 34px; padding: 6px 9px; font-size: .7rem; }
+.clinical-theme .team-role-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 16px; padding: 0 24px 24px; }
+.clinical-theme .team-role-card { padding: 20px; border: 1px solid var(--border); border-radius: var(--radius-sm); border-top: 3px solid var(--border-strong); }
+.clinical-theme .team-role-card[data-role-card="DOCTOR"] { border-top-color: var(--medical); }
+.clinical-theme .team-role-heading { display: flex; align-items: center; gap: 10px; padding-bottom: 16px; border-bottom: 1px solid var(--line-soft); }
+.clinical-theme .team-summary-icon { display: grid; width: 34px; height: 34px; flex: none; place-items: center; border-radius: var(--radius-sm); background: var(--surface-muted); color: var(--medical); }
+.clinical-theme .team-roles-note { display: flex; align-items: flex-start; gap: 9px; padding: 16px 24px; border-top: 1px solid var(--border); color: var(--text-secondary); font-size: .72rem; line-height: 1.7; }
+@media (max-width: 1150px) {
+  .clinical-theme .team-toolbar { flex-wrap: wrap; gap: 12px; }
+  .clinical-theme .team-search { max-width: none; }
+  .clinical-theme .team-filters { margin-inline-start: 0; }
+  .clinical-theme .team-summary-card { padding: 18px; }
+  .clinical-theme .team-directory th:first-child { width: 38%; }
+  .clinical-theme .team-directory td, .clinical-theme .team-directory th { padding-inline: 12px; }
+  .clinical-theme .team-invitation-row, .clinical-theme .team-invitation-head { grid-template-columns: minmax(0, 1.2fr) minmax(0, 1fr); }
+  .clinical-theme .team-invitation-head > :last-child { display: none; }
+  .clinical-theme .team-invitation-actions { grid-column: 2; justify-content: flex-start; }
+  .clinical-theme .team-role-grid { grid-template-columns: 1fr; }
+}
+@media (max-width: 767px) {
+  .clinical-theme .team-page-heading { flex-direction: column; align-items: flex-start; gap: 16px; }
+  .clinical-theme .team-overview { grid-auto-flow: row; grid-template-columns: 1fr; }
+  .clinical-theme .team-summary-card { display: grid; grid-template-columns: 1fr auto; gap: 7px 16px; padding: 16px; border-inline-end: 0; border-bottom: 1px solid var(--border); }
+  .clinical-theme .team-summary-card:last-child { border-bottom: 0; }
+  .clinical-theme .team-summary-heading { justify-content: flex-start; flex-direction: row-reverse; gap: 8px; }
+  .clinical-theme .team-summary-value { margin-top: 0; font-size: 1.5rem; }
+  .clinical-theme .team-summary-caption { grid-column: 1 / -1; margin-top: 0; }
+  .clinical-theme .team-capacity-track { display: none; }
+  .clinical-theme .team-tabs { padding-inline: 16px; }
+  .clinical-theme .team-tabs ul { gap: 20px; }
+  .clinical-theme .team-tab { min-height: 53px; font-size: .75rem; }
+  .clinical-theme .team-section-heading { padding: 20px 16px 16px; }
+  .clinical-theme .team-toolbar { flex-direction: column; align-items: stretch; padding: 0 16px 16px; }
+  .clinical-theme .team-search { flex-basis: auto; }
+  .clinical-theme .team-filters { flex-wrap: wrap; }
+  .clinical-theme .team-filter-icon { display: none; }
+  .clinical-theme .team-select { flex: 1; min-width: 0; }
+  .clinical-theme .team-select select { width: 100%; max-width: none; min-width: 0; }
+  .clinical-theme .team-directory, .clinical-theme .team-directory tbody { display: block; }
+  .clinical-theme .team-directory thead { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
+  .clinical-theme .team-directory .team-member-row { position: relative; display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 12px; padding: 18px 16px; border-top: 1px solid var(--line-soft); }
+  .clinical-theme .team-directory td, .clinical-theme .team-directory td:first-child { display: block; padding: 0; border: 0; }
+  .clinical-theme .team-directory td:first-child { grid-column: 1; }
+  .clinical-theme .team-member-details { grid-column: 1 / -1; padding-inline-start: 52px !important; }
+  .clinical-theme .team-member-status { grid-column: 1 / -1; padding-inline-start: 52px !important; }
+  .clinical-theme .team-actions-cell { grid-column: 2; grid-row: 1; align-self: start; }
+  .clinical-theme .team-directory-footer { padding: 14px 16px; }
+  .clinical-theme .team-invitation-head { display: none; }
+  .clinical-theme .team-invitation-row { grid-template-columns: 1fr; gap: 14px; padding: 20px 16px; border-top: 1px solid var(--line-soft); border-bottom: 0; }
+  .clinical-theme .team-invitation-actions { grid-column: 1; }
+  .clinical-theme .team-invitation-tracking, .clinical-theme .team-invitation-actions { padding-inline-start: 52px; }
+  .clinical-theme .team-role-grid { padding: 0 16px 20px; }
+  .clinical-theme .team-roles-note { padding: 16px; }
+}
 .clinical-theme .workspace-split { display: grid; grid-template-columns: minmax(0, 1.65fr) minmax(280px, 1fr); gap: 20px; align-items: start; }
 .clinical-theme .clinical-section-heading { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 12px; padding: 18px 20px; }
 .clinical-theme .clinical-section-heading h2 { font-size: 1rem; font-weight: 650; }

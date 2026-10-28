@@ -24,7 +24,7 @@ import { useReadOnlyAction } from "@/features/subscriptions/hooks/use-read-only-
 import { useSubscriptionPlans } from "@/features/subscriptions/hooks/use-subscription-plans";
 import { toSubscriptionPlan } from "@/features/subscriptions/subscriptions.api";
 import { findUpgradePlan, isPipelineLocked } from "@/features/subscriptions/utils/entitlements-presentation";
-import { useEstablishmentVerificationPrefill } from "@/features/verification/hooks/use-establishment-verification-prefill";
+import { useAccountProfile } from "@/features/account/hooks/use-account";
 import { getAccountInitials } from "@/lib/format/get-account-initials";
 import { useStoredLocale, useTranslation } from "@/lib/i18n";
 
@@ -50,7 +50,7 @@ export function AiAnalysesHubPage({ accountType }: AiAnalysesHubPageProps) {
   const { locale } = useStoredLocale();
   const { t } = useTranslation(locale);
   const currentUser = useCurrentUser(undefined, { enabled: true });
-  const prefill = useEstablishmentVerificationPrefill({ enabled: accountType === "ESTABLISHMENT" });
+  const account = useAccountProfile();
   const initials = getAccountInitials(currentUser.data?.fullName);
   const [sheetModelId, setSheetModelId] = useState<AiModelId | null>(null);
   const [activeModule, setActiveModule] = useState<AiModule | "all">("all");
@@ -67,7 +67,7 @@ export function AiAnalysesHubPage({ accountType }: AiAnalysesHubPageProps) {
     .map((id) => aiModels.find((model) => model.id === id)).filter((model) => model !== undefined);
   const visiblePipelines = catalogPipelines.filter((pipeline) => activeModule === "all" || pipeline.module === activeModule);
   const workspaceName = accountType === "ESTABLISHMENT"
-    ? prefill.data?.establishment.name || t("dashboard.clinical.administration")
+    ? account.data?.establishment?.name || t("dashboard.clinical.administration")
     : currentUser.data?.fullName || t("dashboard.clinical.doctor.workspace");
   const availability = getPipelineAvailability(selected, serviceStatus);
   // The plan decides which chains are open (segmentation is a Premium matter),
@@ -110,7 +110,7 @@ export function AiAnalysesHubPage({ accountType }: AiAnalysesHubPageProps) {
     ? {
         accountType: "ESTABLISHMENT" as const,
         navSections: establishmentNavSections,
-        user: { accountType: "ESTABLISHMENT" as const, footerSubtitle: t("dashboard.clinical.administration"), initials, name: currentUser.data?.fullName || t("dashboard.clinical.administration"), roleKey: "dashboard.common.roles.establishment", workspaceSubtitle: prefill.data?.establishment.name || t("dashboard.clinical.workspace") },
+        user: { accountType: "ESTABLISHMENT" as const, footerSubtitle: t("dashboard.clinical.administration"), initials, name: currentUser.data?.fullName || t("dashboard.clinical.administration"), roleKey: "dashboard.common.roles.establishment", workspaceSubtitle: account.data?.establishment?.name || t("dashboard.clinical.workspace") },
       }
     : {
         accountType: "INDEPENDENT_DOCTOR" as const,

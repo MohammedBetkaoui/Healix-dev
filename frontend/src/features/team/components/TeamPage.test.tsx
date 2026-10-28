@@ -1,7 +1,7 @@
 import { renderToStaticMarkup } from "react-dom/server";
 
 import { useCurrentUser } from "@/features/auth/hooks/use-current-user";
-import { useEstablishmentVerificationPrefill } from "@/features/verification/hooks/use-establishment-verification-prefill";
+import { useAccountProfile } from "@/features/account/hooks/use-account";
 import { dictionaries } from "@/i18n";
 import { translate } from "@/lib/i18n";
 
@@ -18,14 +18,8 @@ jest.mock("@/features/auth/hooks/use-logout", () => ({
 jest.mock("@/features/auth/hooks/use-current-user", () => ({
   useCurrentUser: jest.fn(),
 }));
-jest.mock(
-  "@/features/verification/hooks/use-establishment-verification-prefill",
-  () => ({
-    useEstablishmentVerificationPrefill: jest.fn(),
-  }),
-);
-// The shell reads the workspace access to gate the owner-only menu entries;
-// with no profile the gated entries hide and the others stay.
+// The account profile names the workspace (heading and shell subtitle); the
+// shell reads the workspace access to gate the owner-only menu entries.
 jest.mock("@/features/account/hooks/use-account", () => ({
   useAccountProfile: jest.fn(() => ({ data: undefined })),
 }));
@@ -100,7 +94,7 @@ jest.mock("../hooks/use-team", () => {
 
 const mockedTeam = useTeam as jest.Mock;
 const mockedCurrentUser = useCurrentUser as jest.Mock;
-const mockedPrefill = useEstablishmentVerificationPrefill as jest.Mock;
+const mockedAccount = useAccountProfile as jest.Mock;
 const fr = (key: string, params?: Record<string, string | number>) =>
   translate(dictionaries.fr, key, params);
 
@@ -161,7 +155,7 @@ beforeEach(() => {
   answer(mockedCurrentUser, {
     data: { id: "u-owner", fullName: "Nadia Hamidi" },
   });
-  answer(mockedPrefill, {
+  answer(mockedAccount, {
     data: { establishment: { name: "Clinique El Amel" } },
   });
 });

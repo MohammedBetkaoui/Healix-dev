@@ -7,7 +7,7 @@ import { useSearchParams } from "next/navigation";
 import { DashboardShell } from "@/components/dashboard/layout/DashboardShell";
 import { doctorNavSections, establishmentNavSections } from "@/components/dashboard/layout/navigation";
 import { useCurrentUser } from "@/features/auth/hooks/use-current-user";
-import { useEstablishmentVerificationPrefill } from "@/features/verification/hooks/use-establishment-verification-prefill";
+import { useAccountProfile } from "@/features/account/hooks/use-account";
 import { getAccountInitials } from "@/lib/format/get-account-initials";
 import { useStoredLocale, useTranslation } from "@/lib/i18n";
 
@@ -33,7 +33,7 @@ export function AccountSettingsPage({ accountType }: AccountSettingsPageProps) {
   const { locale, setLocale } = useStoredLocale();
   const { t } = useTranslation(locale);
   const currentUser = useCurrentUser(undefined, { enabled: true });
-  const prefill = useEstablishmentVerificationPrefill({ enabled: accountType === "ESTABLISHMENT" });
+  const account = useAccountProfile();
   const initials = getAccountInitials(currentUser.data?.fullName);
   // The address names the section (`?tab=security`): it can be shared.
   const tab = parseAccountTab(useSearchParams()?.get("tab"));
@@ -42,7 +42,7 @@ export function AccountSettingsPage({ accountType }: AccountSettingsPageProps) {
     ? {
         accountType: "ESTABLISHMENT" as const,
         navSections: establishmentNavSections,
-        user: { accountType: "ESTABLISHMENT" as const, footerSubtitle: t("dashboard.clinical.administration"), initials, name: currentUser.data?.fullName || t("dashboard.clinical.administration"), roleKey: "dashboard.common.roles.establishment", workspaceSubtitle: prefill.data?.establishment.name || t("dashboard.clinical.workspace") },
+        user: { accountType: "ESTABLISHMENT" as const, footerSubtitle: t("dashboard.clinical.administration"), initials, name: currentUser.data?.fullName || t("dashboard.clinical.administration"), roleKey: "dashboard.common.roles.establishment", workspaceSubtitle: account.data?.establishment?.name || t("dashboard.clinical.workspace") },
       }
     : {
         accountType: "INDEPENDENT_DOCTOR" as const,

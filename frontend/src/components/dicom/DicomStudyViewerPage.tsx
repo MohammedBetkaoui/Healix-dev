@@ -28,7 +28,7 @@ import { buildViewerUrl, formatBytes } from "@/features/dicom/dicom-import";
 import { useDicomStudy, useViewerAvailable } from "@/features/dicom/hooks/use-dicom-studies";
 import { usePatient } from "@/features/patients/hooks/use-patient";
 import { formatPatientDate } from "@/features/patients/patient-registry";
-import { useEstablishmentVerificationPrefill } from "@/features/verification/hooks/use-establishment-verification-prefill";
+import { useAccountProfile } from "@/features/account/hooks/use-account";
 import { isVerificationRequiredError } from "@/lib/api/api-error";
 import { useSessionKeepAlive } from "@/lib/auth/use-session-keep-alive";
 import { getAccountInitials } from "@/lib/format/get-account-initials";
@@ -51,7 +51,7 @@ export function DicomStudyViewerPage({ accountType, patientId, studyId }: DicomS
   const { locale } = useStoredLocale();
   const { t } = useTranslation(locale);
   const currentUser = useCurrentUser(undefined, { enabled: true });
-  const prefill = useEstablishmentVerificationPrefill({ enabled: accountType === "ESTABLISHMENT" });
+  const account = useAccountProfile();
   const initials = getAccountInitials(currentUser.data?.fullName);
   const studyQuery = useDicomStudy(studyId);
   const viewerQuery = useViewerAvailable();
@@ -65,7 +65,7 @@ export function DicomStudyViewerPage({ accountType, patientId, studyId }: DicomS
     ? {
         accountType: "ESTABLISHMENT" as const,
         navSections: establishmentNavSections,
-        user: { accountType: "ESTABLISHMENT" as const, footerSubtitle: t("dashboard.clinical.administration"), initials, name: currentUser.data?.fullName || t("dashboard.clinical.administration"), roleKey: "dashboard.common.roles.establishment", workspaceSubtitle: prefill.data?.establishment.name || t("dashboard.clinical.workspace") },
+        user: { accountType: "ESTABLISHMENT" as const, footerSubtitle: t("dashboard.clinical.administration"), initials, name: currentUser.data?.fullName || t("dashboard.clinical.administration"), roleKey: "dashboard.common.roles.establishment", workspaceSubtitle: account.data?.establishment?.name || t("dashboard.clinical.workspace") },
       }
     : {
         accountType: "INDEPENDENT_DOCTOR" as const,

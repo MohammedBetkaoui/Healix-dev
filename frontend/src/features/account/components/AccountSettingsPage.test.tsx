@@ -14,9 +14,6 @@ import { AccountSettingsPage } from "./AccountSettingsPage";
 // stand-ins as in ConsultationsPage.test.tsx.
 jest.mock("@/features/auth/hooks/use-logout", () => ({ useLogout: () => ({ isLoading: false, logout: jest.fn() }) }));
 jest.mock("@/features/auth/hooks/use-current-user", () => ({ useCurrentUser: () => ({ data: undefined }) }));
-jest.mock("@/features/verification/hooks/use-establishment-verification-prefill", () => ({
-  useEstablishmentVerificationPrefill: () => ({ data: undefined }),
-}));
 jest.mock("@/features/messaging/messaging.queries", () => ({ useMessagingSettings: jest.fn(), useUnreadCount: () => ({ data: undefined }) }));
 jest.mock("@/features/messaging/messaging.mutations", () => ({ useUpdateMessagingSettings: () => ({ isPending: false, mutate: jest.fn() }) }));
 jest.mock("@/features/notifications/hooks/useNotifications", () => ({

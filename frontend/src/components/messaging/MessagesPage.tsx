@@ -15,7 +15,7 @@ import { messagingCopy } from "@/features/messaging/messaging.copy";
 import { messagingKeys } from "@/features/messaging/messaging-query-keys";
 import { useBlocks, useConversation, useConversations } from "@/features/messaging/messaging.queries";
 import { type Conversation, type ConversationFilter, type ConversationPage } from "@/features/messaging/messaging.types";
-import { useEstablishmentVerificationPrefill } from "@/features/verification/hooks/use-establishment-verification-prefill";
+import { useAccountProfile } from "@/features/account/hooks/use-account";
 import { isVerificationRequiredError } from "@/lib/api/api-error";
 import { getAccountInitials } from "@/lib/format/get-account-initials";
 import { useStoredLocale, useTranslation } from "@/lib/i18n";
@@ -40,7 +40,7 @@ export function MessagesPage({ accountType }: MessagesPageProps) {
   const copy = messagingCopy[locale];
   const queryClient = useQueryClient();
   const currentUser = useCurrentUser(undefined, { enabled: true });
-  const prefill = useEstablishmentVerificationPrefill({ enabled: accountType === "ESTABLISHMENT" });
+  const account = useAccountProfile();
   const pathname = usePathname();
   const searchParams = useSearchParams();
   const selectedId = searchParams.get("c");
@@ -86,7 +86,7 @@ export function MessagesPage({ accountType }: MessagesPageProps) {
           accountType: "ESTABLISHMENT" as const,
           navSections: establishmentNavSections,
           titleKey: "dashboard.sidebar.establishment.messages",
-          user: { accountType: "ESTABLISHMENT" as const, footerSubtitle: t("dashboard.clinical.administration"), initials, name: currentUser.data?.fullName || t("dashboard.clinical.administration"), roleKey: "dashboard.common.roles.establishment", workspaceSubtitle: prefill.data?.establishment.name || t("dashboard.clinical.workspace") },
+          user: { accountType: "ESTABLISHMENT" as const, footerSubtitle: t("dashboard.clinical.administration"), initials, name: currentUser.data?.fullName || t("dashboard.clinical.administration"), roleKey: "dashboard.common.roles.establishment", workspaceSubtitle: account.data?.establishment?.name || t("dashboard.clinical.workspace") },
         }
       : {
           accountType: "INDEPENDENT_DOCTOR" as const,

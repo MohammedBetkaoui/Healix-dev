@@ -8,7 +8,7 @@ import { DashboardOverviewPanel } from "@/components/dashboard/shared/DashboardO
 import { WorkspaceStatus } from "@/components/dashboard/shared/WorkspaceStatus";
 import { getDashboardAccountStatusPresentation } from "@/components/dashboard/shared/account-status-presentation";
 import { useCurrentUser } from "@/features/auth/hooks/use-current-user";
-import { useEstablishmentVerificationPrefill } from "@/features/verification/hooks/use-establishment-verification-prefill";
+import { useAccountProfile } from "@/features/account/hooks/use-account";
 import { getAccountInitials } from "@/lib/format/get-account-initials";
 import { useStoredLocale, useTranslation } from "@/lib/i18n";
 
@@ -17,16 +17,17 @@ export function EstablishmentDashboard() {
   const { t } = useTranslation(locale);
   // Identity and verification status; every figure comes from the overview.
   const currentUser = useCurrentUser(undefined, { enabled: true });
-  const prefill = useEstablishmentVerificationPrefill();
+  const account = useAccountProfile();
   const accountStatus = getDashboardAccountStatusPresentation({
     isLoading: currentUser.isLoading,
     status: currentUser.isError ? undefined : currentUser.data?.accountStatus,
     t,
   });
-  const workspaceName = prefill.data?.establishment.name || t("dashboard.clinical.workspace");
+  const workspaceName = account.data?.establishment?.name || t("dashboard.clinical.workspace");
   const userName = currentUser.data?.fullName || t("dashboard.clinical.administration");
   const initials = getAccountInitials(currentUser.data?.fullName);
-  const isVerified = !prefill.isError && prefill.data?.verification.status === "VERIFIED";
+  // The badge follows the verification status answered by GET /account.
+  const isVerified = account.data?.verificationStatus === "VERIFIED";
 
   return (
     <DashboardShell accountType="ESTABLISHMENT" activeKey="dashboard" navSections={establishmentNavSections}

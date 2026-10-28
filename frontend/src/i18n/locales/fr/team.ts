@@ -3,7 +3,14 @@ export const teamFr = {
     breadcrumb: "Compte / Équipe",
     title: "Équipe & accès",
     subtitle:
-      "Les membres de votre établissement, leurs invitations et ce que chaque rôle peut faire. Tout est décidé côté serveur, rôle par rôle.",
+      "Votre équipe soignante et administrative, réunie dans un même espace.",
+    membersHint: "Comptes actifs dans l’établissement",
+    doctorsHint: "Médecins actifs · capacité de l’abonnement",
+    invitationsHint: "En attente de rejoindre l’établissement",
+    overview: "Vue d’ensemble de l’équipe",
+    activeMembers: "Membres actifs",
+    pendingInvitations: "Invitations en attente",
+    unlimited: " · illimité",
   },
   tabs: {
     label: "Sections de l’équipe",
@@ -43,9 +50,23 @@ export const teamFr = {
       "Lien de réinitialisation envoyé à l’adresse du membre (valable 30 minutes).",
   },
   members: {
-    title: "Membres",
-    subtitle:
-      "Les personnes rattachées à votre établissement et l’état de leur compte.",
+    title: "Annuaire de l’établissement",
+    subtitle: "Retrouvez vos collaborateurs et gérez leurs accès au quotidien.",
+    columns: {
+      member: "Membre",
+      role: "Rôle & spécialité",
+      status: "Statut du compte",
+      actions: "Actions",
+    },
+    filters: {
+      label: "Rechercher et filtrer les membres",
+      search: "Rechercher un nom, une spécialité…",
+      allRoles: "Tous les rôles",
+      allStatuses: "Tous les statuts",
+      clear: "Effacer les filtres",
+      noResults: "Aucun membre ne correspond à votre recherche.",
+      results: "Membres affichés : {count} sur {total}",
+    },
     invite: "Inviter un membre",
     empty: "Aucun membre pour le moment.",
     usage: {
@@ -68,6 +89,7 @@ export const teamFr = {
     joinedOn: "Membre depuis le {date}",
     you: "Vous",
     actions: {
+      manage: "Gérer les accès de {name}",
       suspend: "Suspendre",
       suspendNote: "Ferme les sessions du membre et bloque son accès.",
       reactivate: "Réactiver",
@@ -84,7 +106,12 @@ export const teamFr = {
   invitations: {
     title: "Invitations",
     subtitle:
-      "Les liens d’invitation valables 72 h envoyés aux nouvelles personnes.",
+      "Suivez les invitations envoyées et relancez vos futurs collaborateurs.",
+    validity: "Chaque lien d’invitation est valable 72 heures.",
+    recipient: "Destinataire",
+    tracking: "Suivi de l’invitation",
+    emptyHint:
+      "Invitez un collaborateur pour lui donner accès à votre établissement.",
     empty: "Aucune invitation.",
     statuses: {
       PENDING: "En attente",

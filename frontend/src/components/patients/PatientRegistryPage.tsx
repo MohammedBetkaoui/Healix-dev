@@ -26,7 +26,7 @@ import { createPortal } from "react-dom";
 import { Button } from "@/components/ui/button";
 import { AddPatientModal } from "@/components/patients/AddPatientModal";
 import { useCurrentUser } from "@/features/auth/hooks/use-current-user";
-import { useEstablishmentVerificationPrefill } from "@/features/verification/hooks/use-establishment-verification-prefill";
+import { useAccountProfile } from "@/features/account/hooks/use-account";
 import { usePatients } from "@/features/patients/hooks/use-patients";
 import {
   algerianWilayas,
@@ -287,7 +287,7 @@ export function PatientRegistryPage({ accountType }: PatientRegistryPageProps) {
   const currentUser = useCurrentUser(undefined, { enabled: true });
   // Establishment name for the workspace subtitle; skipped for doctor
   // accounts (ESTABLISHMENT_ADMIN-only endpoint).
-  const prefill = useEstablishmentVerificationPrefill({ enabled: accountType === "ESTABLISHMENT" });
+  const account = useAccountProfile();
   const initials = getAccountInitials(currentUser.data?.fullName);
   const copy = registryCopy[locale];
   const { data, error, isError, isLoading } = usePatients({ limit: 100 });
@@ -360,7 +360,7 @@ export function PatientRegistryPage({ accountType }: PatientRegistryPageProps) {
         accountType: "ESTABLISHMENT" as const,
         navSections: establishmentNavSections,
         titleKey: "patients.page.title",
-        user: { accountType: "ESTABLISHMENT" as const, footerSubtitle: t("dashboard.clinical.administration"), initials, name: currentUser.data?.fullName || t("dashboard.clinical.administration"), roleKey: "dashboard.common.roles.establishment", workspaceSubtitle: prefill.data?.establishment.name || t("dashboard.clinical.workspace") },
+        user: { accountType: "ESTABLISHMENT" as const, footerSubtitle: t("dashboard.clinical.administration"), initials, name: currentUser.data?.fullName || t("dashboard.clinical.administration"), roleKey: "dashboard.common.roles.establishment", workspaceSubtitle: account.data?.establishment?.name || t("dashboard.clinical.workspace") },
       }
     : {
         accountType: "INDEPENDENT_DOCTOR" as const,

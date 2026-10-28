@@ -82,24 +82,27 @@ export function InlineMessage({
 
 export function SectionCard({
   children,
+  count,
   description,
   title,
 }: {
   children: ReactNode;
+  count?: number;
   description?: string;
   title: string;
 }) {
   return (
-    <section className="rounded-[var(--radius-md)] border border-[var(--border)] bg-[var(--surface)] p-5">
-      <h2 className="text-sm font-semibold text-[var(--text-primary)]">
-        {title}
-      </h2>
-      {description ? (
-        <p className="mt-1 text-xs leading-5 text-[var(--text-secondary)]">
-          {description}
-        </p>
-      ) : null}
-      <div className="mt-4">{children}</div>
+    <section className="team-section">
+      <header className="team-section-heading">
+        <h2>
+          {title}
+          {count !== undefined ? (
+            <span className="team-section-count">{count}</span>
+          ) : null}
+        </h2>
+        {description ? <p>{description}</p> : null}
+      </header>
+      {children}
     </section>
   );
 }
@@ -120,14 +123,17 @@ const TONE_CLASSES: Record<TeamStatusTone, string> = {
 export function StatusBadge({
   label,
   tone,
+  dot = false,
 }: {
   label: string;
   tone: TeamStatusTone;
+  dot?: boolean;
 }) {
   return (
     <span
-      className={`inline-flex items-center rounded-full border px-2.5 py-0.5 text-[0.72rem] font-semibold ${TONE_CLASSES[tone]}`}
+      className={`team-status-badge inline-flex items-center gap-1.5 rounded-md border px-2 py-0.5 text-[0.72rem] font-medium ${TONE_CLASSES[tone]}`}
     >
+      {dot ? <span className="team-status-dot" aria-hidden="true" /> : null}
       {label}
     </span>
   );

@@ -14,8 +14,9 @@ jest.mock("@/lib/auth/use-session-keep-alive", () => ({ useSessionKeepAlive: jes
 jest.mock("@/features/auth/hooks/use-current-user", () => ({
   useCurrentUser: () => ({ data: { fullName: "Dr Test" } }),
 }));
-jest.mock("@/features/verification/hooks/use-establishment-verification-prefill", () => ({
-  useEstablishmentVerificationPrefill: () => ({ data: undefined }),
+// The page reads the account profile (workspace subtitle).
+jest.mock("@/features/account/hooks/use-account", () => ({
+  useAccountProfile: jest.fn(() => ({ data: undefined })),
 }));
 jest.mock("@/features/patients/hooks/use-patient", () => ({
   usePatient: () => ({

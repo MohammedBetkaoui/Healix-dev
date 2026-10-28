@@ -13,11 +13,8 @@ import { ConsultationsPage } from "./ConsultationsPage";
 // stand-ins as in config/demo-modules.test.tsx.
 jest.mock("@/features/auth/hooks/use-logout", () => ({ useLogout: () => ({ isLoading: false, logout: jest.fn() }) }));
 jest.mock("@/features/auth/hooks/use-current-user", () => ({ useCurrentUser: () => ({ data: undefined }) }));
-jest.mock("@/features/verification/hooks/use-establishment-verification-prefill", () => ({
-  useEstablishmentVerificationPrefill: () => ({ data: undefined }),
-}));
-// The shell reads the workspace access to gate the owner-only menu entries;
-// with no profile the gated entries hide and the others stay.
+// The account profile names the workspace (subtitle); the shell reads the
+// workspace access to gate the owner-only menu entries.
 jest.mock("@/features/account/hooks/use-account", () => ({
   useAccountProfile: jest.fn(() => ({ data: undefined })),
 }));

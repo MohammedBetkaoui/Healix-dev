@@ -24,7 +24,7 @@ import { useCurrentUser } from "@/features/auth/hooks/use-current-user";
 import { laboratoryCopy } from "@/features/laboratory/laboratory.copy";
 import { mockLabRequests } from "@/features/laboratory/laboratory.mock";
 import { type LabCategory, type LabRequest, type LabResult } from "@/features/laboratory/laboratory.types";
-import { useEstablishmentVerificationPrefill } from "@/features/verification/hooks/use-establishment-verification-prefill";
+import { useAccountProfile } from "@/features/account/hooks/use-account";
 import { type Locale } from "@/i18n";
 import { getAccountInitials } from "@/lib/format/get-account-initials";
 import { useStoredLocale, useTranslation } from "@/lib/i18n";
@@ -71,7 +71,7 @@ export function LaboratoryPage() {
   const { t } = useTranslation(locale);
   const copy = laboratoryCopy[locale];
   const currentUser = useCurrentUser(undefined, { enabled: true });
-  const prefill = useEstablishmentVerificationPrefill();
+  const account = useAccountProfile();
   const [requests, setRequests] = useState<LabRequest[]>(mockLabRequests);
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [isCreateOpen, setCreateOpen] = useState(false);
@@ -178,7 +178,7 @@ export function LaboratoryPage() {
       initials,
       name: currentUser.data?.fullName || t("dashboard.clinical.administration"),
       roleKey: "dashboard.common.roles.establishment",
-      workspaceSubtitle: prefill.data?.establishment.name || t("dashboard.clinical.workspace"),
+      workspaceSubtitle: account.data?.establishment?.name || t("dashboard.clinical.workspace"),
     },
   };
 

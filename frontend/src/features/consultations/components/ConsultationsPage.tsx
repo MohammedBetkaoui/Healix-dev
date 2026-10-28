@@ -14,7 +14,7 @@ import { usePrescriptionCapabilities } from "@/features/prescriptions/hooks/use-
 import { type ReportDraftResult } from "@/features/reports/components/CreateReportDrawer";
 import { type PatientChoice } from "@/features/reports/components/ReportPatientPicker";
 import { useReportCapabilities } from "@/features/reports/hooks/use-report-capabilities";
-import { useEstablishmentVerificationPrefill } from "@/features/verification/hooks/use-establishment-verification-prefill";
+import { useAccountProfile } from "@/features/account/hooks/use-account";
 import { getAccountInitials } from "@/lib/format/get-account-initials";
 import { getDirection, useStoredLocale, useTranslation } from "@/lib/i18n";
 
@@ -43,7 +43,7 @@ export function ConsultationsPage({ accountType }: ConsultationsPageProps) {
   const { t } = useTranslation(locale);
   const direction = getDirection(locale);
   const currentUser = useCurrentUser(undefined, { enabled: true });
-  const prefill = useEstablishmentVerificationPrefill({ enabled: accountType === "ESTABLISHMENT" });
+  const account = useAccountProfile();
   const initials = getAccountInitials(currentUser.data?.fullName);
   const { capabilities } = useConsultationCapabilities();
   const { capabilities: prescriptionCapabilities } = usePrescriptionCapabilities();
@@ -108,7 +108,7 @@ export function ConsultationsPage({ accountType }: ConsultationsPageProps) {
     ? {
         accountType: "ESTABLISHMENT" as const,
         navSections: establishmentNavSections,
-        user: { accountType: "ESTABLISHMENT" as const, footerSubtitle: t("dashboard.clinical.administration"), initials, name: currentUser.data?.fullName || t("dashboard.clinical.administration"), roleKey: "dashboard.common.roles.establishment", workspaceSubtitle: prefill.data?.establishment.name || t("dashboard.clinical.workspace") },
+        user: { accountType: "ESTABLISHMENT" as const, footerSubtitle: t("dashboard.clinical.administration"), initials, name: currentUser.data?.fullName || t("dashboard.clinical.administration"), roleKey: "dashboard.common.roles.establishment", workspaceSubtitle: account.data?.establishment?.name || t("dashboard.clinical.workspace") },
       }
     : {
         accountType: "INDEPENDENT_DOCTOR" as const,

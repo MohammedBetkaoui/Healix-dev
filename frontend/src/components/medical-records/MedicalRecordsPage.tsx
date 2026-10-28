@@ -33,7 +33,7 @@ import {
   type MedicalRecordSex,
   type MedicalRecordStatus,
 } from "@/features/medical-records/medical-records.types";
-import { useEstablishmentVerificationPrefill } from "@/features/verification/hooks/use-establishment-verification-prefill";
+import { useAccountProfile } from "@/features/account/hooks/use-account";
 import { type Locale } from "@/i18n";
 import { getAccountInitials } from "@/lib/format/get-account-initials";
 import { useStoredLocale, useTranslation } from "@/lib/i18n";
@@ -261,7 +261,7 @@ export function MedicalRecordsPage() {
   const { t } = useTranslation(locale);
   const copy = medicalRecordsCopy[locale];
   const currentUser = useCurrentUser(undefined, { enabled: true });
-  const prefill = useEstablishmentVerificationPrefill();
+  const account = useAccountProfile();
   const [records, setRecords] = useState<MedicalRecordPatient[]>(mockMedicalRecords);
   const [selectedId, setSelectedId] = useState(mockMedicalRecords[0]?.id ?? "");
   const [search, setSearch] = useState("");
@@ -335,7 +335,7 @@ export function MedicalRecordsPage() {
       initials,
       name: currentUser.data?.fullName || t("dashboard.clinical.administration"),
       roleKey: "dashboard.common.roles.establishment",
-      workspaceSubtitle: prefill.data?.establishment.name || t("dashboard.clinical.workspace"),
+      workspaceSubtitle: account.data?.establishment?.name || t("dashboard.clinical.workspace"),
     },
   };
 
