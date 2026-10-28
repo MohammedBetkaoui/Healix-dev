@@ -1,12 +1,10 @@
 /* eslint-disable @typescript-eslint/no-unsafe-assignment, @typescript-eslint/no-unsafe-call, @typescript-eslint/no-unsafe-member-access, @typescript-eslint/no-unsafe-return */
 // The rows of the in-memory tables below are untyped on purpose: they stand in
 // for Prisma, whatever the services ask for.
-import { ConflictException } from '@nestjs/common';
 import { GUARDS_METADATA } from '@nestjs/common/constants';
 import * as bcrypt from 'bcrypt';
 import { plainToInstance } from 'class-transformer';
 import { validate } from 'class-validator';
-
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { ResetPasswordDto } from '../auth/password-reset/password-reset.dto';
 import { hashRefreshToken } from '../auth/refresh-token-hash';
@@ -130,11 +128,23 @@ function createDatabase(verificationStatus: string) {
       id: 'ws-doctor',
       name: 'Samir Kaci',
       ownerDoctorProfileId: 'profile-doctor',
+      type: 'PRIVATE_PRACTICE',
     },
     {
+      establishmentId: 'establishment-1',
       id: 'ws-clinic',
       name: 'Clinique El Amel',
-      establishmentId: 'establishment-1',
+      type: 'ESTABLISHMENT',
+    },
+  ];
+  const memberships: Row[] = [
+    {
+      createdAt: new Date('2026-01-05T09:00:00Z'),
+      id: 'ms-clinic-owner',
+      role: 'OWNER',
+      status: 'ACTIVE',
+      userId: 'user-clinic',
+      workspaceId: 'ws-clinic',
     },
   ];
   const refreshTokens: Row[] = [];
@@ -147,7 +157,7 @@ function createDatabase(verificationStatus: string) {
     },
   ];
 
-  const withRelations = (user: Row | undefined) => {
+  const withRelations = (user: Row | undefined, select?: Row) => {
     if (!user) return null;
     const doctor = doctors.find((row) => row.userId === user.id);
     const establishment = establishments.find((row) => row.ownerId === user.id);
@@ -160,7 +170,46 @@ function createDatabase(verificationStatus: string) {
           }
         : null,
       establishment: establishment ?? null,
+      workspaceMemberships: select?.workspaceMemberships
+        ? membershipRows(user, select.workspaceMemberships as Row)
+        : [],
     };
+  };
+  // Mirrors the one relation query the mapper sends (where, ordering, take):
+  // a wrong condition must show up as a wrong result.
+  const membershipRows = (user: Row, relation: Row): Row[] => {
+    const where = (relation.where ?? {}) as Row;
+    const roles = where.role?.in as string[] | undefined;
+    const workspaceType = where.workspace?.type as string | undefined;
+    const rows = memberships
+      .filter((row) => row.userId === user.id)
+      .filter((row) => (where.status ? row.status === where.status : true))
+      .filter((row) => (roles ? roles.includes(row.role as string) : true))
+      .filter((row) => {
+        if (!workspaceType) return true;
+        const workspace = workspaces.find((w) => w.id === row.workspaceId);
+        return workspace?.type === workspaceType;
+      })
+      .sort(
+        (a, b) =>
+          (a.createdAt as Date).getTime() - (b.createdAt as Date).getTime() ||
+          String(a.id).localeCompare(String(b.id)),
+      );
+
+    return rows
+      .slice(0, typeof relation.take === 'number' ? relation.take : undefined)
+      .map((row) => {
+        const workspace = workspaces.find(
+          (w) => w.id === row.workspaceId,
+        ) as Row;
+        const establishment =
+          establishments.find((e) => e.id === workspace.establishmentId) ??
+          null;
+        return {
+          ...row,
+          workspace: { ...workspace, establishment },
+        };
+      });
   };
   const updateMany = (rows: Row[], where: Where, data: Row) => {
     const hits = rows.filter((row) => matches(row, where));
@@ -209,9 +258,12 @@ function createDatabase(verificationStatus: string) {
       ),
     },
     user: {
-      findUnique: jest.fn(({ where }: { where: Where }) =>
+      findUnique: jest.fn(({ select, where }: { select?: Row; where: Where }) =>
         Promise.resolve(
-          withRelations(users.find((row) => matches(row, where))),
+          withRelations(
+            users.find((row) => matches(row, where)),
+            select,
+          ),
         ),
       ),
       update: jest.fn(({ data, where }: { data: Row; where: Where }) =>
@@ -254,6 +306,7 @@ function createDatabase(verificationStatus: string) {
   return {
     doctors,
     establishments,
+    memberships,
     prisma,
     refreshTokens,
     resetTokens,
@@ -810,6 +863,209 @@ describe('AccountService.updateProfile', () => {
       lockedFields: [],
     });
     expect(doctor).not.toHaveProperty('passwordHash');
+  });
+});
+
+describe('AccountService — profiles across the workspace roles', () => {
+  // An administrator invited by the establishment: no establishment of
+  // their own, only the membership the invitation created for them.
+  const invitedAdmin = (overrides: Row = {}): Row =>
+    establishmentUser({
+      email: 'kadour@example.dz',
+      fullName: 'Meriem Kadour',
+      id: 'user-admin',
+      phone: '0550000009',
+      ...overrides,
+    });
+
+  const withMembership = (
+    database: ReturnType<typeof createDatabase>,
+    overrides: Row = {},
+  ) => {
+    database.users.push(invitedAdmin());
+    database.memberships.push({
+      createdAt: new Date('2026-10-15T09:00:00Z'),
+      id: 'ms-admin',
+      role: 'ADMIN',
+      status: 'ACTIVE',
+      userId: 'user-admin',
+      workspaceId: 'ws-clinic',
+      ...overrides,
+    });
+  };
+
+  it('keeps serving an owner through their establishment, their membership notwithstanding', async () => {
+    const { account, database } = await setup('VERIFIED');
+
+    const profile = await account.getProfile('user-clinic');
+
+    expect(database.memberships[0]).toMatchObject({
+      role: 'OWNER',
+      userId: 'user-clinic',
+    });
+    expect(profile).toMatchObject({
+      kind: 'ESTABLISHMENT',
+      verificationStatus: 'VERIFIED',
+      subscriptionStatus: 'NO_PLAN',
+    });
+    expect(profile.establishment).toEqual({
+      address: '5 avenue de l’ALN, Blida',
+      managerFullName: 'Nadia Hamidi',
+      name: 'Clinique El Amel',
+      phone: '0550000002',
+      professionalEmail: 'clinic@example.dz',
+      type: 'CLINIC',
+      wilaya: 'Blida',
+    });
+  });
+
+  it('opens the account of an invited secondary administrator through their workspace', async () => {
+    const { account, database } = await setup('VERIFIED');
+    withMembership(database);
+
+    const profile = await account.getProfile('user-admin');
+
+    expect(
+      database.memberships.find((row) => row.id === 'ms-admin'),
+    ).toMatchObject({ role: 'ADMIN', status: 'ACTIVE' });
+    // Personal data only: the workspace context names the establishment,
+    // never the account fields.
+    expect(profile).toMatchObject({
+      email: 'kadour@example.dz',
+      fullName: 'Meriem Kadour',
+      kind: 'ESTABLISHMENT',
+      phone: '0550000009',
+      role: 'ESTABLISHMENT_ADMIN',
+      verificationStatus: 'VERIFIED',
+      subscriptionStatus: 'NO_PLAN',
+      lockedFields: [],
+    });
+    expect(profile.establishment).toEqual({
+      address: '5 avenue de l’ALN, Blida',
+      managerFullName: 'Nadia Hamidi',
+      name: 'Clinique El Amel',
+      phone: '0550000002',
+      professionalEmail: 'clinic@example.dz',
+      type: 'CLINIC',
+      wilaya: 'Blida',
+    });
+  });
+
+  it('serves no context without ownership and without a valid membership', async () => {
+    const { account, database } = await setup('VERIFIED');
+    database.users.push(invitedAdmin());
+
+    await expect(account.getProfile('user-admin')).rejects.toMatchObject({
+      response: { code: 'ACCOUNT_PROFILE_NOT_FOUND' },
+      status: 404,
+    });
+  });
+
+  it('keeps a suspended membership out of the account context', async () => {
+    const { account, database } = await setup('VERIFIED');
+    withMembership(database, { status: 'SUSPENDED' });
+
+    await expect(account.getProfile('user-admin')).rejects.toMatchObject({
+      response: { code: 'ACCOUNT_PROFILE_NOT_FOUND' },
+      status: 404,
+    });
+  });
+
+  it('does not mistake a DOCTOR membership for a managed workspace', async () => {
+    const { account, database } = await setup('VERIFIED');
+    database.users.push(invitedAdmin());
+    database.memberships.push({
+      createdAt: new Date('2026-10-15T09:00:00Z'),
+      id: 'ms-admin-doctor',
+      role: 'DOCTOR',
+      status: 'ACTIVE',
+      userId: 'user-admin',
+      workspaceId: 'ws-clinic',
+    });
+
+    await expect(account.getProfile('user-admin')).rejects.toMatchObject({
+      response: { code: 'ACCOUNT_PROFILE_NOT_FOUND' },
+      status: 404,
+    });
+  });
+
+  it('updates only the personal fields of a secondary administrator', async () => {
+    const { account, database } = await setup('VERIFIED');
+    withMembership(database);
+
+    await account.updateProfile(
+      'user-admin',
+      profileChange({ fullName: 'Amel Kadour', phone: '0561111222' }),
+    );
+
+    const profile = await account.getProfile('user-admin');
+    expect(profile.fullName).toBe('Amel Kadour');
+    expect(profile.phone).toBe('0561111222');
+    expect(profile.isPhoneVerified).toBe(false);
+
+    // The workspace, the establishment and the membership stay untouched:
+    // PATCH /account/profile is the account of the person, nothing more.
+    expect(database.establishments[0]).toMatchObject({
+      managerFullName: 'Nadia Hamidi',
+      name: 'Clinique El Amel',
+    });
+    expect(
+      database.workspaces.find((ws) => ws.id === 'ws-clinic'),
+    ).toMatchObject({
+      name: 'Clinique El Amel',
+    });
+    expect(database.memberships).toMatchObject([
+      { id: 'ms-clinic-owner', status: 'ACTIVE' },
+      { id: 'ms-admin', status: 'ACTIVE' },
+    ]);
+  });
+
+  it('keeps reading an affiliated doctor through their own profile', async () => {
+    const { account, database } = await setup('VERIFIED');
+    database.users.push(
+      establishmentUser({
+        email: 'freha@example.dz',
+        fullName: 'Ramzi Ferahtia',
+        id: 'user-affiliated',
+        phone: '0566111111',
+        role: 'AFFILIATED_DOCTOR',
+      }),
+    );
+    database.doctors.push({
+      establishmentId: 'establishment-1',
+      id: 'profile-affiliated',
+      isIndependent: false,
+      professionalAddress: '5 avenue de l’ALN, Blida',
+      speciality: 'Pédiatrie',
+      subscriptionStatus: 'NO_PLAN',
+      userId: 'user-affiliated',
+      verificationStatus: 'VERIFIED',
+      wilaya: 'Alger',
+    });
+    // The DOCTOR membership never flips the account kind: the resolver of
+    // the account only walks ADMIN and OWNER memberships.
+    database.memberships.push({
+      createdAt: new Date('2026-10-15T09:00:00Z'),
+      id: 'ms-affiliated',
+      role: 'DOCTOR',
+      status: 'ACTIVE',
+      userId: 'user-affiliated',
+      workspaceId: 'ws-clinic',
+    });
+
+    const profile = await account.getProfile('user-affiliated');
+
+    expect(profile).toMatchObject({
+      doctor: {
+        establishmentName: 'Clinique',
+        isIndependent: false,
+        speciality: 'Pédiatrie',
+      },
+      kind: 'DOCTOR',
+      subscriptionStatus: 'NO_PLAN',
+      verificationStatus: 'VERIFIED',
+    });
+    expect(profile.establishment).toBeNull();
   });
 });
 
