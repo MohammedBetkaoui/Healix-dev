@@ -29,10 +29,17 @@ type ConsultationState = {
   doctorProfileId: string;
   status: ConsultationStatus;
   startedAt: Date | null;
+  completedAt: Date | null;
+  appointmentId: string | null;
+  syncVersion: number;
+  createdAt: Date;
+  updatedAt: Date;
   chiefComplaint: string | null;
+  historyPresentIllness: string | null;
   clinicalExamination: string | null;
   assessment: string | null;
   carePlan?: string | null;
+  followUpPlan: string | null;
   _count: { diagnoses: number };
 };
 
@@ -44,16 +51,53 @@ function setup(initial: Partial<ConsultationState> = {}) {
     doctorProfileId: 'doctor-profile-1',
     status: ConsultationStatus.DRAFT,
     startedAt: null,
+    completedAt: null,
+    appointmentId: null,
+    syncVersion: 1,
+    createdAt: new Date('2026-10-27T07:00:00Z'),
+    updatedAt: new Date('2026-10-27T07:00:00Z'),
     chiefComplaint: null,
+    historyPresentIllness: null,
     clinicalExamination: null,
     assessment: null,
     carePlan: null,
+    followUpPlan: null,
     _count: { diagnoses: 0 },
     ...initial,
   };
   const audits: Array<Record<string, unknown>> = [];
   const addenda: Array<Record<string, unknown>> = [];
   const diagnoses: Array<Record<string, unknown>> = [];
+  const syncChanges: Array<Record<string, unknown>> = [];
+
+  const applyConsultationUpdate = (data: any) => {
+    const increment = data.syncVersion?.increment;
+    const next = { ...data };
+    delete next.syncVersion;
+    Object.assign(state, next);
+    if (increment) state.syncVersion += increment;
+    state.updatedAt = new Date('2026-10-27T08:00:00Z');
+    return state;
+  };
+
+  const consultationSyncRow = () => ({
+    ...state,
+    vitalSigns: null,
+    diagnoses: diagnoses.map((diagnosis, index) => ({
+      id: `diagnosis-${index + 1}`,
+      consultationId: state.id,
+      code: null,
+      codeSystem: null,
+      isPrimary: false,
+      note: null,
+      createdAt: new Date('2026-10-27T08:00:00Z'),
+      ...diagnosis,
+    })),
+    addenda: addenda.map((addendum) => ({
+      createdAt: new Date('2026-10-27T08:00:00Z'),
+      ...addendum,
+    })),
+  });
 
   const prisma: any = {
     patient: {
@@ -81,10 +125,10 @@ function setup(initial: Partial<ConsultationState> = {}) {
         Object.assign(state, data);
         return Promise.resolve(state);
       }),
-      update: jest.fn(({ data }: any) => {
-        Object.assign(state, data);
-        return Promise.resolve(state);
-      }),
+      update: jest.fn(({ data }: any) =>
+        Promise.resolve(applyConsultationUpdate(data)),
+      ),
+      findUniqueOrThrow: jest.fn(() => Promise.resolve(consultationSyncRow())),
       findFirst: jest.fn(({ where }: any) =>
         Promise.resolve(
           where.id === state.id && where.workspaceId === state.workspaceId
@@ -120,6 +164,12 @@ function setup(initial: Partial<ConsultationState> = {}) {
     prescription: { findMany: jest.fn(() => Promise.resolve([])) },
     clinicalReport: { findMany: jest.fn(() => Promise.resolve([])) },
     doctorProfile: { findUnique: jest.fn(() => Promise.resolve(null)) },
+    syncChange: {
+      create: jest.fn(({ data }: any) => {
+        syncChanges.push(data);
+        return Promise.resolve(data);
+      }),
+    },
     $transaction: jest.fn((work: any) =>
       Array.isArray(work) ? Promise.all(work) : work(prisma),
     ),
@@ -171,6 +221,7 @@ function setup(initial: Partial<ConsultationState> = {}) {
     prisma,
     service,
     state,
+    syncChanges,
   };
 }
 

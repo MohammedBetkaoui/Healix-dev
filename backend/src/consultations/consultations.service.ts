@@ -4,12 +4,18 @@ import {
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
-import { ConsultationStatus, Prisma, PrescriptionStatus } from '@prisma/client';
+import {
+  ConsultationStatus,
+  Prisma,
+  PrescriptionStatus,
+  SyncChangeOperation,
+} from '@prisma/client';
 
 import { AuditLogsService } from '../audit-logs/audit-logs.service';
 import { type AuthenticatedUserPayload } from '../auth/types/authenticated-request.type';
 import { sanitizeTextInput } from '../common/utils/sanitize';
 import { PrismaService } from '../prisma/prisma.service';
+import { recordConsultationSyncChange } from '../sync/consultation-sync-change';
 import { ConsultationAuthorizationService } from './consultation-authorization.service';
 import { CancelConsultationDto } from './dto/cancel-consultation.dto';
 import { CreateConsultationAddendumDto } from './dto/create-consultation-addendum.dto';
@@ -176,6 +182,11 @@ export class ConsultationsService {
         },
         client,
       );
+      await recordConsultationSyncChange(
+        client,
+        created.id,
+        SyncChangeOperation.CREATE,
+      );
       return created;
     });
     return this.findOne(user, consultation.id);
@@ -202,6 +213,7 @@ export class ConsultationsService {
           assessment: cleanNullable(dto.assessment),
           carePlan: cleanNullable(dto.carePlan),
           followUpPlan: cleanNullable(dto.followUpPlan),
+          syncVersion: { increment: 1 },
           vitalSigns:
             dto.vitalSigns === undefined || dto.vitalSigns === null
               ? undefined
@@ -241,6 +253,11 @@ export class ConsultationsService {
         },
         client,
       );
+      await recordConsultationSyncChange(
+        client,
+        id,
+        SyncChangeOperation.UPDATE,
+      );
     });
     return this.findOne(user, id);
   }
@@ -258,7 +275,11 @@ export class ConsultationsService {
     await this.prisma.$transaction(async (client) => {
       await client.patientConsultation.update({
         where: { id },
-        data: { status: ConsultationStatus.IN_PROGRESS, startedAt: new Date() },
+        data: {
+          status: ConsultationStatus.IN_PROGRESS,
+          startedAt: new Date(),
+          syncVersion: { increment: 1 },
+        },
       });
       await this.auditLogs.createAuditLog(
         {
@@ -269,6 +290,11 @@ export class ConsultationsService {
           metadata: { status: ConsultationStatus.IN_PROGRESS },
         },
         client,
+      );
+      await recordConsultationSyncChange(
+        client,
+        id,
+        SyncChangeOperation.UPDATE,
       );
     });
     return this.findOne(user, id);
@@ -304,6 +330,7 @@ export class ConsultationsService {
           startedAt: consultation.startedAt ?? now,
           completedAt: now,
           completedById: user.sub,
+          syncVersion: { increment: 1 },
         },
       });
       await this.auditLogs.createAuditLog(
@@ -315,6 +342,11 @@ export class ConsultationsService {
           metadata: { status: ConsultationStatus.COMPLETED },
         },
         client,
+      );
+      await recordConsultationSyncChange(
+        client,
+        id,
+        SyncChangeOperation.UPDATE,
       );
     });
     return this.findOne(user, id);
@@ -341,6 +373,7 @@ export class ConsultationsService {
           status: ConsultationStatus.CANCELED,
           canceledAt: new Date(),
           cancellationReason: sanitizeTextInput(dto.reason),
+          syncVersion: { increment: 1 },
         },
       });
       await this.auditLogs.createAuditLog(
@@ -352,6 +385,11 @@ export class ConsultationsService {
           metadata: { status: ConsultationStatus.CANCELED },
         },
         client,
+      );
+      await recordConsultationSyncChange(
+        client,
+        id,
+        SyncChangeOperation.UPDATE,
       );
     });
     return this.findOne(user, id);
@@ -376,6 +414,10 @@ export class ConsultationsService {
           content: sanitizeTextInput(dto.content),
         },
       });
+      await client.patientConsultation.update({
+        where: { id },
+        data: { syncVersion: { increment: 1 } },
+      });
       await this.auditLogs.createAuditLog(
         {
           userId: user.sub,
@@ -385,6 +427,11 @@ export class ConsultationsService {
           metadata: { status: ConsultationStatus.COMPLETED },
         },
         client,
+      );
+      await recordConsultationSyncChange(
+        client,
+        id,
+        SyncChangeOperation.UPDATE,
       );
     });
     return this.findOne(user, id);

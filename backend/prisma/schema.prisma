@@ -295,6 +295,32 @@ enum ConsultationStatus {
   CANCELED
 }
 
+// Offline-first V1 deliberately starts with the consultation aggregate only.
+// Other clinical aggregates are added as separate verticals so that a desktop
+// installation never becomes an implicit replica of the cloud database.
+enum SyncEntityType {
+  CONSULTATION
+}
+
+enum SyncOperationKind {
+  CREATE
+  UPDATE
+}
+
+enum SyncOperationStatus {
+  PROCESSING
+  ACK
+  CONFLICT
+  REJECTED
+  RETRYABLE
+}
+
+enum SyncChangeOperation {
+  CREATE
+  UPDATE
+  TOMBSTONE
+}
+
 enum WorkspaceType {
   ESTABLISHMENT
   PRIVATE_PRACTICE
@@ -526,6 +552,9 @@ model User {
   createdConsultations           PatientConsultation[]     @relation("ConsultationCreatedBy")
   completedConsultations         PatientConsultation[]     @relation("ConsultationCompletedBy")
   consultationAddenda            ConsultationAddendum[]
+  offlineDevices                 OfflineDevice[]
+  offlineAccessGrants            OfflineAccessGrant[]
+  syncOperations                 SyncOperation[]
 
   @@map("users")
 }
@@ -677,17 +706,21 @@ model Workspace {
   createdAt            DateTime      @default(now()) @map("created_at")
   updatedAt            DateTime      @updatedAt @map("updated_at")
 
-  establishment      Establishment?        @relation(fields: [establishmentId], references: [id], onDelete: SetNull)
-  ownerDoctorProfile DoctorProfile?        @relation("PrivatePracticeWorkspaceOwner", fields: [ownerDoctorProfileId], references: [id], onDelete: SetNull)
-  memberships        WorkspaceMembership[]
-  invitations        WorkspaceInvitation[]
-  patients           Patient[]
-  conversations      Conversation[]
-  notifications      Notification[]
-  consultations      PatientConsultation[]
-  prescriptions      Prescription[]
-  clinicalReports    ClinicalReport[]
-  dicomStudies       DicomStudy[]
+  establishment       Establishment?        @relation(fields: [establishmentId], references: [id], onDelete: SetNull)
+  ownerDoctorProfile  DoctorProfile?        @relation("PrivatePracticeWorkspaceOwner", fields: [ownerDoctorProfileId], references: [id], onDelete: SetNull)
+  memberships         WorkspaceMembership[]
+  invitations         WorkspaceInvitation[]
+  patients            Patient[]
+  conversations       Conversation[]
+  notifications       Notification[]
+  consultations       PatientConsultation[]
+  prescriptions       Prescription[]
+  clinicalReports     ClinicalReport[]
+  dicomStudies        DicomStudy[]
+  offlineDevices      OfflineDevice[]
+  offlineAccessGrants OfflineAccessGrant[]
+  syncOperations      SyncOperation[]
+  syncChanges         SyncChange[]
 
   @@index([type])
   @@index([establishmentId])
@@ -711,6 +744,137 @@ model WorkspaceMembership {
   @@index([userId])
   @@index([workspaceId])
   @@map("workspace_memberships")
+}
+
+// An authorised desktop installation. `installationId` is generated locally
+// once and is not a clinical identifier. The private key never leaves the OS
+// secure store; only the public key is retained here.
+model OfflineDevice {
+  id             String    @id @default(cuid())
+  installationId String    @map("installation_id") @db.VarChar(64)
+  userId         String    @map("user_id")
+  workspaceId    String    @map("workspace_id")
+  deviceName     String    @map("device_name") @db.VarChar(120)
+  platform       String    @db.VarChar(40)
+  publicKey      String    @map("public_key") @db.Text
+  registeredAt   DateTime  @default(now()) @map("registered_at")
+  lastSeenAt     DateTime  @default(now()) @map("last_seen_at")
+  revokedAt      DateTime? @map("revoked_at")
+  createdAt      DateTime  @default(now()) @map("created_at")
+  updatedAt      DateTime  @updatedAt @map("updated_at")
+
+  user           User                 @relation(fields: [userId], references: [id], onDelete: Cascade)
+  workspace      Workspace            @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  grants         OfflineAccessGrant[]
+  operations     SyncOperation[]
+  entityMappings SyncEntityMap[]
+  syncState      SyncDeviceState?
+
+  @@unique([userId, workspaceId, installationId])
+  @@index([workspaceId])
+  @@index([userId])
+  @@index([revokedAt])
+  @@map("offline_devices")
+}
+
+// Server-side record corresponding to the signed grant stored by the desktop.
+// Keeping a record makes revocation and server-side expiry checks explicit.
+model OfflineAccessGrant {
+  id                  String    @id @default(cuid())
+  deviceId            String    @map("device_id")
+  userId              String    @map("user_id")
+  workspaceId         String    @map("workspace_id")
+  role                UserRole
+  offlineCapabilities Json      @map("offline_capabilities")
+  offlineScope        Json      @map("offline_scope")
+  issuedAt            DateTime  @map("issued_at")
+  expiresAt           DateTime  @map("expires_at")
+  revokedAt           DateTime? @map("revoked_at")
+  createdAt           DateTime  @default(now()) @map("created_at")
+
+  device    OfflineDevice @relation(fields: [deviceId], references: [id], onDelete: Cascade)
+  user      User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  workspace Workspace     @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+
+  @@index([deviceId])
+  @@index([userId])
+  @@index([workspaceId])
+  @@index([expiresAt])
+  @@map("offline_access_grants")
+}
+
+// One durable server result per operationId. A retry returns `result` instead
+// of replaying the clinical mutation.
+model SyncOperation {
+  operationId      String              @id @map("operation_id") @db.VarChar(64)
+  deviceId         String              @map("device_id")
+  userId           String              @map("user_id")
+  workspaceId      String              @map("workspace_id")
+  entityType       SyncEntityType      @map("entity_type")
+  localEntityId    String              @map("local_entity_id") @db.VarChar(64)
+  operation        SyncOperationKind
+  baseVersion      Int?                @map("base_version")
+  payload          Json
+  clientOccurredAt DateTime            @map("client_occurred_at")
+  receivedAt       DateTime            @default(now()) @map("received_at")
+  status           SyncOperationStatus @default(PROCESSING)
+  result           Json?
+  processedAt      DateTime?           @map("processed_at")
+
+  device    OfflineDevice @relation(fields: [deviceId], references: [id], onDelete: Restrict)
+  user      User          @relation(fields: [userId], references: [id], onDelete: Restrict)
+  workspace Workspace     @relation(fields: [workspaceId], references: [id], onDelete: Restrict)
+
+  @@index([deviceId, receivedAt])
+  @@index([workspaceId, receivedAt])
+  @@index([status])
+  @@map("sync_operations")
+}
+
+// Stable local UUID -> cloud ID mapping, scoped by device and entity type.
+model SyncEntityMap {
+  id             String         @id @default(cuid())
+  deviceId       String         @map("device_id")
+  entityType     SyncEntityType @map("entity_type")
+  localEntityId  String         @map("local_entity_id") @db.VarChar(64)
+  serverEntityId String         @map("server_entity_id")
+  createdAt      DateTime       @default(now()) @map("created_at")
+
+  device OfflineDevice @relation(fields: [deviceId], references: [id], onDelete: Cascade)
+
+  @@unique([deviceId, entityType, localEntityId])
+  @@index([serverEntityId])
+  @@map("sync_entity_maps")
+}
+
+// Monotonic, workspace-scoped change feed. The opaque API cursor encodes only
+// this sequence and the server still applies the grant's clinical scope.
+model SyncChange {
+  sequence    BigInt              @id @default(autoincrement()) @db.UnsignedBigInt
+  workspaceId String              @map("workspace_id")
+  patientId   String?             @map("patient_id")
+  entityType  SyncEntityType      @map("entity_type")
+  entityId    String              @map("entity_id")
+  operation   SyncChangeOperation
+  payload     Json?
+  createdAt   DateTime            @default(now()) @map("created_at")
+
+  workspace Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+
+  @@index([workspaceId, sequence])
+  @@index([workspaceId, patientId, sequence])
+  @@map("sync_changes")
+}
+
+model SyncDeviceState {
+  id                       String   @id @default(cuid())
+  deviceId                 String   @unique @map("device_id")
+  lastAcknowledgedSequence BigInt   @default(0) @map("last_acknowledged_sequence") @db.UnsignedBigInt
+  updatedAt                DateTime @updatedAt @map("updated_at")
+
+  device OfflineDevice @relation(fields: [deviceId], references: [id], onDelete: Cascade)
+
+  @@map("sync_device_states")
 }
 
 // An invitation to join an establishment workspace. The raw token only lives
@@ -785,6 +949,7 @@ model PatientConsultation {
   completedById         String?            @map("completed_by_id")
   createdAt             DateTime           @default(now()) @map("created_at")
   updatedAt             DateTime           @updatedAt @map("updated_at")
+  syncVersion           Int                @default(1) @map("sync_version")
 
   workspace       Workspace               @relation(fields: [workspaceId], references: [id], onDelete: Restrict)
   patient         Patient                 @relation(fields: [patientId], references: [id], onDelete: Restrict)

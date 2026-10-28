@@ -22,6 +22,7 @@ import { DashboardModule } from './dashboard/dashboard.module';
 import { DicomModule } from './dicom/dicom.module';
 import { MessagingModule } from './messaging/messaging.module';
 import { NotificationsModule } from './notifications/notifications.module';
+import { OfflineDevicesModule } from './offline-devices/offline-devices.module';
 import { OrganizationModule } from './organization/organization.module';
 import { PatientsModule } from './patients/patients.module';
 import { TeamModule } from './team/team.module';
@@ -61,6 +62,7 @@ import { WorkspaceModule } from './workspaces/workspace.module';
     DashboardModule,
     MessagingModule,
     NotificationsModule,
+    OfflineDevicesModule,
     PrescriptionsModule,
     ReportsModule,
     ConsultationsModule,

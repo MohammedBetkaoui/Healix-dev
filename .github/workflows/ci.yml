@@ -1,4 +1,4 @@
-# Continuous integration: the three components are built and tested in
+# Continuous integration: the four components are built and tested in
 # parallel, on every pull request and on every push to main.
 name: CI
 
@@ -129,6 +129,51 @@ jobs:
             next-${{ runner.os }}-${{ hashFiles('frontend/package-lock.json') }}-
 
       - run: npx next build
+
+  desktop:
+    name: Desktop (Tauri + React)
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    defaults:
+      run:
+        working-directory: desktop
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: desktop/package-lock.json
+
+      - uses: actions-rust-lang/setup-rust-toolchain@v1
+        with:
+          toolchain: stable
+
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: desktop/src-tauri
+
+      - name: Tauri system dependencies
+        run: >-
+          sudo apt-get update && sudo apt-get install -y
+          build-essential
+          curl
+          file
+          libayatana-appindicator3-dev
+          librsvg2-dev
+          libssl-dev
+          libwebkit2gtk-4.1-dev
+          libxdo-dev
+          wget
+
+      - run: npm ci
+
+      - run: npm run build
+
+      - name: Check native application
+        working-directory: desktop/src-tauri
+        run: cargo check
 
   ai-service:
     name: AI service (FastAPI)

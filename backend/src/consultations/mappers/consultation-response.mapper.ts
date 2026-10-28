@@ -114,6 +114,7 @@ export function toConsultationListItem(row: ConsultationListRow) {
       row.diagnoses[0]?.label ??
       null,
     appointmentId: row.appointmentId,
+    syncVersion: row.syncVersion,
     patient: toPatient(row.patient),
     doctor: toDoctor(row.doctorProfile),
     prescriptionCount: row._count.prescriptions,
@@ -142,6 +143,7 @@ export function toConsultationDetail(
     cancellationReason: row.cancellationReason,
     createdAt: row.createdAt,
     updatedAt: row.updatedAt,
+    syncVersion: row.syncVersion,
     appointmentId: row.appointmentId,
     patient: toPatient(row.patient),
     doctor: toDoctor(row.doctorProfile),
