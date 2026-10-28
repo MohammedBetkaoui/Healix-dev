@@ -1,30 +1,42 @@
-import {
-  ForbiddenException,
-  NotFoundException,
-} from '@nestjs/common';
+import { ForbiddenException, NotFoundException } from '@nestjs/common';
 import { WorkspaceMembershipRole, WorkspaceType } from '@prisma/client';
 
-import { capabilitiesForWorkspaceRole, hasCapability } from '../common/authorization/capabilities';
+import {
+  capabilitiesForWorkspaceRole,
+  hasCapability,
+} from '../common/authorization/capabilities';
 import { OrganizationService } from './organization.service';
-import { UpdateOrganizationDto } from './dto/update-organization.dto';
 import { parseOpeningHours } from './dto/update-opening-hours.dto';
 import { mapOrganizationResponse } from './mappers/organization-response.mapper';
 import { OrganizationAuthorizationService } from './organization-authorization.service';
 
 type Row = Record<string, any>;
-type Where = Record<string, unknown>;
+// The shape Prisma hands the mock: the whole argument, whose `where` carries
+// the lookup key.
+type Where = { where: { id: string } };
 
 const DAY = { closed: false, periods: [{ start: '08:00', end: '16:30' }] };
-const WEEK = { monday: DAY, tuesday: DAY, wednesday: DAY, thursday: DAY, friday: { closed: true, periods: [] }, saturday: DAY, sunday: { closed: true, periods: [] } };
+const WEEK = {
+  monday: DAY,
+  tuesday: DAY,
+  wednesday: DAY,
+  thursday: DAY,
+  friday: { closed: true, periods: [] },
+  saturday: DAY,
+  sunday: { closed: true, periods: [] },
+};
 
-const ownerActor = { userId: 'user-owner', role: 'ESTABLISHMENT_ADMIN' as const };
+const ownerActor = {
+  userId: 'user-owner',
+  role: 'ESTABLISHMENT_ADMIN' as const,
+};
 
 function serviceFor(options: {
   role: WorkspaceMembershipRole;
   establishment?: Row | null;
 }) {
   const contextService = {
-    resolveWorkspaceForUser: jest.fn(async () => {
+    resolveWorkspaceForUser: jest.fn(() => {
       return {
         workspaceId: 'ws-1',
         workspaceType: WorkspaceType.ESTABLISHMENT,
@@ -37,29 +49,28 @@ function serviceFor(options: {
 
   const prisma = {
     user: {
-      findUnique: jest.fn(async ({ where }: Where) =>
+      findUnique: jest.fn(({ where }: Where) =>
         where.id === 'user-owner' ? { accountStatus: 'ACTIVE' } : null,
       ),
     },
     establishment: {
-      findUnique: jest.fn(async ({ where }: Where) =>
+      findUnique: jest.fn(({ where }: Where) =>
         where.id === 'est-1' ? (options.establishment ?? null) : null,
       ),
     },
-    $transaction: jest.fn(
-      async (work: (transaction: unknown) => Promise<unknown>) =>
-        work({
-          establishment: {
-            update: jest.fn(async () => ({})),
-          },
-          establishmentSettings: {
-            upsert: jest.fn(async (args: { create: Row; update: Row }) => ({
-              establishmentId: 'est-1',
-              ...args.create,
-              ...args.update,
-            })),
-          },
-        }),
+    $transaction: jest.fn((work: (transaction: unknown) => Promise<unknown>) =>
+      work({
+        establishment: {
+          update: jest.fn(() => ({})),
+        },
+        establishmentSettings: {
+          upsert: jest.fn((args: { create: Row; update: Row }) => ({
+            establishmentId: 'est-1',
+            ...args.create,
+            ...args.update,
+          })),
+        },
+      }),
     ),
   } as {
     user: { findUnique: jest.Mock };
@@ -67,7 +78,17 @@ function serviceFor(options: {
     $transaction: jest.Mock;
   } & Record<string, unknown>;
 
-  const auditLogsService = { createAuditLog: jest.fn(async () => ({})) };
+  const audits: Array<{ action: string; metadata: Record<string, unknown> }> =
+    [];
+  const auditLogsService = {
+    createAuditLog: jest.fn(
+      (entry: { action: string; metadata: Record<string, unknown> }) => {
+        audits.push(entry);
+
+        return Promise.resolve({});
+      },
+    ),
+  };
 
   const authorization = new OrganizationAuthorizationService(
     prisma as never,
@@ -172,7 +193,9 @@ describe('OrganizationService', () => {
     expect(response.capabilities).toEqual(
       expect.arrayContaining(['organization.readBasic']),
     );
-    expect(response.capabilities).not.toContain('organization.updateOperational');
+    expect(response.capabilities).not.toContain(
+      'organization.updateOperational',
+    );
   });
 
   it('owner updates operational fields and writes a minimal audit entry', async () => {
@@ -181,32 +204,40 @@ describe('OrganizationService', () => {
       establishment: verifiedEstablishment(),
     });
 
+    const upserts: Row[] = [];
     const transactionClient = {
-      establishment: { update: jest.fn(async () => ({})) },
-      establishmentSettings: { upsert: jest.fn(async () => ({})) },
+      establishment: { update: jest.fn(() => ({})) },
+      establishmentSettings: {
+        upsert: jest.fn((args: { create: Row }) => {
+          upserts.push(args.create);
+
+          return {};
+        }),
+      },
     };
     service.prisma.$transaction.mockImplementationOnce(
-      async (work: (client: unknown) => Promise<unknown>) => work(transactionClient),
+      async (work: (client: unknown) => Promise<unknown>) =>
+        work(transactionClient),
     );
 
-    await service.organization.updateOrganization(ownerActor, {
-      phone: '+213555000001',
-      defaultAppointmentDuration: 45,
-      dataProtectionOfficerName: null,
-    }, { ipAddress: '127.0.0.1', userAgent: 'test' });
+    await service.organization.updateOrganization(
+      ownerActor,
+      {
+        phone: '+213555000001',
+        defaultAppointmentDuration: 45,
+        dataProtectionOfficerName: null,
+      },
+      { ipAddress: '127.0.0.1', userAgent: 'test' },
+    );
 
     expect(transactionClient.establishment.update).toHaveBeenCalledWith({
       where: { id: 'est-1' },
       data: { phone: '+213555000001' },
     });
-    expect(transactionClient.establishmentSettings.upsert).toHaveBeenCalledWith(
-      expect.objectContaining({
-        create: expect.objectContaining({
-          defaultAppointmentDuration: 45,
-          dataProtectionOfficerName: null,
-        }),
-      }),
-    );
+    expect(upserts.at(-1)).toMatchObject({
+      defaultAppointmentDuration: 45,
+      dataProtectionOfficerName: null,
+    });
 
     const audit = service.auditLogsService.createAuditLog.mock.calls.at(-1)![0];
     expect(audit.action).toBe('ORGANIZATION_SETTINGS_UPDATED');
@@ -227,7 +258,11 @@ describe('OrganizationService', () => {
     });
 
     await expect(
-      service.organization.updateOrganization(ownerActor, { phone: '+213555000001' }, { ipAddress: null, userAgent: null }),
+      service.organization.updateOrganization(
+        ownerActor,
+        { phone: '+213555000001' },
+        { ipAddress: null, userAgent: null },
+      ),
     ).rejects.toThrow(ForbiddenException);
 
     expect(service.auditLogsService.createAuditLog).not.toHaveBeenCalled();
@@ -243,7 +278,7 @@ describe('OrganizationService', () => {
     // an empty validated body changes nothing and audits nothing.
     await service.organization.updateOrganization(
       ownerActor,
-      {} as UpdateOrganizationDto,
+      {},
       { ipAddress: null, userAgent: null },
     );
 
@@ -265,10 +300,22 @@ describe('OrganizationService', () => {
 
 describe('organization authorization', () => {
   it('accepts the OWNER capabilities and refuses a missing one', () => {
-    const owner = capabilitiesForWorkspaceRole(WorkspaceMembershipRole.OWNER, WorkspaceType.ESTABLISHMENT);
-    const admin = capabilitiesForWorkspaceRole(WorkspaceMembershipRole.ADMIN, WorkspaceType.ESTABLISHMENT);
-    const doctor = capabilitiesForWorkspaceRole(WorkspaceMembershipRole.DOCTOR, WorkspaceType.ESTABLISHMENT);
-    const receptionist = capabilitiesForWorkspaceRole(WorkspaceMembershipRole.RECEPTIONIST, WorkspaceType.ESTABLISHMENT);
+    const owner = capabilitiesForWorkspaceRole(
+      WorkspaceMembershipRole.OWNER,
+      WorkspaceType.ESTABLISHMENT,
+    );
+    const admin = capabilitiesForWorkspaceRole(
+      WorkspaceMembershipRole.ADMIN,
+      WorkspaceType.ESTABLISHMENT,
+    );
+    const doctor = capabilitiesForWorkspaceRole(
+      WorkspaceMembershipRole.DOCTOR,
+      WorkspaceType.ESTABLISHMENT,
+    );
+    const receptionist = capabilitiesForWorkspaceRole(
+      WorkspaceMembershipRole.RECEPTIONIST,
+      WorkspaceType.ESTABLISHMENT,
+    );
 
     expect(hasCapability(owner, 'organization.update')).toBe(true);
     expect(hasCapability(admin, 'organization.update')).toBe(false);
@@ -280,13 +327,16 @@ describe('organization authorization', () => {
     expect(receptionist).toEqual([]);
     // Not an establishment workspace: management does not exist there.
     expect(
-      capabilitiesForWorkspaceRole(WorkspaceMembershipRole.OWNER, WorkspaceType.PRIVATE_PRACTICE),
+      capabilitiesForWorkspaceRole(
+        WorkspaceMembershipRole.OWNER,
+        WorkspaceType.PRIVATE_PRACTICE,
+      ),
     ).toEqual([]);
   });
 
   it('a suspended account is refused before any capability check', async () => {
     const contextService = {
-      resolveWorkspaceForUser: jest.fn(async () => ({
+      resolveWorkspaceForUser: jest.fn(() => ({
         workspaceId: 'ws-1',
         workspaceType: WorkspaceType.ESTABLISHMENT,
         membershipRole: WorkspaceMembershipRole.OWNER,
@@ -294,21 +344,23 @@ describe('organization authorization', () => {
       })),
     };
     const prisma = {
-      user: { findUnique: jest.fn(async () => ({ accountStatus: 'REJECTED' })) },
+      user: {
+        findUnique: jest.fn(() => ({ accountStatus: 'REJECTED' })),
+      },
     };
     const authorization = new OrganizationAuthorizationService(
       prisma as never,
       contextService as never,
     );
 
-    await expect(
-      authorization.resolveActor(ownerActor),
-    ).rejects.toThrow(ForbiddenException);
+    await expect(authorization.resolveActor(ownerActor)).rejects.toThrow(
+      ForbiddenException,
+    );
   });
 
   it('cross-workspace membership is refused at resolution (no resource leak)', async () => {
     const contextService = {
-      resolveWorkspaceForUser: jest.fn(async () => {
+      resolveWorkspaceForUser: jest.fn(() => {
         throw new ForbiddenException(
           'Aucun workspace actif ne correspond à ce compte.',
         );
@@ -320,9 +372,9 @@ describe('organization authorization', () => {
       contextService as never,
     );
 
-    await expect(
-      authorization.resolveActor(ownerActor),
-    ).rejects.toThrow(ForbiddenException);
+    await expect(authorization.resolveActor(ownerActor)).rejects.toThrow(
+      ForbiddenException,
+    );
   });
 
   it('a resource from another workspace answers 404, not 403', () => {
@@ -388,7 +440,14 @@ describe('opening hours validation', () => {
       }),
     ).toThrow();
 
-    const withoutSunday = { monday: DAY, tuesday: DAY, wednesday: DAY, thursday: DAY, friday: DAY, saturday: DAY };
+    const withoutSunday = {
+      monday: DAY,
+      tuesday: DAY,
+      wednesday: DAY,
+      thursday: DAY,
+      friday: DAY,
+      saturday: DAY,
+    };
     expect(() => parseOpeningHours(withoutSunday)).toThrow();
   });
 
@@ -423,8 +482,8 @@ describe('organization response mapper', () => {
         address: '12 rue Didouche Mourad',
         phone: '0550000000',
         professionalEmail: 'contact@ibnsina.dz',
-        verificationStatus: 'VERIFIED' as never,
-        subscriptionStatus: 'ACTIVE' as never,
+        verificationStatus: 'VERIFIED',
+        subscriptionStatus: 'ACTIVE',
         verificationRequest: { data: null },
       },
       openingHours: { garbage: true },

@@ -18,6 +18,7 @@ import { UserRole } from '../common/enums/user-role.enum';
 import { sanitizeTextInput } from '../common/utils/sanitize';
 import { PrismaService } from '../prisma/prisma.service';
 import { NotificationProducerService } from '../notifications/notification-producer.service';
+import { WorkspaceContextService } from '../workspaces/workspace-context.service';
 import { AppointmentAuditService } from './appointment-audit.service';
 import { CreateAppointmentDto } from './dto/create-appointment.dto';
 import { ListAppointmentsQueryDto } from './dto/list-appointments-query.dto';
@@ -53,6 +54,7 @@ export class AppointmentsService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly appointmentAuditService: AppointmentAuditService,
+    private readonly workspaceContext: WorkspaceContextService,
     @Optional()
     private readonly notificationProducer?: NotificationProducerService,
   ) {}
@@ -362,15 +364,22 @@ export class AppointmentsService {
       }
 
       case UserRole.ESTABLISHMENT_ADMIN: {
-        const establishment = await this.prisma.establishment.findUnique({
-          where: { ownerId: user.sub },
+        // Operational access to the agenda, not ownership: the workspace the
+        // membership gives (an invited administrator serves the
+        // establishment of their workspace, exactly like patients do).
+        const context = await this.workspaceContext.resolveWorkspaceForUser({
+          userId: user.sub,
+          role: user.role,
         });
 
-        if (!establishment) {
+        if (!context.establishmentId) {
           throw new NotFoundException('Établissement introuvable.');
         }
 
-        return { establishmentId: establishment.id, doctorProfileId: null };
+        return {
+          establishmentId: context.establishmentId,
+          doctorProfileId: null,
+        };
       }
 
       case UserRole.AFFILIATED_DOCTOR: {

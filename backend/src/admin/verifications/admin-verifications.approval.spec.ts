@@ -125,12 +125,16 @@ describe('AdminVerificationsService with an affiliated doctor request', () => {
 
   it('keeps the two doctor types distinguishable in the list filter', () => {
     const { service } = setup({ request: affiliatedRequest });
-    const internals = service as unknown as Record<string, unknown>;
+    const { buildVerificationWhere } = service as unknown as {
+      buildVerificationWhere: (
+        query: Record<string, unknown>,
+      ) => Record<string, unknown>;
+    };
 
-    const affiliatedWhere = internals.buildVerificationWhere({
+    const affiliatedWhere = buildVerificationWhere({
       type: 'AFFILIATED_DOCTOR',
     });
-    const independentWhere = internals.buildVerificationWhere({
+    const independentWhere = buildVerificationWhere({
       type: 'INDEPENDENT_DOCTOR',
     });
 

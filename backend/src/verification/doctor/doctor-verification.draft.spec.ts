@@ -14,7 +14,7 @@ function fakeClient() {
     verificationRequest: {
       // No draft on this fresh profile; the create records the payload.
       findFirst: jest.fn(() => Promise.resolve(null)),
-      create: jest.fn((input: { data: unknown }) =>
+      create: jest.fn((input: { data: Record<string, unknown> }) =>
         Promise.resolve({ id: 'request-1', status: 'DRAFT', ...input.data }),
       ),
     },

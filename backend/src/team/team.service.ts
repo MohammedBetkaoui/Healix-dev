@@ -150,6 +150,11 @@ export class TeamService {
   // Suspension closes the ACCOUNT, not the membership row: the suspended
   // member cannot sign in anywhere, their tokens die on the spot, and their
   // seat frees for the plan. Clinical data they produced stays untouched.
+  //
+  // Future multi-workspace: suspension must become membership-level (suspend
+  // the one WorkspaceMembership), not a global User suspension — an account
+  // could then belong to several workspaces and cutting one must not cut
+  // all of them. The single-workspace V1 stays global on purpose.
   async suspendMember(
     user: RequestUser,
     membershipId: string,

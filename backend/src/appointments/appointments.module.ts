@@ -6,6 +6,7 @@ import { RolesGuard } from '../common/guards/roles.guard';
 import { PrismaModule } from '../prisma/prisma.module';
 import { NotificationsModule } from '../notifications/notifications.module';
 import { SubscriptionsModule } from '../subscriptions/subscriptions.module';
+import { WorkspaceModule } from '../workspaces/workspace.module';
 import { AppointmentAuditService } from './appointment-audit.service';
 import { AppointmentsController } from './appointments.controller';
 import { AppointmentsService } from './appointments.service';
@@ -16,6 +17,7 @@ import { AppointmentsService } from './appointments.service';
     AuditLogsModule,
     NotificationsModule,
     SubscriptionsModule,
+    WorkspaceModule,
   ],
   controllers: [AppointmentsController],
   providers: [

@@ -352,7 +352,16 @@ export class TeamInvitationService {
 
     const establishment = await this.readInvitedEstablishment(invitation);
 
-    const runAccept = async (transaction: Prisma.TransactionClient) => {
+    // What the committed transaction answers: the account it created, the
+    // DRAFT profile for a doctor (null for an administrator).
+    type AcceptedInvitation = {
+      doctorProfileId: string | null;
+      newUserId: string;
+    };
+
+    const runAccept = async (
+      transaction: Prisma.TransactionClient,
+    ): Promise<AcceptedInvitation> => {
       // Conditional claim inside the transaction: of two concurrent
       // acceptances of the same link, exactly one persists.
       const claimed = await transaction.workspaceInvitation.updateMany({
@@ -422,7 +431,6 @@ export class TeamInvitationService {
         });
         doctorProfileId = doctorProfile.id;
       }
-
       await transaction.workspaceMembership.create({
         data: {
           role: invitation.role,
@@ -451,32 +459,39 @@ export class TeamInvitationService {
         transaction,
       );
 
-      if (doctorProfileId) {
-        await this.notificationProducer.create({
-          category: NotificationCategory.TEAM,
-          data: { doctorProfileId },
-          dedupeKey: `doctor-account-created:${doctorProfileId}`,
-          resourceType: NotificationResourceType.DOCTOR_PROFILE,
-          resourceId: doctorProfileId,
-          type: 'DOCTOR_ACCOUNT_CREATED',
-          userId: newUser.id,
-          workspaceId: invitation.workspaceId,
-        });
-      }
-
-      return newUser.id;
+      return {
+        doctorProfileId,
+        newUserId: newUser.id,
+      };
     };
 
     // A doctor seat is counted and taken under the subscription lock; an
     // administrator takes none (the plan quota counts doctors only).
-    if (invitation.role === WorkspaceMembershipRole.DOCTOR) {
-      await this.entitlements.withQuota(
-        invitation.workspaceId,
-        'maxDoctors',
-        runAccept,
-      );
-    } else {
-      await this.prisma.$transaction(runAccept);
+    const accepted =
+      invitation.role === WorkspaceMembershipRole.DOCTOR
+        ? await this.entitlements.withQuota(
+            invitation.workspaceId,
+            'maxDoctors',
+            runAccept,
+          )
+        : await this.prisma.$transaction(runAccept);
+
+    // AFTER the commit: the account exists for every reader, the membership
+    // the producer re-checks is visible — inside the transaction it would
+    // miss the row and silently skip the notice. Non-critical by design:
+    // the producer swallows its own errors, the acceptance stands whatever
+    // the notice did. Payload only the profile id, no personal data.
+    if (accepted.doctorProfileId) {
+      await this.notificationProducer.create({
+        category: NotificationCategory.TEAM,
+        data: { doctorProfileId: accepted.doctorProfileId },
+        dedupeKey: `doctor-account-created:${accepted.doctorProfileId}`,
+        resourceType: NotificationResourceType.DOCTOR_PROFILE,
+        resourceId: accepted.doctorProfileId,
+        type: 'DOCTOR_ACCOUNT_CREATED',
+        userId: accepted.newUserId,
+        workspaceId: invitation.workspaceId,
+      });
     }
 
     return {

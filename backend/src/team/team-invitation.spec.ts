@@ -94,16 +94,35 @@ function build(
     })),
   };
 
+  const createdUsers: Array<Record<string, unknown>> = [];
+  const createdDoctors: Array<Record<string, unknown>> = [];
+  const createdMemberships: Array<Record<string, unknown>> = [];
   const transaction = {
-    doctorProfile: { create: jest.fn(() => ({ id: 'dp-new' })) },
+    doctorProfile: {
+      create: jest.fn((input: { data: Record<string, unknown> }) => {
+        createdDoctors.push(input.data);
+
+        return { id: 'dp-new' };
+      }),
+    },
     user: {
-      create: jest.fn(() => ({ id: 'user-new' })),
-      findUnique: jest.fn(() => null),
+      create: jest.fn((input: { data: Record<string, unknown> }) => {
+        createdUsers.push(input.data);
+
+        return { id: 'user-new' };
+      }),
+      findUnique: jest.fn(() => null) as jest.Mock,
     },
     workspaceInvitation: {
-      updateMany: jest.fn(() => ({ count: 1 })),
+      updateMany: jest.fn(() => ({ count: 1 })) as jest.Mock,
     },
-    workspaceMembership: { create: jest.fn(() => ({})) },
+    workspaceMembership: {
+      create: jest.fn((input: { data: Record<string, unknown> }) => {
+        createdMemberships.push(input.data);
+
+        return {};
+      }),
+    },
   };
 
   const prisma = {
@@ -113,11 +132,12 @@ function build(
     user: {
       // The authorization reads the account by id (must be ACTIVE for the
       // actor); the "existing account" check reads by e-mail (defaults to
-      // none here). One mock, two lookup shapes.
+      // none here). One mock, two lookup shapes. Several tests replace it
+      // with a different row; typed loose on purpose.
       findUnique: jest.fn(
         ({ where }: { where: { email?: string; id?: string } }) =>
           where.id ? { accountStatus: 'ACTIVE' } : null,
-      ),
+      ) as jest.Mock,
     },
     workspace: {
       findUnique: jest.fn(() => ({
@@ -138,7 +158,7 @@ function build(
         invitedBy: { fullName: 'Dr Propriétaire' },
         ...data,
       })),
-      findFirst: jest.fn(() => null),
+      findFirst: jest.fn(() => null) as jest.Mock,
       findUnique: jest.fn(
         ({ where }: { where: { id?: string; tokenHash?: string } }) => {
           // By id (management paths) and by tokenHash (public paths): an
@@ -156,12 +176,21 @@ function build(
             ? { ...invitationRow(), invitedBy: { fullName: 'Dr Propriétaire' } }
             : null;
         },
+      ) as jest.Mock,
+      update: jest.fn(
+        ({
+          where,
+          data,
+        }: {
+          where: { id: string };
+          data?: Record<string, unknown>;
+        }) => ({
+          ...invitationRow(),
+          id: where.id,
+          invitedBy: { fullName: 'Dr Propriétaire' },
+          ...data,
+        }),
       ),
-      update: jest.fn(({ where }: { where: { id: string } }) => ({
-        ...invitationRow(),
-        id: where.id,
-        invitedBy: { fullName: 'Dr Propriétaire' },
-      })),
       updateMany: jest.fn(),
     },
   };
@@ -170,7 +199,14 @@ function build(
     prisma as never,
     contextService as never,
   );
-  const auditLogsService = { createAuditLog: jest.fn(() => ({})) };
+  const audits: Array<Record<string, unknown>> = [];
+  const auditLogsService = {
+    createAuditLog: jest.fn((entry: Record<string, unknown>) => {
+      audits.push(entry);
+
+      return {};
+    }),
+  };
   const entitlements = {
     getEntitlements: jest.fn(() => ({
       quotas: { maxDoctors: 10 },
@@ -184,9 +220,14 @@ function build(
       ) => run(transaction),
     ),
   };
+  const sentMails: Array<{ to: string; text: string }> = [];
   const mailService = {
     publicUrl: 'https://app.test',
-    send: jest.fn(() => undefined),
+    send: jest.fn((message: { to: string; text: string }) => {
+      sentMails.push(message);
+
+      return undefined;
+    }),
   };
   const notificationProducer = { create: jest.fn(() => ({})) };
   const authService = { hashPassword: jest.fn(() => '$2a$hash') };
@@ -202,6 +243,7 @@ function build(
   );
 
   return {
+    audits,
     auditLogsService,
     authService,
     entitlements,
@@ -235,10 +277,7 @@ describe('TeamInvitationService.createInvitation', () => {
 
     // The link in the mail carries the raw token; exactly one is sent.
     expect(mock.mailService.send).toHaveBeenCalledTimes(1);
-    const mail = mock.mailService.send.mock.calls[0][0] as unknown as {
-      to: string;
-      text: string;
-    };
+    const mail = mock.mailService.send.mock.calls[0][0];
     expect(mail.to).toBe('invite@example.dz');
     expect(mail.text).toContain(
       `${mock.mailService.publicUrl}/invite/accept?token=`,
@@ -596,8 +635,7 @@ describe('TeamInvitationService.acceptInvitation', () => {
       expect.any(Function),
     );
 
-    const createdUser = mock.transaction.user.create.mock.calls[0][0]
-      .data as Record<string, unknown>;
+    const createdUser = mock.transaction.user.create.mock.calls[0][0].data;
     expect(createdUser).toMatchObject({
       accountStatus: 'ACTIVE',
       email: 'invite@example.dz',
@@ -607,8 +645,8 @@ describe('TeamInvitationService.acceptInvitation', () => {
       role: 'AFFILIATED_DOCTOR',
     });
 
-    const createdProfile = mock.transaction.doctorProfile.create.mock
-      .calls[0][0].data as Record<string, unknown>;
+    const createdProfile =
+      mock.transaction.doctorProfile.create.mock.calls[0][0].data;
     expect(createdProfile).toMatchObject({
       establishmentId: 'est-1',
       isIndependent: false,
@@ -619,8 +657,8 @@ describe('TeamInvitationService.acceptInvitation', () => {
       wilaya: 'Alger',
     });
 
-    const membership = mock.transaction.workspaceMembership.create.mock
-      .calls[0][0].data as Record<string, unknown>;
+    const membership =
+      mock.transaction.workspaceMembership.create.mock.calls[0][0].data;
     expect(membership).toMatchObject({
       role: DOCTOR,
       status: 'ACTIVE',
@@ -658,6 +696,14 @@ describe('TeamInvitationService.acceptInvitation', () => {
         userId: 'user-new',
         workspaceId: 'ws-1',
       }),
+    );
+    // Sent after the commit, never inside the transaction: the producer
+    // re-checks the membership with its own client, which must see the
+    // committed account.
+    expect(
+      mock.entitlements.withQuota.mock.invocationCallOrder[0],
+    ).toBeLessThan(
+      mock.notificationProducer.create.mock.invocationCallOrder[0],
     );
   });
 
@@ -780,8 +826,8 @@ describe('TeamInvitationService.acceptInvitation', () => {
       requestContext(),
     );
 
-    const createdProfile = mock.transaction.doctorProfile.create.mock
-      .calls[0][0].data as Record<string, unknown>;
+    const createdProfile =
+      mock.transaction.doctorProfile.create.mock.calls[0][0].data;
     expect(createdProfile.speciality).toBe('');
     expect(createdProfile.wilaya).toBe('');
     expect(createdProfile.professionalAddress).toBe('');
@@ -798,11 +844,9 @@ describe('TeamInvitationService.acceptInvitation', () => {
     );
 
     expect(JSON.stringify(outcome)).not.toContain(INVITE_TOKEN);
-    const audit = mock.auditLogsService.createAuditLog.mock.calls.find(
-      ([entry]: [unknown]) =>
-        (entry as Record<string, unknown>).action ===
-        'TEAM_INVITATION_ACCEPTED',
-    )?.[0] as { metadata: Record<string, unknown> } | undefined;
+    const audit = mock.audits.find(
+      (entry) => entry.action === 'TEAM_INVITATION_ACCEPTED',
+    ) as { metadata: Record<string, unknown> } | undefined;
     expect(audit?.metadata).toEqual({
       invitationId: 'invitation-1',
       role: DOCTOR,
