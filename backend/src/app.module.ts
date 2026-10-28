@@ -29,6 +29,7 @@ import { PaymentsModule } from './payments/payments.module';
 import { PrescriptionsModule } from './prescriptions/prescriptions.module';
 import { ReportsModule } from './reports/reports.module';
 import { SubscriptionsModule } from './subscriptions/subscriptions.module';
+import { StorageModule } from './storage/storage.module';
 import { VerificationModule } from './verification/verification.module';
 import { WorkspaceModule } from './workspaces/workspace.module';
 
@@ -50,6 +51,7 @@ import { WorkspaceModule } from './workspaces/workspace.module';
     AdminModule,
     AuthModule,
     SubscriptionsModule,
+    StorageModule,
     PaymentsModule,
     VerificationModule,
     PatientsModule,

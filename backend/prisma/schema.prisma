@@ -864,7 +864,13 @@ model PatientDocument {
   storedName        String              @map("stored_name") @db.VarChar(255)
   mimeType          String              @map("mime_type") @db.VarChar(100)
   size              Int
-  localPath         String              @map("local_path") @db.VarChar(500)
+  // The opaque key of the file in the StorageService (hx/...); null while the
+  // file is still a legacy one under UPLOAD_ROOT (the migration script moves
+  // it, without changing the row's other columns).
+  storageKey        String?             @unique @map("storage_key") @db.VarChar(255)
+  localPath         String?             @map("local_path") @db.VarChar(500)
+  // 1: AES-256-GCM with the key of STORAGE_MASTER_KEY; null: stored clear.
+  encryptionVersion Int?                @map("encryption_version")
   checksum          String?             @db.VarChar(128)
   uploadedById      String              @map("uploaded_by_id")
   prescriptionId    String?             @unique @map("prescription_id")
@@ -1122,7 +1128,9 @@ model PrescriptionDocument {
   id                 String   @id @default(cuid())
   prescriptionId     String   @unique @map("prescription_id")
   storedName         String   @map("stored_name") @db.VarChar(255)
-  localPath          String   @map("local_path") @db.VarChar(500)
+  storageKey         String?  @unique @map("storage_key") @db.VarChar(255)
+  localPath          String?  @map("local_path") @db.VarChar(500)
+  encryptionVersion  Int?     @map("encryption_version")
   mimeType           String   @default("application/pdf") @map("mime_type") @db.VarChar(100)
   size               Int
   checksum           String   @db.Char(64)
@@ -1204,7 +1212,9 @@ model ClinicalReportDocument {
   id                 String   @id @default(cuid())
   reportId           String   @unique @map("report_id")
   storedName         String   @map("stored_name") @db.VarChar(255)
-  localPath          String   @map("local_path") @db.VarChar(500)
+  storageKey         String?  @unique @map("storage_key") @db.VarChar(255)
+  localPath          String?  @map("local_path") @db.VarChar(500)
+  encryptionVersion  Int?     @map("encryption_version")
   mimeType           String   @default("application/pdf") @map("mime_type") @db.VarChar(100)
   size               Int
   checksum           String   @db.Char(64)
@@ -1391,7 +1401,9 @@ model VerificationDocument {
   storedName            String                     @map("stored_name") @db.VarChar(255)
   mimeType              String                     @map("mime_type") @db.VarChar(100)
   size                  Int
-  localPath             String                     @map("local_path") @db.VarChar(500)
+  storageKey            String?                    @unique @map("storage_key") @db.VarChar(255)
+  localPath             String?                    @map("local_path") @db.VarChar(500)
+  encryptionVersion     Int?                       @map("encryption_version")
   checksum              String?                    @db.VarChar(128)
   status                VerificationDocumentStatus @default(UPLOADED)
   uploadedAt            DateTime                   @default(now()) @map("uploaded_at")
@@ -1589,18 +1601,20 @@ model Payment {
 }
 
 model PaymentProofDocument {
-  id           String                   @id @default(cuid())
-  paymentId    String                   @unique @map("payment_id")
-  documentType PaymentProofDocumentType @map("document_type")
-  originalName String                   @map("original_name") @db.VarChar(255)
-  storedName   String                   @map("stored_name") @db.VarChar(255)
-  mimeType     String                   @map("mime_type") @db.VarChar(100)
-  size         Int
-  localPath    String                   @map("local_path") @db.VarChar(500)
-  checksum     String?                  @db.VarChar(128)
-  uploadedAt   DateTime                 @default(now()) @map("uploaded_at")
-  createdAt    DateTime                 @default(now()) @map("created_at")
-  updatedAt    DateTime                 @updatedAt @map("updated_at")
+  id                String                   @id @default(cuid())
+  paymentId         String                   @unique @map("payment_id")
+  documentType      PaymentProofDocumentType @map("document_type")
+  originalName      String                   @map("original_name") @db.VarChar(255)
+  storedName        String                   @map("stored_name") @db.VarChar(255)
+  mimeType          String                   @map("mime_type") @db.VarChar(100)
+  size              Int
+  storageKey        String?                  @unique @map("storage_key") @db.VarChar(255)
+  localPath         String?                  @map("local_path") @db.VarChar(500)
+  encryptionVersion Int?                     @map("encryption_version")
+  checksum          String?                  @db.VarChar(128)
+  uploadedAt        DateTime                 @default(now()) @map("uploaded_at")
+  createdAt         DateTime                 @default(now()) @map("created_at")
+  updatedAt         DateTime                 @updatedAt @map("updated_at")
 
   payment Payment @relation(fields: [paymentId], references: [id], onDelete: Cascade)
 
@@ -1690,20 +1704,25 @@ model AiAnalysisRun {
 // The official PDF report of a decided run: generated once, then served as
 // stored, never regenerated (a frozen medical document).
 model AiAnalysisReport {
-  id            String   @id @default(cuid())
+  id                String   @id @default(cuid())
   // One report per run: of two simultaneous first requests, only one row lands.
-  runId         String   @unique @map("run_id")
+  runId             String   @unique @map("run_id")
   // CR-IA-<year>-<NNNNNN>, sequential within the year.
-  reportNumber  String   @unique @map("report_number") @db.VarChar(20)
-  filePath      String   @map("file_path") @db.VarChar(512)
+  reportNumber      String   @unique @map("report_number") @db.VarChar(20)
+  // The opaque key of the PDF in the StorageService (hx/...); null while the
+  // file is still a legacy one (the migration script moves it).
+  storageKey        String?  @unique @map("storage_key") @db.VarChar(255)
+  filePath          String?  @map("file_path") @db.VarChar(512)
+  // 1: AES-256-GCM with the key of STORAGE_MASTER_KEY; null: stored clear.
+  encryptionVersion Int?     @map("encryption_version")
   // SHA-256 of the stored PDF file.
-  sha256        String   @db.Char(64)
+  sha256            String   @db.Char(64)
   // SHA-256 of the report's content (the facts it prints), printed on the
   // document as its fingerprint: a file cannot contain its own hash.
-  contentSha256 String   @map("content_sha256") @db.Char(64)
-  sizeBytes     Int      @map("size_bytes")
-  generatedById String   @map("generated_by_id")
-  createdAt     DateTime @default(now()) @map("created_at")
+  contentSha256     String   @map("content_sha256") @db.Char(64)
+  sizeBytes         Int      @map("size_bytes")
+  generatedById     String   @map("generated_by_id")
+  createdAt         DateTime @default(now()) @map("created_at")
 
   run            AiAnalysisRun   @relation(fields: [runId], references: [id], onDelete: Cascade)
   generatedBy    User            @relation("AiAnalysisReportGeneratedBy", fields: [generatedById], references: [id], onDelete: Restrict)

@@ -1,4 +1,8 @@
 import { hash } from 'bcrypt';
+import { randomBytes } from 'node:crypto';
+import { mkdtempSync, rmSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
 
 import { type AuthenticatedUserPayload } from '../../auth/types/authenticated-request.type';
 import { type PrismaService } from '../../prisma/prisma.service';
@@ -11,12 +15,20 @@ import { type PlanQuotas } from '../../subscriptions/plans/plan-quotas';
 
 export type TestDatabase = { name: string; url: string };
 
+// The cleanup of the storage environment, while it is up (one per process).
+let storageCleanup: (() => void) | null = null;
+
 // TEST_DATABASE_URL, null when it is not set (the spec is then skipped).
+// With a database comes the environment of the encrypted storage (a master
+// key of the process, a private folder): the specs that store documents
+// through the StorageService get it for free.
 export function readTestDatabase(
   env: Record<string, string | undefined> = process.env,
 ): TestDatabase | null {
   const url = env.TEST_DATABASE_URL ?? '';
-  return url ? { name: new URL(url).pathname.slice(1), url } : null;
+  if (!url) return null;
+  applyStorageTestEnv(env);
+  return { name: new URL(url).pathname.slice(1), url };
 }
 
 // A spec writes and deletes rows: only a database made for it.
@@ -26,6 +38,30 @@ export function assertTestDatabaseName(database: TestDatabase): void {
       `TEST_DATABASE_URL must name a database ending in "_test", not "${database.name}".`,
     );
   }
+}
+
+// The environment the specs of the encrypted storage run with: a master key
+// of their own (random, per process — the environment would provide it), and
+// a private folder under the temporary directory, so that a spec never reads
+// the files of another. The returned function removes the folder (afterAll);
+// the process exit takes it away as well, for the specs that never call it.
+export function applyStorageTestEnv(
+  env: Record<string, string | undefined> = process.env,
+): () => void {
+  if (storageCleanup !== null) return storageCleanup;
+
+  const localRoot = mkdtempSync(join(tmpdir(), 'healix-storage-'));
+
+  env.STORAGE_MASTER_KEY ??= randomBytes(32).toString('base64');
+  env.STORAGE_LOCAL_ROOT = localRoot;
+
+  storageCleanup = () => {
+    rmSync(localRoot, { force: true, recursive: true });
+    storageCleanup = null;
+  };
+  process.on('exit', () => storageCleanup?.());
+
+  return storageCleanup;
 }
 
 // A PDF that is not rendered by Chromium: enough for the checksums, the
