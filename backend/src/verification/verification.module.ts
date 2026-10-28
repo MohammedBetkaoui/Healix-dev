@@ -4,6 +4,7 @@ import { AuditLogsModule } from '../audit-logs/audit-logs.module';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { RolesGuard } from '../common/guards/roles.guard';
 import { PrismaModule } from '../prisma/prisma.module';
+import { StorageModule } from '../storage/storage.module';
 import { VerificationDocumentService } from './documents/verification-document.service';
 import { VerificationFileStorageService } from './documents/verification-file-storage.service';
 import { VerificationFileValidator } from './documents/verification-file-validator';
@@ -13,7 +14,7 @@ import { VerificationController } from './verification.controller';
 import { VerificationService } from './verification.service';
 
 @Module({
-  imports: [PrismaModule, AuditLogsModule],
+  imports: [PrismaModule, AuditLogsModule, StorageModule],
   controllers: [VerificationController],
   providers: [
     VerificationService,

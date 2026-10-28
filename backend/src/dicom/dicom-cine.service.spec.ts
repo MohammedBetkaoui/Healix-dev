@@ -128,6 +128,9 @@ const errorOf = async (promise: Promise<unknown>) => {
 };
 
 describe('DicomAnalysisService, cine stacks', () => {
+  // The key the modern storage hands back for the document of the suite.
+  const STORAGE_KEY = 'hx/medical/ab/' + 'b'.repeat(32) + '.bin';
+
   const prisma = {
     aiAnalysisRun: { count: jest.fn() },
     patientDocument: { create: jest.fn(), delete: jest.fn() },
@@ -143,7 +146,7 @@ describe('DicomAnalysisService, cine stacks', () => {
     getPatientInScope: jest.fn(),
   };
   const entitlements = { getEntitlements: jest.fn() };
-  const files = { deleteLocalFile: jest.fn(), storePatientDocument: jest.fn() };
+  const files = { deleteFile: jest.fn(), storePatientDocument: jest.fn() };
   const audit = { log: jest.fn() };
   const runs = { create: jest.fn() };
   const service = new DicomAnalysisService(
@@ -190,7 +193,10 @@ describe('DicomAnalysisService, cine stacks', () => {
         stored = file.buffer;
         return Promise.resolve({
           checksum: 'c'.repeat(64),
-          localPath: '/uploads/patients/patient-1/documents/cine',
+          // What the modern storage answers: an opaque key and the version of
+          // the format the file was written with.
+          storageKey: STORAGE_KEY,
+          encryptionVersion: 1,
           originalName: file.originalname,
           storedName: 'cine',
         });
@@ -198,7 +204,7 @@ describe('DicomAnalysisService, cine stacks', () => {
     );
     prisma.patientDocument.create.mockImplementation(
       ({ data }: { data: object }) =>
-        Promise.resolve({ id: 'document-1', localPath: '/uploads/x', ...data }),
+        Promise.resolve({ id: 'document-1', ...data }),
     );
     audit.log.mockResolvedValue(undefined);
     runs.create.mockResolvedValue({ id: 'run-1', status: 'SUCCEEDED' });
@@ -459,9 +465,7 @@ describe('DicomAnalysisService, cine stacks', () => {
       expect(prisma.patientDocument.delete).toHaveBeenCalledWith({
         where: { id: 'document-1' },
       });
-      expect(files.deleteLocalFile).toHaveBeenCalledWith(
-        '/uploads/patients/patient-1/documents/cine',
-      );
+      expect(files.deleteFile).toHaveBeenCalledWith(STORAGE_KEY);
     });
 
     it('keeps the document of a run that exists and failed: the source belongs to the record', async () => {
@@ -473,7 +477,7 @@ describe('DicomAnalysisService, cine stacks', () => {
       ).rejects.toBeInstanceOf(BadGatewayException);
 
       expect(prisma.patientDocument.delete).not.toHaveBeenCalled();
-      expect(files.deleteLocalFile).not.toHaveBeenCalled();
+      expect(files.deleteFile).not.toHaveBeenCalled();
     });
 
     it('removes the file when the row cannot be written', async () => {
@@ -481,9 +485,7 @@ describe('DicomAnalysisService, cine stacks', () => {
       await expect(
         service.analyzeCineStack(user, 'study-1', CINE_ID),
       ).rejects.toThrow('database');
-      expect(files.deleteLocalFile).toHaveBeenCalledWith(
-        '/uploads/patients/patient-1/documents/cine',
-      );
+      expect(files.deleteFile).toHaveBeenCalledWith(STORAGE_KEY);
       expect(runs.create).not.toHaveBeenCalled();
     });
   });

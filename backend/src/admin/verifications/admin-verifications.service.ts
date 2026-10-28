@@ -1,20 +1,17 @@
 import {
   BadRequestException,
   ConflictException,
-  ForbiddenException,
   Injectable,
   NotFoundException,
   Optional,
 } from '@nestjs/common';
-import { ConfigService } from '@nestjs/config';
 import {
   NotificationCategory,
   NotificationResourceType,
   NotificationSeverity,
   type Prisma,
 } from '@prisma/client';
-import { createReadStream, existsSync } from 'node:fs';
-import { resolve } from 'node:path';
+import { type Readable } from 'node:stream';
 
 import { AuditLogsService } from '../../audit-logs/audit-logs.service';
 import { AccountStatus } from '../../common/enums/account-status.enum';
@@ -29,6 +26,7 @@ import { VerificationDocumentStatus } from '../../common/enums/verification-docu
 import { VerificationStatus } from '../../common/enums/verification-status.enum';
 import { PrismaService } from '../../prisma/prisma.service';
 import { NotificationProducerService } from '../../notifications/notification-producer.service';
+import { StorageService } from '../../storage/storage.service';
 import { SubscriptionsService } from '../../subscriptions/subscriptions.service';
 import {
   createPaginationMeta,
@@ -50,7 +48,7 @@ type RequestContext = {
 };
 
 type DocumentStreamResult = {
-  stream: ReturnType<typeof createReadStream>;
+  stream: Readable;
   originalName: string;
   mimeType: string;
   size: number;
@@ -73,21 +71,14 @@ function billableAccountTypeOf(type: string): AccountType | null {
 
 @Injectable()
 export class AdminVerificationsService {
-  private readonly uploadRoot: string;
-
   constructor(
     private readonly prisma: PrismaService,
     private readonly auditLogsService: AuditLogsService,
     private readonly subscriptionsService: SubscriptionsService,
-    configService: ConfigService,
+    private readonly storageService: StorageService,
     @Optional()
     private readonly notificationProducer?: NotificationProducerService,
-  ) {
-    this.uploadRoot = resolve(
-      process.cwd(),
-      configService.get<string>('UPLOAD_ROOT') ?? './uploads',
-    );
-  }
+  ) {}
 
   async listVerifications(query: ListVerificationsQueryDto) {
     const { page, limit, skip } = getPagination(query.page, query.limit);
@@ -383,11 +374,18 @@ export class AdminVerificationsService {
       throw new NotFoundException('Document introuvable.');
     }
 
-    const safePath = this.ensureDocumentPathIsSafe(document.localPath);
+    // Where the file lives: a modern opaque key (hx/...), or the legacy path
+    // of one the migration script has not moved yet. Both go through the
+    // StorageService, which streams it decrypted; a missing or unreadable
+    // file is a controlled 404/500, never a path in the answer.
+    const reference = document.storageKey ?? document.localPath;
 
-    if (!existsSync(safePath)) {
+    if (!reference) {
       throw new NotFoundException('Document introuvable.');
     }
+
+    // Opened before logging: a missing file is a 404, not a consultation.
+    const stream = await this.storageService.getStream(reference);
 
     await this.auditLogsService.createAuditLog({
       action:
@@ -406,7 +404,7 @@ export class AdminVerificationsService {
     });
 
     return {
-      stream: createReadStream(safePath),
+      stream,
       originalName: document.originalName,
       mimeType: document.mimeType,
       size: document.size,
@@ -604,21 +602,5 @@ export class AdminVerificationsService {
     if (!checklist.canApprove) {
       throw new BadRequestException('Document obligatoire manquant.');
     }
-  }
-
-  private ensureDocumentPathIsSafe(localPath: string): string {
-    const resolvedPath = resolve(localPath);
-
-    if (
-      resolvedPath !== this.uploadRoot &&
-      !resolvedPath.startsWith(`${this.uploadRoot}\\`) &&
-      !resolvedPath.startsWith(`${this.uploadRoot}/`)
-    ) {
-      throw new ForbiddenException(
-        "Vous n'êtes pas autorisé à accéder à cette ressource.",
-      );
-    }
-
-    return resolvedPath;
   }
 }

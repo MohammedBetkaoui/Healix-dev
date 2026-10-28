@@ -63,6 +63,10 @@ export class AdminPaymentsController {
 
     response.setHeader('Content-Type', proof.mimeType);
     response.setHeader('Content-Length', String(proof.size));
+    // The proof is private: cached by no intermediary, and never sniffed into
+    // something else than what its declared type says.
+    response.setHeader('Cache-Control', 'private, no-store');
+    response.setHeader('X-Content-Type-Options', 'nosniff');
     response.setHeader(
       'Content-Disposition',
       `inline; filename="${encodeURIComponent(proof.originalName)}"`,
@@ -85,6 +89,8 @@ export class AdminPaymentsController {
 
     response.setHeader('Content-Type', proof.mimeType);
     response.setHeader('Content-Length', String(proof.size));
+    response.setHeader('Cache-Control', 'private, no-store');
+    response.setHeader('X-Content-Type-Options', 'nosniff');
     response.setHeader(
       'Content-Disposition',
       `attachment; filename="${encodeURIComponent(proof.originalName)}"`,

@@ -14,6 +14,7 @@ import { PaymentMethod } from '../common/enums/payment-method.enum';
 import { PaymentProofDocumentType } from '../common/enums/payment-proof-document-type.enum';
 import { PaymentStatus } from '../common/enums/payment-status.enum';
 import { PrismaService } from '../prisma/prisma.service';
+import { storageReferenceOf } from '../storage/storage-keys';
 import { SubscriptionPlansService } from '../subscriptions/plans/subscription-plans.service';
 import {
   paymentMethodDisabled,
@@ -446,7 +447,15 @@ export class PaymentsService {
     });
 
     if (previousProof) {
-      await this.proofStorageService.deleteLocalFile(previousProof.localPath);
+      // A row predating the modern storage holds a legacy path; a row
+      // without any reference has no file behind it. (When this workflow is
+      // migrated to the StorageService, the deleted file follows its row's
+      // key.)
+      const reference = storageReferenceOf(previousProof);
+
+      if (reference) {
+        await this.proofStorageService.deleteLocalFile(reference);
+      }
     }
 
     return {

@@ -32,6 +32,7 @@ import { PatientFileStorageService } from '../patients/documents/patient-file-st
 import { PatientAuditService } from '../patients/patient-audit.service';
 import { PatientsService } from '../patients/patients.service';
 import { PrismaService } from '../prisma/prisma.service';
+import { storageReferenceOf } from '../storage/storage-keys';
 import { EntitlementsService } from '../subscriptions/entitlements.service';
 import { NotificationProducerService } from '../notifications/notification-producer.service';
 import {
@@ -429,9 +430,18 @@ export class AiAnalysisRunsService {
       });
     }
 
-    const image = await this.fileStorageService.readStoredFile(
-      document.localPath,
-    );
+    // A row without any reference has no file behind it (and the storage
+    // answers its controlled error when the file is gone).
+    const reference = storageReferenceOf(document);
+
+    if (!reference) {
+      throw new BadRequestException({
+        code: 'AI_SOURCE_DOCUMENT_MISSING',
+        message: 'Le document source de cette analyse est introuvable.',
+      });
+    }
+
+    const image = await this.fileStorageService.readStoredFile(reference);
     const impression = dto.clinicianImpression
       ? sanitizeTextInput(dto.clinicianImpression)
       : '';
@@ -753,7 +763,9 @@ export class AiAnalysisRunsService {
       };
     } catch {
       for (const path of stored) {
-        await this.fileStorageService.deleteLocalFile(path);
+        // An artifact path under UPLOAD_ROOT (the runs keep their paths):
+        // the storage deletes it through its legacy branch.
+        await this.fileStorageService.deleteFile(path);
       }
       await this.finish(user, run.id, {
         errorCode: 'MASK_STORAGE_FAILED',

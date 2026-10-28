@@ -2,6 +2,7 @@ import {
   Injectable,
   InternalServerErrorException,
   Logger,
+  NotFoundException,
   Optional,
 } from '@nestjs/common';
 import {
@@ -25,6 +26,7 @@ import { sanitizeTextInput } from '../common/utils/sanitize';
 import { NotificationProducerService } from '../notifications/notification-producer.service';
 import { PatientsService } from '../patients/patients.service';
 import { PrismaService } from '../prisma/prisma.service';
+import { storageReferenceOf } from '../storage/storage-keys';
 import { CancelPrescriptionDto } from './dto/cancel-prescription.dto';
 import { CreatePrescriptionItemDto } from './dto/create-prescription-item.dto';
 import { CreatePrescriptionDto } from './dto/create-prescription.dto';
@@ -409,7 +411,7 @@ export class PrescriptionsService {
         'Cette ordonnance est annulée.',
       );
     }
-    let uncommittedPath: string | null = null;
+    let uncommittedStorageKey: string | null = null;
     try {
       const validated = await this.prisma.$transaction(
         async (transaction) => {
@@ -570,7 +572,7 @@ export class PrescriptionsService {
             number,
             pdf,
           });
-          uncommittedPath = stored.localPath;
+          uncommittedStorageKey = stored.storageKey;
           const now = new Date();
           const won = await transaction.prescription.updateMany({
             where: {
@@ -603,7 +605,9 @@ export class PrescriptionsService {
             data: {
               prescriptionId: prescription.id,
               storedName: stored.storedName,
-              localPath: stored.localPath,
+              storageKey: stored.storageKey,
+              localPath: null,
+              encryptionVersion: stored.encryptionVersion,
               size: stored.size,
               checksum: stored.checksum,
               contentFingerprint,
@@ -619,7 +623,9 @@ export class PrescriptionsService {
               storedName: stored.storedName,
               mimeType: 'application/pdf',
               size: stored.size,
-              localPath: stored.localPath,
+              storageKey: stored.storageKey,
+              localPath: null,
+              encryptionVersion: stored.encryptionVersion,
               checksum: stored.checksum,
               uploadedById: user.sub,
             },
@@ -639,7 +645,7 @@ export class PrescriptionsService {
         },
         { maxWait: 10_000, timeout: 60_000 },
       );
-      uncommittedPath = null;
+      uncommittedStorageKey = null;
       await this.notifyWorkspaceAdmins(
         workspace.workspaceId,
         validated.id,
@@ -648,7 +654,7 @@ export class PrescriptionsService {
       );
       return toPrescriptionResponse(validated);
     } catch (error) {
-      if (uncommittedPath) await this.storage.remove(uncommittedPath);
+      if (uncommittedStorageKey) await this.storage.remove(uncommittedStorageKey);
       if (
         error instanceof ConcurrentValidationError ||
         this.isUniqueViolation(error)
@@ -900,7 +906,14 @@ export class PrescriptionsService {
           "L'intégrité logique de l'ordonnance ne peut pas être confirmée.",
       });
     }
-    const pdf = await this.storage.read(document.localPath);
+    // A row without any reference has no file behind it.
+    const documentReference = storageReferenceOf(document);
+
+    if (!documentReference) {
+      throw new NotFoundException('Document introuvable.');
+    }
+
+    const pdf = await this.storage.read(documentReference);
     if (createSha256Checksum(pdf) !== document.checksum) {
       throw new InternalServerErrorException({
         code: 'PRESCRIPTION_DOCUMENT_INTEGRITY_FAILED',

@@ -1,4 +1,4 @@
-import {
+﻿import {
   InternalServerErrorException,
   Logger,
   NotFoundException,
@@ -15,14 +15,20 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
 import { PatientFileStorageService } from './patient-file-storage.service';
+import { testStorageService } from '../../common/testing/storage-testing';
 
 // The images of a cardiac cine volumetry: a folder per run, written all or none,
 // read back by name, and never outside the upload root.
 describe('PatientFileStorageService, the images of a cine volumetry', () => {
   const root = mkdtempSync(join(tmpdir(), 'healix-volumetry-storage-'));
-  const storage = new PatientFileStorageService({
-    get: (key: string) => (key === 'UPLOAD_ROOT' ? root : undefined),
-  } as unknown as ConfigService);
+  const storage = new PatientFileStorageService(
+    {
+      get: (key: string) => (key === 'UPLOAD_ROOT' ? root : undefined),
+    } as unknown as ConfigService,
+    testStorageService({
+      get: (key: string) => (key === 'UPLOAD_ROOT' ? root : undefined),
+    } as unknown as ConfigService),
+  );
   const png = (text: string) => Buffer.from(`png:${text}`);
 
   beforeAll(() => {

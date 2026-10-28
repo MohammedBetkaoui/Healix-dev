@@ -7,6 +7,10 @@ import { ConfigService } from '@nestjs/config';
 import { extname } from 'node:path';
 
 import { PatientDocumentType } from '../../common/enums/patient-document-type.enum';
+import {
+  detectRealFileType,
+  RECOGNIZABLE_MIME_TYPES,
+} from '../../common/utils/file-type.util';
 
 // Own MIME->extension map (distinct from verification-file-validator.ts):
 // patient documents also accept DICOM, which verification documents never
@@ -138,6 +142,16 @@ export class PatientFileValidator {
 
     if (!isDicomFallback && !this.allowedMimeTypes.has(file.mimetype)) {
       throw unsupported();
+    }
+
+    // The type the browser declared is not trusted: for the types this check
+    // can recognize, the first bytes must hold their signature too (a
+    // document.pdf that is an executable, an HTML page or an SVG is
+    // refused).
+    if (RECOGNIZABLE_MIME_TYPES.has(file.mimetype)) {
+      if (detectRealFileType(file.buffer) !== file.mimetype) {
+        throw unsupported();
+      }
     }
 
     const safeExtension = getSafePatientDocumentExtension(

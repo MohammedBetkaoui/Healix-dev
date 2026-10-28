@@ -1,17 +1,13 @@
 import {
+  HttpException,
   Injectable,
   InternalServerErrorException,
   Logger,
 } from '@nestjs/common';
-import { ConfigService } from '@nestjs/config';
-import { mkdir, rm, writeFile } from 'node:fs/promises';
-import { dirname, resolve } from 'node:path';
 
-import { createSha256Checksum } from '../../common/utils/checksum.util';
-import {
-  createStoredVerificationFileName,
-  sanitizeOriginalFileName,
-} from '../../common/utils/file-name.util';
+import { sanitizeOriginalFileName } from '../../common/utils/file-name.util';
+import { createStoredVerificationFileName } from '../../common/utils/file-name.util';
+import { StorageService } from '../../storage/storage.service';
 
 type StoreFileInput = {
   documentType: string;
@@ -22,24 +18,26 @@ type StoreFileInput = {
   verificationRequestId: string;
 };
 
+// What the row of the document keeps. The file itself lives in the
+// StorageService under an opaque key (never the name of the file, of the
+// owner or of the request): `storedName` stays a piece of metadata for the
+// row and the name shown in the interfaces, `originalName` the name the user
+// gave (reused, sanitized, in the Content-Disposition header at download).
+// The verification pieces are classified VERIFICATION_SENSITIVE: they are
+// encrypted (AES-256-GCM) before they reach the storage.
 type StoredFileResult = {
   checksum: string;
-  localPath: string;
+  encryptionVersion: number | null;
   originalName: string;
+  storageKey: string;
   storedName: string;
 };
 
 @Injectable()
 export class VerificationFileStorageService {
   private readonly logger = new Logger(VerificationFileStorageService.name);
-  private readonly uploadRoot: string;
 
-  constructor(configService: ConfigService) {
-    this.uploadRoot = resolve(
-      process.cwd(),
-      configService.get<string>('UPLOAD_ROOT') ?? './uploads',
-    );
-  }
+  constructor(private readonly storageService: StorageService) {}
 
   async storeVerificationFile(
     input: StoreFileInput,
@@ -48,31 +46,31 @@ export class VerificationFileStorageService {
       input.documentType,
       input.extension,
     );
-    const targetDirectory = this.resolveSafePath(
-      'verifications',
-      input.ownerType,
-      input.ownerId,
-      input.verificationRequestId,
-    );
-    const localPath = this.resolveSafePath(
-      'verifications',
-      input.ownerType,
-      input.ownerId,
-      input.verificationRequestId,
-      storedName,
-    );
+    const originalName = sanitizeOriginalFileName(input.file.originalname);
 
     try {
-      await mkdir(targetDirectory, { recursive: true });
-      await writeFile(localPath, input.file.buffer);
+      const stored = await this.storageService.put({
+        classification: 'VERIFICATION_SENSITIVE',
+        data: input.file.buffer,
+        mimeType: input.file.mimetype,
+        originalFileName: originalName,
+      });
 
       return {
-        checksum: createSha256Checksum(input.file.buffer),
-        localPath,
-        originalName: sanitizeOriginalFileName(input.file.originalname),
+        checksum: stored.sha256,
+        encryptionVersion: stored.encryptionVersion,
+        originalName,
+        storageKey: stored.storageKey,
         storedName,
       };
     } catch (error) {
+      // The storage layer answers controlled errors (a write without a
+      // master key, an unavailable storage); only the unexpected ones are
+      // wrapped here.
+      if (error instanceof HttpException) {
+        throw error;
+      }
+
       this.logger.error(
         'Failed to store verification document.',
         error instanceof Error ? error.message : 'Unknown error',
@@ -83,53 +81,17 @@ export class VerificationFileStorageService {
     }
   }
 
-  async deleteLocalFile(localPath: string): Promise<void> {
-    const safePath = this.ensurePathInsideUploadRoot(localPath);
-
+  // The reference is either a modern storage key (hx/...) or the legacy path
+  // of a document the migration script has not moved yet; both go through
+  // the StorageService, which tells them apart.
+  async deleteFile(reference: string): Promise<void> {
     try {
-      await rm(safePath, { force: true });
-      await this.removeEmptyParentDirectories(dirname(safePath));
+      await this.storageService.delete(reference);
     } catch (error) {
       this.logger.warn(
-        'Failed to delete verification document from disk.',
+        'Failed to delete verification document from storage.',
         error instanceof Error ? error.message : 'Unknown error',
       );
-    }
-  }
-
-  private resolveSafePath(...segments: string[]) {
-    return this.ensurePathInsideUploadRoot(
-      resolve(this.uploadRoot, ...segments),
-    );
-  }
-
-  private ensurePathInsideUploadRoot(pathToCheck: string) {
-    const resolvedPath = resolve(pathToCheck);
-
-    if (
-      resolvedPath !== this.uploadRoot &&
-      !resolvedPath.startsWith(`${this.uploadRoot}\\`) &&
-      !resolvedPath.startsWith(`${this.uploadRoot}/`)
-    ) {
-      throw new InternalServerErrorException('Chemin de fichier invalide.');
-    }
-
-    return resolvedPath;
-  }
-
-  private async removeEmptyParentDirectories(directory: string): Promise<void> {
-    if (
-      directory === this.uploadRoot ||
-      !directory.startsWith(this.uploadRoot)
-    ) {
-      return;
-    }
-
-    try {
-      await rm(directory, { recursive: false });
-      await this.removeEmptyParentDirectories(dirname(directory));
-    } catch {
-      // Non-empty directories are expected and should be preserved.
     }
   }
 }

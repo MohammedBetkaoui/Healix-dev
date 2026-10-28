@@ -146,7 +146,7 @@ describe('AiAnalysisReportsService (GET .../ai-analysis-runs/:runId/report)', ()
   const getPatientInScope = jest.fn();
   const readStoredFile = jest.fn();
   const storeAiReport = jest.fn();
-  const deleteLocalFile = jest.fn();
+  const deleteFile = jest.fn();
   const log = jest.fn();
   const render = jest.fn();
 
@@ -168,7 +168,7 @@ describe('AiAnalysisReportsService (GET .../ai-analysis-runs/:runId/report)', ()
     prismaMock as unknown as PrismaService,
     { getPatientInScope } as unknown as PatientsService,
     {
-      deleteLocalFile,
+      deleteFile,
       readStoredFile,
       storeAiReport,
     } as unknown as PatientFileStorageService,
@@ -180,7 +180,7 @@ describe('AiAnalysisReportsService (GET .../ai-analysis-runs/:runId/report)', ()
     } as unknown as ConfigService,
   );
 
-  // The stored files, by path.
+  // The stored files, by key.
   let disk: Map<string, Buffer>;
   let stored = 0;
 
@@ -208,15 +208,19 @@ describe('AiAnalysisReportsService (GET .../ai-analysis-runs/:runId/report)', ()
     storeAiReport.mockImplementation(
       ({ pdf, reportNumber }: { pdf: Buffer; reportNumber: string }) => {
         stored += 1;
-        const localPath = `/uploads/patients/patient-a/ai-reports/${reportNumber}-${stored}.pdf`;
-        disk.set(localPath, pdf);
+        // An opaque key under the medical namespace, the way the real
+        // PatientFileStorageService answers (the key carries the number for
+        // the assertions of the specs).
+        const storageKey = `hx/medical/ab/${reportNumber}-${stored}.pdf`;
+        disk.set(storageKey, pdf);
         return Promise.resolve({
           checksum: createSha256Checksum(pdf),
-          localPath,
+          encryptionVersion: 1,
+          storageKey,
         });
       },
     );
-    deleteLocalFile.mockImplementation((path: string) => {
+    deleteFile.mockImplementation((path: string) => {
       disk.delete(path);
       return Promise.resolve();
     });
@@ -398,11 +402,9 @@ describe('AiAnalysisReportsService (GET .../ai-analysis-runs/:runId/report)', ()
 
       expect(report.reportNumber).toBe(`CR-IA-${year}-000006`);
       expect(render).toHaveBeenCalledTimes(2); // the number is printed: rendered again
-      expect(deleteLocalFile).toHaveBeenCalledTimes(1);
+      expect(deleteFile).toHaveBeenCalledTimes(1);
       expect(
-        disk.has(
-          `/uploads/patients/patient-a/ai-reports/CR-IA-${year}-000005-1.pdf`,
-        ),
+        disk.has(`hx/medical/ab/CR-IA-${year}-000005-1.pdf`),
       ).toBe(false);
     });
   });
@@ -427,9 +429,9 @@ describe('AiAnalysisReportsService (GET .../ai-analysis-runs/:runId/report)', ()
     expect(report.reportNumber).toBe('CR-IA-2026-000003');
     expect(report.pdf).toEqual(winnerPdf);
     expect(reportCreate).toHaveBeenCalledTimes(1);
-    expect(deleteLocalFile).toHaveBeenCalledTimes(1); // our own file is removed
+    expect(deleteFile).toHaveBeenCalledTimes(1); // our own file is removed
     expect(
-      [...disk.keys()].filter((path) => path.includes('ai-reports')),
+      [...disk.keys()].filter((path) => path.includes('hx/medical')),
     ).toEqual([]);
     expect(log).toHaveBeenLastCalledWith(
       doctor,
@@ -681,9 +683,9 @@ describe('AiAnalysisReportsService (GET .../ai-analysis-runs/:runId/report)', ()
         service.getReport(doctor, 'patient-a', 'run-1'),
       ).rejects.toThrow('db down');
 
-      expect(deleteLocalFile).toHaveBeenCalledTimes(1);
+      expect(deleteFile).toHaveBeenCalledTimes(1);
       expect(
-        [...disk.keys()].filter((path) => path.includes('ai-reports')),
+        [...disk.keys()].filter((path) => path.includes('hx/medical')),
       ).toEqual([]);
     });
   });

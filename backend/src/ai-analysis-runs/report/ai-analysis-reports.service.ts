@@ -30,6 +30,7 @@ import { PatientsService } from '../../patients/patients.service';
 import { buildAiClinicalReport } from '../../reports/ai-clinical-report';
 import { PrismaService } from '../../prisma/prisma.service';
 import { NotificationProducerService } from '../../notifications/notification-producer.service';
+import { storageReferenceOf } from '../../storage/storage-keys';
 import {
   getDecisionLabels,
   getModelLabels,
@@ -520,7 +521,7 @@ export class AiAnalysisReportsService {
       }
 
       const sha256 = createSha256Checksum(pdf);
-      const { localPath } = await this.fileStorageService.storeAiReport({
+      const storedReport = await this.fileStorageService.storeAiReport({
         patientId: run.patientId,
         pdf,
         reportNumber,
@@ -534,7 +535,9 @@ export class AiAnalysisReportsService {
           const created = await transaction.aiAnalysisReport.create({
             data: {
               contentSha256,
-              filePath: localPath,
+              storageKey: storedReport.storageKey,
+              filePath: null,
+              encryptionVersion: storedReport.encryptionVersion,
               generatedById: user.sub,
               reportNumber,
               runId: run.id,
@@ -574,7 +577,7 @@ export class AiAnalysisReportsService {
         });
         return { fileName: `${reportNumber}.pdf`, pdf, reportNumber };
       } catch (error) {
-        await this.fileStorageService.deleteLocalFile(localPath);
+        await this.fileStorageService.deleteFile(storedReport.storageKey);
         if (!isUniqueViolation(error)) throw error;
 
         // Another request stored a report first: for this run (the one to
@@ -597,7 +600,16 @@ export class AiAnalysisReportsService {
     user: AuthenticatedUserPayload,
     report: AiAnalysisReport,
   ): Promise<ServedReport> {
-    const pdf = await this.fileStorageService.readStoredFile(report.filePath);
+    // As stored, checked against its recorded SHA-256. The reference is a
+    // modern key (hx/...) or the legacy path of one not migrated yet; a row
+    // without any reference has no file behind it.
+    const reference = storageReferenceOf(report);
+
+    if (!reference) {
+      throw new NotFoundException("Compte rendu introuvable.");
+    }
+
+    const pdf = await this.fileStorageService.readStoredFile(reference);
     if (createSha256Checksum(pdf) !== report.sha256) {
       this.logger.error(
         `Stored report ${report.reportNumber} does not match its SHA-256.`,
@@ -651,11 +663,15 @@ export class AiAnalysisReportsService {
 
     // A cine archive is not an image (and may be large): its checksum is the
     // document's, and its images are the ones stored with the volumetry.
+    const sourceReference = storageReferenceOf(run.sourceDocument);
+
+    if (!sourceReference) {
+      throw new Error('The source document of the run has no file behind it.');
+    }
+
     const image = volume
       ? Buffer.alloc(0)
-      : await this.fileStorageService.readStoredFile(
-          run.sourceDocument.localPath,
-        );
+      : await this.fileStorageService.readStoredFile(sourceReference);
     const slice = run.slicePath
       ? await this.fileStorageService.readStoredFile(run.slicePath)
       : null;

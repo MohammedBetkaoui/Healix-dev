@@ -76,6 +76,9 @@ const entitlementsOf = (
 });
 
 describe('DicomAnalysisService', () => {
+  // The key the modern storage hands back for every document of the suite.
+  const STORAGE_KEY = 'hx/medical/ab/' + 'a'.repeat(32) + '.bin';
+
   const prisma = {
     aiAnalysisRun: { count: jest.fn() },
     patientDocument: { create: jest.fn(), delete: jest.fn() },
@@ -91,7 +94,7 @@ describe('DicomAnalysisService', () => {
     getPatientInScope: jest.fn(),
   };
   const entitlements = { getEntitlements: jest.fn() };
-  const files = { deleteLocalFile: jest.fn(), storePatientDocument: jest.fn() };
+  const files = { deleteFile: jest.fn(), storePatientDocument: jest.fn() };
   const audit = { log: jest.fn() };
   const runs = { create: jest.fn() };
   const service = new DicomAnalysisService(
@@ -141,14 +144,17 @@ describe('DicomAnalysisService', () => {
       ({ file }: { file: { originalname: string } }) =>
         Promise.resolve({
           checksum: 'c'.repeat(64),
-          localPath: '/uploads/patients/patient-1/documents/slice',
+          // What the modern storage answers: an opaque key and the version of
+          // the format the file was written with.
+          storageKey: STORAGE_KEY,
+          encryptionVersion: 1,
           originalName: file.originalname,
           storedName: 'slice',
         }),
     );
     prisma.patientDocument.create.mockImplementation(
       ({ data }: { data: object }) =>
-        Promise.resolve({ id: 'document-1', localPath: '/uploads/x', ...data }),
+        Promise.resolve({ id: 'document-1', ...data }),
     );
     audit.log.mockResolvedValue(undefined);
     runs.create.mockResolvedValue({ id: 'run-1', status: 'SUCCEEDED' });
@@ -204,8 +210,10 @@ describe('DicomAnalysisService', () => {
       checksum: 'c'.repeat(64),
       dicomStudyId: 'study-1',
       documentType: 'DICOM',
+      encryptionVersion: 1,
       instanceNumber: 12,
-      localPath: '/uploads/patients/patient-1/documents/slice',
+      localPath: null,
+      storageKey: STORAGE_KEY,
       mimeType: 'application/dicom',
       originalName: 'serie-3-coupe-12.dcm',
       patientId: 'patient-1',
@@ -427,9 +435,7 @@ describe('DicomAnalysisService', () => {
       expect(prisma.patientDocument.delete).toHaveBeenCalledWith({
         where: { id: 'document-1' },
       });
-      expect(files.deleteLocalFile).toHaveBeenCalledWith(
-        '/uploads/patients/patient-1/documents/slice',
-      );
+      expect(files.deleteFile).toHaveBeenCalledWith(STORAGE_KEY);
     });
 
     it('keeps the document when a run refers to it (the analysis ran and failed)', async () => {
@@ -441,7 +447,7 @@ describe('DicomAnalysisService', () => {
       );
 
       expect(prisma.patientDocument.delete).not.toHaveBeenCalled();
-      expect(files.deleteLocalFile).not.toHaveBeenCalled();
+      expect(files.deleteFile).not.toHaveBeenCalled();
     });
 
     it('removes the file when the document row cannot be written', async () => {
@@ -453,9 +459,7 @@ describe('DicomAnalysisService', () => {
         'database down',
       );
 
-      expect(files.deleteLocalFile).toHaveBeenCalledWith(
-        '/uploads/patients/patient-1/documents/slice',
-      );
+      expect(files.deleteFile).toHaveBeenCalledWith(STORAGE_KEY);
       expect(runs.create).not.toHaveBeenCalled();
     });
   });

@@ -304,18 +304,20 @@ function createService() {
   const store = jest.fn(
     ({
       number,
-      reportId,
       pdf,
     }: {
       number: string;
       reportId: string;
       pdf: Buffer;
     }) => {
-      const localPath = `/uploads/reports/${reportId}/${number}.pdf`;
-      disk.set(localPath, pdf);
+      // The PDF goes under an opaque key of the storage, the way the real
+      // ReportStorageService answers.
+      const storageKey = `hx/medical/ab/${number.replace(/\W/g, '-')}.pdf`;
+      disk.set(storageKey, pdf);
       return Promise.resolve({
         storedName: `${number}.pdf`,
-        localPath,
+        storageKey,
+        encryptionVersion: 1,
         size: pdf.length,
         checksum: createSha256Checksum(pdf),
       });
@@ -333,17 +335,20 @@ function createService() {
   );
   const storePatientDocument = jest.fn(
     ({ file, patientId }: { file: Express.Multer.File; patientId: string }) => {
-      const localPath = `/uploads/patients/${patientId}/documents/${file.originalname}`;
-      disk.set(localPath, file.buffer);
+      // An imported document is encrypted too: the row holds its key, never
+      // a path.
+      const storageKey = `hx/medical/ab/import-${patientId}.pdf`;
+      disk.set(storageKey, file.buffer);
       return Promise.resolve({
         checksum: createSha256Checksum(file.buffer),
-        localPath,
+        storageKey,
+        encryptionVersion: 1,
         originalName: file.originalname,
         storedName: file.originalname,
       });
     },
   );
-  const deleteLocalFile = jest.fn((path: string) => {
+  const deleteFile = jest.fn((path: string) => {
     disk.delete(path);
     return Promise.resolve();
   });
@@ -383,7 +388,7 @@ function createService() {
     {
       storePatientDocument,
       readStoredFile,
-      deleteLocalFile,
+      deleteFile,
     } as unknown as PatientFileStorageService,
     {
       validate: () => ({ extension: '.pdf', mimeType: 'application/pdf' }),
@@ -398,7 +403,7 @@ function createService() {
     store,
     remove,
     storePatientDocument,
-    deleteLocalFile,
+    deleteFile,
     createAuditLog,
   };
 }
@@ -924,7 +929,7 @@ describe('ReportsService', () => {
     });
 
     it('removes the stored file when the report cannot be created', async () => {
-      const { service, db, deleteLocalFile } = createService();
+      const { service, db, deleteFile } = createService();
       db.prisma.clinicalReport.create = () =>
         Promise.reject(new Error('db down'));
 
@@ -932,7 +937,7 @@ describe('ReportsService', () => {
         'db down',
       );
 
-      expect(deleteLocalFile).toHaveBeenCalledTimes(1);
+      expect(deleteFile).toHaveBeenCalledTimes(1);
     });
   });
 

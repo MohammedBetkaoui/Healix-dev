@@ -1,20 +1,27 @@
-import { mkdtempSync, readFileSync, rmSync } from 'node:fs';
+﻿import { mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
 import { type HttpException, NotFoundException } from '@nestjs/common';
 import { ConfigModule } from '@nestjs/config';
 import { Test, type TestingModule } from '@nestjs/testing';
+import { readFile } from 'node:fs/promises';
+import { join as pathJoin } from 'node:path';
 
 import { AiServiceClient } from '../ai-analysis-runs/ai-service.client';
 import { AiTimelineService } from '../ai-analysis-runs/timeline/ai-timeline.service';
 import {
+  applyStorageTestEnv,
   assertTestDatabaseName,
   IntegrationFixtures,
   readTestDatabase,
 } from '../common/testing/integration-fixtures';
 import { PatientsModule } from '../patients/patients.module';
 import { PrismaService } from '../prisma/prisma.service';
+import { FILE_MAGIC } from '../storage/crypto/file-encryption.service';
+import { StorageModule } from '../storage/storage.module';
+import { StorageService } from '../storage/storage.service';
+import { storageReferenceOf } from '../storage/storage-keys';
 import { DicomAnalysisService } from './dicom-analysis.service';
 import { DicomStudiesService } from './dicom-studies.service';
 import { DicomModule } from './dicom.module';
@@ -56,6 +63,7 @@ describeWithDatabase('the analysis of a DICOM slice against a database', () => {
   let studies: DicomStudiesService;
   let timeline: AiTimelineService;
   const uploadRoot = mkdtempSync(join(tmpdir(), 'healix-dicom-analysis-'));
+  const cleanupStorage = applyStorageTestEnv();
 
   const received: {
     brain: Buffer[];
@@ -193,6 +201,7 @@ describeWithDatabase('the analysis of a DICOM slice against a database', () => {
     moduleRef = await Test.createTestingModule({
       imports: [
         ConfigModule.forRoot({ ignoreEnvFile: true, isGlobal: true }),
+        StorageModule,
         PatientsModule,
         DicomModule,
       ],
@@ -214,6 +223,7 @@ describeWithDatabase('the analysis of a DICOM slice against a database', () => {
     await fixtures.cleanup();
     await moduleRef.close();
     rmSync(uploadRoot, { force: true, recursive: true });
+    cleanupStorage();
   });
 
   beforeEach(() => {
@@ -264,7 +274,22 @@ describeWithDatabase('the analysis of a DICOM slice against a database', () => {
       sopInstanceUid: '1.2.826.0.1.3680043.8.498.77',
       uploadedById: who.actor.sub,
     });
-    expect(readFileSync(document.localPath)).toEqual(DICOM_BYTES);
+    // The file reads back through the storage, decrypted to the original
+    // bytes; on disk it is the ciphertext of the file format, never the
+    // plaintext, under the private root and no path of anything.
+    const storage = moduleRef.get(StorageService);
+    expect(
+      (await storage.getBuffer(storageReferenceOf(document)!)).equals(
+        DICOM_BYTES,
+      ),
+    ).toBe(true);
+    const ciphertext = await readFile(
+      pathJoin(process.env.STORAGE_LOCAL_ROOT!, document.storageKey!),
+    );
+    expect(ciphertext.subarray(0, FILE_MAGIC.length).equals(FILE_MAGIC)).toBe(
+      true,
+    );
+    expect(ciphertext.indexOf(DICOM_BYTES)).toBe(-1);
     const stored = await prisma.aiAnalysisRun.findUniqueOrThrow({
       where: { id: run.id },
     });
@@ -293,7 +318,12 @@ describeWithDatabase('the analysis of a DICOM slice against a database', () => {
       seriesNumber: 3,
       sopInstanceUid: '1.2.826.0.1.3680043.8.498.77',
     });
-    expect(readFileSync(document.localPath)).toEqual(PNG_BYTES);
+    // The rendered PNG of the slice: encrypted like any document of the record.
+    expect(
+      (
+        await moduleRef.get(StorageService).getBuffer(storageReferenceOf(document)!)
+      ).equals(PNG_BYTES),
+    ).toBe(true);
   });
 
   it('consumes the quota of AI analyses, and refuses the next one with nothing left behind', async () => {

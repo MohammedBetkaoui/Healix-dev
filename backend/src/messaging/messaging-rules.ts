@@ -5,6 +5,7 @@ import { BadRequestException } from '@nestjs/common';
 
 import { UserRole } from '../common/enums/user-role.enum';
 import { sanitizeOriginalFileName } from '../common/utils/file-name.util';
+import { detectRealFileType } from '../common/utils/file-type.util';
 import { sanitizeTextInput } from '../common/utils/sanitize';
 
 // The professionals who use the messaging (the controllers' @Roles).
@@ -177,26 +178,13 @@ export const ATTACHMENT_MIME_TYPES: readonly AttachmentMimeType[] = [
   'image/png',
 ];
 
-const PNG_SIGNATURE = Buffer.from([
-  0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a,
-]);
-const JPEG_SIGNATURE = Buffer.from([0xff, 0xd8, 0xff]);
-const PDF_SIGNATURE = Buffer.from('%PDF-', 'latin1');
-
 // The type of a file read from its first bytes: neither its name nor the
 // type the browser declared count. null for anything else (an executable
 // named .png, an HTML page, an SVG...).
 export function detectAttachmentType(
   content: Buffer,
 ): AttachmentMimeType | null {
-  const startsWith = (signature: Buffer) =>
-    content.length >= signature.length &&
-    content.subarray(0, signature.length).equals(signature);
-
-  if (startsWith(PDF_SIGNATURE)) return 'application/pdf';
-  if (startsWith(PNG_SIGNATURE)) return 'image/png';
-  if (startsWith(JPEG_SIGNATURE)) return 'image/jpeg';
-  return null;
+  return detectRealFileType(content);
 }
 
 const EXTENSIONS: Record<AttachmentMimeType, string[]> = {

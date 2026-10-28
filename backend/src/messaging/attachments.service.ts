@@ -13,6 +13,7 @@ import { createSha256Checksum } from '../common/utils/checksum.util';
 import { PatientFileStorageService } from '../patients/documents/patient-file-storage.service';
 import { PatientAuditService } from '../patients/patient-audit.service';
 import { PrismaService } from '../prisma/prisma.service';
+import { storageReferenceOf } from '../storage/storage-keys';
 import { AttachmentStorage } from './attachment-storage';
 import { ConversationsService } from './conversations.service';
 import {
@@ -174,7 +175,10 @@ export class AttachmentsService {
     if (!document) throw documentNotFound();
 
     // Its content, not its recorded type: the record also holds DICOM files.
-    const content = await this.patientFiles.readStoredFile(document.localPath);
+    const reference = storageReferenceOf(document);
+    if (!reference) throw documentNotFound();
+
+    const content = await this.patientFiles.readStoredFile(reference);
     const mimeType = detectAttachmentType(content);
     if (!mimeType) throw invalidAttachmentType();
 
@@ -321,9 +325,12 @@ export class AttachmentsService {
       : null;
     if (!document) throw attachmentNotFound();
 
+    const reference = storageReferenceOf(document);
+    if (!reference) throw attachmentNotFound();
+
     let stream: Readable;
     try {
-      stream = this.patientFiles.openStoredFile(document.localPath);
+      stream = await this.patientFiles.openStoredFile(reference);
     } catch (error) {
       if (error instanceof NotFoundException) throw attachmentNotFound();
       throw error;

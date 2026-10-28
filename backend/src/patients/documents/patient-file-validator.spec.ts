@@ -28,6 +28,12 @@ const ZIP = Buffer.concat([
   Buffer.from([0x50, 0x4b, 0x03, 0x04]),
   Buffer.alloc(20),
 ]);
+// A real PNG: the first bytes hold its signature (the validator checks the
+// declared type against the content, not just against the extension).
+const PNG = Buffer.concat([
+  Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]),
+  Buffer.alloc(16),
+]);
 const { ECG_SIGNAL, MEDICAL_IMAGE } = PatientDocumentType;
 
 describe('PatientFileValidator, ECG signals', () => {
@@ -92,7 +98,7 @@ describe('PatientFileValidator, ECG signals', () => {
       );
     }
     expect(
-      validator.validate(fileOf('irm.png', 'image/png', 'png'), MEDICAL_IMAGE),
+      validator.validate(fileOf('irm.png', 'image/png', PNG), MEDICAL_IMAGE),
     ).toEqual({ extension: '.png', mimeType: 'image/png' });
   });
 

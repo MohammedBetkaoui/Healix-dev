@@ -1,4 +1,4 @@
-import { NotFoundException } from '@nestjs/common';
+﻿import { NotFoundException } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { WorkspaceMembershipRole, WorkspaceType } from '@prisma/client';
 import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
@@ -8,6 +8,7 @@ import { PassThrough, type Readable } from 'node:stream';
 import { type Response } from 'express';
 
 import { UserRole } from '../common/enums/user-role.enum';
+import { testStorageService } from '../common/testing/storage-testing';
 import { PrismaService } from '../prisma/prisma.service';
 import { WorkspaceContextService } from '../workspaces/workspace-context.service';
 import { PatientFileStorageService } from './documents/patient-file-storage.service';
@@ -45,9 +46,14 @@ describe('PatientsService.getDocumentStream (GET /patients/:id/documents/:docume
   } as unknown as PrismaService;
   // Real storage service on a temporary upload root: the path check and the
   // file opening are exercised for real.
-  const storage = new PatientFileStorageService({
-    get: (key: string) => (key === 'UPLOAD_ROOT' ? uploadRoot : undefined),
-  } as unknown as ConfigService);
+  const storage = new PatientFileStorageService(
+    {
+      get: (key: string) => (key === 'UPLOAD_ROOT' ? uploadRoot : undefined),
+    } as unknown as ConfigService,
+    testStorageService({
+      get: (key: string) => (key === 'UPLOAD_ROOT' ? uploadRoot : undefined),
+    } as unknown as ConfigService),
+  );
   const service = new PatientsService(
     prisma,
     { log } as unknown as PatientAuditService,

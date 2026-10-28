@@ -27,6 +27,7 @@ import { join } from 'node:path';
 
 import { UserRole } from '../common/enums/user-role.enum';
 import { PatientFileStorageService } from '../patients/documents/patient-file-storage.service';
+import { testStorageService } from '../common/testing/storage-testing';
 import { PatientFileValidator } from '../patients/documents/patient-file-validator';
 import { PatientAuditService } from '../patients/patient-audit.service';
 import { PatientsService } from '../patients/patients.service';
@@ -161,6 +162,7 @@ describe('AiAnalysisRunsService (POST /patients/:id/ai-analysis-runs)', () => {
     ({ get: (key: string) => values[key] }) as unknown as ConfigService;
   const storage = new PatientFileStorageService(
     config({ UPLOAD_ROOT: uploadRoot }),
+    testStorageService(config({ UPLOAD_ROOT: uploadRoot })),
   );
   const audit = { log } as unknown as PatientAuditService;
   const patients = new PatientsService(

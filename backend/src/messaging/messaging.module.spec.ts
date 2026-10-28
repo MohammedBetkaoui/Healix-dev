@@ -4,15 +4,18 @@ import { ConfigModule, ConfigService } from '@nestjs/config';
 import { Test } from '@nestjs/testing';
 
 import { PrismaService } from '../prisma/prisma.service';
+import { StorageModule } from '../storage/storage.module';
 import { MessageCrypto, MessagingKeysError } from './message-crypto';
 import { MessagingModule } from './messaging.module';
 
 // ConfigModule is global in the application (AppModule), as here: the
-// patients' services read it too.
+// patients' services read it too. StorageModule as well: it provides the
+// encrypted file storage the patients' documents go through.
 function compileWith(messagingKeys: string | undefined) {
   return Test.createTestingModule({
     imports: [
       ConfigModule.forRoot({ ignoreEnvFile: true, isGlobal: true }),
+      StorageModule,
       MessagingModule,
     ],
   })

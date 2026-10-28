@@ -6,6 +6,10 @@ import {
 import { ConfigService } from '@nestjs/config';
 
 import { getSafeFileExtension } from '../../common/utils/file-name.util';
+import {
+  detectRealFileType,
+  RECOGNIZABLE_MIME_TYPES,
+} from '../../common/utils/file-type.util';
 
 @Injectable()
 export class VerificationFileValidator {
@@ -38,6 +42,18 @@ export class VerificationFileValidator {
 
     if (!this.allowedMimeTypes.has(file.mimetype)) {
       throw new UnsupportedMediaTypeException('Format de fichier non accepté.');
+    }
+
+    // The type the browser declared is not trusted: for the types this check
+    // can recognize, the first bytes must hold their signature too (a
+    // document.jpg that is an executable, an HTML page or an SVG is
+    // refused).
+    if (RECOGNIZABLE_MIME_TYPES.has(file.mimetype)) {
+      if (detectRealFileType(file.buffer) !== file.mimetype) {
+        throw new UnsupportedMediaTypeException(
+          'Le contenu du fichier ne correspond pas au type déclaré.',
+        );
+      }
     }
 
     const extension = getSafeFileExtension(file.originalname, file.mimetype);

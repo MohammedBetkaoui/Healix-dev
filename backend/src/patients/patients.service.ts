@@ -31,6 +31,7 @@ import {
   sanitizeTextInput,
 } from '../common/utils/sanitize';
 import { PrismaService } from '../prisma/prisma.service';
+import { storageReferenceOf } from '../storage/storage-keys';
 import { EntitlementsService } from '../subscriptions/entitlements.service';
 import { WorkspaceContextService } from '../workspaces/workspace-context.service';
 import { CheckPatientDuplicateQueryDto } from './dto/check-patient-duplicate-query.dto';
@@ -410,7 +411,9 @@ export class PatientsService {
           storedName: storedFile.storedName,
           mimeType,
           size: file.size,
-          localPath: storedFile.localPath,
+          storageKey: storedFile.storageKey,
+          localPath: null,
+          encryptionVersion: storedFile.encryptionVersion,
           checksum: storedFile.checksum,
           uploadedById: user.sub,
         },
@@ -425,7 +428,7 @@ export class PatientsService {
 
       return this.toDocumentResponse(document);
     } catch (error) {
-      await this.fileStorageService.deleteLocalFile(storedFile.localPath);
+      await this.fileStorageService.deleteFile(storedFile.storageKey);
       throw error;
     }
   }
@@ -448,8 +451,15 @@ export class PatientsService {
       throw new NotFoundException('Document introuvable.');
     }
 
+    // A row without any reference has no file behind it.
+    const reference = storageReferenceOf(document);
+
+    if (!reference) {
+      throw new NotFoundException('Document introuvable.');
+    }
+
     // Opened before logging: a missing file is a 404, not a consultation.
-    const stream = this.fileStorageService.openStoredFile(document.localPath);
+    const stream = await this.fileStorageService.openStoredFile(reference);
 
     try {
       await this.patientAuditService.log(user, 'DOCUMENT_VIEWED', document.id, {

@@ -4,6 +4,7 @@ import { AuditLogsModule } from '../audit-logs/audit-logs.module';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { RolesGuard } from '../common/guards/roles.guard';
 import { PrismaModule } from '../prisma/prisma.module';
+import { StorageModule } from '../storage/storage.module';
 import { SubscriptionsModule } from '../subscriptions/subscriptions.module';
 import { WorkspaceModule } from '../workspaces/workspace.module';
 import { PatientFileStorageService } from './documents/patient-file-storage.service';
@@ -16,6 +17,7 @@ import { PatientsService } from './patients.service';
   imports: [
     PrismaModule,
     AuditLogsModule,
+    StorageModule,
     WorkspaceModule,
     SubscriptionsModule,
   ],

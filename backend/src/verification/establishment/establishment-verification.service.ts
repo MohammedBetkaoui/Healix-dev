@@ -214,7 +214,9 @@ export class EstablishmentVerificationService {
             storedName: storedFile.storedName,
             mimeType: input.file.mimetype,
             size: input.file.size,
-            localPath: storedFile.localPath,
+            storageKey: storedFile.storageKey,
+            localPath: null,
+            encryptionVersion: storedFile.encryptionVersion,
             checksum: storedFile.checksum,
           },
           transaction,
@@ -242,17 +244,22 @@ export class EstablishmentVerificationService {
         return savedDocument;
       });
 
-      if (existingDocument?.localPath) {
-        await this.fileStorageService.deleteLocalFile(
-          existingDocument.localPath,
-        );
+      if (existingDocument) {
+        // A replaced document: its file goes with it, wherever it lives
+        // (a modern key, or the legacy path of one not migrated yet).
+        const previousReference =
+          existingDocument.storageKey ?? existingDocument.localPath;
+
+        if (previousReference) {
+          await this.fileStorageService.deleteFile(previousReference);
+        }
       }
 
       return {
         document: this.documentService.toDocumentSummary(document),
       };
     } catch (error) {
-      await this.fileStorageService.deleteLocalFile(storedFile.localPath);
+      await this.fileStorageService.deleteFile(storedFile.storageKey);
       this.rethrowKnownError(error);
     }
   }
@@ -303,7 +310,13 @@ export class EstablishmentVerificationService {
       },
     );
 
-    await this.fileStorageService.deleteLocalFile(deletedDocument.localPath);
+    // The file goes with the row, wherever it lives (a modern key, or the
+    // legacy path of one not migrated yet).
+    const reference = deletedDocument.storageKey ?? deletedDocument.localPath;
+
+    if (reference) {
+      await this.fileStorageService.deleteFile(reference);
+    }
 
     return {
       message: 'Document supprimé avec succès.',

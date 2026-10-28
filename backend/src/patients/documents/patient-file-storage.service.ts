@@ -1,4 +1,5 @@
 import {
+  HttpException,
   Injectable,
   InternalServerErrorException,
   Logger,
@@ -6,13 +7,14 @@ import {
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { randomBytes } from 'node:crypto';
-import { createReadStream, existsSync, type ReadStream } from 'node:fs';
 import { mkdir, readFile, rm, writeFile } from 'node:fs/promises';
-import { dirname, join } from 'node:path';
+import { dirname } from 'node:path';
+import { type Readable } from 'node:stream';
 
 import { createSha256Checksum } from '../../common/utils/checksum.util';
 import { sanitizeOriginalFileName } from '../../common/utils/file-name.util';
 import { UploadRoot } from '../../common/utils/upload-root';
+import { StorageService } from '../../storage/storage.service';
 
 // <kind>-<ed|es>-<slice>.png: the only names a volumetry folder holds.
 const VOLUMETRY_IMAGE_NAME = /^(?:label|slice)-(?:ed|es)-\d{3}\.png$/;
@@ -24,10 +26,16 @@ type StoreFileInput = {
   patientId: string;
 };
 
+// What the row of a document keeps: the key of its file in the
+// StorageService (opaque), the version of the format it was written with,
+// the checksum of the original, and the two names. A patient document is
+// classified MEDICAL_SENSITIVE: it is encrypted (AES-256-GCM) before it
+// reaches the storage.
 type StoredFileResult = {
   checksum: string;
-  localPath: string;
+  encryptionVersion: number | null;
   originalName: string;
+  storageKey: string;
   storedName: string;
 };
 
@@ -35,11 +43,12 @@ type StoredFileResult = {
 export class PatientFileStorageService {
   private readonly logger = new Logger(PatientFileStorageService.name);
   private readonly root: UploadRoot;
-  private readonly uploadRoot: string;
 
-  constructor(configService: ConfigService) {
+  constructor(
+    configService: ConfigService,
+    private readonly storageService: StorageService,
+  ) {
     this.root = new UploadRoot(configService.get<string>('UPLOAD_ROOT'));
-    this.uploadRoot = this.root.path;
   }
 
   async storePatientDocument(input: StoreFileInput): Promise<StoredFileResult> {
@@ -47,29 +56,30 @@ export class PatientFileStorageService {
       input.documentType,
       input.extension,
     );
-    const targetDirectory = this.resolveSafePath(
-      'patients',
-      input.patientId,
-      'documents',
-    );
-    const localPath = this.resolveSafePath(
-      'patients',
-      input.patientId,
-      'documents',
-      storedName,
-    );
+    const originalName = sanitizeOriginalFileName(input.file.originalname);
 
     try {
-      await mkdir(targetDirectory, { recursive: true });
-      await writeFile(localPath, input.file.buffer);
+      const stored = await this.storageService.put({
+        classification: 'MEDICAL_SENSITIVE',
+        data: input.file.buffer,
+        mimeType: input.file.mimetype || 'application/octet-stream',
+        originalFileName: originalName,
+      });
 
       return {
-        checksum: createSha256Checksum(input.file.buffer),
-        localPath,
-        originalName: sanitizeOriginalFileName(input.file.originalname),
+        checksum: stored.sha256,
+        encryptionVersion: stored.encryptionVersion,
+        originalName,
+        storageKey: stored.storageKey,
         storedName,
       };
     } catch (error) {
+      // The storage layer answers controlled errors; only the unexpected
+      // ones are wrapped here.
+      if (error instanceof HttpException) {
+        throw error;
+      }
+
       this.logger.error(
         'Failed to store patient document.',
         error instanceof Error ? error.message : 'Unknown error',
@@ -80,31 +90,22 @@ export class PatientFileStorageService {
     }
   }
 
-  // Read stream of a stored document. The path comes from the database, so it
-  // is re-checked against the upload root before anything is opened.
-  openStoredFile(localPath: string): ReadStream {
-    const safePath = this.ensurePathInsideUploadRoot(localPath);
-
-    if (!existsSync(safePath)) {
-      throw new NotFoundException('Document introuvable.');
-    }
-
-    return createReadStream(safePath);
+  // Read stream of a stored document. The reference comes from the database
+  // (a modern key, or the legacy path of one not migrated yet), and the
+  // storage re-checks it before anything is opened.
+  openStoredFile(reference: string): Promise<Readable> {
+    return this.storageService.getStream(reference);
   }
 
   // Whole content of a stored document (an image sent for inference).
-  async readStoredFile(localPath: string): Promise<Buffer> {
-    const safePath = this.ensurePathInsideUploadRoot(localPath);
-
-    if (!existsSync(safePath)) {
-      throw new NotFoundException('Document introuvable.');
-    }
-
-    return readFile(safePath);
+  async readStoredFile(reference: string): Promise<Buffer> {
+    return this.storageService.getBuffer(reference);
   }
 
   // Segmentation mask of an AI analysis run, next to the patient's documents:
-  // patients/<patientId>/ai-masks/<runId>.png.
+  // patients/<patientId>/ai-masks/<runId>.png. (An artifact of the AI
+  // pipeline, generated server-side, under UPLOAD_ROOT — see
+  // docs/storage-security.md for what stays there.)
   storeAiMask(input: {
     patientId: string;
     png: Buffer;
@@ -180,7 +181,7 @@ export class PatientFileStorageService {
     patientId: string;
     runId: string;
   }): Promise<{ localPath: string }> {
-    const localPath = this.resolveSafePath(
+    const localPath = this.root.resolve(
       'patients',
       input.patientId,
       'ai-masks',
@@ -193,7 +194,7 @@ export class PatientFileStorageService {
         if (!VOLUMETRY_IMAGE_NAME.test(name)) {
           throw new Error('Unexpected volumetry image name.');
         }
-        await writeFile(this.resolveSafePath(localPath, name), png);
+        await writeFile(this.root.resolve(localPath, name), png);
       }
       return { localPath };
     } catch (error) {
@@ -217,12 +218,22 @@ export class PatientFileStorageService {
     if (!VOLUMETRY_IMAGE_NAME.test(name)) {
       throw new NotFoundException('Image introuvable.');
     }
-    return this.readStoredFile(join(folder, name));
+
+    const safePath = this.root.ensureInside(this.root.resolve(folder, name));
+
+    try {
+      return await readFile(safePath);
+    } catch (error) {
+      if ((error as NodeJS.ErrnoException).code === 'ENOENT') {
+        throw new NotFoundException('Image introuvable.');
+      }
+      throw error;
+    }
   }
 
   // The folder of a volumetry and everything in it.
   async deleteAiVolumetryImages(folder: string): Promise<void> {
-    const safePath = this.ensurePathInsideUploadRoot(folder);
+    const safePath = this.root.ensureInside(folder);
 
     try {
       await rm(safePath, { force: true, recursive: true });
@@ -241,12 +252,12 @@ export class PatientFileStorageService {
     fileName: string,
     failure: { log: string; message: string },
   ): Promise<{ checksum: string; localPath: string }> {
-    const targetDirectory = this.resolveSafePath(
+    const targetDirectory = this.root.resolve(
       'patients',
       patientId,
       'ai-masks',
     );
-    const localPath = this.resolveSafePath(
+    const localPath = this.root.resolve(
       'patients',
       patientId,
       'ai-masks',
@@ -267,32 +278,36 @@ export class PatientFileStorageService {
     }
   }
 
-  // PDF report of an AI analysis run:
-  // patients/<patientId>/ai-reports/<reportNumber>-<random>.pdf. The random
-  // part keeps two simultaneous generations from writing the same file.
+  // PDF report of an AI analysis run, encrypted like any sensitive file: the
+  // random key of the storage holds two simultaneous generations apart (each
+  // write lands under its own key).
   async storeAiReport(input: {
     patientId: string;
     pdf: Buffer;
     reportNumber: string;
-  }): Promise<{ checksum: string; localPath: string }> {
-    const targetDirectory = this.resolveSafePath(
-      'patients',
-      input.patientId,
-      'ai-reports',
-    );
-    const localPath = this.resolveSafePath(
-      'patients',
-      input.patientId,
-      'ai-reports',
-      `${input.reportNumber}-${randomBytes(4).toString('hex')}.pdf`,
-    );
-
+  }): Promise<{
+    checksum: string;
+    encryptionVersion: number | null;
+    storageKey: string;
+  }> {
     try {
-      await mkdir(targetDirectory, { recursive: true });
-      await writeFile(localPath, input.pdf, { flag: 'wx' });
+      const stored = await this.storageService.put({
+        classification: 'MEDICAL_SENSITIVE',
+        data: input.pdf,
+        mimeType: 'application/pdf',
+        originalFileName: `${input.reportNumber}.pdf`,
+      });
 
-      return { checksum: createSha256Checksum(input.pdf), localPath };
+      return {
+        checksum: stored.sha256,
+        encryptionVersion: stored.encryptionVersion,
+        storageKey: stored.storageKey,
+      };
     } catch (error) {
+      if (error instanceof HttpException) {
+        throw error;
+      }
+
       this.logger.error(
         'Failed to store an AI analysis report.',
         error instanceof Error ? error.message : 'Unknown error',
@@ -303,15 +318,15 @@ export class PatientFileStorageService {
     }
   }
 
-  async deleteLocalFile(localPath: string): Promise<void> {
-    const safePath = this.ensurePathInsideUploadRoot(localPath);
-
+  // The reference is either a modern storage key (hx/...) or the legacy path
+  // of a file the migration script has not moved yet; both go through the
+  // StorageService, which tells them apart.
+  async deleteFile(reference: string): Promise<void> {
     try {
-      await rm(safePath, { force: true });
-      await this.removeEmptyParentDirectories(dirname(safePath));
+      await this.storageService.delete(reference);
     } catch (error) {
       this.logger.warn(
-        'Failed to delete patient document from disk.',
+        'Failed to delete patient document from storage.',
         error instanceof Error ? error.message : 'Unknown error',
       );
     }
@@ -325,19 +340,8 @@ export class PatientFileStorageService {
     return `${documentType}_${Date.now()}_${randomPart}${extension}`;
   }
 
-  private resolveSafePath(...segments: string[]) {
-    return this.root.resolve(...segments);
-  }
-
-  private ensurePathInsideUploadRoot(pathToCheck: string) {
-    return this.root.ensureInside(pathToCheck);
-  }
-
   private async removeEmptyParentDirectories(directory: string): Promise<void> {
-    if (
-      directory === this.uploadRoot ||
-      !directory.startsWith(this.uploadRoot)
-    ) {
+    if (directory === this.root.path || !directory.startsWith(this.root.path)) {
       return;
     }
 
@@ -349,3 +353,4 @@ export class PatientFileStorageService {
     }
   }
 }
+

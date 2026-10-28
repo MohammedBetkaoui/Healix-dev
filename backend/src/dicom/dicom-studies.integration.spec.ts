@@ -6,12 +6,14 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
 import {
+  applyStorageTestEnv,
   assertTestDatabaseName,
   IntegrationFixtures,
   readTestDatabase,
 } from '../common/testing/integration-fixtures';
 import { PatientsModule } from '../patients/patients.module';
 import { PrismaService } from '../prisma/prisma.service';
+import { StorageModule } from '../storage/storage.module';
 import { DicomImportService } from './dicom-import.service';
 import { DicomStudiesService } from './dicom-studies.service';
 import { DicomModule } from './dicom.module';
@@ -36,6 +38,7 @@ describeWithDatabase('the DICOM studies against a database', () => {
   let importService: DicomImportService;
   let studies: DicomStudiesService;
   let directory: string;
+  const cleanupStorage = applyStorageTestEnv();
   const orthanc = {
     deleteStudy: jest.fn(),
     getInstance: jest.fn(),
@@ -76,6 +79,7 @@ describeWithDatabase('the DICOM studies against a database', () => {
     moduleRef = await Test.createTestingModule({
       imports: [
         ConfigModule.forRoot({ ignoreEnvFile: true, isGlobal: true }),
+        StorageModule,
         PatientsModule,
         DicomModule,
       ],
@@ -94,18 +98,21 @@ describeWithDatabase('the DICOM studies against a database', () => {
   });
 
   afterAll(async () => {
+    // The suite owns its Orthanc study id: everything it ever left behind
+    // (from a previous run too) goes.
     await prisma.dicomStudy.deleteMany({
-      where: { workspaceId: { in: [owner.workspace.id, other.workspace.id] } },
+      where: { orthancStudyId: ORTHANC_STUDY },
     });
     await fixtures.cleanup();
     await moduleRef.close();
     await rm(directory, { force: true, recursive: true });
+    cleanupStorage();
   });
 
   beforeEach(async () => {
     jest.resetAllMocks();
     await prisma.dicomStudy.deleteMany({
-      where: { workspaceId: { in: [owner.workspace.id, other.workspace.id] } },
+      where: { orthancStudyId: ORTHANC_STUDY },
     });
     orthanc.uploadInstance.mockResolvedValue({
       id: INSTANCE,

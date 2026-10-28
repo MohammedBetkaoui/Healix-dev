@@ -10,6 +10,7 @@ import { PatientFileStorageService } from '../patients/documents/patient-file-st
 import { PatientAuditService } from '../patients/patient-audit.service';
 import { PatientsService } from '../patients/patients.service';
 import { PrismaService } from '../prisma/prisma.service';
+import { storageReferenceOf } from '../storage/storage-keys';
 import {
   assertQuotaAvailable,
   EntitlementsService,
@@ -147,7 +148,7 @@ export class DicomAnalysisService {
         sourceDocumentId: document.id,
       });
     } catch (error) {
-      await this.dropUnusedDocument(document.id, document.localPath);
+      await this.dropUnusedDocument(document.id, storageReferenceOf(document));
       throw error;
     }
   }
@@ -213,7 +214,7 @@ export class DicomAnalysisService {
         sourceDocumentId: document.id,
       });
     } catch (error) {
-      await this.dropUnusedDocument(document.id, document.localPath);
+      await this.dropUnusedDocument(document.id, storageReferenceOf(document));
       throw error;
     }
   }
@@ -283,7 +284,9 @@ export class DicomAnalysisService {
           },
           dicomStudyId: study.id,
           documentType,
-          localPath: stored.localPath,
+          storageKey: stored.storageKey,
+          localPath: null,
+          encryptionVersion: stored.encryptionVersion,
           mimeType,
           originalName: stored.originalName,
           patientId,
@@ -301,7 +304,7 @@ export class DicomAnalysisService {
       });
       return document;
     } catch (error) {
-      await this.files.deleteLocalFile(stored.localPath);
+      await this.files.deleteFile(stored.storageKey);
       throw error;
     }
   }
@@ -369,7 +372,9 @@ export class DicomAnalysisService {
           dicomStudyId: study.id,
           documentType,
           instanceNumber: instance.instanceNumber,
-          localPath: stored.localPath,
+          storageKey: stored.storageKey,
+          localPath: null,
+          encryptionVersion: stored.encryptionVersion,
           mimeType,
           originalName: stored.originalName,
           patientId,
@@ -388,7 +393,7 @@ export class DicomAnalysisService {
       });
       return document;
     } catch (error) {
-      await this.files.deleteLocalFile(stored.localPath);
+      await this.files.deleteFile(stored.storageKey);
       throw error;
     }
   }
@@ -398,7 +403,7 @@ export class DicomAnalysisService {
   // stays: the analysis failed, its source is part of the record.
   private async dropUnusedDocument(
     documentId: string,
-    localPath: string,
+    reference: string | null,
   ): Promise<void> {
     try {
       const runs = await this.prisma.aiAnalysisRun.count({
@@ -406,7 +411,10 @@ export class DicomAnalysisService {
       });
       if (runs === 0) {
         await this.prisma.patientDocument.delete({ where: { id: documentId } });
-        await this.files.deleteLocalFile(localPath);
+
+        if (reference) {
+          await this.files.deleteFile(reference);
+        }
       }
     } catch (error) {
       this.logger.warn(

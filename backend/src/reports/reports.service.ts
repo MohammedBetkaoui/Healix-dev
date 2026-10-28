@@ -23,6 +23,7 @@ import { PatientFileStorageService } from '../patients/documents/patient-file-st
 import { PatientFileValidator } from '../patients/documents/patient-file-validator';
 import { PatientsService } from '../patients/patients.service';
 import { PrismaService } from '../prisma/prisma.service';
+import { storageReferenceOf } from '../storage/storage-keys';
 import { CancelReportDto } from './dto/cancel-report.dto';
 import { CreateReportDto } from './dto/create-report.dto';
 import { ImportReportDto } from './dto/import-report.dto';
@@ -246,20 +247,25 @@ export class ReportsService {
     let fileName: string;
     let mimeType = 'application/pdf';
     if (report.aiAnalysisReport) {
-      file = await this.fileStorage.readStoredFile(
-        report.aiAnalysisReport.filePath,
-      );
+      const reference = storageReferenceOf(report.aiAnalysisReport);
+
+      if (!reference) throw unavailable();
+      file = await this.fileStorage.readStoredFile(reference);
       this.assertChecksum(file, report.aiAnalysisReport.sha256);
       fileName = `${report.aiAnalysisReport.reportNumber}.pdf`;
     } else if (report.patientDocument) {
-      file = await this.fileStorage.readStoredFile(
-        report.patientDocument.localPath,
-      );
+      const reference = storageReferenceOf(report.patientDocument);
+
+      if (!reference) throw unavailable();
+      file = await this.fileStorage.readStoredFile(reference);
       this.assertChecksum(file, report.patientDocument.checksum);
       fileName = report.patientDocument.originalName;
       mimeType = report.patientDocument.mimeType;
     } else if (report.document && report.number) {
-      file = await this.storage.read(report.document.localPath);
+      const reference = storageReferenceOf(report.document);
+
+      if (!reference) throw unavailable();
+      file = await this.storage.read(reference);
       this.assertChecksum(file, report.document.checksum);
       if (
         !report.contentFingerprint ||
@@ -390,7 +396,7 @@ export class ReportsService {
         'Seul un brouillon peut être finalisé.',
       );
     }
-    let uncommittedPath: string | null = null;
+    let uncommittedStorageKey: string | null = null;
     try {
       const finalized = await this.prisma.$transaction(
         async (transaction) => {
@@ -502,7 +508,7 @@ export class ReportsService {
             number,
             pdf,
           });
-          uncommittedPath = stored.localPath;
+          uncommittedStorageKey = stored.storageKey;
           const amended = report.replacesId !== null;
           const won = await transaction.clinicalReport.updateMany({
             where: { id, status: ClinicalReportStatus.DRAFT },
@@ -539,7 +545,9 @@ export class ReportsService {
             data: {
               reportId: id,
               storedName: stored.storedName,
-              localPath: stored.localPath,
+              storageKey: stored.storageKey,
+              localPath: null,
+              encryptionVersion: stored.encryptionVersion,
               size: stored.size,
               checksum: stored.checksum,
               contentFingerprint,
@@ -561,11 +569,11 @@ export class ReportsService {
         },
         { maxWait: 10_000, timeout: 60_000 },
       );
-      uncommittedPath = null;
+      uncommittedStorageKey = null;
       await this.notifyTreatingDoctor(finalized, user);
       return this.withVersions(finalized);
     } catch (error) {
-      if (uncommittedPath) await this.storage.remove(uncommittedPath);
+      if (uncommittedStorageKey) await this.storage.remove(uncommittedStorageKey);
       if (
         error instanceof ConcurrentFinalizationError ||
         this.isUniqueViolation(error)
@@ -739,7 +747,9 @@ export class ReportsService {
             storedName: stored.storedName,
             mimeType,
             size: file.size,
-            localPath: stored.localPath,
+            storageKey: stored.storageKey,
+            localPath: null,
+            encryptionVersion: stored.encryptionVersion,
             checksum: stored.checksum,
             uploadedById: user.sub,
           },
@@ -808,7 +818,7 @@ export class ReportsService {
       });
       return this.findDetail(created.id);
     } catch (error) {
-      await this.fileStorage.deleteLocalFile(stored.localPath);
+      await this.fileStorage.deleteFile(stored.storageKey);
       throw error;
     }
   }

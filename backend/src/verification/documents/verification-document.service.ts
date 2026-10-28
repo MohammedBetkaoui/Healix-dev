@@ -20,7 +20,13 @@ type UpsertDocumentInput = {
   storedName: string;
   mimeType: string;
   size: number;
-  localPath: string;
+  // The reference of the file: a modern opaque storage key (the rows written
+  // from now on) or, for a document the migration script has not moved yet,
+  // its legacy path under UPLOAD_ROOT (null when a modern key is set).
+  storageKey: string | null;
+  localPath: string | null;
+  // 1: the file is encrypted (AES-256-GCM); null: stored clear (legacy).
+  encryptionVersion: number | null;
   checksum: string;
 };
 
@@ -61,7 +67,9 @@ export class VerificationDocumentService {
         storedName: input.storedName,
         mimeType: input.mimeType,
         size: input.size,
+        storageKey: input.storageKey,
         localPath: input.localPath,
+        encryptionVersion: input.encryptionVersion,
         checksum: input.checksum,
         status: VerificationDocumentStatus.UPLOADED,
       },
@@ -70,7 +78,9 @@ export class VerificationDocumentService {
         storedName: input.storedName,
         mimeType: input.mimeType,
         size: input.size,
+        storageKey: input.storageKey,
         localPath: input.localPath,
+        encryptionVersion: input.encryptionVersion,
         checksum: input.checksum,
         status: VerificationDocumentStatus.UPLOADED,
         uploadedAt: new Date(),

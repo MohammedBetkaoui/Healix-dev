@@ -1,9 +1,8 @@
 /* eslint-disable @typescript-eslint/no-unsafe-assignment */
-import { type ConfigService } from '@nestjs/config';
-
 import { type AuditLogsService } from '../../audit-logs/audit-logs.service';
 import { type NotificationProducerService } from '../../notifications/notification-producer.service';
 import { type PrismaService } from '../../prisma/prisma.service';
+import { type StorageService } from '../../storage/storage.service';
 import { type SubscriptionsService } from '../../subscriptions/subscriptions.service';
 import { AdminVerificationsService } from './admin-verifications.service';
 
@@ -38,7 +37,7 @@ function setup(startedTrial: unknown) {
     prisma as unknown as PrismaService,
     auditLogs as unknown as AuditLogsService,
     subscriptions as unknown as SubscriptionsService,
-    { get: () => './uploads' } as unknown as ConfigService,
+    {} as unknown as StorageService,
     notifications as unknown as NotificationProducerService,
   );
   // The checks of the file itself are not what is tested here.

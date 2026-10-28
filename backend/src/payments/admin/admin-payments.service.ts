@@ -10,11 +10,8 @@ import {
   NotificationResourceType,
   NotificationSeverity,
 } from '@prisma/client';
-import { ConfigService } from '@nestjs/config';
 import { type Payment, type Prisma } from '@prisma/client';
-import { createReadStream, existsSync } from 'node:fs';
-import { resolve } from 'node:path';
-
+import { type Readable } from 'node:stream';
 import { AuditLogsService } from '../../audit-logs/audit-logs.service';
 import { PaymentMethod } from '../../common/enums/payment-method.enum';
 import { PaymentStatus } from '../../common/enums/payment-status.enum';
@@ -24,6 +21,8 @@ import {
   createPaginationMeta,
   getPagination,
 } from '../../admin/shared/admin-pagination.util';
+import { storageReferenceOf } from '../../storage/storage-keys';
+import { StorageService } from '../../storage/storage.service';
 import { SubscriptionsService } from '../../subscriptions/subscriptions.service';
 import {
   AdminApprovePaymentDto,
@@ -39,7 +38,7 @@ type RequestContext = {
 };
 
 type DocumentStreamResult = {
-  stream: ReturnType<typeof createReadStream>;
+  stream: Readable;
   originalName: string;
   mimeType: string;
   size: number;
@@ -47,23 +46,16 @@ type DocumentStreamResult = {
 
 @Injectable()
 export class AdminPaymentsService {
-  private readonly uploadRoot: string;
-
   constructor(
     private readonly prisma: PrismaService,
     private readonly auditLogsService: AuditLogsService,
     private readonly paymentsService: PaymentsService,
     private readonly proofService: PaymentProofService,
     private readonly subscriptionsService: SubscriptionsService,
-    configService: ConfigService,
+    private readonly storageService: StorageService,
     @Optional()
     private readonly notificationProducer?: NotificationProducerService,
-  ) {
-    this.uploadRoot = resolve(
-      process.cwd(),
-      configService.get<string>('UPLOAD_ROOT') ?? './uploads',
-    );
-  }
+  ) {}
 
   async listPayments(query: ListPaymentsQueryDto) {
     const { page, limit, skip } = getPagination(query.page, query.limit);
@@ -350,11 +342,17 @@ export class AdminPaymentsService {
       throw new NotFoundException('Preuve de paiement introuvable.');
     }
 
-    const localPath = this.ensurePathInsideUploadRoot(proof.localPath);
+    // Where the file lives: a modern opaque key (hx/...), or the legacy path
+    // of one the migration script has not moved yet. Both go through the
+    // StorageService, which streams it decrypted.
+    const reference = storageReferenceOf(proof);
 
-    if (!existsSync(localPath)) {
+    if (!reference) {
       throw new NotFoundException('Fichier introuvable.');
     }
+
+    // Opened before logging: a missing file is a 404, not a consultation.
+    const stream = await this.storageService.getStream(reference);
 
     await this.auditLogsService.createAuditLog({
       action:
@@ -376,7 +374,7 @@ export class AdminPaymentsService {
       mimeType: proof.mimeType,
       originalName: proof.originalName,
       size: proof.size,
-      stream: createReadStream(localPath),
+      stream,
     };
   }
 
@@ -468,8 +466,7 @@ export class AdminPaymentsService {
     return where;
   }
 
-  private toAdminPaymentDetail(
-    payment: Awaited<ReturnType<AdminPaymentsService['findPaymentOrThrow']>>,
+  private toAdminPaymentDetail(    payment: Awaited<ReturnType<AdminPaymentsService['findPaymentOrThrow']>>,
   ) {
     return {
       id: payment.id,
@@ -500,19 +497,5 @@ export class AdminPaymentsService {
       subscription: payment.subscription,
       proof: this.proofService.toPublicProof(payment.proofDocument),
     };
-  }
-
-  private ensurePathInsideUploadRoot(pathToCheck: string) {
-    const resolvedPath = resolve(pathToCheck);
-
-    if (
-      resolvedPath !== this.uploadRoot &&
-      !resolvedPath.startsWith(`${this.uploadRoot}\\`) &&
-      !resolvedPath.startsWith(`${this.uploadRoot}/`)
-    ) {
-      throw new BadRequestException('Chemin de fichier invalide.');
-    }
-
-    return resolvedPath;
   }
 }

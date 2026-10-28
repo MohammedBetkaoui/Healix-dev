@@ -131,10 +131,15 @@ describeWithDatabase('the report of an AI analysis against a database', () => {
       },
     });
 
+  // The PDFs of the reports are no longer under UPLOAD_ROOT: they are the
+  // encrypted files of the storage, under the medical namespace of the
+  // private root this process was given.
   const storedPdfs = () =>
-    readdirSync(uploadRoot, { recursive: true })
+    readdirSync(join(process.env.STORAGE_LOCAL_ROOT!, 'hx', 'medical'), {
+      recursive: true,
+    })
       .map(String)
-      .filter((name) => /CR-IA-\d{4}-\d{6}.*\.pdf$/.test(name));
+      .filter((name) => /\.bin$/.test(name));
 
   beforeAll(async () => {
     assertTestDatabaseName(database!);
