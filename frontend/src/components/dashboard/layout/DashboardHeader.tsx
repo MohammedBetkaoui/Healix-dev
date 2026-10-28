@@ -27,6 +27,15 @@ type DashboardHeaderProps = {
 export function DashboardHeader({ breadcrumbLabel, locale, onLocaleChange, onMenuOpen, isMenuOpen, navSections, t, title, user }: DashboardHeaderProps) {
   const headerRef = useRef<HTMLElement>(null);
   const accountPath = user.accountType === "ESTABLISHMENT" ? "/establishment" : "/doctor";
+  // The account menu repeats the verification and subscription entries of the
+  // menu it shares the page with: an entry the caller's workspace access does
+  // not hold stays out of it too (the sections arrive already filtered — a
+  // doctor menu holds both, untagged, so a doctor keeps both links).
+  const menuHrefs = new Set(
+    navSections.flatMap((section) => section.items.map((item) => item.href)),
+  );
+  const showVerificationLink = menuHrefs.has(`${accountPath}/verification`);
+  const showSubscriptionLink = menuHrefs.has(`${accountPath}/subscription`);
 
   useEffect(() => {
     const closeOutside = (event: PointerEvent) => {
@@ -72,8 +81,12 @@ export function DashboardHeader({ breadcrumbLabel, locale, onLocaleChange, onMen
             <p className="break-words text-sm font-semibold">{user.name}</p>
             <p className="clinical-caption mb-4 mt-1">{t(user.roleKey)}</p>
             <DashboardThemeControl t={t} />
-            <Link href={accountPath + "/verification"} className="clinical-link mt-3 flex"><ShieldCheck size={16} strokeWidth={1.8} />{t("dashboard.clinical.actions.verification")}</Link>
-            <Link href={accountPath + "/subscription"} className="clinical-link">{t("dashboard.clinical.actions.subscription")}</Link>
+            {showVerificationLink ? (
+              <Link href={accountPath + "/verification"} className="clinical-link mt-3 flex"><ShieldCheck size={16} strokeWidth={1.8} />{t("dashboard.clinical.actions.verification")}</Link>
+            ) : null}
+            {showSubscriptionLink ? (
+              <Link href={accountPath + "/subscription"} className={`clinical-link${showVerificationLink ? "" : " mt-3"}`}>{t("dashboard.clinical.actions.subscription")}</Link>
+            ) : null}
           </div>
         </details>
       </div>

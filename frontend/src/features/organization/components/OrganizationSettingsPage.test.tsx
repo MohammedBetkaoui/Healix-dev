@@ -25,6 +25,11 @@ jest.mock(
     useEstablishmentVerificationPrefill: () => ({ data: undefined }),
   }),
 );
+// The shell reads the workspace access to gate the owner-only menu entries;
+// with no profile the gated entries hide and the others stay.
+jest.mock("@/features/account/hooks/use-account", () => ({
+  useAccountProfile: jest.fn(() => ({ data: undefined })),
+}));
 jest.mock("@/features/messaging/messaging.queries", () => ({
   useMessagingSettings: jest.fn(),
   useUnreadCount: () => ({ data: undefined }),

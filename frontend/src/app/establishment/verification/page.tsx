@@ -1,3 +1,4 @@
+import { CapabilityGate } from "@/components/dashboard/layout/CapabilityGate";
 import { EstablishmentVerificationPage } from "@/components/verification/establishment/EstablishmentVerificationPage";
 import { requireAuthenticatedPage } from "@/lib/auth/server-auth";
 
@@ -7,5 +8,9 @@ export default async function Page() {
     "/establishment/verification",
   );
 
-  return <EstablishmentVerificationPage />;
+  return (
+    <CapabilityGate requiredCapability="verification.manage">
+      <EstablishmentVerificationPage />
+    </CapabilityGate>
+  );
 }

@@ -6,6 +6,7 @@ import { X } from "lucide-react";
 import { SubscriptionBanner } from "@/components/subscription/SubscriptionBanner";
 import { SubscriptionLimitDialog } from "@/components/subscription/SubscriptionLimitDialog";
 import { withDemoModules } from "@/config/demo-modules";
+import { useAccountProfile } from "@/features/account/hooks/use-account";
 import { type AccountType } from "@/types/auth";
 import {
   type DashboardNavSection,
@@ -18,6 +19,7 @@ import { useRealtimeEvents } from "@/lib/realtime/use-realtime-events";
 import { DashboardContent } from "./DashboardContent";
 import { DashboardHeader } from "./DashboardHeader";
 import { DashboardSidebar } from "./DashboardSidebar";
+import { filterNavSectionsByCapabilities } from "./navigation";
 import { WorkspaceNavigationContext } from "./WorkspaceLink";
 
 type DashboardShellProps = {
@@ -40,8 +42,23 @@ export function DashboardShell({
   user,
 }: DashboardShellProps) {
   const [isSidebarOpen, setSidebarOpen] = useState(false);
-  // The sidebar and the search list the same entries: demo modules only when enabled.
-  const sections = useMemo(() => withDemoModules(navSections), [navSections]);
+  const { data: account } = useAccountProfile();
+  // The sidebar and the search list the same entries: demo modules only when
+  // enabled, then the workspace capabilities. Doctor accounts carry no
+  // workspace management access (null): their menu keeps every item. An
+  // establishment menu hides the gated entries while the access is unknown —
+  // the menu is presentation, the backend guards stay the security.
+  const sections = useMemo(() => {
+    const withDemo = withDemoModules(navSections);
+    if (accountType !== "ESTABLISHMENT") {
+      return withDemo;
+    }
+
+    return filterNavSectionsByCapabilities(
+      withDemo,
+      account?.workspaceAccess?.capabilities,
+    );
+  }, [accountType, account, navSections]);
   const [unavailableModule, setUnavailableModule] = useState("");
   const moduleDialog = useRef<HTMLDialogElement>(null);
   const moduleTrigger = useRef<HTMLElement | null>(null);

@@ -17,6 +17,11 @@ export type DashboardNavItem = {
   icon: LucideIcon;
   key: string;
   labelKey: string;
+  /** The workspace capability the entry runs on: hidden when the loaded
+   * workspace access does not hold it (owner-only entries for a secondary
+   * administrator). The menu is presentation; the backend guards stay the
+   * security. */
+  requiredCapability?: string;
 };
 
 export type DashboardNavSection = {

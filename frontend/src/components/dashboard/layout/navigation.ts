@@ -23,6 +23,29 @@ import {
 
 import { type DashboardNavSection } from "@/types/dashboard";
 
+// The sidebar is capability-aware: an entry tagged with a requiredCapability
+// shows only for a workspace access that holds it. Unknown access (profile
+// still loading, or a doctor account whose workspace access is null) hides
+// the gated entries and never the others — the menu must not promise what
+// the server would refuse. A section left empty disappears, like under the
+// demo filter.
+export function filterNavSectionsByCapabilities(
+  sections: DashboardNavSection[],
+  capabilities: readonly string[] | null | undefined,
+): DashboardNavSection[] {
+  const holds = (capability: string) =>
+    capabilities?.includes(capability) ?? false;
+
+  return sections
+    .map((section) => ({
+      ...section,
+      items: section.items.filter(
+        (item) => !item.requiredCapability || holds(item.requiredCapability),
+      ),
+    }))
+    .filter((section) => section.items.length > 0);
+}
+
 export const establishmentNavSections: DashboardNavSection[] = [
   {
     key: "clinic",
@@ -137,24 +160,28 @@ export const establishmentNavSections: DashboardNavSection[] = [
         icon: BadgeCheck,
         key: "verification",
         labelKey: "dashboard.sidebar.establishment.verification",
+        requiredCapability: "verification.manage",
       },
       {
         href: "/establishment/subscription",
         icon: CreditCard,
         key: "subscription",
         labelKey: "dashboard.sidebar.establishment.subscription",
+        requiredCapability: "subscription.manage",
       },
       {
         href: "/establishment/organization",
         icon: Building2,
         key: "organization",
         labelKey: "dashboard.sidebar.establishment.organization",
+        requiredCapability: "organization.read",
       },
       {
         href: "/establishment/team",
         icon: Users,
         key: "team",
         labelKey: "dashboard.sidebar.establishment.team",
+        requiredCapability: "team.read",
       },
       {
         href: "/establishment/settings",
