@@ -22,9 +22,12 @@ describe('PatientsService workspace boundary', () => {
   const create = jest.fn<Promise<Patient>, [Prisma.PatientCreateArgs]>();
   const findFirst = jest.fn();
   const log = jest.fn();
+  const findUniqueOrThrow = jest.fn();
+  const syncChangeCreate = jest.fn();
   const resolveWorkspaceForUser = jest.fn();
   const prisma = {
-    patient: { create, findFirst },
+    patient: { create, findFirst, findUniqueOrThrow },
+    syncChange: { create: syncChangeCreate },
   } as unknown as PrismaService;
   const audit = { log } as unknown as PatientAuditService;
   const context = {
@@ -53,6 +56,25 @@ describe('PatientsService workspace boundary', () => {
       membershipRole: WorkspaceMembershipRole.OWNER,
       establishmentId: 'establishment-a',
     });
+    // The creation dual-writes into the change feed: the transaction reads
+    // back the created patient and appends a SyncChange row.
+    findUniqueOrThrow.mockResolvedValue({
+      id: 'patient-a',
+      firstName: 'Amine',
+      firstNameAr: 'Amine',
+      lastName: 'Benali',
+      lastNameAr: 'Benali',
+      gender: 'MALE',
+      birthDate: new Date('1990-01-01'),
+      bloodGroup: null,
+      hospitalRecordNumber: null,
+      status: 'ACTIVE',
+      administrativeStatus: 'ACTIVE',
+      medicalSummary: null,
+      updatedAt: new Date(),
+      workspace: { id: 'workspace-a' },
+    });
+    syncChangeCreate.mockResolvedValue({});
   });
 
   it('dual-writes the workspace and legacy owner on patient creation', async () => {

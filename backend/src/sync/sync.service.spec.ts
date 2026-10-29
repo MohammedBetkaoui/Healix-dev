@@ -53,7 +53,16 @@ const operation = {
   },
 };
 
-const scope = {
+const scope: OfflineScopeService = {
+  doctorProfileId: jest.fn().mockResolvedValue('doctor-1'),
+  resolve: jest.fn().mockResolvedValue({
+    doctorProfileId: 'doctor-1',
+    policy: 'PRIVATE_PRACTICE_ACTIVE',
+    consultationWindowFrom: new Date('2026-07-30T00:00:00.000Z'),
+    appointmentWindowFrom: new Date('2026-09-28T00:00:00.000Z'),
+    appointmentWindowTo: new Date('2026-11-27T00:00:00.000Z'),
+    patientIds: ['patient-1'],
+  }),
   patientIds: jest.fn().mockResolvedValue({
     doctorProfileId: 'doctor-1',
     patientIds: ['patient-1'],

@@ -46,4 +46,12 @@ export class OfflineDevicesController {
   ) {
     return this.devices.revoke(request.user, deviceId);
   }
+
+  @Post(':deviceId/reauthorize')
+  reauthorize(
+    @Req() request: AuthenticatedRequest,
+    @Param('deviceId') deviceId: string,
+  ) {
+    return this.devices.reauthorize(request.user, deviceId);
+  }
 }

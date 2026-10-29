@@ -10,6 +10,7 @@ import { SyncService } from '../sync/sync.service';
 import { WorkspaceModule } from '../workspaces/workspace.module';
 import { OfflineDevicesController } from './offline-devices.controller';
 import { OfflineDevicesService } from './offline-devices.service';
+import { DeviceProofGuard } from './device-proof.guard';
 import { OfflineGrantGuard } from './offline-grant.guard';
 import { OfflineGrantService } from './offline-grant.service';
 
@@ -25,10 +26,11 @@ import { OfflineGrantService } from './offline-grant.service';
     OfflineDevicesService,
     OfflineGrantService,
     OfflineGrantGuard,
+    DeviceProofGuard,
     OfflineScopeService,
     SyncService,
     JwtAuthGuard,
   ],
-  exports: [OfflineGrantService],
+  exports: [OfflineGrantService, DeviceProofGuard],
 })
 export class OfflineDevicesModule {}

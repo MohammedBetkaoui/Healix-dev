@@ -9,18 +9,24 @@ import {
 } from '@nestjs/common';
 
 import { OfflineGrantGuard } from '../offline-devices/offline-grant.guard';
+import { DeviceProofGuard } from '../offline-devices/device-proof.guard';
 import { type OfflineAuthenticatedRequest } from '../offline-devices/offline-device.types';
 import { SyncAckDto, SyncPullQueryDto, SyncPushDto } from './dto/sync.dto';
 import { SyncService } from './sync.service';
 
+@UseGuards(OfflineGrantGuard, DeviceProofGuard)
 @Controller('sync')
-@UseGuards(OfflineGrantGuard)
 export class SyncController {
   constructor(private readonly sync: SyncService) {}
 
   @Post('bootstrap')
   bootstrap(@Req() request: OfflineAuthenticatedRequest) {
     return this.sync.bootstrap(request.offlineActor);
+  }
+
+  @Post('reconcile')
+  reconcile(@Req() request: OfflineAuthenticatedRequest) {
+    return this.sync.reconcile(request.offlineActor);
   }
 
   @Post('push')

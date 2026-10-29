@@ -482,6 +482,36 @@ export class IntegrationFixtures {
       where: { patientId: { in: patients } },
     });
     await this.prisma.patient.deleteMany({ where: { id: { in: patients } } });
+
+    // The offline domain points at users, workspaces and devices with
+    // Restrict rules: it is removed before them, device by device.
+    const deviceIds = (
+      await this.prisma.offlineDevice.findMany({
+        where: { userId: { in: users }, workspaceId: { in: workspaces } },
+        select: { id: true },
+      })
+    ).map((device) => device.id);
+    await this.prisma.syncDeviceState.deleteMany({
+      where: { deviceId: { in: deviceIds } },
+    });
+    await this.prisma.syncOperation.deleteMany({
+      where: { deviceId: { in: deviceIds } },
+    });
+    await this.prisma.syncEntityMap.deleteMany({
+      where: { deviceId: { in: deviceIds } },
+    });
+    await this.prisma.offlineAccessGrant.deleteMany({
+      where: { deviceId: { in: deviceIds } },
+    });
+    if (deviceIds.length > 0) {
+      await this.prisma.deviceRequestNonce.deleteMany({
+        where: { deviceId: { in: deviceIds } },
+      });
+      await this.prisma.offlineDevice.deleteMany({
+        where: { id: { in: deviceIds } },
+      });
+    }
+
     await this.prisma.workspace.deleteMany({
       where: { id: { in: workspaces } },
     });

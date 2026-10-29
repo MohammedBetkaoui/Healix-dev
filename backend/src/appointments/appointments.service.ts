@@ -19,6 +19,7 @@ import { sanitizeTextInput } from '../common/utils/sanitize';
 import { PrismaService } from '../prisma/prisma.service';
 import { NotificationProducerService } from '../notifications/notification-producer.service';
 import { WorkspaceContextService } from '../workspaces/workspace-context.service';
+import { recordAppointmentSyncChange } from '../sync/appointment-sync-change';
 import { AppointmentAuditService } from './appointment-audit.service';
 import { CreateAppointmentDto } from './dto/create-appointment.dto';
 import { ListAppointmentsQueryDto } from './dto/list-appointments-query.dto';
@@ -80,15 +81,24 @@ export class AppointmentsService {
     const durationMinutes = dto.durationMinutes ?? 30;
     await this.assertNoOverlap(doctorProfileId, scheduledAt, durationMinutes);
 
-    const appointment = await this.prisma.appointment.create({
-      data: {
-        patientId: dto.patientId,
-        doctorProfileId,
-        scheduledAt,
-        durationMinutes,
-        reason: sanitizeTextInput(dto.reason),
-        createdById: user.sub,
-      },
+    // Same transaction as the creation: the change feed never shows an
+    // appointment the row itself does not carry.
+    const createdId = await this.prisma.$transaction(async (client) => {
+      const created = await client.appointment.create({
+        data: {
+          patientId: dto.patientId,
+          doctorProfileId,
+          scheduledAt,
+          durationMinutes,
+          reason: sanitizeTextInput(dto.reason),
+          createdById: user.sub,
+        },
+      });
+      await recordAppointmentSyncChange(client, created.id, 'CREATE');
+      return created.id;
+    });
+    const appointment = await this.prisma.appointment.findUniqueOrThrow({
+      where: { id: createdId },
       include: appointmentInclude,
     });
 
@@ -198,16 +208,25 @@ export class AppointmentsService {
       );
     }
 
-    const appointment = await this.prisma.appointment.update({
-      where: { id: existing.id },
-      data: {
-        scheduledAt: dto.scheduledAt ? new Date(dto.scheduledAt) : undefined,
-        durationMinutes: dto.durationMinutes,
-        reason: dto.reason ? sanitizeTextInput(dto.reason) : undefined,
-        status: dto.status,
-        notes:
-          dto.notes === undefined ? undefined : sanitizeTextInput(dto.notes),
-      },
+    // Same transaction as the update: the change feed never shows an
+    // appointment version the row itself does not carry.
+    const updatedId = await this.prisma.$transaction(async (client) => {
+      const updated = await client.appointment.update({
+        where: { id: existing.id },
+        data: {
+          scheduledAt: dto.scheduledAt ? new Date(dto.scheduledAt) : undefined,
+          durationMinutes: dto.durationMinutes,
+          reason: dto.reason ? sanitizeTextInput(dto.reason) : undefined,
+          status: dto.status,
+          notes:
+            dto.notes === undefined ? undefined : sanitizeTextInput(dto.notes),
+        },
+      });
+      await recordAppointmentSyncChange(client, updated.id, 'UPDATE');
+      return updated.id;
+    });
+    const appointment = await this.prisma.appointment.findUniqueOrThrow({
+      where: { id: updatedId },
       include: appointmentInclude,
     });
 

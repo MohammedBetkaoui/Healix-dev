@@ -11,12 +11,11 @@ import {
 import { sanitizeTextInput } from '../common/utils/sanitize';
 import { type OfflineActor } from '../offline-devices/offline-device.types';
 import { PrismaService } from '../prisma/prisma.service';
-import {
+import { appointmentSyncSelect, toAppointmentSyncPayload } from './appointment-sync-change';import {
   consultationSyncSelect,
   recordConsultationSyncChange,
   toConsultationSyncPayload,
-} from './consultation-sync-change';
-import {
+} from './consultation-sync-change';import {
   type SyncConsultationPayloadDto,
   type SyncOperationDto,
   type SyncPushDto,
@@ -34,122 +33,116 @@ export class SyncService {
   ) {}
 
   async bootstrap(actor: OfflineActor) {
-    const { doctorProfileId, patientIds } = await this.scope.patientIds(actor);
-    const recentFrom = new Date(
-      Date.now() - actor.offlineScope.recentConsultationDays * 86_400_000,
-    );
-    const appointmentFrom = new Date(Date.now() - 30 * 86_400_000);
-    const appointmentTo = new Date(
-      Date.now() + actor.offlineScope.upcomingAppointmentDays * 86_400_000,
-    );
-    const [workspace, user, patients, consultations, appointments, latest] =
-      await Promise.all([
-        this.prisma.workspace.findUniqueOrThrow({
-          where: { id: actor.workspaceId },
-          select: { id: true, type: true, name: true, updatedAt: true },
-        }),
-        this.prisma.user.findUniqueOrThrow({
-          where: { id: actor.userId },
-          select: { id: true, fullName: true, email: true, role: true },
-        }),
-        this.prisma.patient.findMany({
-          where: { id: { in: patientIds }, workspaceId: actor.workspaceId },
-          orderBy: [{ updatedAt: 'desc' }, { id: 'asc' }],
-          select: {
-            id: true,
-            firstName: true,
-            firstNameAr: true,
-            lastName: true,
-            lastNameAr: true,
-            gender: true,
-            birthDate: true,
-            nationalId: true,
-            bloodGroup: true,
-            phone: true,
-            hospitalRecordNumber: true,
-            status: true,
-            medicalSummary: true,
-            updatedAt: true,
-            clinicalNotes: {
-              orderBy: { createdAt: 'desc' },
-              take: 20,
+    // The whole bootstrap AND its cursor are read inside one REPEATABLE READ
+    // transaction: every row and the highest SyncChange.sequence come from
+    // the same snapshot. A consultation updated by the web app after the
+    // snapshot therefore cannot be missed — either its row (new version)
+    // enters the bootstrap, or its SyncChange (sequence > cursor) enters the
+    // next pull. `Promise.all` over separate reads cannot guarantee that.
+    const result = await this.prisma.$transaction(
+      async (tx) => {
+        const scope = await this.scope.resolve(actor, tx);
+        const [workspace, user, patients, consultations, appointments, latest] =
+          await Promise.all([
+            tx.workspace.findUniqueOrThrow({
+              where: { id: actor.workspaceId },
+              select: { id: true, type: true, name: true, updatedAt: true },
+            }),
+            tx.user.findUniqueOrThrow({
+              where: { id: actor.userId },
+              select: { id: true, fullName: true, email: true, role: true },
+            }),
+            // Minimum data necessary: no nationalId, no phone, no clinical
+            // notes (still online-only in V1).
+            tx.patient.findMany({
+              where: { id: { in: scope.patientIds }, workspaceId: actor.workspaceId },
+              orderBy: [{ updatedAt: 'desc' }, { id: 'asc' }],
               select: {
                 id: true,
-                originalAuthorName: true,
-                originalSentAt: true,
-                content: true,
-                comment: true,
-                createdAt: true,
+                firstName: true,
+                firstNameAr: true,
+                lastName: true,
+                lastNameAr: true,
+                gender: true,
+                birthDate: true,
+                bloodGroup: true,
+                hospitalRecordNumber: true,
+                status: true,
+                administrativeStatus: true,
+                medicalSummary: true,
+                updatedAt: true,
               },
-            },
-          },
-        }),
-        this.prisma.patientConsultation.findMany({
-          where: {
-            workspaceId: actor.workspaceId,
-            doctorProfileId,
-            patientId: { in: patientIds },
-            OR: [
-              { createdAt: { gte: recentFrom } },
-              {
-                status: {
-                  in: [
-                    ConsultationStatus.DRAFT,
-                    ConsultationStatus.IN_PROGRESS,
-                  ],
+            }),
+            tx.patientConsultation.findMany({
+              where: {
+                workspaceId: actor.workspaceId,
+                doctorProfileId: scope.doctorProfileId,
+                patientId: { in: scope.patientIds },
+                OR: [
+                  { createdAt: { gte: scope.consultationWindowFrom } },
+                  {
+                    status: {
+                      in: [
+                        ConsultationStatus.DRAFT,
+                        ConsultationStatus.IN_PROGRESS,
+                      ],
+                    },
+                  },
+                ],
+              },
+              orderBy: [{ updatedAt: 'desc' }, { id: 'asc' }],
+              select: consultationSyncSelect,
+            }),
+            tx.appointment.findMany({
+              where: {
+                doctorProfileId: scope.doctorProfileId,
+                patientId: { in: scope.patientIds },
+                scheduledAt: {
+                  gte: scope.appointmentWindowFrom,
+                  lte: scope.appointmentWindowTo,
                 },
               },
-            ],
-          },
-          orderBy: [{ updatedAt: 'desc' }, { id: 'asc' }],
-          select: consultationSyncSelect,
-        }),
-        this.prisma.appointment.findMany({
-          where: {
-            doctorProfileId,
-            patientId: { in: patientIds },
-            scheduledAt: { gte: appointmentFrom, lte: appointmentTo },
-          },
-          orderBy: { scheduledAt: 'asc' },
-          select: {
-            id: true,
-            patientId: true,
-            scheduledAt: true,
-            durationMinutes: true,
-            reason: true,
-            status: true,
-            notes: true,
-            updatedAt: true,
-          },
-        }),
-        this.prisma.syncChange.findFirst({
-          where: { workspaceId: actor.workspaceId },
-          orderBy: { sequence: 'desc' },
-          select: { sequence: true },
-        }),
-      ]);
-    const serverTime = new Date();
-    return {
-      workspace,
-      user,
-      deviceId: actor.deviceId,
-      offlineCapabilities: actor.offlineCapabilities,
-      offlineScope: actor.offlineScope,
-      patients: patients.map((patient) => ({
-        ...patient,
-        birthDate: patient.birthDate.toISOString(),
-        serverUpdatedAt: patient.updatedAt.toISOString(),
-        lastSyncedAt: serverTime.toISOString(),
-      })),
-      consultations: consultations.map(toConsultationSyncPayload),
-      appointments,
-      syncCursor: encodeSyncCursor(latest?.sequence ?? 0n),
-      serverTime,
-    };
+              orderBy: { scheduledAt: 'asc' },
+              select: appointmentSyncSelect,
+            }),
+            tx.syncChange.findFirst({
+              where: { workspaceId: actor.workspaceId },
+              orderBy: { sequence: 'desc' },
+              select: { sequence: true },
+            }),
+          ]);
+        return {
+          workspace,
+          user,
+          deviceId: actor.deviceId,
+          offlineCapabilities: actor.offlineCapabilities,
+          offlineScope: actor.offlineScope,
+          // The server-authoritative patient set: locally cached rows absent
+          // from this list are outdated clinical data, and the desktop must
+          // purge or lock them.
+          authorizedPatientIds: scope.patientIds,
+          patients: patients.map((patient) => ({
+            ...patient,
+            birthDate: patient.birthDate.toISOString(),
+            serverUpdatedAt: patient.updatedAt.toISOString(),
+            lastSyncedAt: new Date().toISOString(),
+          })),
+          consultations: consultations.map(toConsultationSyncPayload),
+          appointments: appointments.map(toAppointmentSyncPayload),
+          syncCursor: encodeSyncCursor(latest?.sequence ?? 0n),
+          serverTime: new Date(),
+        };
+      },
+      {
+        isolationLevel: 'RepeatableRead',
+        timeout: 30_000,
+        maxWait: 10_000,
+      },
+    );
+    return result;
   }
 
-  async push(actor: OfflineActor, dto: SyncPushDto) {
-    const scoped = await this.scope.patientIds(actor);
+  async push(actor: OfflineActor, dto: SyncPushDto) {    const scoped = await this.scope.resolve(actor);
     const allowedPatients = new Set(scoped.patientIds);
     const results: unknown[] = [];
     for (const operation of dto.operations) {
@@ -165,9 +158,30 @@ export class SyncService {
     return { results, serverTime: new Date() };
   }
 
+  // Light scope reconciliation: no clinical payload, just the
+  // server-authoritative patient ids for the windows of this device's grant.
+  // The desktop calls it at the start of every sync session so a patient
+  // leaving the scope is purged or locked locally without waiting for a
+  // full bootstrap.
+  async reconcile(actor: OfflineActor) {
+    const scope = await this.scope.resolve(actor);
+    return {
+      deviceId: actor.deviceId,
+      policy: scope.policy,
+      consultationWindowFrom: scope.consultationWindowFrom.toISOString(),
+      appointmentWindowFrom: scope.appointmentWindowFrom.toISOString(),
+      appointmentWindowTo: scope.appointmentWindowTo.toISOString(),
+      authorizedPatientIds: scope.patientIds,
+      serverTime: new Date(),
+    };
+  }
+
   async pull(actor: OfflineActor, cursor?: string) {
     const after = decodeSyncCursor(cursor);
-    const { patientIds } = await this.scope.patientIds(actor);
+    // The CURRENT scope governs: a change recorded while a patient was in
+    // scope stops being delivered once the patient leaves it — the scope is
+    // re-evaluated on every pull, never cached from the change emission.
+    const { patientIds } = await this.scope.resolve(actor);
     const changes = await this.prisma.syncChange.findMany({
       where: {
         workspaceId: actor.workspaceId,

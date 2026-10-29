@@ -20,6 +20,11 @@ import {
   ConsultationVitalSignsDto,
 } from '../../consultations/dto/update-consultation.dto';
 
+// Only the consultation aggregate is writable offline in V1. PATIENT and
+// APPOINTMENT flow cloud -> desktop; pushing them to the cloud is refused
+// here, at the validation pipe, before any service code runs.
+export const SYNC_PUSH_ENTITY_TYPES = ['CONSULTATION'] as const;
+
 export class SyncConsultationPayloadDto {
   @IsString()
   patientId!: string;
@@ -82,7 +87,10 @@ export class SyncOperationDto {
   @IsUUID('4')
   operationId!: string;
 
-  @IsEnum(SyncEntityType)
+  @IsIn(SYNC_PUSH_ENTITY_TYPES, {
+    message:
+      'entityType: seule CONSULTATION est synchronisée vers le cloud; PATIENT et APPOINTMENT sont en lecture seule hors ligne.',
+  })
   entityType!: SyncEntityType;
 
   @IsUUID('4')

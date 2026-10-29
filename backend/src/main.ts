@@ -7,7 +7,11 @@ import { AppModule } from './app.module';
 import { readCorsOptions } from './common/utils/cors';
 
 async function bootstrap() {
-  const app = await NestFactory.create<NestExpressApplication>(AppModule);
+  // rawBody: the device signature covers SHA-256(raw body); it is rebuilt
+  // exactly as the client hashed it, before JSON parsing.
+  const app = await NestFactory.create<NestExpressApplication>(AppModule, {
+    rawBody: true,
+  });
   const port = process.env.PORT ?? 3001;
   const cors = readCorsOptions(process.env);
   // Behind Caddy: its address, so that req.ip (rate limits) is the client

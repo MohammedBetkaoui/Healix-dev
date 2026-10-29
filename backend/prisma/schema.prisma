@@ -298,8 +298,12 @@ enum ConsultationStatus {
 // Offline-first V1 deliberately starts with the consultation aggregate only.
 // Other clinical aggregates are added as separate verticals so that a desktop
 // installation never becomes an implicit replica of the cloud database.
+// V1: the cloud pushes PATIENT and APPOINTMENT to the desktop (read-only
+// caches); only CONSULTATION flows desktop -> cloud.
 enum SyncEntityType {
+  PATIENT
   CONSULTATION
+  APPOINTMENT
 }
 
 enum SyncOperationKind {
@@ -875,6 +879,21 @@ model SyncDeviceState {
   device OfflineDevice @relation(fields: [deviceId], references: [id], onDelete: Cascade)
 
   @@map("sync_device_states")
+}
+
+// Replay protection of the device proof-of-possession: every signed sync
+// request carries a random nonce that is stored here until its timestamp
+// leaves the acceptance window. The verification inserts one row per
+// accepted request, so a replayed nonce hits the unique primary key instead
+// of being processed twice.
+model DeviceRequestNonce {
+  nonce     String   @id @db.VarChar(64)
+  deviceId  String   @map("device_id")
+  expiresAt DateTime @map("expires_at")
+  createdAt DateTime @default(now()) @map("created_at")
+
+  @@index([deviceId, expiresAt])
+  @@map("device_request_nonces")
 }
 
 // An invitation to join an establishment workspace. The raw token only lives

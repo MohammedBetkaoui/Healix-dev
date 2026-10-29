@@ -47,6 +47,7 @@ import { PatientFileValidator } from './documents/patient-file-validator';
 import { toClinicalNoteView } from './clinical-note-view';
 import { findPatientMatches } from './patient-matching.util';
 import { PatientAuditService } from './patient-audit.service';
+import { recordPatientSyncChange } from '../sync/patient-sync-change';
 
 type PatientOwnerScope = {
   workspaceId: string;
@@ -92,37 +93,44 @@ export class PatientsService {
       scope.workspaceId,
       'maxPatients',
       (client) =>
-        client.patient.create({
-          data: {
-            firstName: sanitizeTextInput(dto.firstName),
-            firstNameAr: sanitizeTextInput(dto.firstNameAr),
-            lastName: sanitizeTextInput(dto.lastName),
-            lastNameAr: sanitizeTextInput(dto.lastNameAr),
-            gender: dto.gender,
-            birthDate: new Date(dto.birthDate),
-            nationalId: sanitizeTextInput(dto.nationalId),
-            bloodGroup: dto.bloodGroup,
-            phone: sanitizePhone(dto.phone),
-            email: dto.email ? normalizeEmail(dto.email) : undefined,
-            address: sanitizeTextInput(dto.address),
-            wilaya: sanitizeTextInput(dto.wilaya),
-            commune: sanitizeTextInput(dto.commune),
-            emergencyContactName: sanitizeTextInput(dto.emergencyContactName),
-            emergencyContactPhone: sanitizePhone(dto.emergencyContactPhone),
-            insurance: dto.insurance,
-            insuredNumber: dto.insuredNumber
-              ? sanitizeTextInput(dto.insuredNumber)
-              : undefined,
-            sector: dto.sector,
-            hospitalRecordNumber: dto.hospitalRecordNumber
-              ? sanitizeTextInput(dto.hospitalRecordNumber)
-              : undefined,
-            smsEnabled: dto.smsEnabled ?? true,
-            workspaceId: scope.workspaceId,
-            establishmentId: scope.establishmentId ?? undefined,
-            doctorProfileId: scope.doctorProfileId ?? undefined,
-          },
-        }),
+        client.patient
+          .create({
+            data: {
+              firstName: sanitizeTextInput(dto.firstName),
+              firstNameAr: sanitizeTextInput(dto.firstNameAr),
+              lastName: sanitizeTextInput(dto.lastName),
+              lastNameAr: sanitizeTextInput(dto.lastNameAr),
+              gender: dto.gender,
+              birthDate: new Date(dto.birthDate),
+              nationalId: sanitizeTextInput(dto.nationalId),
+              bloodGroup: dto.bloodGroup,
+              phone: sanitizePhone(dto.phone),
+              email: dto.email ? normalizeEmail(dto.email) : undefined,
+              address: sanitizeTextInput(dto.address),
+              wilaya: sanitizeTextInput(dto.wilaya),
+              commune: sanitizeTextInput(dto.commune),
+              emergencyContactName: sanitizeTextInput(dto.emergencyContactName),
+              emergencyContactPhone: sanitizePhone(dto.emergencyContactPhone),
+              insurance: dto.insurance,
+              insuredNumber: dto.insuredNumber
+                ? sanitizeTextInput(dto.insuredNumber)
+                : undefined,
+              sector: dto.sector,
+              hospitalRecordNumber: dto.hospitalRecordNumber
+                ? sanitizeTextInput(dto.hospitalRecordNumber)
+                : undefined,
+              smsEnabled: dto.smsEnabled ?? true,
+              workspaceId: scope.workspaceId,
+              establishmentId: scope.establishmentId ?? undefined,
+              doctorProfileId: scope.doctorProfileId ?? undefined,
+            },
+          })
+          // Same transaction as the creation: the change feed never shows a
+          // patient without the row itself.
+          .then(async (created) => {
+            await recordPatientSyncChange(client, created.id, 'CREATE');
+            return created;
+          }),
     );
 
     await this.patientAuditService.log(user, 'PATIENT_CREATED', patient.id);
@@ -210,9 +218,15 @@ export class PatientsService {
   ) {
     const existing = await this.getPatientInScope(user, id);
 
-    const patient = await this.prisma.patient.update({
-      where: { id: existing.id },
-      data: this.toUpdateInput(dto),
+    // Same transaction as the update: the change feed never shows a patient
+    // version the row itself does not carry.
+    const patient = await this.prisma.$transaction(async (client) => {
+      const updated = await client.patient.update({
+        where: { id: existing.id },
+        data: this.toUpdateInput(dto),
+      });
+      await recordPatientSyncChange(client, updated.id, 'UPDATE');
+      return updated;
     });
 
     // Field names only — never the old/new values themselves, since several

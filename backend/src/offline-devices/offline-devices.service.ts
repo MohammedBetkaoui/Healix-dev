@@ -36,6 +36,55 @@ export class OfflineDevicesService {
   ) {
     const clinical = await this.resolveClinicalContext(user);
     this.assertValidPublicKey(dto.publicKey);
+    const existing = await this.prisma.offlineDevice.findUnique({
+      where: {
+        userId_workspaceId_installationId: {
+          userId: user.sub,
+          workspaceId: clinical.workspaceId,
+          installationId: dto.installationId,
+        },
+      },
+    });
+    if (existing?.revokedAt) {
+      // Re-registration never resurrects a device the user explicitly
+      // revoked: it would silently hand back a key the deployer considers
+      // compromised. A deliberate call to reauthorize() does.
+      throw new ForbiddenException(
+        'Appareil révoqué; une réautorisation explicite est requise.',
+      );
+    }
+    if (existing && existing.publicKey !== dto.publicKey.trim()) {
+      // Same installation but a different key: treat that as a key rotation,
+      // never a silent swap. The active grants of the device are revoked (they
+      // authenticate a key that no longer exists), the key is updated, and a
+      // fresh grant is issued against the rotated key.
+      const rotatedAt = new Date();
+      const [, device] = await this.prisma.$transaction([
+        this.prisma.offlineAccessGrant.updateMany({
+          where: { deviceId: existing.id, revokedAt: null },
+          data: { revokedAt: rotatedAt },
+        }),
+        this.prisma.offlineDevice.update({
+          where: { id: existing.id },
+          data: {
+            deviceName: dto.deviceName.trim(),
+            platform: dto.platform,
+            publicKey: dto.publicKey.trim(),
+            revokedAt: null,
+          },
+        }),
+      ]);
+      const issued = await this.issueGrant(user, device.id, clinical);
+      return {
+        device: this.toPublicDevice(device),
+        offlineAccessGrant: issued.token,
+        grantExpiresAt: issued.grant.expiresAt,
+        grantVerificationPublicKey: issued.publicKey,
+        offlineCapabilities: OFFLINE_CAPABILITIES,
+        offlineScope: clinical.scope,
+        keyRotated: true,
+      };
+    }
     const device = await this.prisma.offlineDevice.upsert({
       where: {
         userId_workspaceId_installationId: {
@@ -55,9 +104,7 @@ export class OfflineDevicesService {
       update: {
         deviceName: dto.deviceName.trim(),
         platform: dto.platform,
-        publicKey: dto.publicKey.trim(),
         lastSeenAt: new Date(),
-        revokedAt: null,
       },
     });
     const issued = await this.issueGrant(user, device.id, clinical);
@@ -68,6 +115,41 @@ export class OfflineDevicesService {
       grantVerificationPublicKey: issued.publicKey,
       offlineCapabilities: OFFLINE_CAPABILITIES,
       offlineScope: clinical.scope,
+    };
+  }
+
+  // Explicit re-authorization of an explicitly revoked device: the owner
+  // decides on purpose, the stale grants are already gone, and a fresh one
+  // is issued only afterwards.
+  async reauthorize(user: AuthenticatedUserPayload, deviceId: string) {
+    const clinical = await this.resolveClinicalContext(user);
+    const device = await this.prisma.offlineDevice.findFirst({
+      where: {
+        id: deviceId,
+        userId: user.sub,
+        workspaceId: clinical.workspaceId,
+      },
+    });
+    if (!device) throw new NotFoundException('Appareil introuvable.');
+    if (!device.revokedAt) {
+      throw new BadRequestException(
+        'Cet appareil n’est pas révoqué; utilisez le renouvellement de grant.',
+      );
+    }
+    const now = new Date();
+    const restored = await this.prisma.offlineDevice.update({
+      where: { id: device.id },
+      data: { revokedAt: null },
+    });
+    const issued = await this.issueGrant(user, device.id, clinical);
+    return {
+      device: this.toPublicDevice(restored),
+      offlineAccessGrant: issued.token,
+      grantExpiresAt: issued.grant.expiresAt,
+      grantVerificationPublicKey: issued.publicKey,
+      offlineCapabilities: OFFLINE_CAPABILITIES,
+      offlineScope: clinical.scope,
+      reauthorizedAt: now,
     };
   }
 
