@@ -2,12 +2,27 @@ use base64::{engine::general_purpose::STANDARD, Engine};
 use jsonwebtoken::{decode, Algorithm, DecodingKey, Validation};
 use keyring::Entry;
 use rand::{rngs::OsRng, RngCore};
+use rsa::pss::SigningKey;
+use rsa::signature::{RandomizedSigner, SignatureEncoding};
 use rsa::{
     pkcs8::{DecodePrivateKey, EncodePrivateKey, EncodePublicKey, LineEnding},
     RsaPrivateKey, RsaPublicKey,
 };
 use serde::{Deserialize, Serialize};
+use sha2::Sha256;
 use uuid::Uuid;
+
+use crate::protocol::{
+    canonical_request_string, new_nonce, DEVICE_ID_HEADER, DEVICE_NONCE_HEADER,
+    DEVICE_SIGNATURE_HEADER, DEVICE_TIMESTAMP_HEADER,
+};
+
+pub struct SignedRequest {
+    pub device_id: String,
+    pub timestamp: i64,
+    pub nonce: String,
+    pub signature: String,
+}
 
 const SERVICE: &str = "dz.healix.desktop";
 
@@ -22,8 +37,7 @@ pub fn set_secret(name: &str, value: &str) -> Result<(), String> {
 }
 
 pub fn get_secret(name: &str) -> Result<String, String> {
-    get_optional_secret(name)?
-        .ok_or_else(|| "Session offline absente ou verrouillée.".to_string())
+    get_optional_secret(name)?.ok_or_else(|| "Session offline absente ou verrouillée.".to_string())
 }
 
 fn get_optional_secret(name: &str) -> Result<Option<String>, String> {
@@ -126,4 +140,52 @@ pub fn verified_grant() -> Result<(String, GrantClaims), String> {
 pub fn clear_session() {
     delete_secret("offline-grant");
     delete_secret("grant-public-key");
+}
+
+// Proof-of-possession: build the canonical string shared with the backend,
+// sign it with the device private key (RSA-PSS / SHA-256) and return the
+// headers every /sync/* request carries next to the Bearer grant. The
+// private key never leaves the OS secure store and its bytes never appear
+// in a log, a SQLite row or an API response.
+pub fn sign_request(
+    method: &str,
+    path: &str,
+    body_sha256: &str,
+    device_id: &str,
+) -> Result<SignedRequest, String> {
+    let private_pem = get_secret("device-private-key")?;
+    let key = RsaPrivateKey::from_pkcs8_pem(&private_pem)
+        .map_err(|_| "Identité cryptographique locale invalide.".to_string())?;
+    let timestamp = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .map(|d| d.as_secs() as i64)
+        .map_err(|_| "Horloge système invalide.".to_string())?;
+    let nonce = new_nonce();
+    let canonical =
+        canonical_request_string(method, path, timestamp, &nonce, body_sha256, device_id);
+    let signing_key = SigningKey::<Sha256>::new(key);
+    let signature = signing_key
+        .sign_with_rng(&mut OsRng, canonical.as_bytes())
+        .to_vec();
+    Ok(SignedRequest {
+        device_id: device_id.to_string(),
+        timestamp,
+        nonce,
+        signature: STANDARD.encode(signature),
+    })
+}
+
+pub fn signed_request_headers(
+    method: &str,
+    path: &str,
+    body_sha256: &str,
+    device_id: &str,
+) -> Result<Vec<(&'static str, String)>, String> {
+    let signed = sign_request(method, path, body_sha256, device_id)?;
+    Ok(vec![
+        (DEVICE_ID_HEADER, signed.device_id),
+        (DEVICE_TIMESTAMP_HEADER, signed.timestamp.to_string()),
+        (DEVICE_NONCE_HEADER, signed.nonce),
+        (DEVICE_SIGNATURE_HEADER, signed.signature),
+    ])
 }

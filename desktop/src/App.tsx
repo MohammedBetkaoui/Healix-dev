@@ -60,10 +60,9 @@ function App() {
   );
 
   const performSync = useCallback(async () => {
-    if (!navigator.onLine) {
-      setSync((current) => ({ ...current, state: "OFFLINE" }));
-      return;
-    }
+    // navigator.onLine is an indication only: the real availability is the
+    // success of the signed API call. A DNS, TLS or 5xx failure leaves the
+    // desktop fully usable offline.
     setSync((current) => ({ ...current, state: "SYNCING" }));
     try {
       const next = await syncNow();
@@ -193,7 +192,11 @@ function App() {
                 <strong>
                   {patient.firstName} {patient.lastName}
                 </strong>
-                <span>{patient.hospitalRecordNumber ?? "Sans N° dossier"}</span>
+                <span>
+                  {patient.locked
+                    ? "Dossier verrouillé"
+                    : (patient.hospitalRecordNumber ?? "Sans N° dossier")}
+                </span>
               </button>
             ))}
           </div>
@@ -219,7 +222,7 @@ function App() {
                   current ? { ...current, localId: saved.localId } : current,
                 );
                 setSync(await getSyncStatus());
-                if (navigator.onLine) void performSync();
+                void performSync();
               }}
             />
           ) : (
@@ -230,17 +233,26 @@ function App() {
                   <h2>
                     {selected.firstName} {selected.lastName}
                   </h2>
-                  <p className="available">
-                    Disponible hors ligne · Dernière synchronisation :{" "}
-                    {formatDate(selected.lastSyncedAt)}
-                  </p>
+                  {selected.locked ? (
+                    <p className="available">
+                      Dossier verrouillé ({selected.lockReason ?? "hors périmètre"}) ·
+                      lecture seule
+                    </p>
+                  ) : (
+                    <p className="available">
+                      Disponible hors ligne · Dernière synchronisation :{" "}
+                      {formatDate(selected.lastSyncedAt)}
+                    </p>
+                  )}
                 </div>
-                <button
-                  className="primary"
-                  onClick={() => setDraft(emptyDraft(selected.id))}
-                >
-                  Nouvelle consultation
-                </button>
+                {!selected.locked && (
+                  <button
+                    className="primary"
+                    onClick={() => setDraft(emptyDraft(selected.id))}
+                  >
+                    Nouvelle consultation
+                  </button>
+                )}
               </div>
               <div className="clinical-grid">
                 <ClinicalCard
@@ -358,9 +370,11 @@ function SyncIndicator({
       ? `Synchronisation… ${status.processed ?? 0} / ${status.total ?? status.pendingCount}`
       : status.state === "OFFLINE"
         ? "Hors ligne"
-        : status.state === "CONFLICT"
-          ? `${status.conflictCount} éléments nécessitent votre attention`
-          : "En ligne";
+        : status.state === "SCOPE_REVOKED" || status.state === "LOCKED"
+          ? `${status.lockedCount ?? 0} dossiers verrouillés hors périmètre`
+          : status.state === "CONFLICT"
+            ? `${status.conflictCount} éléments nécessitent votre attention`
+            : "En ligne";
   return (
     <button
       className={`sync-indicator ${status.state.toLowerCase()}`}

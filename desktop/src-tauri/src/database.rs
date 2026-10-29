@@ -27,7 +27,9 @@ CREATE TABLE IF NOT EXISTS patients (
   search_text TEXT NOT NULL,
   payload TEXT NOT NULL,
   server_updated_at TEXT NOT NULL,
-  last_synced_at TEXT NOT NULL
+  last_synced_at TEXT NOT NULL,
+  locked INTEGER NOT NULL DEFAULT 0,
+  lock_reason TEXT
 );
 CREATE INDEX IF NOT EXISTS patients_workspace_search_idx ON patients(workspace_id, search_text);
 CREATE TABLE IF NOT EXISTS patient_medical_summaries (
@@ -109,6 +111,21 @@ CREATE TABLE IF NOT EXISTS local_audit_events (
 INSERT OR IGNORE INTO sync_state(id, cursor) VALUES (1, '');
 "#;
 
+// Columns added after the first release; CREATE TABLE IF NOT EXISTS cannot
+// upgrade an existing database file, so opening the storage rechecks them.
+const LOCAL_MIGRATIONS: [(&str, &str, &str); 2] = [
+    (
+        "patients",
+        "locked",
+        "ALTER TABLE patients ADD COLUMN locked INTEGER NOT NULL DEFAULT 0",
+    ),
+    (
+        "patients",
+        "lock_reason",
+        "ALTER TABLE patients ADD COLUMN lock_reason TEXT",
+    ),
+];
+
 fn db_path(app: &AppHandle) -> Result<PathBuf, String> {
     let directory = app
         .path()
@@ -139,7 +156,23 @@ pub fn open(app: &AppHandle) -> Result<Connection, String> {
     connection
         .execute_batch(SCHEMA)
         .map_err(|_| "Impossible d’initialiser le schéma local.".to_string())?;
+    apply_local_migrations(&connection)
+        .map_err(|_| "Mise à niveau locale impossible.".to_string())?;
     Ok(connection)
+}
+
+fn apply_local_migrations(connection: &Connection) -> rusqlite::Result<()> {
+    for (table, column, ddl) in LOCAL_MIGRATIONS {
+        let present: i64 = connection.query_row(
+            &format!("SELECT COUNT(*) FROM pragma_table_info('{table}') WHERE name = ?1"),
+            params![column],
+            |row| row.get(0),
+        )?;
+        if present == 0 {
+            connection.execute(ddl, [])?;
+        }
+    }
+    Ok(())
 }
 
 fn string(value: &Value, key: &str) -> Result<String, String> {
@@ -152,11 +185,9 @@ fn string(value: &Value, key: &str) -> Result<String, String> {
 
 fn now_iso(connection: &Connection) -> Result<String, String> {
     connection
-        .query_row(
-            "SELECT strftime('%Y-%m-%dT%H:%M:%fZ', 'now')",
-            [],
-            |row| row.get(0),
-        )
+        .query_row("SELECT strftime('%Y-%m-%dT%H:%M:%fZ', 'now')", [], |row| {
+            row.get(0)
+        })
         .map_err(|_| "Horodatage local indisponible.".to_string())
 }
 
@@ -212,12 +243,21 @@ pub fn apply_bootstrap(app: &AppHandle, bootstrap: &Value) -> Result<(), String>
     }
     tx.execute(
         "INSERT OR REPLACE INTO local_user(id, full_name, email, role) VALUES (?1, ?2, ?3, ?4)",
-        params![user_id, string(user, "fullName")?, string(user, "email")?, string(user, "role")?],
+        params![
+            user_id,
+            string(user, "fullName")?,
+            string(user, "email")?,
+            string(user, "role")?
+        ],
     )
     .map_err(|_| "Utilisateur local non enregistré.".to_string())?;
     tx.execute(
         "INSERT OR REPLACE INTO local_workspace(id, name, workspace_type) VALUES (?1, ?2, ?3)",
-        params![workspace_id, string(workspace, "name")?, string(workspace, "type")?],
+        params![
+            workspace_id,
+            string(workspace, "name")?,
+            string(workspace, "type")?
+        ],
     )
     .map_err(|_| "Workspace local non enregistré.".to_string())?;
     tx.execute(
@@ -236,10 +276,22 @@ pub fn apply_bootstrap(app: &AppHandle, bootstrap: &Value) -> Result<(), String>
         let id = string(patient, "id")?;
         let search_text = format!(
             "{} {} {} {} {}",
-            patient.get("firstName").and_then(Value::as_str).unwrap_or(""),
-            patient.get("lastName").and_then(Value::as_str).unwrap_or(""),
-            patient.get("firstNameAr").and_then(Value::as_str).unwrap_or(""),
-            patient.get("lastNameAr").and_then(Value::as_str).unwrap_or(""),
+            patient
+                .get("firstName")
+                .and_then(Value::as_str)
+                .unwrap_or(""),
+            patient
+                .get("lastName")
+                .and_then(Value::as_str)
+                .unwrap_or(""),
+            patient
+                .get("firstNameAr")
+                .and_then(Value::as_str)
+                .unwrap_or(""),
+            patient
+                .get("lastNameAr")
+                .and_then(Value::as_str)
+                .unwrap_or(""),
             patient
                 .get("hospitalRecordNumber")
                 .and_then(Value::as_str)
@@ -283,6 +335,19 @@ pub fn apply_bootstrap(app: &AppHandle, bootstrap: &Value) -> Result<(), String>
         )
         .map_err(|_| "Rendez-vous local non enregistré.".to_string())?;
     }
+    // The received patient list IS the authorization set: locally cached
+    // patients absent from it are purged (or locked when they hold unsent
+    // clinical data) inside this same transaction.
+    let authorized: Vec<String> = bootstrap
+        .get("authorizedPatientIds")
+        .and_then(Value::as_array)
+        .into_iter()
+        .flatten()
+        .filter_map(Value::as_str)
+        .map(str::to_string)
+        .collect();
+    reconcile_patients_tx(&tx, &authorized)
+        .map_err(|_| "Patients hors scope non purgés.".to_string())?;
     tx.execute(
         "UPDATE sync_state SET cursor=?1, last_synced_at=?2 WHERE id=1",
         params![string(bootstrap, "syncCursor")?, synced_at],
@@ -304,9 +369,17 @@ pub struct SessionStatus {
     pub user: Option<Value>,
 }
 
-pub fn session_status(app: &AppHandle, claims: Option<&GrantClaims>) -> Result<SessionStatus, String> {
+pub fn session_status(
+    app: &AppHandle,
+    claims: Option<&GrantClaims>,
+) -> Result<SessionStatus, String> {
     let Some(claims) = claims else {
-        return Ok(SessionStatus { authorized: false, expires_at: None, workspace: None, user: None });
+        return Ok(SessionStatus {
+            authorized: false,
+            expires_at: None,
+            workspace: None,
+            user: None,
+        });
     };
     let connection = open(app)?;
     let context: Option<(String, String, String, String, String, String)> = connection
@@ -314,12 +387,27 @@ pub fn session_status(app: &AppHandle, claims: Option<&GrantClaims>) -> Result<S
             "SELECT u.id, u.full_name, u.email, w.id, w.name, w.workspace_type
              FROM local_user u CROSS JOIN local_workspace w LIMIT 1",
             [],
-            |row| Ok((row.get(0)?, row.get(1)?, row.get(2)?, row.get(3)?, row.get(4)?, row.get(5)?)),
+            |row| {
+                Ok((
+                    row.get(0)?,
+                    row.get(1)?,
+                    row.get(2)?,
+                    row.get(3)?,
+                    row.get(4)?,
+                    row.get(5)?,
+                ))
+            },
         )
         .optional()
         .map_err(|_| "Contexte local illisible.".to_string())?;
-    let Some((user_id, full_name, email, workspace_id, workspace_name, workspace_type)) = context else {
-        return Ok(SessionStatus { authorized: false, expires_at: None, workspace: None, user: None });
+    let Some((user_id, full_name, email, workspace_id, workspace_name, workspace_type)) = context
+    else {
+        return Ok(SessionStatus {
+            authorized: false,
+            expires_at: None,
+            workspace: None,
+            user: None,
+        });
     };
     if user_id != claims.user_id || workspace_id != claims.workspace_id {
         return Err("Le grant ne correspond pas au contexte local.".to_string());
@@ -327,7 +415,9 @@ pub fn session_status(app: &AppHandle, claims: Option<&GrantClaims>) -> Result<S
     Ok(SessionStatus {
         authorized: true,
         expires_at: Some(claims.exp.to_string()),
-        workspace: Some(json!({ "id": workspace_id, "name": workspace_name, "type": workspace_type })),
+        workspace: Some(
+            json!({ "id": workspace_id, "name": workspace_name, "type": workspace_type }),
+        ),
         user: Some(json!({ "id": user_id, "fullName": full_name, "email": email })),
     })
 }
@@ -344,7 +434,11 @@ pub fn assert_clock(app: &AppHandle, claims: &GrantClaims) -> Result<(), String>
     }
     let connection = open(app)?;
     let last_seen: i64 = connection
-        .query_row("SELECT last_clock_seen FROM sync_state WHERE id=1", [], |row| row.get(0))
+        .query_row(
+            "SELECT last_clock_seen FROM sync_state WHERE id=1",
+            [],
+            |row| row.get(0),
+        )
         .map_err(|_| "État de l’horloge locale indisponible.".to_string())?;
     if last_seen > 0 && now + 300 < last_seen {
         return Err("Recul de l’horloge détecté; reconnexion en ligne requise.".to_string());
@@ -362,16 +456,195 @@ pub fn list_patients(app: &AppHandle, query: &str) -> Result<Vec<Value>, String>
     let connection = open(app)?;
     let pattern = format!("%{}%", query.trim().to_lowercase());
     let mut statement = connection
-        .prepare("SELECT payload FROM patients WHERE search_text LIKE ?1 ORDER BY search_text LIMIT 200")
+        .prepare(
+            "SELECT payload, locked, lock_reason FROM patients
+             WHERE search_text LIKE ?1 ORDER BY search_text LIMIT 200",
+        )
         .map_err(|_| "Recherche locale indisponible.".to_string())?;
     let rows = statement
-        .query_map(params![pattern], |row| row.get::<_, String>(0))
+        .query_map(params![pattern], |row| {
+            Ok((
+                row.get::<_, String>(0)?,
+                row.get::<_, i64>(1)?,
+                row.get::<_, Option<String>>(2)?,
+            ))
+        })
         .map_err(|_| "Recherche locale impossible.".to_string())?;
     rows.map(|row| {
-        let payload = row.map_err(|_| "Patient local illisible.".to_string())?;
-        serde_json::from_str(&payload).map_err(|_| "Patient local corrompu.".to_string())
+        let (payload, locked, lock_reason) =
+            row.map_err(|_| "Patient local illisible.".to_string())?;
+        let mut value: Value =
+            serde_json::from_str(&payload).map_err(|_| "Patient local corrompu.".to_string())?;
+        if locked != 0 {
+            value["locked"] = Value::Bool(true);
+            value["lockReason"] =
+                Value::String(lock_reason.unwrap_or_else(|| "LOCKED".to_string()));
+        }
+        Ok(value)
     })
     .collect()
+}
+
+// ---- Scope reconciliation -------------------------------------------------
+
+// Unsent clinical data for one patient: PENDING/RETRYABLE outbox entries or
+// an OPEN conflict on any of its cached consultations. Both must survive a
+// scope leave, so the decision never destroys them silently.
+fn patient_unsent_state(tx: &Transaction<'_>, patient_id: &str) -> rusqlite::Result<(bool, bool)> {
+    let pending: bool = tx.query_row(
+        "SELECT EXISTS(
+           SELECT 1 FROM sync_outbox
+           WHERE entity_type='CONSULTATION'
+             AND status IN ('PENDING','RETRYABLE')
+             AND local_entity_id IN (
+               SELECT local_id FROM consultations WHERE patient_server_id=?1
+             )
+         )",
+        params![patient_id],
+        |row| row.get(0),
+    )?;
+    let conflicted: bool = tx.query_row(
+        "SELECT EXISTS(
+           SELECT 1 FROM sync_conflicts
+           WHERE entity_type='CONSULTATION' AND status='OPEN'
+             AND entity_id IN (
+               SELECT local_id FROM consultations WHERE patient_server_id=?1
+             )
+         )",
+        params![patient_id],
+        |row| row.get(0),
+    )?;
+    Ok((pending, conflicted))
+}
+
+// Deletes every local trace of one patient: the cache row, its summary, its
+// appointment cache and its synced consultations (vitals/diagnoses follow
+// through the foreign keys). Only data of this patient is touched: the
+// outbox and conflicts of other entities and workspaces stay as they are.
+fn purge_patient(tx: &Transaction<'_>, patient_id: &str) -> rusqlite::Result<()> {
+    tx.execute(
+        "DELETE FROM sync_outbox
+         WHERE entity_type='CONSULTATION'
+           AND local_entity_id IN (
+             SELECT local_id FROM consultations WHERE patient_server_id=?1
+           )",
+        params![patient_id],
+    )?;
+    tx.execute(
+        "DELETE FROM sync_conflicts
+         WHERE entity_type='CONSULTATION'
+           AND entity_id IN (
+             SELECT local_id FROM consultations WHERE patient_server_id=?1
+           )",
+        params![patient_id],
+    )?;
+    tx.execute(
+        "DELETE FROM sync_entity_map
+         WHERE entity_type='CONSULTATION'
+           AND server_entity_id IN (
+             SELECT server_id FROM consultations WHERE patient_server_id=?1
+           )",
+        params![patient_id],
+    )?;
+    tx.execute(
+        "DELETE FROM sync_metadata
+         WHERE entity_type='CONSULTATION'
+           AND entity_id IN (
+             SELECT local_id FROM consultations WHERE patient_server_id=?1
+           )",
+        params![patient_id],
+    )?;
+    tx.execute(
+        "DELETE FROM consultations WHERE patient_server_id=?1",
+        params![patient_id],
+    )?;
+    tx.execute(
+        "DELETE FROM appointments_cache WHERE patient_server_id=?1",
+        params![patient_id],
+    )?;
+    tx.execute(
+        "DELETE FROM patient_medical_summaries WHERE patient_server_id=?1",
+        params![patient_id],
+    )?;
+    tx.execute(
+        "DELETE FROM sync_metadata WHERE entity_type='PATIENT' AND entity_id=?1",
+        params![patient_id],
+    )?;
+    tx.execute(
+        "DELETE FROM patients WHERE server_id=?1",
+        params![patient_id],
+    )?;
+    Ok(())
+}
+
+// Locks the folder instead of destroying unsent data.
+fn lock_patient(tx: &Transaction<'_>, patient_id: &str, reason: &str) -> rusqlite::Result<()> {
+    tx.execute(
+        "UPDATE patients SET locked=1, lock_reason=?2 WHERE server_id=?1",
+        params![patient_id, reason],
+    )?;
+    Ok(())
+}
+
+// The server decides; the storage applies. Patients the server still
+// authorizes are unlocked (a re-authorized folder opens again), the rest is
+// purged when clean and locked when it holds unsent data.
+pub fn reconcile_patients_tx(
+    tx: &Transaction<'_>,
+    authorized_patient_ids: &[String],
+) -> rusqlite::Result<()> {
+    let authorized: std::collections::HashSet<&String> = authorized_patient_ids.iter().collect();
+    for row in tx
+        .prepare("SELECT server_id FROM patients")?
+        .query_map([], |row| row.get::<_, String>(0))?
+        .collect::<Result<Vec<_>, _>>()?
+    {
+        if authorized.contains(&row) {
+            tx.execute(
+                "UPDATE patients SET locked=0, lock_reason=NULL WHERE server_id=?1",
+                params![row],
+            )?;
+            continue;
+        }
+        let (pending, conflicted) = patient_unsent_state(tx, &row)?;
+        match crate::protocol::decide_removal(pending, conflicted) {
+            crate::protocol::ScopeRemoval::Purge => purge_patient(tx, &row)?,
+            crate::protocol::ScopeRemoval::Lock => {
+                lock_patient(tx, &row, crate::protocol::SCOPE_REVOKED_LOCK_REASON)?
+            }
+        }
+    }
+    Ok(())
+}
+
+// The result of POST /sync/reconcile: the server-authoritative patient set.
+pub fn apply_reconcile(app: &AppHandle, response: &Value) -> Result<(), String> {
+    let authorized: Vec<String> = response
+        .get("authorizedPatientIds")
+        .and_then(Value::as_array)
+        .into_iter()
+        .flatten()
+        .map(|value| {
+            value
+                .as_str()
+                .map(str::to_string)
+                .ok_or_else(|| "Liste de patients serveur invalide.".to_string())
+        })
+        .collect::<Result<Vec<_>, String>>()?;
+    let synced_at = string(response, "serverTime")?;
+    let mut connection = open(app)?;
+    let tx = connection
+        .transaction()
+        .map_err(|_| "Transaction locale impossible.".to_string())?;
+    reconcile_patients_tx(&tx, &authorized)
+        .map_err(|_| "Purge des patients sortis du scope impossible.".to_string())?;
+    tx.execute(
+        "UPDATE sync_state SET last_synced_at=?1 WHERE id=1",
+        params![synced_at],
+    )
+    .map_err(|_| "État de synchronisation non enregistré.".to_string())?;
+    tx.commit()
+        .map_err(|_| "Réconciliation locale non validée.".to_string())
 }
 
 #[derive(Debug, Deserialize)]
@@ -400,21 +673,32 @@ pub fn save_draft(
     claims: &GrantClaims,
     input: ConsultationDraftInput,
 ) -> Result<SavedDraft, String> {
-    if !matches!(input.local_status.as_str(), "LOCAL_DRAFT" | "IN_PROGRESS" | "READY_TO_SYNC") {
+    if !matches!(
+        input.local_status.as_str(),
+        "LOCAL_DRAFT" | "IN_PROGRESS" | "READY_TO_SYNC"
+    ) {
         return Err("État local de consultation invalide.".to_string());
     }
     let mut connection = open(app)?;
     let occurred_at = now_iso(&connection)?;
-    let tx = connection.transaction().map_err(|_| "Transaction locale impossible.".to_string())?;
-    let patient_exists: bool = tx
+    let tx = connection
+        .transaction()
+        .map_err(|_| "Transaction locale impossible.".to_string())?;
+    let patient_state: Option<i64> = tx
         .query_row(
-            "SELECT EXISTS(SELECT 1 FROM patients WHERE server_id=?1)",
+            "SELECT locked FROM patients WHERE server_id=?1",
             params![input.patient_id],
             |row| row.get(0),
         )
+        .optional()
         .map_err(|_| "Patient local introuvable.".to_string())?;
-    if !patient_exists {
+    let Some(patient_locked) = patient_state else {
         return Err("Ce dossier n’est pas disponible hors connexion.".to_string());
+    };
+    if patient_locked != 0 {
+        return Err(
+            "Dossier verrouillé hors périmètre autorisé; modification interdite.".to_string(),
+        );
     }
     let local_id = input.local_id.unwrap_or_else(|| Uuid::new_v4().to_string());
     let existing: Option<(Option<String>, Option<i64>)> = tx
@@ -446,7 +730,11 @@ pub fn save_draft(
         params![local_id, server_id, input.patient_id, input.local_status, base_version, payload.to_string(), occurred_at],
     )
     .map_err(|_| "Brouillon local non enregistré.".to_string())?;
-    let operation = if server_id.is_some() { "UPDATE" } else { "CREATE" };
+    let operation = if server_id.is_some() {
+        "UPDATE"
+    } else {
+        "CREATE"
+    };
     let existing_operation: Option<String> = tx
         .query_row(
             "SELECT operation_id FROM sync_outbox WHERE local_entity_id=?1 AND operation=?2 AND status IN ('PENDING','RETRYABLE') ORDER BY sequence LIMIT 1",
@@ -466,7 +754,11 @@ pub fn save_draft(
         "payload": payload
     });
     let sequence: i64 = tx
-        .query_row("SELECT COALESCE(MAX(sequence), 0) + 1 FROM sync_outbox", [], |row| row.get(0))
+        .query_row(
+            "SELECT COALESCE(MAX(sequence), 0) + 1 FROM sync_outbox",
+            [],
+            |row| row.get(0),
+        )
         .map_err(|_| "Séquence outbox indisponible.".to_string())?;
     tx.execute(
         "INSERT INTO sync_outbox(operation_id, device_id, entity_type, local_entity_id, operation, base_version, payload, occurred_at, sequence, status)
@@ -481,8 +773,12 @@ pub fn save_draft(
         params![Uuid::new_v4().to_string(), local_id, claims.user_id, claims.device_id, occurred_at],
     )
     .map_err(|_| "Audit local non enregistré.".to_string())?;
-    tx.commit().map_err(|_| "Brouillon local non validé.".to_string())?;
-    Ok(SavedDraft { local_id, operation_id })
+    tx.commit()
+        .map_err(|_| "Brouillon local non validé.".to_string())?;
+    Ok(SavedDraft {
+        local_id,
+        operation_id,
+    })
 }
 
 #[derive(Debug, Serialize)]
@@ -491,6 +787,8 @@ pub struct SyncStatus {
     pub state: String,
     pub pending_count: i64,
     pub conflict_count: i64,
+    #[serde(default)]
+    pub locked_count: i64,
     pub last_synced_at: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub processed: Option<i64>,
@@ -501,18 +799,45 @@ pub struct SyncStatus {
 pub fn sync_status(app: &AppHandle) -> Result<SyncStatus, String> {
     let connection = open(app)?;
     let pending_count = connection
-        .query_row("SELECT COUNT(*) FROM sync_outbox WHERE status IN ('PENDING','RETRYABLE')", [], |row| row.get(0))
+        .query_row(
+            "SELECT COUNT(*) FROM sync_outbox WHERE status IN ('PENDING','RETRYABLE')",
+            [],
+            |row| row.get(0),
+        )
         .map_err(|_| "État outbox indisponible.".to_string())?;
     let conflict_count = connection
-        .query_row("SELECT COUNT(*) FROM sync_conflicts WHERE status='OPEN'", [], |row| row.get(0))
+        .query_row(
+            "SELECT COUNT(*) FROM sync_conflicts WHERE status='OPEN'",
+            [],
+            |row| row.get(0),
+        )
         .map_err(|_| "État des conflits indisponible.".to_string())?;
+    let locked_count = connection
+        .query_row("SELECT COUNT(*) FROM patients WHERE locked=1", [], |row| {
+            row.get(0)
+        })
+        .map_err(|_| "État des dossiers verrouillés indisponible.".to_string())?;
     let last_synced_at = connection
-        .query_row("SELECT last_synced_at FROM sync_state WHERE id=1", [], |row| row.get(0))
+        .query_row(
+            "SELECT last_synced_at FROM sync_state WHERE id=1",
+            [],
+            |row| row.get(0),
+        )
         .map_err(|_| "État sync indisponible.".to_string())?;
+    // Locked folders mean the Server tightened the scope: the UI must show
+    // the explicit state instead of a generic online/offline pair.
+    let state = if conflict_count > 0 {
+        "CONFLICT"
+    } else if locked_count > 0 {
+        "SCOPE_REVOKED"
+    } else {
+        "ONLINE"
+    };
     Ok(SyncStatus {
-        state: if conflict_count > 0 { "CONFLICT" } else { "ONLINE" }.to_string(),
+        state: state.to_string(),
         pending_count,
         conflict_count,
+        locked_count,
         last_synced_at,
         processed: None,
         total: None,
@@ -536,14 +861,18 @@ pub fn pending_operations(app: &AppHandle) -> Result<Vec<Value>, String> {
 
 pub fn current_cursor(app: &AppHandle) -> Result<String, String> {
     open(app)?
-        .query_row("SELECT cursor FROM sync_state WHERE id=1", [], |row| row.get(0))
+        .query_row("SELECT cursor FROM sync_state WHERE id=1", [], |row| {
+            row.get(0)
+        })
         .map_err(|_| "Curseur local indisponible.".to_string())
 }
 
 pub fn apply_push_results(app: &AppHandle, results: &[Value]) -> Result<(), String> {
     let mut connection = open(app)?;
     let detected_at = now_iso(&connection)?;
-    let tx = connection.transaction().map_err(|_| "Transaction locale impossible.".to_string())?;
+    let tx = connection
+        .transaction()
+        .map_err(|_| "Transaction locale impossible.".to_string())?;
     for result in results {
         let operation_id = string(result, "operationId")?;
         let status = string(result, "status")?;
@@ -551,9 +880,15 @@ pub fn apply_push_results(app: &AppHandle, results: &[Value]) -> Result<(), Stri
             "ACK" => {
                 let local_id = string(result, "localEntityId")?;
                 let server_id = string(result, "serverEntityId")?;
-                let version = result.get("serverVersion").and_then(Value::as_i64).unwrap_or(1);
-                tx.execute("UPDATE sync_outbox SET status='ACK' WHERE operation_id=?1", params![operation_id])
-                    .map_err(|_| "ACK local impossible.".to_string())?;
+                let version = result
+                    .get("serverVersion")
+                    .and_then(Value::as_i64)
+                    .unwrap_or(1);
+                tx.execute(
+                    "UPDATE sync_outbox SET status='ACK' WHERE operation_id=?1",
+                    params![operation_id],
+                )
+                .map_err(|_| "ACK local impossible.".to_string())?;
                 tx.execute(
                     "UPDATE consultations SET server_id=?1, base_version=?2, local_status='SYNCED', last_synced_at=?3 WHERE local_id=?4",
                     params![server_id, version, detected_at, local_id],
@@ -567,8 +902,11 @@ pub fn apply_push_results(app: &AppHandle, results: &[Value]) -> Result<(), Stri
             }
             "CONFLICT" => {
                 let local_id = string(result, "localEntityId")?;
-                tx.execute("UPDATE sync_outbox SET status='CONFLICT' WHERE operation_id=?1", params![operation_id])
-                    .map_err(|_| "Conflit outbox non enregistré.".to_string())?;
+                tx.execute(
+                    "UPDATE sync_outbox SET status='CONFLICT' WHERE operation_id=?1",
+                    params![operation_id],
+                )
+                .map_err(|_| "Conflit outbox non enregistré.".to_string())?;
                 tx.execute(
                     "INSERT INTO sync_conflicts(id, entity_type, entity_id, local_version, server_version, local_payload, server_payload, detected_at, status)
                      VALUES (?1, 'CONSULTATION', ?2, ?3, ?4, ?5, ?6, ?7, 'OPEN')",
@@ -576,8 +914,11 @@ pub fn apply_push_results(app: &AppHandle, results: &[Value]) -> Result<(), Stri
                 ).map_err(|_| "Conflit local non enregistré.".to_string())?;
             }
             "REJECTED" => {
-                tx.execute("UPDATE sync_outbox SET status='REJECTED' WHERE operation_id=?1", params![operation_id])
-                    .map_err(|_| "Rejet local non enregistré.".to_string())?;
+                tx.execute(
+                    "UPDATE sync_outbox SET status='REJECTED' WHERE operation_id=?1",
+                    params![operation_id],
+                )
+                .map_err(|_| "Rejet local non enregistré.".to_string())?;
             }
             "RETRYABLE" => {
                 tx.execute("UPDATE sync_outbox SET status='RETRYABLE', retry_count=retry_count+1 WHERE operation_id=?1", params![operation_id])
@@ -586,29 +927,158 @@ pub fn apply_push_results(app: &AppHandle, results: &[Value]) -> Result<(), Stri
             _ => return Err("Résultat de synchronisation inconnu.".to_string()),
         }
     }
-    tx.commit().map_err(|_| "Résultats push non validés.".to_string())
+    tx.commit()
+        .map_err(|_| "Résultats push non validés.".to_string())
 }
 
 pub fn apply_pull(app: &AppHandle, response: &Value) -> Result<String, String> {
     let mut connection = open(app)?;
     let synced_at = string(response, "serverTime")?;
-    let tx = connection.transaction().map_err(|_| "Transaction locale impossible.".to_string())?;
-    for change in response.get("changes").and_then(Value::as_array).into_iter().flatten() {
-        if string(change, "entityType")? != "CONSULTATION" { continue; }
-        if string(change, "operation")? == "TOMBSTONE" {
-            let server_id = string(change, "entityId")?;
-            tx.execute("DELETE FROM consultations WHERE server_id=?1", params![server_id])
+    let tx = connection
+        .transaction()
+        .map_err(|_| "Transaction locale impossible.".to_string())?;
+    for change in response
+        .get("changes")
+        .and_then(Value::as_array)
+        .into_iter()
+        .flatten()
+    {
+        let entity_type = string(change, "entityType")?;
+        let operation = string(change, "operation")?;
+        if entity_type == "CONSULTATION" {
+            if operation == "TOMBSTONE" {
+                let server_id = string(change, "entityId")?;
+                tx.execute(
+                    "DELETE FROM consultations WHERE server_id=?1",
+                    params![server_id],
+                )
                 .map_err(|_| "Tombstone local non appliqué.".to_string())?;
-            continue;
+                continue;
+            }
+            let payload = change
+                .get("payload")
+                .ok_or_else(|| "Payload pull absent.".to_string())?;
+            apply_server_consultation(&tx, payload, &synced_at, true)?;
+        } else if entity_type == "PATIENT" {
+            let patient_id = string(change, "entityId")?;
+            if operation == "TOMBSTONE" {
+                // The patient disappeared globally. Unsent local data blocks
+                // a silent destruction: the folder is locked instead, the
+                // rest is purged with everything that hangs on it.
+                let (pending, conflicted) = patient_unsent_state(&tx, &patient_id)
+                    .map_err(|_| "État local du patient illisible.".to_string())?;
+                match crate::protocol::decide_removal(pending, conflicted) {
+                    crate::protocol::ScopeRemoval::Purge => {
+                        purge_patient(&tx, &patient_id)
+                            .map_err(|_| "Patient supprimé non purgé localement.".to_string())?;
+                    }
+                    crate::protocol::ScopeRemoval::Lock => {
+                        lock_patient(
+                            &tx,
+                            &patient_id,
+                            crate::protocol::PATIENT_DELETED_LOCK_REASON,
+                        )
+                        .map_err(|_| "Patient verrouillé localement impossible.".to_string())?;
+                    }
+                }
+                continue;
+            }
+            let payload = change
+                .get("payload")
+                .ok_or_else(|| "Payload pull absent.".to_string())?;
+            apply_server_patient(&tx, payload, &synced_at)?;
+        } else if entity_type == "APPOINTMENT" {
+            let server_id = string(change, "entityId")?;
+            if operation == "TOMBSTONE" {
+                tx.execute(
+                    "DELETE FROM appointments_cache WHERE server_id=?1",
+                    params![server_id],
+                )
+                .map_err(|_| "Rendez-vous tombstone non appliqué.".to_string())?;
+                continue;
+            }
+            let payload = change
+                .get("payload")
+                .ok_or_else(|| "Payload pull absent.".to_string())?;
+            tx.execute(
+                "INSERT OR REPLACE INTO appointments_cache(server_id, patient_server_id, payload, server_updated_at, last_synced_at)
+                 VALUES (?1, ?2, ?3, ?4, ?5)",
+                params![server_id, string(payload, "patientId")?, payload.to_string(), string(payload, "updatedAt")?, synced_at],
+            )
+            .map_err(|_| "Rendez-vous local non enregistré.".to_string())?;
         }
-        let payload = change.get("payload").ok_or_else(|| "Payload pull absent.".to_string())?;
-        apply_server_consultation(&tx, payload, &synced_at, true)?;
+        // Other entity types are ignored — the desktop V1 understands
+        // exactly the three above.
     }
     let cursor = string(response, "nextCursor")?;
-    tx.execute("UPDATE sync_state SET cursor=?1, last_synced_at=?2 WHERE id=1", params![cursor, synced_at])
-        .map_err(|_| "Curseur pull non enregistré.".to_string())?;
-    tx.commit().map_err(|_| "Pull local non validé.".to_string())?;
+    tx.execute(
+        "UPDATE sync_state SET cursor=?1, last_synced_at=?2 WHERE id=1",
+        params![cursor, synced_at],
+    )
+    .map_err(|_| "Curseur pull non enregistré.".to_string())?;
+    tx.commit()
+        .map_err(|_| "Pull local non validé.".to_string())?;
     Ok(cursor)
+}
+
+// Cloud -> desktop read-only upsert of the patient cache (same shape as the
+// bootstrap rows).
+fn apply_server_patient(
+    tx: &Transaction<'_>,
+    patient: &Value,
+    synced_at: &str,
+) -> Result<(), String> {
+    let id = string(patient, "id")?;
+    let search_text = format!(
+        "{} {} {} {} {}",
+        patient
+            .get("firstName")
+            .and_then(Value::as_str)
+            .unwrap_or(""),
+        patient
+            .get("lastName")
+            .and_then(Value::as_str)
+            .unwrap_or(""),
+        patient
+            .get("firstNameAr")
+            .and_then(Value::as_str)
+            .unwrap_or(""),
+        patient
+            .get("lastNameAr")
+            .and_then(Value::as_str)
+            .unwrap_or(""),
+        patient
+            .get("hospitalRecordNumber")
+            .and_then(Value::as_str)
+            .unwrap_or("")
+    )
+    .to_lowercase();
+    let workspace_id: String = tx
+        .query_row("SELECT id FROM local_workspace LIMIT 1", [], |row| {
+            row.get(0)
+        })
+        .map_err(|_| "Workspace local absent.".to_string())?;
+    tx.execute(
+        "INSERT INTO patients(server_id, workspace_id, search_text, payload, server_updated_at, last_synced_at)
+         VALUES (?1, ?2, ?3, ?4, ?5, ?6)
+         ON CONFLICT(server_id) DO UPDATE SET search_text=excluded.search_text, payload=excluded.payload,
+         server_updated_at=excluded.server_updated_at, last_synced_at=excluded.last_synced_at",
+        params![id, workspace_id, search_text, patient.to_string(), string(patient, "updatedAt")?, synced_at],
+    )
+    .map_err(|_| "Patient local non enregistré.".to_string())?;
+    tx.execute(
+        "INSERT OR REPLACE INTO patient_medical_summaries(patient_server_id, payload, server_updated_at, last_synced_at)
+         VALUES (?1, ?2, ?3, ?4)",
+        params![id, patient.get("medicalSummary").unwrap_or(&Value::Null).to_string(), string(patient, "updatedAt")?, synced_at],
+    )
+    .map_err(|_| "Résumé médical local non enregistré.".to_string())?;
+    // A patient back in scope opens again.
+    tx.execute(
+        "UPDATE patients SET locked=0, lock_reason=NULL WHERE server_id=?1",
+        params![id],
+    )
+    .map_err(|_| "Patient local non déverrouillé.".to_string())?;
+    Ok(())
 }
 
 fn apply_server_consultation(
@@ -619,8 +1089,13 @@ fn apply_server_consultation(
 ) -> Result<(), String> {
     let server_id = string(payload, "id")?;
     let existing: Option<String> = tx
-        .query_row("SELECT local_id FROM consultations WHERE server_id=?1", params![server_id], |row| row.get(0))
-        .optional().map_err(|_| "Consultation locale illisible.".to_string())?;
+        .query_row(
+            "SELECT local_id FROM consultations WHERE server_id=?1",
+            params![server_id],
+            |row| row.get(0),
+        )
+        .optional()
+        .map_err(|_| "Consultation locale illisible.".to_string())?;
     let local_id = existing.unwrap_or_else(|| Uuid::new_v4().to_string());
     if detect_pending {
         let pending: bool = tx.query_row(
@@ -648,4 +1123,229 @@ fn apply_server_consultation(
         params![local_id, server_id],
     ).map_err(|_| "Mapping consultation non appliqué.".to_string())?;
     Ok(())
+}
+
+// ---- Storage tests ---------------------------------------------------------
+// The reconciliation helpers are exercised against an in-memory database
+// seeded with the same schema: no keyring, no AppHandle, no network.
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::protocol::{
+        decide_removal, ScopeRemoval, PATIENT_DELETED_LOCK_REASON, SCOPE_REVOKED_LOCK_REASON,
+    };
+
+    fn memory_db() -> Connection {
+        let connection = Connection::open_in_memory().expect("sqlite memory");
+        connection.execute_batch(SCHEMA).expect("schema");
+        apply_local_migrations(&connection).expect("local migrations");
+        connection
+    }
+
+    fn insert_patient(connection: &Connection, id: &str) {
+        connection
+            .execute(
+                "INSERT INTO patients(server_id, workspace_id, search_text, payload, server_updated_at, last_synced_at)
+                 VALUES (?1, 'ws-1', 'a', '{}', '2026-10-28T00:00:00Z', '2026-10-28T00:00:00Z')",
+                params![id],
+            )
+            .expect("patient");
+    }
+
+    fn insert_consultation(connection: &Connection, local_id: &str, patient_id: &str) {
+        connection
+            .execute(
+                "INSERT INTO consultations(local_id, patient_server_id, local_status, payload, updated_at)
+                 VALUES (?1, ?2, 'SYNCED', '{}', '2026-10-28T00:00:00Z')",
+                params![local_id, patient_id],
+            )
+            .expect("consultation");
+    }
+
+    fn insert_outbox(
+        connection: &Connection,
+        operation_id: &str,
+        local_entity_id: &str,
+        status: &str,
+    ) {
+        connection
+            .execute(
+                "INSERT INTO sync_outbox(operation_id, device_id, entity_type, local_entity_id, operation, payload, occurred_at, sequence, status)
+                 VALUES (?1, 'device-1', 'CONSULTATION', ?2, 'UPDATE', '{}', '2026-10-28T00:00:00Z', 1, ?3)",
+                params![operation_id, local_entity_id, status],
+            )
+            .expect("outbox");
+    }
+
+    fn patient_count(connection: &Connection, where_sql: &str) -> i64 {
+        connection
+            .query_row(
+                &format!("SELECT COUNT(*) FROM patients WHERE {where_sql}"),
+                [],
+                |row| row.get(0),
+            )
+            .expect("count")
+    }
+
+    #[test]
+    fn locked_columns_survive_the_local_migrations() {
+        let connection = memory_db();
+        assert_eq!(patient_count(&connection, "locked=0"), 0);
+    }
+
+    #[test]
+    fn clean_patient_out_of_scope_is_purged() {
+        let mut connection = memory_db();
+        insert_patient(&connection, "patient-kept");
+        insert_patient(&connection, "patient-gone");
+        insert_consultation(&connection, "local-1", "patient-gone");
+        connection
+            .execute(
+                "INSERT INTO patient_medical_summaries(patient_server_id, payload, server_updated_at, last_synced_at)
+                 VALUES ('patient-gone', '{}', '2026-10-28T00:00:00Z', '2026-10-28T00:00:00Z')",
+                [],
+            )
+            .expect("summary");
+        connection
+            .execute(
+                "INSERT INTO appointments_cache(server_id, patient_server_id, payload, server_updated_at, last_synced_at)
+                 VALUES ('appointment-1', 'patient-gone', '{}', '2026-10-28T00:00:00Z', '2026-10-28T00:00:00Z')",
+                [],
+            )
+            .expect("appointment");
+        // A pending consultation of ANOTHER patient must survive untouched.
+        insert_patient(&connection, "patient-other");
+        insert_consultation(&connection, "local-other", "patient-other");
+        insert_outbox(&connection, "op-1", "local-other", "PENDING");
+
+        let tx = connection.transaction().expect("tx");
+        reconcile_patients_tx(
+            &tx,
+            &["patient-kept".to_string(), "patient-other".to_string()],
+        )
+        .expect("reconcile");
+        tx.commit().expect("commit");
+
+        assert_eq!(patient_count(&connection, "locked=0"), 2);
+        assert_eq!(patient_count(&connection, "server_id='patient-gone'"), 0);
+        let summaries: i64 = connection
+            .query_row("SELECT COUNT(*) FROM patient_medical_summaries", [], |r| {
+                r.get(0)
+            })
+            .expect("summaries");
+        assert_eq!(summaries, 0);
+        let appointments: i64 = connection
+            .query_row("SELECT COUNT(*) FROM appointments_cache", [], |r| r.get(0))
+            .expect("appointments");
+        assert_eq!(appointments, 0);
+        let other_outbox: i64 = connection
+            .query_row(
+                "SELECT COUNT(*) FROM sync_outbox WHERE local_entity_id='local-other'",
+                [],
+                |r| r.get(0),
+            )
+            .expect("outbox");
+        assert_eq!(other_outbox, 1, "outbox d'un autre patient intact");
+        let other_patient: i64 = connection
+            .query_row(
+                "SELECT COUNT(*) FROM consultations WHERE patient_server_id='patient-other'",
+                [],
+                |r| r.get(0),
+            )
+            .expect("consult");
+        assert_eq!(other_patient, 1);
+    }
+
+    #[test]
+    fn pending_patient_out_of_scope_is_locked_not_purged() {
+        let mut connection = memory_db();
+        insert_patient(&connection, "patient-kept");
+        insert_patient(&connection, "patient-pending");
+        insert_consultation(&connection, "local-pending", "patient-pending");
+        insert_outbox(&connection, "op-2", "local-pending", "PENDING");
+
+        let tx = connection.transaction().expect("tx");
+        reconcile_patients_tx(&tx, &["patient-kept".to_string()]).expect("reconcile");
+        tx.commit().expect("commit");
+
+        assert_eq!(
+            patient_count(&connection, "server_id='patient-pending' AND locked=1"),
+            1,
+            "patient conservé mais verrouillé"
+        );
+        let reason: String = connection
+            .query_row(
+                "SELECT lock_reason FROM patients WHERE server_id='patient-pending'",
+                [],
+                |r| r.get(0),
+            )
+            .expect("reason");
+        assert_eq!(reason, SCOPE_REVOKED_LOCK_REASON);
+        let consult: i64 = connection
+            .query_row(
+                "SELECT COUNT(*) FROM consultations WHERE local_id='local-pending'",
+                [],
+                |r| r.get(0),
+            )
+            .expect("consult");
+        assert_eq!(consult, 1, "donnée clinique intacte");
+    }
+
+    #[test]
+    fn conflicted_patient_is_locked_with_explicit_state() {
+        let mut connection = memory_db();
+        insert_patient(&connection, "patient-kept");
+        insert_patient(&connection, "patient-conflict");
+        insert_consultation(&connection, "local-conflict", "patient-conflict");
+        connection
+            .execute(
+                "INSERT INTO sync_conflicts(id, entity_type, entity_id, local_version, server_version, local_payload, server_payload, detected_at, status)
+                 VALUES ('conflict-1', 'CONSULTATION', 'local-conflict', 1, 2, '{}', '{}', '2026-10-28T00:00:00Z', 'OPEN')",
+                [],
+            )
+            .expect("conflict");
+
+        let tx = connection.transaction().expect("tx");
+        reconcile_patients_tx(&tx, &["patient-kept".to_string()]).expect("reconcile");
+        tx.commit().expect("commit");
+
+        assert_eq!(
+            patient_count(&connection, "server_id='patient-conflict' AND locked=1"),
+            1
+        );
+    }
+
+    #[test]
+    fn patient_back_in_scope_unlocks() {
+        let mut connection = memory_db();
+        insert_patient(&connection, "patient-back");
+        connection
+            .execute(
+                "UPDATE patients SET locked=1, lock_reason=?1 WHERE server_id='patient-back'",
+                params![SCOPE_REVOKED_LOCK_REASON],
+            )
+            .expect("lock");
+
+        let tx = connection.transaction().expect("tx");
+        reconcile_patients_tx(&tx, &["patient-back".to_string()]).expect("reconcile");
+        tx.commit().expect("commit");
+
+        assert_eq!(
+            patient_count(&connection, "server_id='patient-back' AND locked=0"),
+            1
+        );
+    }
+
+    #[test]
+    fn removed_patient_tombstone_locks_or_purges_by_local_state() {
+        assert_eq!(
+            decide_removal(true, false),
+            ScopeRemoval::Lock,
+            "PATIENT_DELETED_WITH_PENDING_DATA policy"
+        );
+        assert_eq!(
+            PATIENT_DELETED_LOCK_REASON,
+            "PATIENT_DELETED_WITH_PENDING_DATA"
+        );
+    }
 }

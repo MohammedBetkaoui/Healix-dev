@@ -14,6 +14,8 @@ export type LocalPatient = {
   birthDate: string;
   bloodGroup?: string | null;
   hospitalRecordNumber?: string | null;
+  locked?: boolean;
+  lockReason?: string;
   medicalSummary?: {
     allergies?: string[];
     chronicDiseases?: string[];
@@ -25,10 +27,20 @@ export type LocalPatient = {
   lastSyncedAt: string;
 };
 
+export type SyncState =
+  | "ONLINE"
+  | "OFFLINE"
+  | "SYNCING"
+  | "CONFLICT"
+  | "LOCKED"
+  | "AUTH_EXPIRED"
+  | "SCOPE_REVOKED";
+
 export type SyncStatus = {
-  state: "ONLINE" | "OFFLINE" | "SYNCING" | "CONFLICT";
+  state: SyncState;
   pendingCount: number;
   conflictCount: number;
+  lockedCount?: number;
   lastSyncedAt?: string | null;
   processed?: number;
   total?: number;

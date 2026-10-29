@@ -1,5 +1,6 @@
 mod database;
 mod network;
+mod protocol;
 mod security;
 
 use tauri::AppHandle;
