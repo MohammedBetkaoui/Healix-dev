@@ -149,6 +149,8 @@ jobs:
       - uses: actions-rust-lang/setup-rust-toolchain@v1
         with:
           toolchain: stable
+          # rustfmt for the format gate, further down.
+          components: rustfmt
 
       - uses: Swatinem/rust-cache@v2
         with:
@@ -174,6 +176,14 @@ jobs:
       - name: Check native application
         working-directory: desktop/src-tauri
         run: cargo check
+
+      - name: Test native application
+        working-directory: desktop/src-tauri
+        run: cargo test
+
+      - name: Format gate (rustfmt)
+        working-directory: desktop/src-tauri
+        run: cargo fmt --check
 
   ai-service:
     name: AI service (FastAPI)
