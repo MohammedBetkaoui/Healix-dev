@@ -589,7 +589,10 @@ pub fn apply_medication_catalog(app: &AppHandle, response: &Value) -> Result<(),
                 string(medication, "route")?,
                 medication.get("manufacturer").and_then(Value::as_str),
                 string(medication, "regulatoryCategory")?,
-                medication.get("active").and_then(Value::as_bool).unwrap_or(true) as i64,
+                medication
+                    .get("active")
+                    .and_then(Value::as_bool)
+                    .unwrap_or(true) as i64,
                 string(medication, "updatedAt")?,
                 search_text,
             ],
@@ -1031,7 +1034,9 @@ fn validate_prescription_input(input: &PrescriptionDraftInput) -> Result<(), Str
             || item.route.trim().is_empty()
             || item.regulatory_category.trim().is_empty()
         {
-            return Err("La forme, la voie et la catégorie réglementaire sont requises.".to_string());
+            return Err(
+                "La forme, la voie et la catégorie réglementaire sont requises.".to_string(),
+            );
         }
         if item.duration_days.is_some_and(|duration| duration <= 0) {
             return Err("La durée doit être positive lorsqu’elle est renseignée.".to_string());
@@ -1040,10 +1045,7 @@ fn validate_prescription_input(input: &PrescriptionDraftInput) -> Result<(), Str
     Ok(())
 }
 
-fn prescription_payload(
-    input: &PrescriptionDraftInput,
-    server_id: Option<&str>,
-) -> Value {
+fn prescription_payload(input: &PrescriptionDraftInput, server_id: Option<&str>) -> Value {
     json!({
         "patientId": input.patient_id,
         "serverEntityId": server_id,
@@ -1073,7 +1075,8 @@ fn replace_prescription_items(
                 Uuid::new_v4().to_string(),
                 local_id,
                 position as i64,
-                serde_json::to_string(item).map_err(|_| "Item d’ordonnance invalide.".to_string())?,
+                serde_json::to_string(item)
+                    .map_err(|_| "Item d’ordonnance invalide.".to_string())?,
             ],
         )
         .map_err(|_| "Item d’ordonnance non enregistré.".to_string())?;
@@ -1114,13 +1117,24 @@ fn save_prescription_draft_on_connection(
         None => return Err("Ce dossier n’est pas disponible hors connexion.".to_string()),
     }
 
-    let local_id = input.local_id.clone().unwrap_or_else(|| Uuid::new_v4().to_string());
+    let local_id = input
+        .local_id
+        .clone()
+        .unwrap_or_else(|| Uuid::new_v4().to_string());
     let existing: Option<(String, Option<String>, Option<i64>, Option<String>, String)> = tx
         .query_row(
             "SELECT patient_server_id, server_id, base_version, server_status, local_status
              FROM prescription_drafts WHERE local_id=?1",
             params![local_id],
-            |row| Ok((row.get(0)?, row.get(1)?, row.get(2)?, row.get(3)?, row.get(4)?)),
+            |row| {
+                Ok((
+                    row.get(0)?,
+                    row.get(1)?,
+                    row.get(2)?,
+                    row.get(3)?,
+                    row.get(4)?,
+                ))
+            },
         )
         .optional()
         .map_err(|_| "Brouillon d’ordonnance illisible.".to_string())?;
@@ -1129,19 +1143,27 @@ fn save_prescription_draft_on_connection(
             return Err("Le patient d’une ordonnance existante ne peut pas changer.".to_string());
         }
         if matches!(local_status.as_str(), "CONFLICT" | "READ_ONLY") {
-            return Err("Cette ordonnance nécessite une résolution ou est en lecture seule.".to_string());
+            return Err(
+                "Cette ordonnance nécessite une résolution ou est en lecture seule.".to_string(),
+            );
         }
         if server_id.is_some()
             && (server_status.as_deref() != Some("DRAFT") || base_version.is_none())
         {
-            return Err("Seuls les brouillons serveur peuvent être modifiés hors ligne.".to_string());
+            return Err(
+                "Seuls les brouillons serveur peuvent être modifiés hors ligne.".to_string(),
+            );
         }
     }
 
     let (server_id, base_version, operation) = existing
         .as_ref()
         .map(|(_, id, version, _, _)| {
-            (id.clone(), *version, if id.is_some() { "UPDATE" } else { "CREATE" })
+            (
+                id.clone(),
+                *version,
+                if id.is_some() { "UPDATE" } else { "CREATE" },
+            )
         })
         .unwrap_or((None, None, "CREATE"));
     let payload = prescription_payload(&input, server_id.as_deref());
@@ -1203,7 +1225,11 @@ fn save_prescription_draft_on_connection(
         "payload": payload,
     });
     let sequence: i64 = tx
-        .query_row("SELECT COALESCE(MAX(sequence), 0) + 1 FROM sync_outbox", [], |row| row.get(0))
+        .query_row(
+            "SELECT COALESCE(MAX(sequence), 0) + 1 FROM sync_outbox",
+            [],
+            |row| row.get(0),
+        )
         .map_err(|_| "Séquence outbox indisponible.".to_string())?;
     tx.execute(
         "INSERT INTO sync_outbox(operation_id, device_id, entity_type, local_entity_id, operation, base_version, payload, occurred_at, sequence, status)
@@ -1221,7 +1247,10 @@ fn save_prescription_draft_on_connection(
     .map_err(|_| "Audit ordonnance non enregistré.".to_string())?;
     tx.commit()
         .map_err(|_| "Brouillon d’ordonnance non validé.".to_string())?;
-    Ok(SavedDraft { local_id, operation_id })
+    Ok(SavedDraft {
+        local_id,
+        operation_id,
+    })
 }
 
 fn prescription_row_value(
@@ -1276,16 +1305,52 @@ pub fn list_patient_prescriptions(app: &AppHandle, patient_id: &str) -> Result<V
     let rows = statement
         .query_map(params![patient_id], |row| {
             Ok((
-                row.get(0)?, row.get(1)?, row.get(2)?, row.get(3)?, row.get(4)?,
-                row.get(5)?, row.get(6)?, row.get(7)?, row.get(8)?, row.get(9)?,
+                row.get(0)?,
+                row.get(1)?,
+                row.get(2)?,
+                row.get(3)?,
+                row.get(4)?,
+                row.get(5)?,
+                row.get(6)?,
+                row.get(7)?,
+                row.get(8)?,
+                row.get(9)?,
             ))
         })
         .map_err(|_| "Ordonnances locales illisibles.".to_string())?
-        .collect::<Result<Vec<(String, Option<String>, String, Option<String>, String, Option<i64>, String, Option<String>, Option<String>, String)>, _>>()
+        .collect::<Result<
+            Vec<(
+                String,
+                Option<String>,
+                String,
+                Option<String>,
+                String,
+                Option<i64>,
+                String,
+                Option<String>,
+                Option<String>,
+                String,
+            )>,
+            _,
+        >>()
         .map_err(|_| "Ordonnance locale illisible.".to_string())?;
     drop(statement);
     rows.into_iter()
-        .map(|row| prescription_row_value(&connection, row.0, row.1, row.2, row.3, row.4, row.5, row.6, row.7, row.8, row.9))
+        .map(|row| {
+            prescription_row_value(
+                &connection,
+                row.0,
+                row.1,
+                row.2,
+                row.3,
+                row.4,
+                row.5,
+                row.6,
+                row.7,
+                row.8,
+                row.9,
+            )
+        })
         .collect()
 }
 
@@ -1297,15 +1362,37 @@ pub fn get_local_prescription(app: &AppHandle, local_id: &str) -> Result<Value, 
                     base_version, prescription_type, valid_until, number, updated_at
              FROM prescription_drafts WHERE local_id=?1",
             params![local_id],
-            |row| Ok((
-                row.get(0)?, row.get(1)?, row.get(2)?, row.get(3)?, row.get(4)?,
-                row.get(5)?, row.get(6)?, row.get(7)?, row.get(8)?, row.get(9)?,
-            )),
+            |row| {
+                Ok((
+                    row.get(0)?,
+                    row.get(1)?,
+                    row.get(2)?,
+                    row.get(3)?,
+                    row.get(4)?,
+                    row.get(5)?,
+                    row.get(6)?,
+                    row.get(7)?,
+                    row.get(8)?,
+                    row.get(9)?,
+                ))
+            },
         )
         .optional()
         .map_err(|_| "Ordonnance locale illisible.".to_string())?
         .ok_or_else(|| "Ordonnance locale introuvable.".to_string())?;
-    prescription_row_value(&connection, row.0, row.1, row.2, row.3, row.4, row.5, row.6, row.7, row.8, row.9)
+    prescription_row_value(
+        &connection,
+        row.0,
+        row.1,
+        row.2,
+        row.3,
+        row.4,
+        row.5,
+        row.6,
+        row.7,
+        row.8,
+        row.9,
+    )
 }
 
 #[derive(Debug, Serialize)]
@@ -1458,9 +1545,10 @@ fn apply_push_results_on_connection(
                      VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, 'OPEN')",
                     params![Uuid::new_v4().to_string(), entity_type, local_id, result.get("localVersion").and_then(Value::as_i64), result.get("serverVersion").and_then(Value::as_i64), result.get("localPayload").unwrap_or(&Value::Null).to_string(), result.get("serverPayload").unwrap_or(&Value::Null).to_string(), detected_at],
                 ).map_err(|_| "Conflit local non enregistré.".to_string())?;
-            }
                 if entity_type == "PRESCRIPTION" {
-                    if result.get("code").and_then(Value::as_str) == Some("PRESCRIPTION_NOT_EDITABLE") {
+                    if result.get("code").and_then(Value::as_str)
+                        == Some("PRESCRIPTION_NOT_EDITABLE")
+                    {
                         if let Some(server_payload) = result.get("serverPayload") {
                             apply_server_prescription(&tx, server_payload, &detected_at, false)?;
                         } else {
@@ -1479,11 +1567,13 @@ fn apply_push_results_on_connection(
                     params![operation_id],
                 )
                 .map_err(|_| "Rejet local non enregistré.".to_string())?;
-            }
                 if entity_type == "PRESCRIPTION" {
                     let local_id = string(result, "localEntityId")?;
-                    tx.execute("UPDATE prescription_drafts SET local_status='CONFLICT' WHERE local_id=?1", params![local_id])
-                        .map_err(|_| "Rejet ordonnance non enregistré.".to_string())?;
+                    tx.execute(
+                        "UPDATE prescription_drafts SET local_status='CONFLICT' WHERE local_id=?1",
+                        params![local_id],
+                    )
+                    .map_err(|_| "Rejet ordonnance non enregistré.".to_string())?;
                 }
             }
             "RETRYABLE" => {
@@ -1714,7 +1804,12 @@ fn replace_server_prescription_items(
         tx.execute(
             "INSERT INTO prescription_items(id, prescription_local_id, position, payload)
              VALUES (?1, ?2, ?3, ?4)",
-            params![Uuid::new_v4().to_string(), local_id, position as i64, item.to_string()],
+            params![
+                Uuid::new_v4().to_string(),
+                local_id,
+                position as i64,
+                item.to_string()
+            ],
         )
         .map_err(|_| "Item serveur non enregistré.".to_string())?;
     }
@@ -1736,7 +1831,9 @@ fn apply_server_prescription(
         )
         .optional()
         .map_err(|_| "Ordonnance locale illisible.".to_string())?;
-    let local_id = existing.clone().unwrap_or_else(|| Uuid::new_v4().to_string());
+    let local_id = existing
+        .clone()
+        .unwrap_or_else(|| Uuid::new_v4().to_string());
     let server_status = string(payload, "status")?;
     let has_pending: bool = if detect_pending {
         tx.query_row(
@@ -1755,7 +1852,13 @@ fn apply_server_prescription(
              local_payload, server_payload, detected_at, status)
              SELECT ?1, 'PRESCRIPTION', local_id, base_version, ?2, payload, ?3, ?4, 'OPEN'
              FROM prescription_drafts WHERE local_id=?5",
-            params![Uuid::new_v4().to_string(), payload.get("syncVersion").and_then(Value::as_i64), payload.to_string(), synced_at, local_id],
+            params![
+                Uuid::new_v4().to_string(),
+                payload.get("syncVersion").and_then(Value::as_i64),
+                payload.to_string(),
+                synced_at,
+                local_id
+            ],
         )
         .map_err(|_| "Conflit ordonnance pull non enregistré.".to_string())?;
         tx.execute(
@@ -1846,16 +1949,22 @@ fn apply_prescription_tombstone(
     let Some(local_id) = existing else {
         return Ok(());
     };
-    let pending: bool = tx.query_row(
-        "SELECT EXISTS(SELECT 1 FROM sync_outbox WHERE entity_type='PRESCRIPTION'
+    let pending: bool = tx
+        .query_row(
+            "SELECT EXISTS(SELECT 1 FROM sync_outbox WHERE entity_type='PRESCRIPTION'
          AND local_entity_id=?1 AND status IN ('PENDING','RETRYABLE'))",
-        params![local_id], |row| row.get(0),
-    ).map_err(|_| "Outbox ordonnance illisible.".to_string())?;
-    let conflicted: bool = tx.query_row(
-        "SELECT EXISTS(SELECT 1 FROM sync_conflicts WHERE entity_type='PRESCRIPTION'
+            params![local_id],
+            |row| row.get(0),
+        )
+        .map_err(|_| "Outbox ordonnance illisible.".to_string())?;
+    let conflicted: bool = tx
+        .query_row(
+            "SELECT EXISTS(SELECT 1 FROM sync_conflicts WHERE entity_type='PRESCRIPTION'
          AND entity_id=?1 AND status='OPEN')",
-        params![local_id], |row| row.get(0),
-    ).map_err(|_| "Conflit ordonnance illisible.".to_string())?;
+            params![local_id],
+            |row| row.get(0),
+        )
+        .map_err(|_| "Conflit ordonnance illisible.".to_string())?;
     if pending || conflicted {
         tx.execute(
             "UPDATE sync_outbox SET status='CONFLICT' WHERE entity_type='PRESCRIPTION'
@@ -2027,7 +2136,11 @@ mod tests {
         .expect("coalesced save");
         assert_eq!(first.operation_id, second.operation_id);
         let operations: i64 = connection
-            .query_row("SELECT COUNT(*) FROM sync_outbox WHERE entity_type='PRESCRIPTION'", [], |r| r.get(0))
+            .query_row(
+                "SELECT COUNT(*) FROM sync_outbox WHERE entity_type='PRESCRIPTION'",
+                [],
+                |r| r.get(0),
+            )
             .expect("outbox count");
         assert_eq!(operations, 1);
         apply_push_results_on_connection(
@@ -2057,28 +2170,117 @@ mod tests {
         let mut connection = memory_db();
         insert_patient(&connection, "patient-update");
         let saved = save_prescription_draft_on_connection(
-            &mut connection, &test_claims(), prescription_input("patient-update", None),
-        ).expect("create");
+            &mut connection,
+            &test_claims(),
+            prescription_input("patient-update", None),
+        )
+        .expect("create");
         apply_push_results_on_connection(&mut connection, &[json!({
             "operationId": saved.operation_id, "entityType":"PRESCRIPTION", "localEntityId":saved.local_id,
             "status":"ACK", "serverEntityId":"rx-server-update", "serverVersion":1
         })]).expect("ack");
         let updated = save_prescription_draft_on_connection(
-            &mut connection, &test_claims(), prescription_input("patient-update", Some(saved.local_id.clone())),
-        ).expect("update");
-        let operation: String = connection.query_row(
-            "SELECT operation FROM sync_outbox WHERE operation_id=?1", params![updated.operation_id], |r| r.get(0),
-        ).expect("update operation");
+            &mut connection,
+            &test_claims(),
+            prescription_input("patient-update", Some(saved.local_id.clone())),
+        )
+        .expect("update");
+        let operation: String = connection
+            .query_row(
+                "SELECT operation FROM sync_outbox WHERE operation_id=?1",
+                params![updated.operation_id],
+                |r| r.get(0),
+            )
+            .expect("update operation");
         assert_eq!(operation, "UPDATE");
         apply_push_results_on_connection(&mut connection, &[json!({
             "operationId": updated.operation_id, "entityType":"PRESCRIPTION", "localEntityId":saved.local_id,
             "status":"CONFLICT", "code":"SYNC_CONFLICT", "localVersion":1, "serverVersion":2,
             "localPayload":{}, "serverPayload":server_prescription("rx-server-update", "patient-update", "DRAFT", 2)
         })]).expect("conflict");
-        let state: String = connection.query_row(
-            "SELECT local_status FROM prescription_drafts WHERE local_id=?1", params![saved.local_id], |r| r.get(0),
-        ).expect("state");
+        let state: String = connection
+            .query_row(
+                "SELECT local_status FROM prescription_drafts WHERE local_id=?1",
+                params![saved.local_id],
+                |r| r.get(0),
+            )
+            .expect("state");
         assert_eq!(state, "CONFLICT");
+    }
+
+    #[test]
+    fn prescription_not_editable_applies_server_terminal_state_without_retrying() {
+        let mut connection = memory_db();
+        insert_patient(&connection, "patient-read-only");
+        let created = save_prescription_draft_on_connection(
+            &mut connection,
+            &test_claims(),
+            prescription_input("patient-read-only", None),
+        )
+        .expect("create");
+        apply_push_results_on_connection(
+            &mut connection,
+            &[json!({
+                "operationId": created.operation_id,
+                "entityType": "PRESCRIPTION",
+                "localEntityId": created.local_id,
+                "status": "ACK",
+                "serverEntityId": "rx-read-only",
+                "serverVersion": 1,
+            })],
+        )
+        .expect("ack");
+        let update = save_prescription_draft_on_connection(
+            &mut connection,
+            &test_claims(),
+            prescription_input("patient-read-only", Some(created.local_id.clone())),
+        )
+        .expect("update");
+        apply_push_results_on_connection(
+            &mut connection,
+            &[json!({
+                "operationId": update.operation_id,
+                "entityType": "PRESCRIPTION",
+                "localEntityId": created.local_id,
+                "status": "CONFLICT",
+                "code": "PRESCRIPTION_NOT_EDITABLE",
+                "localVersion": 1,
+                "serverVersion": 2,
+                "localPayload": {},
+                "serverPayload": server_prescription(
+                    "rx-read-only",
+                    "patient-read-only",
+                    "VALIDATED",
+                    2,
+                ),
+            })],
+        )
+        .expect("not editable");
+        let row: (String, String, i64, String) = connection
+            .query_row(
+                "SELECT local_status, server_status, base_version, number
+                 FROM prescription_drafts WHERE local_id=?1",
+                params![created.local_id],
+                |r| Ok((r.get(0)?, r.get(1)?, r.get(2)?, r.get(3)?)),
+            )
+            .expect("read-only row");
+        assert_eq!(
+            row,
+            (
+                "READ_ONLY".to_string(),
+                "VALIDATED".to_string(),
+                2,
+                "ORD-2026-000001".to_string(),
+            )
+        );
+        let status: String = connection
+            .query_row(
+                "SELECT status FROM sync_outbox WHERE operation_id=?1",
+                params![update.operation_id],
+                |r| r.get(0),
+            )
+            .expect("outbox conflict");
+        assert_eq!(status, "CONFLICT");
     }
 
     #[test]
@@ -2086,17 +2288,43 @@ mod tests {
         let mut connection = memory_db();
         insert_patient(&connection, "patient-terminal");
         let tx = connection.transaction().expect("tx");
-        apply_server_prescription(&tx, &server_prescription("rx-terminal", "patient-terminal", "DRAFT", 1), "2026-10-29T10:00:00.000Z", false).expect("draft");
-        apply_server_prescription(&tx, &server_prescription("rx-terminal", "patient-terminal", "VALIDATED", 2), "2026-10-29T10:01:00.000Z", true).expect("validated");
+        apply_server_prescription(
+            &tx,
+            &server_prescription("rx-terminal", "patient-terminal", "DRAFT", 1),
+            "2026-10-29T10:00:00.000Z",
+            false,
+        )
+        .expect("draft");
+        apply_server_prescription(
+            &tx,
+            &server_prescription("rx-terminal", "patient-terminal", "VALIDATED", 2),
+            "2026-10-29T10:01:00.000Z",
+            true,
+        )
+        .expect("validated");
         tx.commit().expect("commit");
         let row: (String, String) = connection.query_row(
             "SELECT local_status, number FROM prescription_drafts WHERE server_id='rx-terminal'", [], |r| Ok((r.get(0)?, r.get(1)?)),
         ).expect("validated row");
-        assert_eq!(row, ("READ_ONLY".to_string(), "ORD-2026-000001".to_string()));
+        assert_eq!(
+            row,
+            ("READ_ONLY".to_string(), "ORD-2026-000001".to_string())
+        );
         let tx = connection.transaction().expect("tx");
-        apply_prescription_tombstone(&tx, &json!({"entityId":"rx-terminal","payload":{}}), "2026-10-29T10:02:00.000Z").expect("tombstone");
+        apply_prescription_tombstone(
+            &tx,
+            &json!({"entityId":"rx-terminal","payload":{}}),
+            "2026-10-29T10:02:00.000Z",
+        )
+        .expect("tombstone");
         tx.commit().expect("commit");
-        let count: i64 = connection.query_row("SELECT COUNT(*) FROM prescription_drafts WHERE server_id='rx-terminal'", [], |r| r.get(0)).expect("count");
+        let count: i64 = connection
+            .query_row(
+                "SELECT COUNT(*) FROM prescription_drafts WHERE server_id='rx-terminal'",
+                [],
+                |r| r.get(0),
+            )
+            .expect("count");
         assert_eq!(count, 0);
     }
 
@@ -2105,11 +2333,21 @@ mod tests {
         let mut connection = memory_db();
         insert_patient(&connection, "patient-canceled");
         let tx = connection.transaction().expect("tx");
-        apply_server_prescription(&tx, &server_prescription("rx-canceled", "patient-canceled", "CANCELED", 3), "2026-10-29T10:00:00.000Z", false).expect("canceled");
+        apply_server_prescription(
+            &tx,
+            &server_prescription("rx-canceled", "patient-canceled", "CANCELED", 3),
+            "2026-10-29T10:00:00.000Z",
+            false,
+        )
+        .expect("canceled");
         tx.commit().expect("commit");
-        let state: String = connection.query_row(
-            "SELECT local_status FROM prescription_drafts WHERE server_id='rx-canceled'", [], |r| r.get(0),
-        ).expect("read only");
+        let state: String = connection
+            .query_row(
+                "SELECT local_status FROM prescription_drafts WHERE server_id='rx-canceled'",
+                [],
+                |r| r.get(0),
+            )
+            .expect("read only");
         assert_eq!(state, "READ_ONLY");
     }
 
@@ -2118,22 +2356,45 @@ mod tests {
         let mut connection = memory_db();
         insert_patient(&connection, "patient-pending-rx");
         let saved = save_prescription_draft_on_connection(
-            &mut connection, &test_claims(), prescription_input("patient-pending-rx", None),
-        ).expect("save");
+            &mut connection,
+            &test_claims(),
+            prescription_input("patient-pending-rx", None),
+        )
+        .expect("save");
         apply_push_results_on_connection(&mut connection, &[json!({
             "operationId": saved.operation_id, "entityType":"PRESCRIPTION", "localEntityId":saved.local_id,
             "status":"ACK", "serverEntityId":"rx-pending", "serverVersion":1
         })]).expect("ack");
         save_prescription_draft_on_connection(
-            &mut connection, &test_claims(), prescription_input("patient-pending-rx", Some(saved.local_id.clone())),
-        ).expect("pending update");
+            &mut connection,
+            &test_claims(),
+            prescription_input("patient-pending-rx", Some(saved.local_id.clone())),
+        )
+        .expect("pending update");
         let tx = connection.transaction().expect("tx");
-        apply_prescription_tombstone(&tx, &json!({"entityId":"rx-pending","payload":{}}), "2026-10-29T10:00:00.000Z").expect("pending tombstone");
+        apply_prescription_tombstone(
+            &tx,
+            &json!({"entityId":"rx-pending","payload":{}}),
+            "2026-10-29T10:00:00.000Z",
+        )
+        .expect("pending tombstone");
         reconcile_patients_tx(&tx, &[]).expect("scope removal");
         tx.commit().expect("commit");
-        let locked: i64 = connection.query_row("SELECT locked FROM patients WHERE server_id='patient-pending-rx'", [], |r| r.get(0)).expect("locked");
+        let locked: i64 = connection
+            .query_row(
+                "SELECT locked FROM patients WHERE server_id='patient-pending-rx'",
+                [],
+                |r| r.get(0),
+            )
+            .expect("locked");
         assert_eq!(locked, 1);
-        let local: String = connection.query_row("SELECT local_status FROM prescription_drafts WHERE local_id=?1", params![saved.local_id], |r| r.get(0)).expect("draft remains");
+        let local: String = connection
+            .query_row(
+                "SELECT local_status FROM prescription_drafts WHERE local_id=?1",
+                params![saved.local_id],
+                |r| r.get(0),
+            )
+            .expect("draft remains");
         assert_eq!(local, "CONFLICT");
     }
 

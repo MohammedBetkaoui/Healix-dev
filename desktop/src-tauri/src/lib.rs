@@ -71,7 +71,10 @@ fn save_prescription_draft(
 }
 
 #[tauri::command]
-fn search_local_medications(app: AppHandle, query: String) -> Result<Vec<serde_json::Value>, String> {
+fn search_local_medications(
+    app: AppHandle,
+    query: String,
+) -> Result<Vec<serde_json::Value>, String> {
     authorize(&app)?;
     database::search_local_medications(&app, &query)
 }
