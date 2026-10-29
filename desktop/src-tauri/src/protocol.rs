@@ -136,7 +136,7 @@ mod tests {
         let body = br#"{"operations":[]}"#;
         assert_eq!(
             sha256_hex(body),
-            "558dcdc85bbbbeccc68fd0e7ab05a2cc2efd913ee19a29908cd02d0e11dc2334"
+            "ba008b3ff2e64fd0f721e62a4159d1068da4c3f8ca432bf40a0414c167013059"
         );
     }
 

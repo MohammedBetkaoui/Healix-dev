@@ -18,7 +18,7 @@ export const DEVICE_SIGNATURE_HEADER = 'x-healix-device-signature';
 // Request timestamp tolerance, in seconds, on each side of server time.
 export const DEVICE_TIMESTAMP_WINDOW_SECONDS = 300;
 
-// A nonce stays unique for ten minutes; rows expire with the window.
+// A nonce stays unique for five minutes; rows expire with the window.
 export const DEVICE_NONCE_TTL_SECONDS = DEVICE_TIMESTAMP_WINDOW_SECONDS;
 
 // The PSS salt length, in bytes, both sides sign and verify with: the digest
