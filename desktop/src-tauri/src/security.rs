@@ -25,15 +25,55 @@ pub struct SignedRequest {
 }
 
 const SERVICE: &str = "dz.healix.desktop";
+// Windows Credential Manager limits the credential blob to 2,560 bytes.
+// `keyring` encodes passwords as UTF-16, so the effective maximum is 1,280
+// code units. Keep a margin: the parts remain in Credential Manager, never
+// in a plaintext file or in the SQLCipher database.
+const KEYRING_CHUNK_UTF16_LIMIT: usize = 1_200;
+const MAX_KEYRING_CHUNKS: usize = 128;
+const CHUNK_MANIFEST_SUFFIX: &str = "-chunk-manifest-v1";
+
+fn manifest_name(name: &str) -> String {
+    format!("{name}{CHUNK_MANIFEST_SUFFIX}")
+}
+
+fn chunk_name(name: &str, index: usize) -> String {
+    format!("{name}-chunk-v1-{index}")
+}
 
 fn entry(name: &str) -> Result<Entry, String> {
-    Entry::new(SERVICE, name).map_err(|_| "Coffre-fort système indisponible.".to_string())
+    Entry::new(SERVICE, name).map_err(|error| {
+        format!("Coffre-fort système indisponible pour ce compte Windows ({error}).")
+    })
 }
 
 pub fn set_secret(name: &str, value: &str) -> Result<(), String> {
-    entry(name)?
-        .set_password(value)
-        .map_err(|_| "Impossible de protéger le secret local.".to_string())
+    let chunks = split_secret(value);
+    let previous_chunk_count = chunk_count(name)?;
+
+    if chunks.len() == 1 {
+        set_entry_secret(name, value)?;
+        delete_chunked_secret(name, previous_chunk_count);
+        return Ok(());
+    }
+
+    // Write the parts before publishing their manifest. If an interrupted
+    // write occurs, the prior credential remains readable.
+    for (index, chunk) in chunks.iter().enumerate() {
+        set_entry_secret(&chunk_name(name, index), chunk)?;
+    }
+    set_entry_secret(&manifest_name(name), &chunks.len().to_string())?;
+    if let Ok(item) = entry(name) {
+        let _ = item.delete_credential();
+    }
+    if let Some(previous_chunk_count) = previous_chunk_count {
+        for index in chunks.len()..previous_chunk_count {
+            if let Ok(item) = entry(&chunk_name(name, index)) {
+                let _ = item.delete_credential();
+            }
+        }
+    }
+    Ok(())
 }
 
 pub fn get_secret(name: &str) -> Result<String, String> {
@@ -41,10 +81,85 @@ pub fn get_secret(name: &str) -> Result<String, String> {
 }
 
 fn get_optional_secret(name: &str) -> Result<Option<String>, String> {
+    if let Some(count) = chunk_count(name)? {
+        let mut value = String::new();
+        for index in 0..count {
+            let part = get_entry_secret(&chunk_name(name, index))?.ok_or_else(|| {
+                "Secret local fragmenté incomplet dans le Gestionnaire d’informations d’identification Windows."
+                    .to_string()
+            })?;
+            value.push_str(&part);
+        }
+        return Ok(Some(value));
+    }
+    get_entry_secret(name)
+}
+
+fn get_entry_secret(name: &str) -> Result<Option<String>, String> {
     match entry(name)?.get_password() {
         Ok(value) => Ok(Some(value)),
         Err(keyring::Error::NoEntry) => Ok(None),
-        Err(_) => Err("Coffre-fort système indisponible.".to_string()),
+        Err(error) => Err(format!(
+            "Coffre-fort système indisponible pour ce compte Windows ({error})."
+        )),
+    }
+}
+
+fn set_entry_secret(name: &str, value: &str) -> Result<(), String> {
+    entry(name)?.set_password(value).map_err(|error| {
+        format!(
+            "Impossible de protéger le secret local dans le Gestionnaire d’informations d’identification Windows ({error})."
+        )
+    })
+}
+
+fn chunk_count(name: &str) -> Result<Option<usize>, String> {
+    let Some(raw) = get_entry_secret(&manifest_name(name))? else {
+        return Ok(None);
+    };
+    let count = raw.parse::<usize>().map_err(|_| {
+        "Manifest du secret local fragmenté invalide dans le Gestionnaire d’informations d’identification Windows."
+            .to_string()
+    })?;
+    if count == 0 || count > MAX_KEYRING_CHUNKS {
+        return Err("Manifest du secret local fragmenté invalide dans le Gestionnaire d’informations d’identification Windows.".to_string());
+    }
+    Ok(Some(count))
+}
+
+fn split_secret(value: &str) -> Vec<String> {
+    if value.encode_utf16().count() <= KEYRING_CHUNK_UTF16_LIMIT {
+        return vec![value.to_string()];
+    }
+
+    let mut chunks = Vec::new();
+    let mut current = String::new();
+    let mut current_utf16_units = 0;
+    for character in value.chars() {
+        let character_utf16_units = character.len_utf16();
+        if current_utf16_units + character_utf16_units > KEYRING_CHUNK_UTF16_LIMIT {
+            chunks.push(std::mem::take(&mut current));
+            current_utf16_units = 0;
+        }
+        current.push(character);
+        current_utf16_units += character_utf16_units;
+    }
+    if !current.is_empty() {
+        chunks.push(current);
+    }
+    chunks
+}
+
+fn delete_chunked_secret(name: &str, chunk_count: Option<usize>) {
+    if let Ok(item) = entry(&manifest_name(name)) {
+        let _ = item.delete_credential();
+    }
+    if let Some(chunk_count) = chunk_count {
+        for index in 0..chunk_count {
+            if let Ok(item) = entry(&chunk_name(name, index)) {
+                let _ = item.delete_credential();
+            }
+        }
     }
 }
 
@@ -52,6 +167,8 @@ pub fn delete_secret(name: &str) {
     if let Ok(item) = entry(name) {
         let _ = item.delete_credential();
     }
+    let count = chunk_count(name).ok().flatten();
+    delete_chunked_secret(name, count);
 }
 
 pub fn database_key() -> Result<Vec<u8>, String> {
@@ -188,4 +305,21 @@ pub fn signed_request_headers(
         (DEVICE_NONCE_HEADER, signed.nonce),
         (DEVICE_SIGNATURE_HEADER, signed.signature),
     ])
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{split_secret, KEYRING_CHUNK_UTF16_LIMIT};
+
+    #[test]
+    fn chunks_long_secrets_without_splitting_utf8_characters() {
+        let value = format!("{}😀{}", "a".repeat(2_399), "b".repeat(2_400));
+        let chunks = split_secret(&value);
+
+        assert_eq!(chunks.concat(), value);
+        assert!(chunks.len() > 1);
+        assert!(chunks
+            .iter()
+            .all(|chunk| chunk.encode_utf16().count() <= KEYRING_CHUNK_UTF16_LIMIT));
+    }
 }
