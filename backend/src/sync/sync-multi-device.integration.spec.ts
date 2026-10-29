@@ -25,8 +25,15 @@ import {
 } from '../offline-devices/offline-device.types';
 import { OfflineDevicesService } from '../offline-devices/offline-devices.service';
 import { OfflineScopeService } from './offline-scope.service';
+import { PrescriptionSyncService } from './prescription-sync.service';
 import { SyncService } from './sync.service';
 import { SyncPushDto } from './dto/sync.dto';
+
+// The consultation-only suites never dispatch a prescription operation: the
+// stub keeps the SyncService constructor resolvable, and the real behavior
+// (including its prescription reuse of PrescriptionsService) is covered by
+// prescription-sync.integration.spec.ts.
+const prescriptionSyncStub = { process: jest.fn() } as unknown as PrescriptionSyncService;
 
 // The consultation stays the only writable offline aggregate, multi-device
 // conflicts and idempotency behave, cross-workspace isolation holds, and the
@@ -77,6 +84,7 @@ describeWithDatabase('the sync contract against real queries', () => {
         OfflineScopeService,
         SyncService,
         DeviceProofGuard,
+        { provide: PrescriptionSyncService, useValue: prescriptionSyncStub },
       ],
     }).compile();
     await moduleRef.init();
@@ -167,6 +175,36 @@ describeWithDatabase('the sync contract against real queries', () => {
     } as never,
   });
 
+  const prescriptionOperation = (input: {
+    operationId: string;
+    localEntityId: string;
+    patientId: string;
+    operation: 'CREATE' | 'UPDATE';
+    dci: string;
+    regulatoryCategory?: 'STANDARD' | 'REGULATED';
+  }) => ({
+    operationId: input.operationId,
+    entityType: 'PRESCRIPTION',
+    localEntityId: input.localEntityId,
+    operation: input.operation,
+    occurredAt: new Date().toISOString(),
+    payload: {
+      patientId: input.patientId,
+      items: [
+        {
+          dci: input.dci,
+          strength: '500 mg',
+          pharmaceuticalForm: 'TABLET',
+          route: 'ORAL',
+          regulatoryCategory: input.regulatoryCategory ?? 'STANDARD',
+          dosePerIntake: '1 comprimé',
+          frequency: '2 fois par jour',
+          quantity: '12 comprimés',
+        },
+      ],
+    } as never,
+  });
+
   describe('the writable aggregate rule (consultation only)', () => {
     it('the DTO refuses the push of PATIENT and of APPOINTMENT with an explicit message', async () => {
       for (const entityType of ['PATIENT', 'APPOINTMENT']) {
@@ -187,7 +225,9 @@ describeWithDatabase('the sync contract against real queries', () => {
         });
         const errors = await validate(dto);
         expect(flattenErrors(errors)).toHaveLength(1);
-        expect(flattenErrors(errors)[0]).toMatch(/seule CONSULTATION/);
+        expect(flattenErrors(errors)[0]).toMatch(
+          /brouillon d'ordonnance \(PRESCRIPTION DRAFT\)/,
+        );
       }
       // The writable aggregate keeps passing validation in the same shape.
       const dto = plainToInstance(SyncPushDto, {
@@ -202,6 +242,20 @@ describeWithDatabase('the sync contract against real queries', () => {
         ],
       });
       expect(await validate(dto)).toHaveLength(0);
+      // The prescription draft joins the writable aggregates with the same
+      // envelope, validated in the service once the durable row exists.
+      const prescriptionDto = plainToInstance(SyncPushDto, {
+        operations: [
+          prescriptionOperation({
+            operationId: randomUUID(),
+            localEntityId: randomUUID(),
+            patientId: randomUUID(),
+            operation: 'CREATE',
+            dci: 'Paracétamol',
+          }),
+        ],
+      });
+      expect(await validate(prescriptionDto)).toHaveLength(0);
     });
 
     it('the service rejects a consultation push on a patient outside the offline scope', async () => {

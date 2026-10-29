@@ -10,7 +10,7 @@ export type OfflineCapabilities = {
     completeOnSync: true;
   };
   appointments: { read: true; write: false };
-  prescriptions: { draft: false; validate: false };
+  prescriptions: { draft: true; validate: false };
   ai: false;
   dicom: false;
 };
@@ -58,7 +58,7 @@ export const OFFLINE_CAPABILITIES: OfflineCapabilities = {
     completeOnSync: true,
   },
   appointments: { read: true, write: false },
-  prescriptions: { draft: false, validate: false },
+  prescriptions: { draft: true, validate: false },
   ai: false,
   dicom: false,
 };

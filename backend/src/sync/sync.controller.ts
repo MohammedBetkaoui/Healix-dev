@@ -29,6 +29,11 @@ export class SyncController {
     return this.sync.reconcile(request.offlineActor);
   }
 
+  @Get('medications')
+  medications(@Req() request: OfflineAuthenticatedRequest) {
+    return this.sync.medications(request.offlineActor);
+  }
+
   @Post('push')
   push(@Req() request: OfflineAuthenticatedRequest, @Body() dto: SyncPushDto) {
     return this.sync.push(request.offlineActor, dto);

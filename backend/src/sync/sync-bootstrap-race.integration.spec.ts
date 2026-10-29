@@ -17,7 +17,15 @@ import { PrismaModule } from '../prisma/prisma.module';
 import { PrismaService } from '../prisma/prisma.service';
 import { recordConsultationSyncChange } from './consultation-sync-change';
 import { OfflineScopeService } from './offline-scope.service';
+import { PrescriptionSyncService } from './prescription-sync.service';
 import { SyncService } from './sync.service';
+
+// This suite only exercises the consultation bootstrap snapshot; the
+// prescription extension point is stubbed here and covered by
+// prescription-sync.integration.spec.ts.
+const prescriptionSyncStub = {
+  process: jest.fn(),
+} as unknown as PrescriptionSyncService;
 
 // The snapshot rule of the bootstrap: the received data and the returned
 // cursor must describe one coherent view of the server. The race it rules out
@@ -55,7 +63,11 @@ describeWithDatabase('the snapshot coherence of the bootstrap', () => {
         ConfigModule.forRoot({ ignoreEnvFile: true, isGlobal: true }),
         PrismaModule,
       ],
-      providers: [SyncService, OfflineScopeService],
+      providers: [
+        SyncService,
+        OfflineScopeService,
+        { provide: PrescriptionSyncService, useValue: prescriptionSyncStub },
+      ],
     }).compile();
     await moduleRef.init();
     prisma = moduleRef.get(PrismaService);

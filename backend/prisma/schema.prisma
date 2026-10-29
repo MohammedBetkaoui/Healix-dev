@@ -295,15 +295,17 @@ enum ConsultationStatus {
   CANCELED
 }
 
-// Offline-first V1 deliberately starts with the consultation aggregate only.
-// Other clinical aggregates are added as separate verticals so that a desktop
-// installation never becomes an implicit replica of the cloud database.
-// V1: the cloud pushes PATIENT and APPOINTMENT to the desktop (read-only
-// caches); only CONSULTATION flows desktop -> cloud.
+// Offline-first verticals: clinical aggregates are added one by one so that a
+// desktop installation never becomes an implicit replica of the cloud database.
+// The cloud pushes PATIENT and APPOINTMENT to the desktop (read-only caches).
+// Desktop -> cloud drafts: CONSULTATION (whole aggregate) and PRESCRIPTION
+// (accepted only while the server-side row is a DRAFT; finalized states are
+// rendered read-only from the change feed).
 enum SyncEntityType {
   PATIENT
   CONSULTATION
   APPOINTMENT
+  PRESCRIPTION
 }
 
 enum SyncOperationKind {
@@ -1226,6 +1228,11 @@ model Prescription {
   encounterId               String?            @map("encounter_id")
   createdById               String             @map("created_by_id")
   status                    PrescriptionStatus @default(DRAFT)
+  // Offline-sync optimistic-locking counter (mirrors PatientConsultation):
+  // every draft mutation — web edits, submission, validation, cancellation and
+  // offline sync pushes — increments it; push operations carry baseVersion and
+  // are rejected as CONFLICT when the counter moved underneath them.
+  syncVersion               Int                @default(1) @map("sync_version")
   type                      PrescriptionType   @default(STANDARD)
   prescribedAt              DateTime           @default(now()) @map("prescribed_at")
   validUntil                DateTime?          @map("valid_until")

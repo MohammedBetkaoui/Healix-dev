@@ -3,9 +3,12 @@ import { ConfigModule } from '@nestjs/config';
 import { JwtModule } from '@nestjs/jwt';
 
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
+import { PatientsModule } from '../patients/patients.module';
 import { PrismaModule } from '../prisma/prisma.module';
+import { PrescriptionsModule } from '../prescriptions/prescriptions.module';
 import { SyncController } from '../sync/sync.controller';
 import { OfflineScopeService } from '../sync/offline-scope.service';
+import { PrescriptionSyncService } from '../sync/prescription-sync.service';
 import { SyncService } from '../sync/sync.service';
 import { WorkspaceModule } from '../workspaces/workspace.module';
 import { OfflineDevicesController } from './offline-devices.controller';
@@ -20,6 +23,9 @@ import { OfflineGrantService } from './offline-grant.service';
     JwtModule.register({}),
     PrismaModule,
     WorkspaceModule,
+    // Prescription drafts reuse the domain rules (prepareSyncDraft facade);
+    // the module exports the service that owns them.
+    PrescriptionsModule,
   ],
   controllers: [OfflineDevicesController, SyncController],
   providers: [
@@ -29,6 +35,7 @@ import { OfflineGrantService } from './offline-grant.service';
     DeviceProofGuard,
     OfflineScopeService,
     SyncService,
+    PrescriptionSyncService,
     JwtAuthGuard,
   ],
   exports: [OfflineGrantService, DeviceProofGuard],

@@ -19,17 +19,31 @@ import { appointmentSyncSelect, toAppointmentSyncPayload } from './appointment-s
   type SyncConsultationPayloadDto,
   type SyncOperationDto,
   type SyncPushDto,
+  parseSyncOperationPayload,
 } from './dto/sync.dto';
 import { OfflineScopeService } from './offline-scope.service';
+import {
+  prescriptionSyncSelect,
+  toPrescriptionSyncPayload,
+} from './prescription-sync-change';
+import { PrescriptionSyncService } from './prescription-sync.service';
 import { decodeSyncCursor, encodeSyncCursor } from './sync-cursor';
+import { PrescriptionStatus } from '@prisma/client';
 
 type Transaction = Prisma.TransactionClient;
+
+// SyncOperationDto narrowed to the consultation payload after
+// parseSyncOperationPayload validated it.
+type ConsultationSyncOperation = SyncOperationDto & {
+  payload: SyncConsultationPayloadDto;
+};
 
 @Injectable()
 export class SyncService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly scope: OfflineScopeService,
+    private readonly prescriptionSync: PrescriptionSyncService,
   ) {}
 
   async bootstrap(actor: OfflineActor) {
@@ -42,7 +56,7 @@ export class SyncService {
     const result = await this.prisma.$transaction(
       async (tx) => {
         const scope = await this.scope.resolve(actor, tx);
-        const [workspace, user, patients, consultations, appointments, latest] =
+        const [workspace, user, patients, consultations, appointments, prescriptions, latest] =
           await Promise.all([
             tx.workspace.findUniqueOrThrow({
               where: { id: actor.workspaceId },
@@ -105,6 +119,20 @@ export class SyncService {
               orderBy: { scheduledAt: 'asc' },
               select: appointmentSyncSelect,
             }),
+            // Only the device's own unsettled DRAFTs: those are what the
+            // offline editor works on. Prescriptions finalized elsewhere
+            // (or drafts of another prescriber on a shared patient) flow
+            // through the change feed as read-only entities instead.
+            tx.prescription.findMany({
+              where: {
+                workspaceId: actor.workspaceId,
+                prescriberDoctorProfileId: scope.doctorProfileId,
+                patientId: { in: scope.patientIds },
+                status: PrescriptionStatus.DRAFT,
+              },
+              orderBy: [{ updatedAt: 'desc' }, { id: 'asc' }],
+              select: prescriptionSyncSelect,
+            }),
             tx.syncChange.findFirst({
               where: { workspaceId: actor.workspaceId },
               orderBy: { sequence: 'desc' },
@@ -129,6 +157,7 @@ export class SyncService {
           })),
           consultations: consultations.map(toConsultationSyncPayload),
           appointments: appointments.map(toAppointmentSyncPayload),
+          prescriptions: prescriptions.map(toPrescriptionSyncPayload),
           syncCursor: encodeSyncCursor(latest?.sequence ?? 0n),
           serverTime: new Date(),
         };
@@ -172,6 +201,36 @@ export class SyncService {
       appointmentWindowFrom: scope.appointmentWindowFrom.toISOString(),
       appointmentWindowTo: scope.appointmentWindowTo.toISOString(),
       authorizedPatientIds: scope.patientIds,
+      serverTime: new Date(),
+    };
+  }
+
+  // Offline medication catalog: a small active-only projection the desktop
+  // fills its local cache from at login. Signed like every other sync call;
+  // the authoritative values are still re-read server-side by prepareItems
+  // when a draft is pushed.
+  async medications(actor: OfflineActor) {
+    const medications = await this.prisma.medicationReference.findMany({
+      where: { active: true },
+      orderBy: [{ dci: 'asc' }, { brandName: 'asc' }],
+      select: {
+        id: true,
+        dci: true,
+        brandName: true,
+        strength: true,
+        pharmaceuticalForm: true,
+        route: true,
+        manufacturer: true,
+        regulatoryCategory: true,
+        active: true,
+        updatedAt: true,
+      },
+    });
+    return {
+      medications: medications.map((medication) => ({
+        ...medication,
+        updatedAt: medication.updatedAt.toISOString(),
+      })),
       serverTime: new Date(),
     };
   }
@@ -273,7 +332,7 @@ export class SyncService {
             clientOccurredAt: new Date(operation.occurredAt),
           },
         });
-        const result = await this.processConsultation(
+        const result = await this.processEntityOperation(
           client,
           actor,
           doctorProfileId,
@@ -306,12 +365,48 @@ export class SyncService {
     }
   }
 
-  private async processConsultation(
+  // One durable, per-entity dispatch. The payload is validated here — after
+  // the SyncOperation row exists — so a malformed push is stored REJECTED and
+  // replayable instead of failing the whole batch.
+  private async processEntityOperation(
     client: Transaction,
     actor: OfflineActor,
     doctorProfileId: string,
     allowedPatients: Set<string>,
     operation: SyncOperationDto,
+  ) {
+    const parsed = parseSyncOperationPayload(operation);
+    if (!parsed.ok) {
+      return this.rejected(
+        operation,
+        'INVALID_PAYLOAD',
+        `Payload ${operation.entityType} invalide : ${parsed.message}`,
+      );
+    }
+    if (parsed.entityType === SyncEntityType.PRESCRIPTION) {
+      return this.prescriptionSync.process(
+        client,
+        actor,
+        doctorProfileId,
+        allowedPatients,
+        { ...operation, payload: parsed.payload },
+      );
+    }
+    return this.processConsultation(
+      client,
+      actor,
+      doctorProfileId,
+      allowedPatients,
+      { ...operation, payload: parsed.payload },
+    );
+  }
+
+  private async processConsultation(
+    client: Transaction,
+    actor: OfflineActor,
+    doctorProfileId: string,
+    allowedPatients: Set<string>,
+    operation: ConsultationSyncOperation,
   ) {
     if (operation.entityType !== SyncEntityType.CONSULTATION) {
       return this.rejected(
@@ -344,7 +439,7 @@ export class SyncService {
     client: Transaction,
     actor: OfflineActor,
     doctorProfileId: string,
-    operation: SyncOperationDto,
+    operation: ConsultationSyncOperation,
   ) {
     const mapped = await client.syncEntityMap.findUnique({
       where: {
@@ -429,7 +524,7 @@ export class SyncService {
     client: Transaction,
     actor: OfflineActor,
     doctorProfileId: string,
-    operation: SyncOperationDto,
+    operation: ConsultationSyncOperation,
   ) {
     const mapping = await client.syncEntityMap.findUnique({
       where: {

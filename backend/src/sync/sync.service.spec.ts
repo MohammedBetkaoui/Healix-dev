@@ -10,6 +10,7 @@ import { UserRole } from '../common/enums/user-role.enum';
 import { type OfflineActor } from '../offline-devices/offline-device.types';
 import { type PrismaService } from '../prisma/prisma.service';
 import { type OfflineScopeService } from './offline-scope.service';
+import { type PrescriptionSyncService } from './prescription-sync.service';
 import { SyncService } from './sync.service';
 
 const actor: OfflineActor = {
@@ -69,6 +70,10 @@ const scope: OfflineScopeService = {
   }),
 } as unknown as OfflineScopeService;
 
+const prescriptionSync = {
+  process: jest.fn(),
+} as unknown as PrescriptionSyncService;
+
 describe('SyncService operation safety', () => {
   it('returns the durable previous result for a retried operationId', async () => {
     const previous = {
@@ -89,7 +94,7 @@ describe('SyncService operation safety', () => {
         }),
       },
     } as unknown as PrismaService;
-    const service = new SyncService(prisma, scope);
+    const service = new SyncService(prisma, scope, prescriptionSync);
 
     const response = await service.push(actor, { operations: [operation] });
 
@@ -137,7 +142,7 @@ describe('SyncService operation safety', () => {
           work(transaction),
       ),
     } as unknown as PrismaService;
-    const service = new SyncService(prisma, scope);
+    const service = new SyncService(prisma, scope, prescriptionSync);
 
     const response = await service.push(actor, { operations: [operation] });
 

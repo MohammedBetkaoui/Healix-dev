@@ -13,7 +13,9 @@ import {
   PatientDocumentType,
   PrescriptionRegulatoryCategory,
   PrescriptionStatus,
+  PrescriptionType,
   Prisma,
+  SyncChangeOperation,
   WorkspaceMembershipRole,
   WorkspaceMembershipStatus,
 } from '@prisma/client';
@@ -42,17 +44,19 @@ import {
   type PrescriberIdentity,
   PrescriptionAuthorizationService,
 } from './prescription-authorization.service';
-import {
-  prescriptionBadRequest,
+import { prescriptionBadRequest,
   prescriptionConflict,
   prescriptionForbidden,
-  prescriptionNotFound,
-} from './prescription-errors';
+  prescriptionNotFound } from './prescription-errors';
 import { PrescriptionNumberService } from './prescription-number.service';
 import { PrescriptionPdfService } from './prescription-pdf.service';
 import { PrescriptionRegulatoryService } from './prescription-regulatory.service';
 import { PrescriptionSafetyService } from './prescription-safety.service';
 import { PrescriptionStorageService } from './prescription-storage.service';
+import {
+  recordPrescriptionSyncChange,
+  recordPrescriptionTombstone,
+} from '../sync/prescription-sync-change';
 
 type PreparedItem = {
   medicationId: string | null;
@@ -73,6 +77,31 @@ type PreparedItem = {
   asNeeded: boolean;
   renewalAllowed: boolean;
   substitutionAllowed: boolean;
+};
+
+// Widest structural input the draft item rules accept: both the web
+// CreatePrescriptionItemDto and the offline sync payload DTO satisfy it,
+// with the `| null` tri-state on optional fields (absent and null sanitize
+// identically through cleanOptional).
+export type DraftItemInput = {
+  medicationId?: string | null;
+  dci: string;
+  brandName?: string | null;
+  strength: string;
+  pharmaceuticalForm: CreatePrescriptionItemDto['pharmaceuticalForm'];
+  route: CreatePrescriptionItemDto['route'];
+  manufacturer?: string | null;
+  regulatoryCategory: PrescriptionRegulatoryCategory;
+  dosePerIntake: string;
+  frequency: string;
+  intakeMoment?: string | null;
+  durationDays?: number | null;
+  quantity: string;
+  patientInstructions?: string | null;
+  indication?: string | null;
+  asNeeded?: boolean;
+  renewalAllowed?: boolean;
+  substitutionAllowed?: boolean;
 };
 
 class ConcurrentValidationError extends Error {}
@@ -297,6 +326,11 @@ export class PrescriptionsService {
           itemCount: items.length,
         },
       );
+      await recordPrescriptionSyncChange(
+        transaction,
+        prescription.id,
+        SyncChangeOperation.CREATE,
+      );
       return prescription;
     });
     return this.withDraftSafety(created);
@@ -353,6 +387,7 @@ export class PrescriptionsService {
             ? asJson(this.cleanRegulatory(dto.regulatory))
             : undefined,
           items: items ? { create: this.itemCreates(items) } : undefined,
+          syncVersion: { increment: 1 },
         },
         include: prescriptionDetailInclude,
       });
@@ -360,6 +395,11 @@ export class PrescriptionsService {
         status: prescription.status,
         itemCount: prescription.items.length,
       });
+      await recordPrescriptionSyncChange(
+        transaction,
+        id,
+        SyncChangeOperation.UPDATE,
+      );
       return prescription;
     });
     return this.withDraftSafety(updated);
@@ -381,12 +421,20 @@ export class PrescriptionsService {
     const updated = await this.prisma.$transaction(async (transaction) => {
       await transaction.prescription.update({
         where: { id },
-        data: { status: PrescriptionStatus.PENDING_VALIDATION },
+        data: {
+          status: PrescriptionStatus.PENDING_VALIDATION,
+          syncVersion: { increment: 1 },
+        },
       });
       await this.log(transaction, user, 'PRESCRIPTION_SUBMITTED', id, {
         status: PrescriptionStatus.PENDING_VALIDATION,
         itemCount: existing.items.length,
       });
+      await recordPrescriptionSyncChange(
+        transaction,
+        id,
+        SyncChangeOperation.UPDATE,
+      );
       return transaction.prescription.findUniqueOrThrow({
         where: { id },
         include: prescriptionDetailInclude,
@@ -598,6 +646,7 @@ export class PrescriptionsService {
               safetySnapshot: asJson(safetySnapshot),
               regulatorySnapshot: asJson(regulatorySnapshot),
               contentFingerprint,
+              syncVersion: { increment: 1 },
             },
           });
           if (won.count !== 1) throw new ConcurrentValidationError();
@@ -638,6 +687,11 @@ export class PrescriptionsService {
             status: PrescriptionStatus.VALIDATED,
             itemCount: prescription.items.length,
           });
+          await recordPrescriptionSyncChange(
+            transaction,
+            id,
+            SyncChangeOperation.UPDATE,
+          );
           return transaction.prescription.findUniqueOrThrow({
             where: { id },
             include: prescriptionDetailInclude,
@@ -697,6 +751,7 @@ export class PrescriptionsService {
           canceledAt: new Date(),
           canceledById: user.sub,
           cancellationReason: reason,
+          syncVersion: { increment: 1 },
         },
       });
       if (result.count !== 1) {
@@ -708,6 +763,11 @@ export class PrescriptionsService {
       await this.log(transaction, user, 'PRESCRIPTION_CANCELED', id, {
         status: PrescriptionStatus.CANCELED,
       });
+      await recordPrescriptionSyncChange(
+        transaction,
+        id,
+        SyncChangeOperation.UPDATE,
+      );
       return transaction.prescription.findUniqueOrThrow({
         where: { id },
         include: prescriptionDetailInclude,
@@ -782,6 +842,11 @@ export class PrescriptionsService {
         status: PrescriptionStatus.DRAFT,
         itemCount: source.items.length,
       });
+      await recordPrescriptionSyncChange(
+        transaction,
+        created.id,
+        SyncChangeOperation.CREATE,
+      );
       return created;
     });
     return this.withDraftSafety(renewed);
@@ -801,6 +866,21 @@ export class PrescriptionsService {
       );
     }
     await this.prisma.$transaction(async (transaction) => {
+      // Tombstone identity is captured before the row disappears: the change
+      // feed keeps just enough of it for devices to unlock or conflict.
+      const tombstone = await transaction.prescription.findUniqueOrThrow({
+        where: { id },
+        select: {
+          id: true,
+          workspaceId: true,
+          patientId: true,
+          number: true,
+          status: true,
+          syncVersion: true,
+          createdAt: true,
+          updatedAt: true,
+        },
+      });
       const deleted = await transaction.prescription.deleteMany({
         where: { id, status: PrescriptionStatus.DRAFT },
       });
@@ -813,6 +893,7 @@ export class PrescriptionsService {
       await this.log(transaction, user, 'PRESCRIPTION_DRAFT_DELETED', id, {
         status: PrescriptionStatus.DRAFT,
       });
+      await recordPrescriptionTombstone(transaction, tombstone);
     });
     return { deleted: true };
   }
@@ -1035,6 +1116,74 @@ export class PrescriptionsService {
     return identity;
   }
 
+  // Shared rule book for the offline sync vertical (backend/src/sync): it
+  // re-runs the exact draft invariants of create()/update() without touching
+  // any row, inside the caller's transaction — authoritative medication
+  // values from the catalog (the device cache is never trusted), encounter
+  // identity match, regulatory type escalation and regulatory data cleaning.
+  // Domain violations come back as { ok: false } instead of throwing so the
+  // sync engine can persist a durable REJECTED result per operation.
+  async prepareSyncDraft(
+    transaction: Prisma.TransactionClient,
+    input: {
+      patientId: string;
+      doctorProfileId: string;
+      encounterId?: string | null;
+      type?: PrescriptionType;
+      items?: DraftItemInput[];
+      existingCategories?: PrescriptionRegulatoryCategory[];
+      regulatory?: {
+        acknowledgement: boolean;
+        carnetReference?: string;
+        note?: string;
+      };
+    },
+  ): Promise<
+    | {
+        ok: true;
+        prepared: PreparedItem[] | null;
+        effectiveType: PrescriptionType;
+        regulatoryData: Prisma.InputJsonValue | undefined;
+      }
+    | { ok: false; code: string; message: string }
+  > {
+    try {
+      const prepared = input.items
+        ? await this.prepareItems(input.items, transaction)
+        : null;
+      const categories = prepared
+        ? prepared.map((item) => item.regulatoryCategory)
+        : (input.existingCategories ?? []);
+      const effectiveType = this.regulatory.requiredType(
+        input.type,
+        categories,
+      );
+      if (typeof input.encounterId === 'string') {
+        await this.assertEncounter(
+          input.encounterId,
+          input.patientId,
+          input.doctorProfileId,
+          transaction,
+        );
+      }
+      const regulatoryData = input.regulatory
+        ? asJson(this.cleanRegulatory(input.regulatory))
+        : undefined;
+      return { ok: true, prepared, effectiveType, regulatoryData };
+    } catch (error) {
+      const response = (error as { response?: { code?: string; message?: string } })
+        .response;
+      return {
+        ok: false,
+        code: response?.code ?? 'PRESCRIPTION_ITEM_INVALID',
+        message:
+          response?.message
+            ??
+            "Le brouillon d'ordonnance ne satisfait pas les règles serveur.",
+      };
+    }
+  }
+
   private async getInScope(user: AuthenticatedUserPayload, id: string) {
     const { workspaceId } = await this.authorization.resolveWorkspace(user);
     const prescription = await this.prisma.prescription.findFirst({
@@ -1082,7 +1231,13 @@ export class PrescriptionsService {
     }
   }
 
-  private async prepareItems(dtos: CreatePrescriptionItemDto[]) {
+  // Public: items are prepared with authoritative catalog values inside the
+  // caller's transaction; identical behavior for the web API and the offline
+  // sync vertical.
+  async prepareItems(
+    dtos: readonly DraftItemInput[],
+    transaction: Prisma.TransactionClient | PrismaService = this.prisma,
+  ) {
     const medicationIds = [
       ...new Set(
         dtos
@@ -1091,7 +1246,7 @@ export class PrescriptionsService {
       ),
     ];
     const medications = medicationIds.length
-      ? await this.prisma.medicationReference.findMany({
+      ? await transaction.medicationReference.findMany({
           where: { id: { in: medicationIds }, active: true },
         })
       : [];
@@ -1133,7 +1288,8 @@ export class PrescriptionsService {
     });
   }
 
-  private itemCreates(items: PreparedItem[]) {
+  // Public: shared with the offline sync vertical (1-based positions).
+  itemCreates(items: PreparedItem[]) {
     return items.map((item, position) => ({ ...item, position: position + 1 }));
   }
 
