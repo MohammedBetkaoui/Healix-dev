@@ -484,7 +484,6 @@ describeWithDatabase('the prescription vertical against real queries', () => {
 
       const row = await prisma.prescription.findUniqueOrThrow({
         where: { id: created.serverEntityId! },
-        include: { items: true },
         select: {
           syncVersion: true,
           items: { select: { dci: true }, orderBy: { position: 'asc' } },

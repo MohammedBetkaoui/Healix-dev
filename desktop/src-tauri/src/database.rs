@@ -64,11 +64,44 @@ CREATE TABLE IF NOT EXISTS consultation_diagnoses (
   FOREIGN KEY(consultation_local_id) REFERENCES consultations(local_id) ON DELETE CASCADE
 );
 CREATE TABLE IF NOT EXISTS prescription_drafts (
-  local_id TEXT PRIMARY KEY, patient_server_id TEXT NOT NULL, payload TEXT NOT NULL
+  local_id TEXT PRIMARY KEY,
+  server_id TEXT UNIQUE,
+  patient_server_id TEXT NOT NULL,
+  encounter_server_id TEXT,
+  local_status TEXT NOT NULL DEFAULT 'LOCAL_DRAFT',
+  server_status TEXT,
+  base_version INTEGER,
+  prescription_type TEXT NOT NULL DEFAULT 'STANDARD',
+  valid_until TEXT,
+  regulatory_data TEXT,
+  number TEXT,
+  payload TEXT NOT NULL,
+  server_updated_at TEXT,
+  last_synced_at TEXT,
+  updated_at TEXT NOT NULL
 );
 CREATE TABLE IF NOT EXISTS prescription_items (
-  id TEXT PRIMARY KEY, prescription_local_id TEXT NOT NULL, position INTEGER NOT NULL, payload TEXT NOT NULL
+  id TEXT PRIMARY KEY,
+  prescription_local_id TEXT NOT NULL,
+  position INTEGER NOT NULL,
+  payload TEXT NOT NULL,
+  FOREIGN KEY(prescription_local_id) REFERENCES prescription_drafts(local_id) ON DELETE CASCADE
 );
+CREATE INDEX IF NOT EXISTS prescription_items_local_position_idx ON prescription_items(prescription_local_id, position);
+CREATE TABLE IF NOT EXISTS medication_reference_cache (
+  id TEXT PRIMARY KEY,
+  dci TEXT NOT NULL,
+  brand_name TEXT,
+  strength TEXT NOT NULL,
+  pharmaceutical_form TEXT NOT NULL,
+  route TEXT NOT NULL,
+  manufacturer TEXT,
+  regulatory_category TEXT NOT NULL,
+  active INTEGER NOT NULL,
+  updated_at TEXT NOT NULL,
+  search_text TEXT NOT NULL
+);
+CREATE INDEX IF NOT EXISTS medication_reference_cache_search_idx ON medication_reference_cache(search_text);
 CREATE TABLE IF NOT EXISTS appointments_cache (
   server_id TEXT PRIMARY KEY, patient_server_id TEXT NOT NULL, payload TEXT NOT NULL,
   server_updated_at TEXT NOT NULL, last_synced_at TEXT NOT NULL
@@ -113,7 +146,7 @@ INSERT OR IGNORE INTO sync_state(id, cursor) VALUES (1, '');
 
 // Columns added after the first release; CREATE TABLE IF NOT EXISTS cannot
 // upgrade an existing database file, so opening the storage rechecks them.
-const LOCAL_MIGRATIONS: [(&str, &str, &str); 2] = [
+const LOCAL_MIGRATIONS: [(&str, &str, &str); 14] = [
     (
         "patients",
         "locked",
@@ -124,6 +157,18 @@ const LOCAL_MIGRATIONS: [(&str, &str, &str); 2] = [
         "lock_reason",
         "ALTER TABLE patients ADD COLUMN lock_reason TEXT",
     ),
+    ("prescription_drafts", "server_id", "ALTER TABLE prescription_drafts ADD COLUMN server_id TEXT"),
+    ("prescription_drafts", "encounter_server_id", "ALTER TABLE prescription_drafts ADD COLUMN encounter_server_id TEXT"),
+    ("prescription_drafts", "local_status", "ALTER TABLE prescription_drafts ADD COLUMN local_status TEXT NOT NULL DEFAULT 'LOCAL_DRAFT'"),
+    ("prescription_drafts", "server_status", "ALTER TABLE prescription_drafts ADD COLUMN server_status TEXT"),
+    ("prescription_drafts", "base_version", "ALTER TABLE prescription_drafts ADD COLUMN base_version INTEGER"),
+    ("prescription_drafts", "prescription_type", "ALTER TABLE prescription_drafts ADD COLUMN prescription_type TEXT NOT NULL DEFAULT 'STANDARD'"),
+    ("prescription_drafts", "valid_until", "ALTER TABLE prescription_drafts ADD COLUMN valid_until TEXT"),
+    ("prescription_drafts", "regulatory_data", "ALTER TABLE prescription_drafts ADD COLUMN regulatory_data TEXT"),
+    ("prescription_drafts", "number", "ALTER TABLE prescription_drafts ADD COLUMN number TEXT"),
+    ("prescription_drafts", "server_updated_at", "ALTER TABLE prescription_drafts ADD COLUMN server_updated_at TEXT"),
+    ("prescription_drafts", "last_synced_at", "ALTER TABLE prescription_drafts ADD COLUMN last_synced_at TEXT"),
+    ("prescription_drafts", "updated_at", "ALTER TABLE prescription_drafts ADD COLUMN updated_at TEXT NOT NULL DEFAULT ''"),
 ];
 
 fn db_path(app: &AppHandle) -> Result<PathBuf, String> {
@@ -172,6 +217,12 @@ fn apply_local_migrations(connection: &Connection) -> rusqlite::Result<()> {
             connection.execute(ddl, [])?;
         }
     }
+    connection.execute_batch(
+        "CREATE UNIQUE INDEX IF NOT EXISTS prescription_drafts_server_id_idx
+           ON prescription_drafts(server_id) WHERE server_id IS NOT NULL;
+         CREATE INDEX IF NOT EXISTS prescription_drafts_patient_idx
+           ON prescription_drafts(patient_server_id, updated_at);",
+    )?;
     Ok(())
 }
 
@@ -321,6 +372,17 @@ pub fn apply_bootstrap(app: &AppHandle, bootstrap: &Value) -> Result<(), String>
         .flatten()
     {
         apply_server_consultation(&tx, consultation, &synced_at, false)?;
+    }
+    // Bootstrap contains only the actor's server DRAFTs. Terminal orders
+    // arrive through the change feed, but these editable drafts must be
+    // present before the desktop first goes offline.
+    for prescription in bootstrap
+        .get("prescriptions")
+        .and_then(Value::as_array)
+        .into_iter()
+        .flatten()
+    {
+        apply_server_prescription(&tx, prescription, &synced_at, false)?;
     }
     for appointment in bootstrap
         .get("appointments")
@@ -485,19 +547,110 @@ pub fn list_patients(app: &AppHandle, query: &str) -> Result<Vec<Value>, String>
     .collect()
 }
 
+// The medication catalogue remains inside SQLCipher. It is deliberately a
+// read-only UX cache: push still sends medicationId and the backend reloads
+// the authoritative MedicationReference before it creates/updates a draft.
+pub fn apply_medication_catalog(app: &AppHandle, response: &Value) -> Result<(), String> {
+    let medications = response
+        .get("medications")
+        .and_then(Value::as_array)
+        .ok_or_else(|| "Catalogue de médicaments absent.".to_string())?;
+    let mut connection = open(app)?;
+    let tx = connection
+        .transaction()
+        .map_err(|_| "Transaction catalogue impossible.".to_string())?;
+    tx.execute("DELETE FROM medication_reference_cache", [])
+        .map_err(|_| "Catalogue local non actualisé.".to_string())?;
+    for medication in medications {
+        let dci = string(medication, "dci")?;
+        let brand_name = medication
+            .get("brandName")
+            .and_then(Value::as_str)
+            .map(str::to_string);
+        let strength = string(medication, "strength")?;
+        let search_text = format!(
+            "{} {} {}",
+            dci,
+            brand_name.as_deref().unwrap_or_default(),
+            strength
+        )
+        .to_lowercase();
+        tx.execute(
+            "INSERT INTO medication_reference_cache(
+               id, dci, brand_name, strength, pharmaceutical_form, route,
+               manufacturer, regulatory_category, active, updated_at, search_text
+             ) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11)",
+            params![
+                string(medication, "id")?,
+                dci,
+                brand_name,
+                strength,
+                string(medication, "pharmaceuticalForm")?,
+                string(medication, "route")?,
+                medication.get("manufacturer").and_then(Value::as_str),
+                string(medication, "regulatoryCategory")?,
+                medication.get("active").and_then(Value::as_bool).unwrap_or(true) as i64,
+                string(medication, "updatedAt")?,
+                search_text,
+            ],
+        )
+        .map_err(|_| "Médicament local non enregistré.".to_string())?;
+    }
+    tx.commit()
+        .map_err(|_| "Catalogue local non validé.".to_string())
+}
+
+pub fn search_local_medications(app: &AppHandle, query: &str) -> Result<Vec<Value>, String> {
+    let connection = open(app)?;
+    let query = query.trim().to_lowercase();
+    if query.is_empty() {
+        return Ok(Vec::new());
+    }
+    let pattern = format!("%{query}%");
+    let mut statement = connection
+        .prepare(
+            "SELECT id, dci, brand_name, strength, pharmaceutical_form, route,
+                    manufacturer, regulatory_category, active, updated_at
+             FROM medication_reference_cache
+             WHERE active=1 AND search_text LIKE ?1
+             ORDER BY dci, brand_name, strength LIMIT 25",
+        )
+        .map_err(|_| "Recherche médicament indisponible.".to_string())?;
+    let rows = statement
+        .query_map(params![pattern], |row| {
+            Ok(json!({
+                "id": row.get::<_, String>(0)?,
+                "dci": row.get::<_, String>(1)?,
+                "brandName": row.get::<_, Option<String>>(2)?,
+                "strength": row.get::<_, String>(3)?,
+                "pharmaceuticalForm": row.get::<_, String>(4)?,
+                "route": row.get::<_, String>(5)?,
+                "manufacturer": row.get::<_, Option<String>>(6)?,
+                "regulatoryCategory": row.get::<_, String>(7)?,
+                "active": row.get::<_, i64>(8)? != 0,
+                "updatedAt": row.get::<_, String>(9)?,
+            }))
+        })
+        .map_err(|_| "Recherche médicament impossible.".to_string())?;
+    rows.map(|row| row.map_err(|_| "Médicament local illisible.".to_string()))
+        .collect()
+}
+
 // ---- Scope reconciliation -------------------------------------------------
 
 // Unsent clinical data for one patient: PENDING/RETRYABLE outbox entries or
-// an OPEN conflict on any of its cached consultations. Both must survive a
+// an OPEN conflict on a cached consultation or prescription. Both must survive a
 // scope leave, so the decision never destroys them silently.
 fn patient_unsent_state(tx: &Transaction<'_>, patient_id: &str) -> rusqlite::Result<(bool, bool)> {
     let pending: bool = tx.query_row(
         "SELECT EXISTS(
            SELECT 1 FROM sync_outbox
-           WHERE entity_type='CONSULTATION'
+           WHERE entity_type IN ('CONSULTATION', 'PRESCRIPTION')
              AND status IN ('PENDING','RETRYABLE')
              AND local_entity_id IN (
                SELECT local_id FROM consultations WHERE patient_server_id=?1
+               UNION ALL
+               SELECT local_id FROM prescription_drafts WHERE patient_server_id=?1
              )
          )",
         params![patient_id],
@@ -506,9 +659,11 @@ fn patient_unsent_state(tx: &Transaction<'_>, patient_id: &str) -> rusqlite::Res
     let conflicted: bool = tx.query_row(
         "SELECT EXISTS(
            SELECT 1 FROM sync_conflicts
-           WHERE entity_type='CONSULTATION' AND status='OPEN'
+           WHERE entity_type IN ('CONSULTATION', 'PRESCRIPTION') AND status='OPEN'
              AND entity_id IN (
                SELECT local_id FROM consultations WHERE patient_server_id=?1
+               UNION ALL
+               SELECT local_id FROM prescription_drafts WHERE patient_server_id=?1
              )
          )",
         params![patient_id],
@@ -531,10 +686,26 @@ fn purge_patient(tx: &Transaction<'_>, patient_id: &str) -> rusqlite::Result<()>
         params![patient_id],
     )?;
     tx.execute(
+        "DELETE FROM sync_outbox
+         WHERE entity_type='PRESCRIPTION'
+           AND local_entity_id IN (
+             SELECT local_id FROM prescription_drafts WHERE patient_server_id=?1
+           )",
+        params![patient_id],
+    )?;
+    tx.execute(
         "DELETE FROM sync_conflicts
          WHERE entity_type='CONSULTATION'
            AND entity_id IN (
              SELECT local_id FROM consultations WHERE patient_server_id=?1
+           )",
+        params![patient_id],
+    )?;
+    tx.execute(
+        "DELETE FROM sync_conflicts
+         WHERE entity_type='PRESCRIPTION'
+           AND entity_id IN (
+             SELECT local_id FROM prescription_drafts WHERE patient_server_id=?1
            )",
         params![patient_id],
     )?;
@@ -547,11 +718,31 @@ fn purge_patient(tx: &Transaction<'_>, patient_id: &str) -> rusqlite::Result<()>
         params![patient_id],
     )?;
     tx.execute(
+        "DELETE FROM sync_entity_map
+         WHERE entity_type='PRESCRIPTION'
+           AND server_entity_id IN (
+             SELECT server_id FROM prescription_drafts WHERE patient_server_id=?1
+           )",
+        params![patient_id],
+    )?;
+    tx.execute(
         "DELETE FROM sync_metadata
          WHERE entity_type='CONSULTATION'
            AND entity_id IN (
              SELECT local_id FROM consultations WHERE patient_server_id=?1
            )",
+        params![patient_id],
+    )?;
+    tx.execute(
+        "DELETE FROM sync_metadata
+         WHERE entity_type='PRESCRIPTION'
+           AND entity_id IN (
+             SELECT local_id FROM prescription_drafts WHERE patient_server_id=?1
+           )",
+        params![patient_id],
+    )?;
+    tx.execute(
+        "DELETE FROM prescription_drafts WHERE patient_server_id=?1",
         params![patient_id],
     )?;
     tx.execute(
@@ -781,6 +972,342 @@ pub fn save_draft(
     })
 }
 
+#[derive(Debug, Clone, Deserialize, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct PrescriptionItemInput {
+    pub medication_id: Option<String>,
+    pub dci: String,
+    pub brand_name: Option<String>,
+    pub strength: String,
+    pub pharmaceutical_form: String,
+    pub route: String,
+    pub manufacturer: Option<String>,
+    pub regulatory_category: String,
+    pub dose_per_intake: String,
+    pub frequency: String,
+    pub intake_moment: Option<String>,
+    pub duration_days: Option<i64>,
+    pub quantity: String,
+    pub patient_instructions: Option<String>,
+    pub indication: Option<String>,
+    #[serde(default)]
+    pub as_needed: bool,
+    #[serde(default)]
+    pub renewal_allowed: bool,
+    #[serde(default)]
+    pub substitution_allowed: bool,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct PrescriptionDraftInput {
+    pub local_id: Option<String>,
+    pub patient_id: String,
+    pub encounter_id: Option<String>,
+    #[serde(rename = "type")]
+    pub prescription_type: String,
+    pub valid_until: Option<String>,
+    pub regulatory: Option<Value>,
+    pub items: Vec<PrescriptionItemInput>,
+}
+
+fn validate_prescription_input(input: &PrescriptionDraftInput) -> Result<(), String> {
+    if input.prescription_type.trim().is_empty() {
+        return Err("Type d’ordonnance requis.".to_string());
+    }
+    if input.items.is_empty() {
+        return Err("Une ordonnance doit contenir au moins un médicament.".to_string());
+    }
+    for item in &input.items {
+        if item.dci.trim().is_empty()
+            || item.strength.trim().is_empty()
+            || item.dose_per_intake.trim().is_empty()
+            || item.frequency.trim().is_empty()
+            || item.quantity.trim().is_empty()
+        {
+            return Err("DCI, dosage, prise, fréquence et quantité sont requis.".to_string());
+        }
+        if item.pharmaceutical_form.trim().is_empty()
+            || item.route.trim().is_empty()
+            || item.regulatory_category.trim().is_empty()
+        {
+            return Err("La forme, la voie et la catégorie réglementaire sont requises.".to_string());
+        }
+        if item.duration_days.is_some_and(|duration| duration <= 0) {
+            return Err("La durée doit être positive lorsqu’elle est renseignée.".to_string());
+        }
+    }
+    Ok(())
+}
+
+fn prescription_payload(
+    input: &PrescriptionDraftInput,
+    server_id: Option<&str>,
+) -> Value {
+    json!({
+        "patientId": input.patient_id,
+        "serverEntityId": server_id,
+        "encounterId": input.encounter_id,
+        "type": input.prescription_type,
+        "validUntil": input.valid_until,
+        "regulatory": input.regulatory,
+        "items": input.items,
+    })
+}
+
+fn replace_prescription_items(
+    tx: &Transaction<'_>,
+    local_id: &str,
+    items: &[PrescriptionItemInput],
+) -> Result<(), String> {
+    tx.execute(
+        "DELETE FROM prescription_items WHERE prescription_local_id=?1",
+        params![local_id],
+    )
+    .map_err(|_| "Items d’ordonnance non actualisés.".to_string())?;
+    for (position, item) in items.iter().enumerate() {
+        tx.execute(
+            "INSERT INTO prescription_items(id, prescription_local_id, position, payload)
+             VALUES (?1, ?2, ?3, ?4)",
+            params![
+                Uuid::new_v4().to_string(),
+                local_id,
+                position as i64,
+                serde_json::to_string(item).map_err(|_| "Item d’ordonnance invalide.".to_string())?,
+            ],
+        )
+        .map_err(|_| "Item d’ordonnance non enregistré.".to_string())?;
+    }
+    Ok(())
+}
+
+pub fn save_prescription_draft(
+    app: &AppHandle,
+    claims: &GrantClaims,
+    input: PrescriptionDraftInput,
+) -> Result<SavedDraft, String> {
+    let mut connection = open(app)?;
+    save_prescription_draft_on_connection(&mut connection, claims, input)
+}
+
+fn save_prescription_draft_on_connection(
+    connection: &mut Connection,
+    claims: &GrantClaims,
+    input: PrescriptionDraftInput,
+) -> Result<SavedDraft, String> {
+    validate_prescription_input(&input)?;
+    let occurred_at = now_iso(connection)?;
+    let tx = connection
+        .transaction()
+        .map_err(|_| "Transaction ordonnance impossible.".to_string())?;
+    let patient_locked: Option<i64> = tx
+        .query_row(
+            "SELECT locked FROM patients WHERE server_id=?1",
+            params![input.patient_id],
+            |row| row.get(0),
+        )
+        .optional()
+        .map_err(|_| "Patient local introuvable.".to_string())?;
+    match patient_locked {
+        Some(0) => {}
+        Some(_) => return Err("Dossier verrouillé : ordonnance non modifiable.".to_string()),
+        None => return Err("Ce dossier n’est pas disponible hors connexion.".to_string()),
+    }
+
+    let local_id = input.local_id.clone().unwrap_or_else(|| Uuid::new_v4().to_string());
+    let existing: Option<(String, Option<String>, Option<i64>, Option<String>, String)> = tx
+        .query_row(
+            "SELECT patient_server_id, server_id, base_version, server_status, local_status
+             FROM prescription_drafts WHERE local_id=?1",
+            params![local_id],
+            |row| Ok((row.get(0)?, row.get(1)?, row.get(2)?, row.get(3)?, row.get(4)?)),
+        )
+        .optional()
+        .map_err(|_| "Brouillon d’ordonnance illisible.".to_string())?;
+    if let Some((patient_id, server_id, base_version, server_status, local_status)) = &existing {
+        if patient_id != &input.patient_id {
+            return Err("Le patient d’une ordonnance existante ne peut pas changer.".to_string());
+        }
+        if matches!(local_status.as_str(), "CONFLICT" | "READ_ONLY") {
+            return Err("Cette ordonnance nécessite une résolution ou est en lecture seule.".to_string());
+        }
+        if server_id.is_some()
+            && (server_status.as_deref() != Some("DRAFT") || base_version.is_none())
+        {
+            return Err("Seuls les brouillons serveur peuvent être modifiés hors ligne.".to_string());
+        }
+    }
+
+    let (server_id, base_version, operation) = existing
+        .as_ref()
+        .map(|(_, id, version, _, _)| {
+            (id.clone(), *version, if id.is_some() { "UPDATE" } else { "CREATE" })
+        })
+        .unwrap_or((None, None, "CREATE"));
+    let payload = prescription_payload(&input, server_id.as_deref());
+    if existing.is_some() {
+        tx.execute(
+            "UPDATE prescription_drafts SET encounter_server_id=?2, local_status='PENDING_SYNC',
+             prescription_type=?3, valid_until=?4, regulatory_data=?5, payload=?6, updated_at=?7
+             WHERE local_id=?1",
+            params![
+                local_id,
+                input.encounter_id,
+                input.prescription_type,
+                input.valid_until,
+                input.regulatory.as_ref().map(Value::to_string),
+                payload.to_string(),
+                occurred_at,
+            ],
+        )
+        .map_err(|_| "Brouillon d’ordonnance non actualisé.".to_string())?;
+    } else {
+        tx.execute(
+            "INSERT INTO prescription_drafts(
+               local_id, patient_server_id, encounter_server_id, local_status, prescription_type,
+               valid_until, regulatory_data, payload, updated_at
+             ) VALUES (?1, ?2, ?3, 'PENDING_SYNC', ?4, ?5, ?6, ?7, ?8)",
+            params![
+                local_id,
+                input.patient_id,
+                input.encounter_id,
+                input.prescription_type,
+                input.valid_until,
+                input.regulatory.as_ref().map(Value::to_string),
+                payload.to_string(),
+                occurred_at,
+            ],
+        )
+        .map_err(|_| "Brouillon d’ordonnance non enregistré.".to_string())?;
+    }
+    replace_prescription_items(&tx, &local_id, &input.items)?;
+
+    let existing_operation: Option<String> = tx
+        .query_row(
+            "SELECT operation_id FROM sync_outbox
+             WHERE entity_type='PRESCRIPTION' AND local_entity_id=?1 AND operation=?2
+               AND status IN ('PENDING','RETRYABLE') ORDER BY sequence LIMIT 1",
+            params![local_id, operation],
+            |row| row.get(0),
+        )
+        .optional()
+        .map_err(|_| "Outbox ordonnance illisible.".to_string())?;
+    let operation_id = existing_operation.unwrap_or_else(|| Uuid::new_v4().to_string());
+    let envelope = json!({
+        "operationId": operation_id,
+        "entityType": "PRESCRIPTION",
+        "localEntityId": local_id,
+        "operation": operation,
+        "baseVersion": base_version,
+        "occurredAt": occurred_at,
+        "payload": payload,
+    });
+    let sequence: i64 = tx
+        .query_row("SELECT COALESCE(MAX(sequence), 0) + 1 FROM sync_outbox", [], |row| row.get(0))
+        .map_err(|_| "Séquence outbox indisponible.".to_string())?;
+    tx.execute(
+        "INSERT INTO sync_outbox(operation_id, device_id, entity_type, local_entity_id, operation, base_version, payload, occurred_at, sequence, status)
+         VALUES (?1, ?2, 'PRESCRIPTION', ?3, ?4, ?5, ?6, ?7, ?8, 'PENDING')
+         ON CONFLICT(operation_id) DO UPDATE SET base_version=excluded.base_version,
+           payload=excluded.payload, occurred_at=excluded.occurred_at, status='PENDING'",
+        params![operation_id, claims.device_id, local_id, operation, base_version, envelope.to_string(), occurred_at, sequence],
+    )
+    .map_err(|_| "Outbox ordonnance non enregistrée.".to_string())?;
+    tx.execute(
+        "INSERT INTO local_audit_events(id, action, entity_type, entity_id, actor_id, device_id, occurred_at)
+         VALUES (?1, 'PRESCRIPTION_SAVED_OFFLINE', 'PRESCRIPTION', ?2, ?3, ?4, ?5)",
+        params![Uuid::new_v4().to_string(), local_id, claims.user_id, claims.device_id, occurred_at],
+    )
+    .map_err(|_| "Audit ordonnance non enregistré.".to_string())?;
+    tx.commit()
+        .map_err(|_| "Brouillon d’ordonnance non validé.".to_string())?;
+    Ok(SavedDraft { local_id, operation_id })
+}
+
+fn prescription_row_value(
+    connection: &Connection,
+    local_id: String,
+    server_id: Option<String>,
+    patient_id: String,
+    server_status: Option<String>,
+    local_status: String,
+    base_version: Option<i64>,
+    prescription_type: String,
+    valid_until: Option<String>,
+    number: Option<String>,
+    updated_at: String,
+) -> Result<Value, String> {
+    let mut statement = connection
+        .prepare("SELECT payload FROM prescription_items WHERE prescription_local_id=?1 ORDER BY position")
+        .map_err(|_| "Items d’ordonnance indisponibles.".to_string())?;
+    let items = statement
+        .query_map(params![local_id], |row| row.get::<_, String>(0))
+        .map_err(|_| "Items d’ordonnance illisibles.".to_string())?
+        .map(|row| {
+            let payload = row.map_err(|_| "Item d’ordonnance illisible.".to_string())?;
+            serde_json::from_str::<Value>(&payload)
+                .map_err(|_| "Item d’ordonnance corrompu.".to_string())
+        })
+        .collect::<Result<Vec<_>, _>>()?;
+    Ok(json!({
+        "localId": local_id,
+        "serverId": server_id,
+        "patientId": patient_id,
+        "serverStatus": server_status,
+        "localStatus": local_status,
+        "baseVersion": base_version,
+        "type": prescription_type,
+        "validUntil": valid_until,
+        "items": items,
+        "number": number,
+        "updatedAt": updated_at,
+    }))
+}
+
+pub fn list_patient_prescriptions(app: &AppHandle, patient_id: &str) -> Result<Vec<Value>, String> {
+    let connection = open(app)?;
+    let mut statement = connection
+        .prepare(
+            "SELECT local_id, server_id, patient_server_id, server_status, local_status,
+                    base_version, prescription_type, valid_until, number, updated_at
+             FROM prescription_drafts WHERE patient_server_id=?1 ORDER BY updated_at DESC",
+        )
+        .map_err(|_| "Ordonnances locales indisponibles.".to_string())?;
+    let rows = statement
+        .query_map(params![patient_id], |row| {
+            Ok((
+                row.get(0)?, row.get(1)?, row.get(2)?, row.get(3)?, row.get(4)?,
+                row.get(5)?, row.get(6)?, row.get(7)?, row.get(8)?, row.get(9)?,
+            ))
+        })
+        .map_err(|_| "Ordonnances locales illisibles.".to_string())?
+        .collect::<Result<Vec<(String, Option<String>, String, Option<String>, String, Option<i64>, String, Option<String>, Option<String>, String)>, _>>()
+        .map_err(|_| "Ordonnance locale illisible.".to_string())?;
+    drop(statement);
+    rows.into_iter()
+        .map(|row| prescription_row_value(&connection, row.0, row.1, row.2, row.3, row.4, row.5, row.6, row.7, row.8, row.9))
+        .collect()
+}
+
+pub fn get_local_prescription(app: &AppHandle, local_id: &str) -> Result<Value, String> {
+    let connection = open(app)?;
+    let row = connection
+        .query_row(
+            "SELECT local_id, server_id, patient_server_id, server_status, local_status,
+                    base_version, prescription_type, valid_until, number, updated_at
+             FROM prescription_drafts WHERE local_id=?1",
+            params![local_id],
+            |row| Ok((
+                row.get(0)?, row.get(1)?, row.get(2)?, row.get(3)?, row.get(4)?,
+                row.get(5)?, row.get(6)?, row.get(7)?, row.get(8)?, row.get(9)?,
+            )),
+        )
+        .optional()
+        .map_err(|_| "Ordonnance locale illisible.".to_string())?
+        .ok_or_else(|| "Ordonnance locale introuvable.".to_string())?;
+    prescription_row_value(&connection, row.0, row.1, row.2, row.3, row.4, row.5, row.6, row.7, row.8, row.9)
+}
+
 #[derive(Debug, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct SyncStatus {
@@ -869,13 +1396,24 @@ pub fn current_cursor(app: &AppHandle) -> Result<String, String> {
 
 pub fn apply_push_results(app: &AppHandle, results: &[Value]) -> Result<(), String> {
     let mut connection = open(app)?;
-    let detected_at = now_iso(&connection)?;
+    apply_push_results_on_connection(&mut connection, results)
+}
+
+fn apply_push_results_on_connection(
+    connection: &mut Connection,
+    results: &[Value],
+) -> Result<(), String> {
+    let detected_at = now_iso(connection)?;
     let tx = connection
         .transaction()
         .map_err(|_| "Transaction locale impossible.".to_string())?;
     for result in results {
         let operation_id = string(result, "operationId")?;
         let status = string(result, "status")?;
+        let entity_type = result
+            .get("entityType")
+            .and_then(Value::as_str)
+            .unwrap_or("CONSULTATION");
         match status.as_str() {
             "ACK" => {
                 let local_id = string(result, "localEntityId")?;
@@ -890,13 +1428,21 @@ pub fn apply_push_results(app: &AppHandle, results: &[Value]) -> Result<(), Stri
                 )
                 .map_err(|_| "ACK local impossible.".to_string())?;
                 tx.execute(
-                    "UPDATE consultations SET server_id=?1, base_version=?2, local_status='SYNCED', last_synced_at=?3 WHERE local_id=?4",
-                    params![server_id, version, detected_at, local_id],
+                    "UPDATE consultations SET server_id=?1, base_version=?2, local_status='SYNCED', last_synced_at=?3 WHERE local_id=?4 AND ?5='CONSULTATION'",
+                    params![server_id, version, detected_at, local_id, entity_type],
                 ).map_err(|_| "Consultation locale non acquittée.".to_string())?;
                 tx.execute(
-                    "INSERT OR REPLACE INTO sync_entity_map(entity_type, local_entity_id, server_entity_id) VALUES ('CONSULTATION', ?1, ?2)",
-                    params![local_id, server_id],
+                    "INSERT OR REPLACE INTO sync_entity_map(entity_type, local_entity_id, server_entity_id) SELECT 'CONSULTATION', ?1, ?2 WHERE ?3='CONSULTATION'",
+                    params![local_id, server_id, entity_type],
                 ).map_err(|_| "Mapping local non enregistré.".to_string())?;
+                tx.execute(
+                    "UPDATE prescription_drafts SET server_id=?1, base_version=?2, server_status='DRAFT', local_status='SYNCED', last_synced_at=?3 WHERE local_id=?4 AND ?5='PRESCRIPTION'",
+                    params![server_id, version, detected_at, local_id, entity_type],
+                ).map_err(|_| "Ordonnance locale non acquittée.".to_string())?;
+                tx.execute(
+                    "INSERT OR REPLACE INTO sync_entity_map(entity_type, local_entity_id, server_entity_id) SELECT 'PRESCRIPTION', ?1, ?2 WHERE ?3='PRESCRIPTION'",
+                    params![local_id, server_id, entity_type],
+                ).map_err(|_| "Mapping ordonnance non enregistré.".to_string())?;
                 tx.execute("UPDATE local_audit_events SET synced_at=?1 WHERE entity_id=?2 AND synced_at IS NULL", params![detected_at, local_id])
                     .map_err(|_| "Audit local non acquitté.".to_string())?;
             }
@@ -909,9 +1455,23 @@ pub fn apply_push_results(app: &AppHandle, results: &[Value]) -> Result<(), Stri
                 .map_err(|_| "Conflit outbox non enregistré.".to_string())?;
                 tx.execute(
                     "INSERT INTO sync_conflicts(id, entity_type, entity_id, local_version, server_version, local_payload, server_payload, detected_at, status)
-                     VALUES (?1, 'CONSULTATION', ?2, ?3, ?4, ?5, ?6, ?7, 'OPEN')",
-                    params![Uuid::new_v4().to_string(), local_id, result.get("localVersion").and_then(Value::as_i64), result.get("serverVersion").and_then(Value::as_i64), result.get("localPayload").unwrap_or(&Value::Null).to_string(), result.get("serverPayload").unwrap_or(&Value::Null).to_string(), detected_at],
+                     VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, 'OPEN')",
+                    params![Uuid::new_v4().to_string(), entity_type, local_id, result.get("localVersion").and_then(Value::as_i64), result.get("serverVersion").and_then(Value::as_i64), result.get("localPayload").unwrap_or(&Value::Null).to_string(), result.get("serverPayload").unwrap_or(&Value::Null).to_string(), detected_at],
                 ).map_err(|_| "Conflit local non enregistré.".to_string())?;
+            }
+                if entity_type == "PRESCRIPTION" {
+                    if result.get("code").and_then(Value::as_str) == Some("PRESCRIPTION_NOT_EDITABLE") {
+                        if let Some(server_payload) = result.get("serverPayload") {
+                            apply_server_prescription(&tx, server_payload, &detected_at, false)?;
+                        } else {
+                            tx.execute("UPDATE prescription_drafts SET local_status='READ_ONLY' WHERE local_id=?1", params![local_id])
+                                .map_err(|_| "Ordonnance verrouillée non enregistrée.".to_string())?;
+                        }
+                    } else {
+                        tx.execute("UPDATE prescription_drafts SET local_status='CONFLICT' WHERE local_id=?1", params![local_id])
+                            .map_err(|_| "Conflit ordonnance non enregistré.".to_string())?;
+                    }
+                }
             }
             "REJECTED" => {
                 tx.execute(
@@ -919,6 +1479,12 @@ pub fn apply_push_results(app: &AppHandle, results: &[Value]) -> Result<(), Stri
                     params![operation_id],
                 )
                 .map_err(|_| "Rejet local non enregistré.".to_string())?;
+            }
+                if entity_type == "PRESCRIPTION" {
+                    let local_id = string(result, "localEntityId")?;
+                    tx.execute("UPDATE prescription_drafts SET local_status='CONFLICT' WHERE local_id=?1", params![local_id])
+                        .map_err(|_| "Rejet ordonnance non enregistré.".to_string())?;
+                }
             }
             "RETRYABLE" => {
                 tx.execute("UPDATE sync_outbox SET status='RETRYABLE', retry_count=retry_count+1 WHERE operation_id=?1", params![operation_id])
@@ -959,6 +1525,15 @@ pub fn apply_pull(app: &AppHandle, response: &Value) -> Result<String, String> {
                 .get("payload")
                 .ok_or_else(|| "Payload pull absent.".to_string())?;
             apply_server_consultation(&tx, payload, &synced_at, true)?;
+        } else if entity_type == "PRESCRIPTION" {
+            if operation == "TOMBSTONE" {
+                apply_prescription_tombstone(&tx, change, &synced_at)?;
+                continue;
+            }
+            let payload = change
+                .get("payload")
+                .ok_or_else(|| "Payload pull absent.".to_string())?;
+            apply_server_prescription(&tx, payload, &synced_at, true)?;
         } else if entity_type == "PATIENT" {
             let patient_id = string(change, "entityId")?;
             if operation == "TOMBSTONE" {
@@ -1125,6 +1700,199 @@ fn apply_server_consultation(
     Ok(())
 }
 
+fn replace_server_prescription_items(
+    tx: &Transaction<'_>,
+    local_id: &str,
+    items: &[Value],
+) -> Result<(), String> {
+    tx.execute(
+        "DELETE FROM prescription_items WHERE prescription_local_id=?1",
+        params![local_id],
+    )
+    .map_err(|_| "Items serveur non actualisés.".to_string())?;
+    for (position, item) in items.iter().enumerate() {
+        tx.execute(
+            "INSERT INTO prescription_items(id, prescription_local_id, position, payload)
+             VALUES (?1, ?2, ?3, ?4)",
+            params![Uuid::new_v4().to_string(), local_id, position as i64, item.to_string()],
+        )
+        .map_err(|_| "Item serveur non enregistré.".to_string())?;
+    }
+    Ok(())
+}
+
+fn apply_server_prescription(
+    tx: &Transaction<'_>,
+    payload: &Value,
+    synced_at: &str,
+    detect_pending: bool,
+) -> Result<(), String> {
+    let server_id = string(payload, "id")?;
+    let existing: Option<String> = tx
+        .query_row(
+            "SELECT local_id FROM prescription_drafts WHERE server_id=?1",
+            params![server_id],
+            |row| row.get(0),
+        )
+        .optional()
+        .map_err(|_| "Ordonnance locale illisible.".to_string())?;
+    let local_id = existing.clone().unwrap_or_else(|| Uuid::new_v4().to_string());
+    let server_status = string(payload, "status")?;
+    let has_pending: bool = if detect_pending {
+        tx.query_row(
+            "SELECT EXISTS(SELECT 1 FROM sync_outbox WHERE entity_type='PRESCRIPTION'
+             AND local_entity_id=?1 AND status IN ('PENDING','RETRYABLE'))",
+            params![local_id],
+            |row| row.get(0),
+        )
+        .map_err(|_| "Outbox ordonnance illisible.".to_string())?
+    } else {
+        false
+    };
+    if has_pending {
+        tx.execute(
+            "INSERT INTO sync_conflicts(id, entity_type, entity_id, local_version, server_version,
+             local_payload, server_payload, detected_at, status)
+             SELECT ?1, 'PRESCRIPTION', local_id, base_version, ?2, payload, ?3, ?4, 'OPEN'
+             FROM prescription_drafts WHERE local_id=?5",
+            params![Uuid::new_v4().to_string(), payload.get("syncVersion").and_then(Value::as_i64), payload.to_string(), synced_at, local_id],
+        )
+        .map_err(|_| "Conflit ordonnance pull non enregistré.".to_string())?;
+        tx.execute(
+            "UPDATE sync_outbox SET status='CONFLICT' WHERE entity_type='PRESCRIPTION'
+             AND local_entity_id=?1 AND status IN ('PENDING','RETRYABLE')",
+            params![local_id],
+        )
+        .map_err(|_| "Outbox ordonnance conflictuelle non enregistrée.".to_string())?;
+        if server_status == "DRAFT" {
+            tx.execute(
+                "UPDATE prescription_drafts SET local_status='CONFLICT' WHERE local_id=?1",
+                params![local_id],
+            )
+            .map_err(|_| "Conflit ordonnance non enregistré.".to_string())?;
+            return Ok(());
+        }
+        // A terminal server state wins for editability. The local payload is
+        // already stored in sync_conflicts above for diagnosis.
+    }
+    let local_status = if server_status == "DRAFT" {
+        if !detect_pending || existing.is_some() {
+            "SYNCED"
+        } else {
+            "READ_ONLY"
+        }
+    } else {
+        "READ_ONLY"
+    };
+    let items = payload
+        .get("items")
+        .and_then(Value::as_array)
+        .ok_or_else(|| "Items ordonnance serveur absents.".to_string())?;
+    tx.execute(
+        "INSERT INTO prescription_drafts(
+           local_id, server_id, patient_server_id, encounter_server_id, local_status, server_status,
+           base_version, prescription_type, valid_until, regulatory_data, number, payload,
+           server_updated_at, last_synced_at, updated_at
+         ) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14, ?13)
+         ON CONFLICT(local_id) DO UPDATE SET server_id=excluded.server_id,
+           patient_server_id=excluded.patient_server_id, encounter_server_id=excluded.encounter_server_id,
+           local_status=excluded.local_status, server_status=excluded.server_status,
+           base_version=excluded.base_version, prescription_type=excluded.prescription_type,
+           valid_until=excluded.valid_until, regulatory_data=excluded.regulatory_data, number=excluded.number,
+           payload=excluded.payload, server_updated_at=excluded.server_updated_at,
+           last_synced_at=excluded.last_synced_at, updated_at=excluded.updated_at",
+        params![
+            local_id,
+            server_id,
+            string(payload, "patientId")?,
+            payload.get("encounterId").and_then(Value::as_str),
+            local_status,
+            server_status,
+            payload.get("syncVersion").and_then(Value::as_i64).unwrap_or(1),
+            string(payload, "type")?,
+            payload.get("validUntil").and_then(Value::as_str),
+            payload.get("regulatoryData").map(Value::to_string),
+            payload.get("number").and_then(Value::as_str),
+            payload.to_string(),
+            string(payload, "updatedAt")?,
+            synced_at,
+        ],
+    )
+    .map_err(|_| "Ordonnance serveur non appliquée.".to_string())?;
+    replace_server_prescription_items(tx, &local_id, items)?;
+    tx.execute(
+        "INSERT OR REPLACE INTO sync_entity_map(entity_type, local_entity_id, server_entity_id)
+         VALUES ('PRESCRIPTION', ?1, ?2)",
+        params![local_id, server_id],
+    )
+    .map_err(|_| "Mapping ordonnance non appliqué.".to_string())?;
+    Ok(())
+}
+
+fn apply_prescription_tombstone(
+    tx: &Transaction<'_>,
+    change: &Value,
+    detected_at: &str,
+) -> Result<(), String> {
+    let server_id = string(change, "entityId")?;
+    let existing: Option<String> = tx
+        .query_row(
+            "SELECT local_id FROM prescription_drafts WHERE server_id=?1",
+            params![server_id],
+            |row| row.get(0),
+        )
+        .optional()
+        .map_err(|_| "Ordonnance tombstone illisible.".to_string())?;
+    let Some(local_id) = existing else {
+        return Ok(());
+    };
+    let pending: bool = tx.query_row(
+        "SELECT EXISTS(SELECT 1 FROM sync_outbox WHERE entity_type='PRESCRIPTION'
+         AND local_entity_id=?1 AND status IN ('PENDING','RETRYABLE'))",
+        params![local_id], |row| row.get(0),
+    ).map_err(|_| "Outbox ordonnance illisible.".to_string())?;
+    let conflicted: bool = tx.query_row(
+        "SELECT EXISTS(SELECT 1 FROM sync_conflicts WHERE entity_type='PRESCRIPTION'
+         AND entity_id=?1 AND status='OPEN')",
+        params![local_id], |row| row.get(0),
+    ).map_err(|_| "Conflit ordonnance illisible.".to_string())?;
+    if pending || conflicted {
+        tx.execute(
+            "UPDATE sync_outbox SET status='CONFLICT' WHERE entity_type='PRESCRIPTION'
+             AND local_entity_id=?1 AND status IN ('PENDING','RETRYABLE')",
+            params![local_id],
+        )
+        .map_err(|_| "Outbox tombstone non enregistrée.".to_string())?;
+        if !conflicted {
+            tx.execute(
+                "INSERT INTO sync_conflicts(id, entity_type, entity_id, local_version, server_version,
+                 local_payload, server_payload, detected_at, status)
+                 SELECT ?1, 'PRESCRIPTION', local_id, base_version, ?2, payload, ?3, ?4, 'OPEN'
+                 FROM prescription_drafts WHERE local_id=?5",
+                params![Uuid::new_v4().to_string(), change.get("payload").and_then(|v| v.get("syncVersion")).and_then(Value::as_i64), change.get("payload").unwrap_or(&Value::Null).to_string(), detected_at, local_id],
+            )
+            .map_err(|_| "Conflit tombstone non enregistré.".to_string())?;
+        }
+        tx.execute(
+            "UPDATE prescription_drafts SET local_status='CONFLICT' WHERE local_id=?1",
+            params![local_id],
+        )
+        .map_err(|_| "Ordonnance tombstone non verrouillée.".to_string())?;
+        return Ok(());
+    }
+    tx.execute(
+        "DELETE FROM sync_entity_map WHERE entity_type='PRESCRIPTION' AND local_entity_id=?1",
+        params![local_id],
+    )
+    .map_err(|_| "Mapping tombstone non supprimé.".to_string())?;
+    tx.execute(
+        "DELETE FROM prescription_drafts WHERE local_id=?1",
+        params![local_id],
+    )
+    .map_err(|_| "Ordonnance tombstone non supprimée.".to_string())?;
+    Ok(())
+}
+
 // ---- Storage tests ---------------------------------------------------------
 // The reconciliation helpers are exercised against an in-memory database
 // seeded with the same schema: no keyring, no AppHandle, no network.
@@ -1175,6 +1943,198 @@ mod tests {
                 params![operation_id, local_entity_id, status],
             )
             .expect("outbox");
+    }
+
+    fn test_claims() -> GrantClaims {
+        GrantClaims {
+            token_type: "offline-grant".to_string(),
+            grant_id: "grant-1".to_string(),
+            user_id: "user-1".to_string(),
+            device_id: "device-1".to_string(),
+            workspace_id: "ws-1".to_string(),
+            role: "INDEPENDENT_DOCTOR".to_string(),
+            exp: 9_999_999_999,
+            iat: 1,
+            iss: "healixdz-api".to_string(),
+            aud: "healixdz-desktop".to_string(),
+        }
+    }
+
+    fn prescription_input(patient_id: &str, local_id: Option<String>) -> PrescriptionDraftInput {
+        PrescriptionDraftInput {
+            local_id,
+            patient_id: patient_id.to_string(),
+            encounter_id: None,
+            prescription_type: "STANDARD".to_string(),
+            valid_until: None,
+            regulatory: None,
+            items: vec![PrescriptionItemInput {
+                medication_id: Some("med-1".to_string()),
+                dci: "Paracétamol".to_string(),
+                brand_name: Some("Doliprane".to_string()),
+                strength: "500 mg".to_string(),
+                pharmaceutical_form: "TABLET".to_string(),
+                route: "ORAL".to_string(),
+                manufacturer: None,
+                regulatory_category: "STANDARD".to_string(),
+                dose_per_intake: "1 comprimé".to_string(),
+                frequency: "3 fois par jour".to_string(),
+                intake_moment: None,
+                duration_days: Some(3),
+                quantity: "1 boîte".to_string(),
+                patient_instructions: None,
+                indication: None,
+                as_needed: false,
+                renewal_allowed: false,
+                substitution_allowed: false,
+            }],
+        }
+    }
+
+    fn server_prescription(id: &str, patient_id: &str, status: &str, version: i64) -> Value {
+        json!({
+            "id": id,
+            "patientId": patient_id,
+            "encounterId": null,
+            "status": status,
+            "type": "STANDARD",
+            "syncVersion": version,
+            "number": if status == "VALIDATED" { Value::String("ORD-2026-000001".to_string()) } else { Value::Null },
+            "validUntil": null,
+            "regulatoryData": null,
+            "updatedAt": "2026-10-29T10:00:00.000Z",
+            "items": [
+                {"id":"server-item-1","position":0,"medicationId":"med-1","dci":"Paracétamol","brandName":"Doliprane","strength":"500 mg","pharmaceuticalForm":"TABLET","route":"ORAL","manufacturer":null,"regulatoryCategory":"STANDARD","dosePerIntake":"1 comprimé","frequency":"3 fois par jour","intakeMoment":null,"durationDays":3,"quantity":"1 boîte","patientInstructions":null,"indication":null,"asNeeded":false,"renewalAllowed":false,"substitutionAllowed":false}
+            ]
+        })
+    }
+
+    #[test]
+    fn save_local_prescription_coalesces_create_and_ack_records_mapping() {
+        let mut connection = memory_db();
+        insert_patient(&connection, "patient-rx");
+        let first = save_prescription_draft_on_connection(
+            &mut connection,
+            &test_claims(),
+            prescription_input("patient-rx", None),
+        )
+        .expect("save create");
+        let second = save_prescription_draft_on_connection(
+            &mut connection,
+            &test_claims(),
+            prescription_input("patient-rx", Some(first.local_id.clone())),
+        )
+        .expect("coalesced save");
+        assert_eq!(first.operation_id, second.operation_id);
+        let operations: i64 = connection
+            .query_row("SELECT COUNT(*) FROM sync_outbox WHERE entity_type='PRESCRIPTION'", [], |r| r.get(0))
+            .expect("outbox count");
+        assert_eq!(operations, 1);
+        apply_push_results_on_connection(
+            &mut connection,
+            &[json!({
+                "operationId": first.operation_id,
+                "entityType": "PRESCRIPTION",
+                "localEntityId": first.local_id,
+                "status": "ACK",
+                "serverEntityId": "rx-server-1",
+                "serverVersion": 1,
+            })],
+        )
+        .expect("ack");
+        let row: (String, i64, String) = connection
+            .query_row(
+                "SELECT server_id, base_version, local_status FROM prescription_drafts WHERE local_id=?1",
+                params![second.local_id],
+                |r| Ok((r.get(0)?, r.get(1)?, r.get(2)?)),
+            )
+            .expect("ack row");
+        assert_eq!(row, ("rx-server-1".to_string(), 1, "SYNCED".to_string()));
+    }
+
+    #[test]
+    fn synced_draft_save_queues_update_and_conflict_is_retained() {
+        let mut connection = memory_db();
+        insert_patient(&connection, "patient-update");
+        let saved = save_prescription_draft_on_connection(
+            &mut connection, &test_claims(), prescription_input("patient-update", None),
+        ).expect("create");
+        apply_push_results_on_connection(&mut connection, &[json!({
+            "operationId": saved.operation_id, "entityType":"PRESCRIPTION", "localEntityId":saved.local_id,
+            "status":"ACK", "serverEntityId":"rx-server-update", "serverVersion":1
+        })]).expect("ack");
+        let updated = save_prescription_draft_on_connection(
+            &mut connection, &test_claims(), prescription_input("patient-update", Some(saved.local_id.clone())),
+        ).expect("update");
+        let operation: String = connection.query_row(
+            "SELECT operation FROM sync_outbox WHERE operation_id=?1", params![updated.operation_id], |r| r.get(0),
+        ).expect("update operation");
+        assert_eq!(operation, "UPDATE");
+        apply_push_results_on_connection(&mut connection, &[json!({
+            "operationId": updated.operation_id, "entityType":"PRESCRIPTION", "localEntityId":saved.local_id,
+            "status":"CONFLICT", "code":"SYNC_CONFLICT", "localVersion":1, "serverVersion":2,
+            "localPayload":{}, "serverPayload":server_prescription("rx-server-update", "patient-update", "DRAFT", 2)
+        })]).expect("conflict");
+        let state: String = connection.query_row(
+            "SELECT local_status FROM prescription_drafts WHERE local_id=?1", params![saved.local_id], |r| r.get(0),
+        ).expect("state");
+        assert_eq!(state, "CONFLICT");
+    }
+
+    #[test]
+    fn validated_pull_is_read_only_and_clean_tombstone_purges() {
+        let mut connection = memory_db();
+        insert_patient(&connection, "patient-terminal");
+        let tx = connection.transaction().expect("tx");
+        apply_server_prescription(&tx, &server_prescription("rx-terminal", "patient-terminal", "DRAFT", 1), "2026-10-29T10:00:00.000Z", false).expect("draft");
+        apply_server_prescription(&tx, &server_prescription("rx-terminal", "patient-terminal", "VALIDATED", 2), "2026-10-29T10:01:00.000Z", true).expect("validated");
+        tx.commit().expect("commit");
+        let row: (String, String) = connection.query_row(
+            "SELECT local_status, number FROM prescription_drafts WHERE server_id='rx-terminal'", [], |r| Ok((r.get(0)?, r.get(1)?)),
+        ).expect("validated row");
+        assert_eq!(row, ("READ_ONLY".to_string(), "ORD-2026-000001".to_string()));
+        let tx = connection.transaction().expect("tx");
+        apply_prescription_tombstone(&tx, &json!({"entityId":"rx-terminal","payload":{}}), "2026-10-29T10:02:00.000Z").expect("tombstone");
+        tx.commit().expect("commit");
+        let count: i64 = connection.query_row("SELECT COUNT(*) FROM prescription_drafts WHERE server_id='rx-terminal'", [], |r| r.get(0)).expect("count");
+        assert_eq!(count, 0);
+    }
+
+    #[test]
+    fn canceled_pull_is_read_only() {
+        let mut connection = memory_db();
+        insert_patient(&connection, "patient-canceled");
+        let tx = connection.transaction().expect("tx");
+        apply_server_prescription(&tx, &server_prescription("rx-canceled", "patient-canceled", "CANCELED", 3), "2026-10-29T10:00:00.000Z", false).expect("canceled");
+        tx.commit().expect("commit");
+        let state: String = connection.query_row(
+            "SELECT local_status FROM prescription_drafts WHERE server_id='rx-canceled'", [], |r| r.get(0),
+        ).expect("read only");
+        assert_eq!(state, "READ_ONLY");
+    }
+
+    #[test]
+    fn pending_prescription_tombstone_and_scope_removal_lock_the_patient() {
+        let mut connection = memory_db();
+        insert_patient(&connection, "patient-pending-rx");
+        let saved = save_prescription_draft_on_connection(
+            &mut connection, &test_claims(), prescription_input("patient-pending-rx", None),
+        ).expect("save");
+        apply_push_results_on_connection(&mut connection, &[json!({
+            "operationId": saved.operation_id, "entityType":"PRESCRIPTION", "localEntityId":saved.local_id,
+            "status":"ACK", "serverEntityId":"rx-pending", "serverVersion":1
+        })]).expect("ack");
+        save_prescription_draft_on_connection(
+            &mut connection, &test_claims(), prescription_input("patient-pending-rx", Some(saved.local_id.clone())),
+        ).expect("pending update");
+        let tx = connection.transaction().expect("tx");
+        apply_prescription_tombstone(&tx, &json!({"entityId":"rx-pending","payload":{}}), "2026-10-29T10:00:00.000Z").expect("pending tombstone");
+        reconcile_patients_tx(&tx, &[]).expect("scope removal");
+        tx.commit().expect("commit");
+        let locked: i64 = connection.query_row("SELECT locked FROM patients WHERE server_id='patient-pending-rx'", [], |r| r.get(0)).expect("locked");
+        assert_eq!(locked, 1);
+        let local: String = connection.query_row("SELECT local_status FROM prescription_drafts WHERE local_id=?1", params![saved.local_id], |r| r.get(0)).expect("draft remains");
+        assert_eq!(local, "CONFLICT");
     }
 
     fn patient_count(connection: &Connection, where_sql: &str) -> i64 {

@@ -1,16 +1,23 @@
 import { FormEvent, useCallback, useEffect, useMemo, useState } from "react";
 import {
   getSyncStatus,
+  listPatientPrescriptions,
   listLocalPatients,
   loginAndBootstrap,
   logoutLocal,
   saveConsultationDraft,
+  savePrescriptionDraft,
+  searchLocalMedications,
   sessionStatus,
   syncNow,
 } from "./desktop-api";
 import type {
   ConsultationDraftInput,
+  LocalMedication,
   LocalPatient,
+  LocalPrescription,
+  PrescriptionDraftInput,
+  PrescriptionItemInput,
   SessionStatus,
   SyncStatus,
 } from "./types";
@@ -24,6 +31,34 @@ const emptyDraft = (patientId: string): ConsultationDraftInput => ({
   assessment: "",
   carePlan: "",
   followUpPlan: "",
+});
+
+const emptyPrescriptionItem = (): PrescriptionItemInput => ({
+  dci: "",
+  brandName: null,
+  strength: "",
+  pharmaceuticalForm: "",
+  route: "",
+  manufacturer: null,
+  regulatoryCategory: "STANDARD",
+  dosePerIntake: "",
+  frequency: "",
+  intakeMoment: null,
+  durationDays: null,
+  quantity: "",
+  patientInstructions: null,
+  indication: null,
+  asNeeded: false,
+  renewalAllowed: false,
+  substitutionAllowed: false,
+});
+
+const emptyPrescriptionDraft = (patientId: string): PrescriptionDraftInput => ({
+  patientId,
+  type: "STANDARD",
+  validUntil: null,
+  regulatory: null,
+  items: [emptyPrescriptionItem()],
 });
 
 function formatDate(value?: string | null) {
@@ -42,6 +77,12 @@ function App() {
   const [patients, setPatients] = useState<LocalPatient[]>([]);
   const [selected, setSelected] = useState<LocalPatient | null>(null);
   const [draft, setDraft] = useState<ConsultationDraftInput | null>(null);
+  const [recordTab, setRecordTab] = useState<
+    "SUMMARY" | "CONSULTATIONS" | "PRESCRIPTIONS"
+  >("SUMMARY");
+  const [prescriptions, setPrescriptions] = useState<LocalPrescription[]>([]);
+  const [prescriptionDraft, setPrescriptionDraft] =
+    useState<PrescriptionDraftInput | null>(null);
   const [sync, setSync] = useState<SyncStatus>({
     state: navigator.onLine ? "ONLINE" : "OFFLINE",
     pendingCount: 0,
@@ -59,6 +100,14 @@ function App() {
     [query],
   );
 
+  const refreshPrescriptions = useCallback(async (patientId?: string) => {
+    if (!patientId) {
+      setPrescriptions([]);
+      return;
+    }
+    setPrescriptions(await listPatientPrescriptions(patientId));
+  }, []);
+
   const performSync = useCallback(async () => {
     // navigator.onLine is an indication only: the real availability is the
     // success of the signed API call. A DNS, TLS or 5xx failure leaves the
@@ -68,6 +117,7 @@ function App() {
       const next = await syncNow();
       setSync(next);
       await refreshPatients();
+      await refreshPrescriptions(selected?.id);
     } catch {
       const currentSession = await sessionStatus();
       if (!currentSession.authorized) {
@@ -79,7 +129,12 @@ function App() {
         setSync((current) => ({ ...current, state: "OFFLINE" }));
       }
     }
-  }, [refreshPatients]);
+  }, [refreshPatients, refreshPrescriptions, selected?.id]);
+
+  useEffect(() => {
+    setPrescriptionDraft(null);
+    void refreshPrescriptions(selected?.id);
+  }, [refreshPrescriptions, selected?.id]);
 
   useEffect(() => {
     void (async () => {
@@ -187,6 +242,8 @@ function App() {
                 onClick={() => {
                   setSelected(patient);
                   setDraft(null);
+                  setPrescriptionDraft(null);
+                  setRecordTab("SUMMARY");
                 }}
               >
                 <strong>
@@ -210,6 +267,22 @@ function App() {
                 Sélectionnez un patient synchronisé pour consulter son dossier.
               </p>
             </section>
+          ) : prescriptionDraft ? (
+            <PrescriptionEditor
+              patient={selected}
+              value={prescriptionDraft}
+              onChange={setPrescriptionDraft}
+              onCancel={() => setPrescriptionDraft(null)}
+              onSave={async () => {
+                const saved = await savePrescriptionDraft(prescriptionDraft);
+                setPrescriptionDraft((current) =>
+                  current ? { ...current, localId: saved.localId } : current,
+                );
+                await refreshPrescriptions(selected.id);
+                setSync(await getSyncStatus());
+                void performSync();
+              }}
+            />
           ) : draft ? (
             <ConsultationEditor
               patient={selected}
@@ -245,7 +318,27 @@ function App() {
                     </p>
                   )}
                 </div>
-                {!selected.locked && (
+                <nav className="record-tabs" aria-label="Dossier patient">
+                  <button
+                    className={recordTab === "SUMMARY" ? "active" : ""}
+                    onClick={() => setRecordTab("SUMMARY")}
+                  >
+                    Résumé
+                  </button>
+                  <button
+                    className={recordTab === "CONSULTATIONS" ? "active" : ""}
+                    onClick={() => setRecordTab("CONSULTATIONS")}
+                  >
+                    Consultations
+                  </button>
+                  <button
+                    className={recordTab === "PRESCRIPTIONS" ? "active" : ""}
+                    onClick={() => setRecordTab("PRESCRIPTIONS")}
+                  >
+                    Ordonnances
+                  </button>
+                </nav>
+                {!selected.locked && recordTab === "CONSULTATIONS" && (
                   <button
                     className="primary"
                     onClick={() => setDraft(emptyDraft(selected.id))}
@@ -253,7 +346,36 @@ function App() {
                     Nouvelle consultation
                   </button>
                 )}
+                {!selected.locked && recordTab === "PRESCRIPTIONS" && (
+                  <button
+                    className="primary"
+                    onClick={() => setPrescriptionDraft(emptyPrescriptionDraft(selected.id))}
+                  >
+                    + Nouveau brouillon
+                  </button>
+                )}
               </div>
+              {recordTab === "PRESCRIPTIONS" ? (
+                <PrescriptionList
+                  prescriptions={prescriptions}
+                  locked={Boolean(selected.locked)}
+                  onEdit={(prescription) =>
+                    setPrescriptionDraft({
+                      localId: prescription.localId,
+                      patientId: prescription.patientId,
+                      type: prescription.type,
+                      validUntil: prescription.validUntil,
+                      items: prescription.items,
+                    })
+                  }
+                />
+              ) : recordTab === "CONSULTATIONS" ? (
+                <section className="empty-state compact-empty">
+                  <h3>Consultations hors ligne</h3>
+                  <p>Créez une nouvelle consultation depuis ce dossier.</p>
+                </section>
+              ) : (
+                <>
               <div className="clinical-grid">
                 <ClinicalCard
                   title="Groupe sanguin"
@@ -283,6 +405,8 @@ function App() {
                 Dernière mise à jour serveur :{" "}
                 {formatDate(selected.serverUpdatedAt)}
               </p>
+                </>
+              )}
             </section>
           )}
         </main>
@@ -469,6 +593,296 @@ function ConsultationEditor({
         </button>
       </div>
     </section>
+  );
+}
+
+function PrescriptionList({
+  prescriptions,
+  locked,
+  onEdit,
+}: {
+  prescriptions: LocalPrescription[];
+  locked: boolean;
+  onEdit: (prescription: LocalPrescription) => void;
+}) {
+  if (!prescriptions.length) {
+    return (
+      <section className="empty-state compact-empty">
+        <h3>Aucune ordonnance locale</h3>
+        <p>Créez un brouillon pour préparer une ordonnance hors ligne.</p>
+      </section>
+    );
+  }
+  return (
+    <div className="prescription-list">
+      {prescriptions.map((prescription) => {
+        const editable =
+          !locked &&
+          prescription.localStatus !== "CONFLICT" &&
+          prescription.localStatus !== "READ_ONLY" &&
+          (!prescription.serverStatus || prescription.serverStatus === "DRAFT");
+        const label =
+          prescription.localStatus === "CONFLICT"
+            ? "Conflit — attention requise"
+            : prescription.serverStatus === "VALIDATED"
+              ? `Validée ${prescription.number ?? ""} · lecture seule`
+              : prescription.serverStatus === "CANCELED"
+                ? "Annulée · lecture seule"
+                : prescription.localStatus === "PENDING_SYNC"
+                  ? "En attente de synchronisation"
+                  : prescription.serverStatus === "DRAFT"
+                    ? "Brouillon synchronisé"
+                    : "Brouillon local";
+        return (
+          <article key={prescription.localId} className="prescription-card">
+            <div>
+              <strong>{prescription.number ?? "Ordonnance sans numéro"}</strong>
+              <p>{label}</p>
+              <small>
+                {prescription.items.map((item) => item.dci).join(" · ") || "Sans médicament"}
+              </small>
+            </div>
+            {editable && (
+              <button className="secondary" onClick={() => onEdit(prescription)}>
+                Modifier
+              </button>
+            )}
+          </article>
+        );
+      })}
+    </div>
+  );
+}
+
+function PrescriptionEditor({
+  patient,
+  value,
+  onChange,
+  onCancel,
+  onSave,
+}: {
+  patient: LocalPatient;
+  value: PrescriptionDraftInput;
+  onChange: (value: PrescriptionDraftInput) => void;
+  onCancel: () => void;
+  onSave: () => Promise<void>;
+}) {
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState("");
+  const updateItem = (index: number, next: PrescriptionItemInput) =>
+    onChange({
+      ...value,
+      items: value.items.map((item, itemIndex) =>
+        itemIndex === index ? next : item,
+      ),
+    });
+  const locallyValid = value.items.length > 0 && value.items.every(
+    (item) =>
+      item.dci.trim() &&
+      item.strength.trim() &&
+      item.pharmaceuticalForm.trim() &&
+      item.route.trim() &&
+      item.dosePerIntake.trim() &&
+      item.frequency.trim() &&
+      item.quantity.trim() &&
+      (!item.durationDays || item.durationDays > 0),
+  );
+  return (
+    <section>
+      <div className="record-heading">
+        <div>
+          <p className="eyebrow">Ordonnance hors ligne</p>
+          <h2>
+            {patient.firstName} {patient.lastName}
+          </h2>
+          <p className="scope-note">
+            La validation officielle et le numéro d’ordonnance exigent une connexion Internet.
+          </p>
+        </div>
+        <span className="draft-badge">Brouillon local</span>
+      </div>
+      <div className="editor-grid prescription-meta">
+        <label>
+          Type
+          <input
+            value={value.type}
+            onChange={(event) => onChange({ ...value, type: event.target.value })}
+            placeholder="STANDARD"
+          />
+        </label>
+        <label>
+          Valable jusqu’au
+          <input
+            type="date"
+            value={value.validUntil?.slice(0, 10) ?? ""}
+            onChange={(event) =>
+              onChange({ ...value, validUntil: event.target.value || null })
+            }
+          />
+        </label>
+      </div>
+      <div className="prescription-items">
+        {value.items.map((item, index) => (
+          <PrescriptionItemEditor
+            key={`${item.medicationId ?? "manual"}-${index}`}
+            index={index}
+            item={item}
+            onChange={(next) => updateItem(index, next)}
+            onRemove={
+              value.items.length > 1
+                ? () =>
+                    onChange({
+                      ...value,
+                      items: value.items.filter((_, itemIndex) => itemIndex !== index),
+                    })
+                : undefined
+            }
+          />
+        ))}
+      </div>
+      <button
+        className="secondary"
+        onClick={() => onChange({ ...value, items: [...value.items, emptyPrescriptionItem()] })}
+      >
+        + Ajouter un médicament
+      </button>
+      {error && <p className="error">{error}</p>}
+      <div className="editor-actions">
+        <button onClick={onCancel}>Fermer</button>
+        <button className="secondary" disabled title="Connexion Internet requise pour la validation officielle.">
+          Valider l’ordonnance (connexion requise)
+        </button>
+        <button
+          className="primary"
+          disabled={saving || !locallyValid}
+          onClick={() => {
+            setSaving(true);
+            setError("");
+            void onSave()
+              .catch((cause) => setError(String(cause)))
+              .finally(() => setSaving(false));
+          }}
+        >
+          {saving ? "Enregistrement…" : "Enregistrer localement"}
+        </button>
+      </div>
+    </section>
+  );
+}
+
+function PrescriptionItemEditor({
+  index,
+  item,
+  onChange,
+  onRemove,
+}: {
+  index: number;
+  item: PrescriptionItemInput;
+  onChange: (item: PrescriptionItemInput) => void;
+  onRemove?: () => void;
+}) {
+  const field = (key: keyof PrescriptionItemInput, label: string, type = "text") => (
+    <label>
+      {label}
+      <input
+        type={type}
+        value={String(item[key] ?? "")}
+        onChange={(event) =>
+          onChange({
+            ...item,
+            [key]: type === "number" ? (event.target.value ? Number(event.target.value) : null) : event.target.value,
+          })
+        }
+      />
+    </label>
+  );
+  return (
+    <article className="prescription-item">
+      <div className="item-heading">
+        <h3>Médicament {index + 1}</h3>
+        {onRemove && <button className="text-button" onClick={onRemove}>Retirer</button>}
+      </div>
+      <MedicationPicker
+        selected={item}
+        onSelect={(medication) =>
+          onChange({
+            ...item,
+            medicationId: medication.id,
+            dci: medication.dci,
+            brandName: medication.brandName ?? null,
+            strength: medication.strength,
+            pharmaceuticalForm: medication.pharmaceuticalForm,
+            route: medication.route,
+            manufacturer: medication.manufacturer ?? null,
+            regulatoryCategory: medication.regulatoryCategory,
+          })
+        }
+      />
+      <div className="editor-grid">
+        {field("dci", "DCI")}
+        {field("brandName", "Marque")}
+        {field("strength", "Dosage")}
+        {field("pharmaceuticalForm", "Forme pharmaceutique")}
+        {field("route", "Voie")}
+        {field("dosePerIntake", "Dose par prise")}
+        {field("frequency", "Fréquence")}
+        {field("intakeMoment", "Moment de prise")}
+        {field("durationDays", "Durée (jours)", "number")}
+        {field("quantity", "Quantité")}
+        {field("patientInstructions", "Instructions patient")}
+        {field("indication", "Indication")}
+      </div>
+      <div className="checkbox-row">
+        <label><input type="checkbox" checked={item.asNeeded} onChange={(event) => onChange({ ...item, asNeeded: event.target.checked })} /> Si besoin</label>
+        <label><input type="checkbox" checked={item.renewalAllowed} onChange={(event) => onChange({ ...item, renewalAllowed: event.target.checked })} /> Renouvelable</label>
+        <label><input type="checkbox" checked={item.substitutionAllowed} onChange={(event) => onChange({ ...item, substitutionAllowed: event.target.checked })} /> Substitution autorisée</label>
+      </div>
+    </article>
+  );
+}
+
+function MedicationPicker({
+  selected,
+  onSelect,
+}: {
+  selected: PrescriptionItemInput;
+  onSelect: (medication: LocalMedication) => void;
+}) {
+  const [query, setQuery] = useState("");
+  const [matches, setMatches] = useState<LocalMedication[]>([]);
+  useEffect(() => {
+    if (query.trim().length < 2) {
+      setMatches([]);
+      return;
+    }
+    void searchLocalMedications(query).then(setMatches).catch(() => setMatches([]));
+  }, [query]);
+  return (
+    <label className="medication-picker">
+      Rechercher dans le catalogue local (DCI, marque, dosage)
+      <input
+        value={query}
+        onChange={(event) => setQuery(event.target.value)}
+        placeholder={selected.dci || "ex. para"}
+      />
+      {matches.length > 0 && (
+        <div className="medication-results">
+          {matches.map((medication) => (
+            <button
+              key={medication.id}
+              type="button"
+              onClick={() => {
+                onSelect(medication);
+                setQuery("");
+                setMatches([]);
+              }}
+            >
+              {medication.dci} — {medication.brandName ?? "Sans marque"} — {medication.strength}
+            </button>
+          ))}
+        </div>
+      )}
+    </label>
   );
 }
 

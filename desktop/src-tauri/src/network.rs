@@ -167,6 +167,17 @@ pub async fn login_register_and_bootstrap(
         signed_request(&claims, &http, bootstrap_url, reqwest::Method::POST, None).await?;
     let bootstrap = checked_grant_json(bootstrap).await?;
     database::apply_bootstrap(app, &bootstrap)?;
+    let medications_url = endpoint(api_base, "sync/medications")?;
+    let medications = signed_request(
+        &claims,
+        &http,
+        medications_url,
+        reqwest::Method::GET,
+        None,
+    )
+    .await?;
+    let medications = checked_grant_json(medications).await?;
+    database::apply_medication_catalog(app, &medications)?;
     database::assert_clock(app, &claims)?;
     database::session_status(app, Some(&claims))
 }

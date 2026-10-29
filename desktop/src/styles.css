@@ -137,6 +137,28 @@ textarea {
   gap: 20px;
   margin-bottom: 24px;
 }
+.record-tabs {
+  display: flex;
+  gap: 4px;
+  padding: 4px;
+  border: 1px solid #d6e6e0;
+  border-radius: 10px;
+  background: #f8fbfa;
+}
+.record-tabs button {
+  border: 0;
+  border-radius: 7px;
+  padding: 7px 9px;
+  color: #5f766f;
+  background: transparent;
+  font-size: 12px;
+  font-weight: 800;
+}
+.record-tabs button.active {
+  color: #174d42;
+  background: #fff;
+  box-shadow: 0 1px 5px rgba(25, 73, 63, 0.1);
+}
 .clinical-grid {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
@@ -267,4 +289,88 @@ textarea {
   background: #fff3d7;
   font-size: 12px;
   font-weight: 800;
+}
+.compact-empty {
+  min-height: 190px;
+  padding: 45px 20px;
+}
+.prescription-list,
+.prescription-items {
+  display: grid;
+  gap: 12px;
+}
+.prescription-card,
+.prescription-item {
+  padding: 16px;
+  border: 1px solid #d6e6e0;
+  border-radius: 12px;
+  background: #fff;
+}
+.prescription-card {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+}
+.prescription-card p,
+.prescription-card small {
+  color: #5f766f;
+}
+.prescription-card p {
+  margin: 5px 0;
+  font-size: 13px;
+}
+.item-heading {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 12px;
+}
+.item-heading h3 {
+  margin: 0;
+  color: #357f70;
+  font-size: 15px;
+}
+.medication-picker {
+  position: relative;
+  margin-bottom: 14px;
+}
+.medication-results {
+  position: absolute;
+  z-index: 4;
+  top: calc(100% + 3px);
+  right: 0;
+  left: 0;
+  overflow: auto;
+  max-height: 220px;
+  border: 1px solid #b9d6cc;
+  border-radius: 10px;
+  background: #fff;
+  box-shadow: 0 12px 30px rgba(25, 73, 63, 0.14);
+}
+.medication-results button {
+  width: 100%;
+  padding: 10px 12px;
+  border: 0;
+  border-bottom: 1px solid #edf4f1;
+  color: #17342f;
+  background: #fff;
+  text-align: left;
+}
+.medication-results button:hover {
+  background: #eaf6f1;
+}
+.checkbox-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 14px;
+  margin-top: 14px;
+}
+.checkbox-row label {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+}
+.checkbox-row input {
+  width: auto;
 }

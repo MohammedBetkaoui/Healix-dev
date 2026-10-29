@@ -47,6 +47,36 @@ fn save_consultation_draft(
 }
 
 #[tauri::command]
+fn list_patient_prescriptions(
+    app: AppHandle,
+    patient_id: String,
+) -> Result<Vec<serde_json::Value>, String> {
+    authorize(&app)?;
+    database::list_patient_prescriptions(&app, &patient_id)
+}
+
+#[tauri::command]
+fn get_local_prescription(app: AppHandle, local_id: String) -> Result<serde_json::Value, String> {
+    authorize(&app)?;
+    database::get_local_prescription(&app, &local_id)
+}
+
+#[tauri::command]
+fn save_prescription_draft(
+    app: AppHandle,
+    input: database::PrescriptionDraftInput,
+) -> Result<database::SavedDraft, String> {
+    let (_, claims) = authorize(&app)?;
+    database::save_prescription_draft(&app, &claims, input)
+}
+
+#[tauri::command]
+fn search_local_medications(app: AppHandle, query: String) -> Result<Vec<serde_json::Value>, String> {
+    authorize(&app)?;
+    database::search_local_medications(&app, &query)
+}
+
+#[tauri::command]
 async fn sync_now(app: AppHandle, api_base: String) -> Result<database::SyncStatus, String> {
     let (grant, claims) = authorize(&app)?;
     network::sync_now(&app, &api_base, &grant, &claims).await
@@ -71,6 +101,10 @@ pub fn run() {
             login_register_and_bootstrap,
             list_local_patients,
             save_consultation_draft,
+            list_patient_prescriptions,
+            get_local_prescription,
+            save_prescription_draft,
+            search_local_medications,
             sync_now,
             get_sync_status,
             logout_local

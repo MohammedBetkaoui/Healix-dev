@@ -2,6 +2,9 @@ import { invoke } from "@tauri-apps/api/core";
 import type {
   ConsultationDraftInput,
   LocalPatient,
+  LocalMedication,
+  LocalPrescription,
+  PrescriptionDraftInput,
   SessionStatus,
   SyncStatus,
 } from "./types";
@@ -34,6 +37,25 @@ export async function saveConsultationDraft(input: ConsultationDraftInput) {
     "save_consultation_draft",
     { input },
   );
+}
+
+export async function listPatientPrescriptions(patientId: string) {
+  return invoke<LocalPrescription[]>("list_patient_prescriptions", { patientId });
+}
+
+export async function getLocalPrescription(localId: string) {
+  return invoke<LocalPrescription>("get_local_prescription", { localId });
+}
+
+export async function savePrescriptionDraft(input: PrescriptionDraftInput) {
+  return invoke<{ localId: string; operationId: string }>(
+    "save_prescription_draft",
+    { input },
+  );
+}
+
+export async function searchLocalMedications(query: string) {
+  return invoke<LocalMedication[]>("search_local_medications", { query });
 }
 
 export async function syncNow() {
