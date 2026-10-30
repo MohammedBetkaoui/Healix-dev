@@ -1,39 +1,40 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
-import { Calendar, ClipboardList, Pill as PillIcon } from "lucide-react";
+import { useCallback, useEffect, useState } from "react";
+import { BackButton } from "./dashboard-ui";
 import { DashboardShell } from "./DashboardShell";
-import { emptyDraft, emptyPrescriptionDraft } from "./drafts";
-import { fr } from "./i18n/fr";
-import { pushRecentPatient, type Route } from "./layout/navigation";
-import { ConsultationEditorPage } from "./pages/ConsultationEditorPage";
+import {
+  getSyncStatus,
+  listLocalPatients,
+  loginAndBootstrap,
+  logoutLocal,
+  sessionStatus,
+  syncNow,
+} from "./desktop-api";
+import { describeError } from "./errors";
+import { isDetailRoute, NEW_ID, pushRecentPatient, type Route } from "./layout/navigation";
+import { AppointmentsPage } from "./pages/AppointmentsPage";
+import { ConsultationPage } from "./pages/ConsultationPage";
+import { ConsultationsPage } from "./pages/ConsultationsPage";
 import { LoginPage } from "./pages/LoginPage";
-import { PagePlaceholder } from "./pages/PagePlaceholder";
 import { PatientRecordPage } from "./pages/PatientRecordPage";
-import { PrescriptionEditorPage } from "./pages/PrescriptionEditorPage";
+import { PrescriptionPage } from "./pages/PrescriptionPage";
+import { PrescriptionsPage } from "./pages/PrescriptionsPage";
 import { SettingsPage } from "./pages/SettingsPage";
 import { SyncPage } from "./pages/SyncPage";
 import { TodayPage } from "./pages/TodayPage";
 import { PatientDirectory } from "./PatientDirectory";
+import type { LocalAppointment, LocalPatient, SessionStatus, SyncStatus } from "./types";
 import { openHealixAi } from "./web-app";
-import {
-  getSyncStatus,
-  listPatientPrescriptions,
-  listLocalPatients,
-  loginAndBootstrap,
-  logoutLocal,
-  saveConsultationDraft,
-  savePrescriptionDraft,
-  sessionStatus,
-  syncNow,
-} from "./desktop-api";
-import type {
-  ConsultationDraftInput,
-  LocalPatient,
-  LocalPrescription,
-  PrescriptionDraftInput,
-  SessionStatus,
-  SyncStatus,
-} from "./types";
 
+// Where "Retour" leads when the page was not opened from another one.
+const parentOf = (route: Route): Route =>
+  route.name === "consultation"
+    ? { name: "consultations" }
+    : route.name === "prescription"
+      ? { name: "prescriptions" }
+      : { name: "patients" };
+
+// The session, the current route and the synchronization. The pages own
+// everything else.
 function App() {
   const [session, setSession] = useState<SessionStatus>({ authorized: false });
   const [loading, setLoading] = useState(true);
@@ -42,20 +43,17 @@ function App() {
   const [patients, setPatients] = useState<LocalPatient[]>([]);
   const [selected, setSelected] = useState<LocalPatient | null>(null);
   const [route, setRoute] = useState<Route>({ name: "today" });
+  const [backStack, setBackStack] = useState<Route[]>([]);
   const [recentPatients, setRecentPatients] = useState<LocalPatient[]>([]);
   const [patientCount, setPatientCount] = useState(0);
-  const [draft, setDraft] = useState<ConsultationDraftInput | null>(null);
-  const [recordTab, setRecordTab] = useState<
-    "SUMMARY" | "CONSULTATIONS" | "PRESCRIPTIONS"
-  >("SUMMARY");
-  const [prescriptions, setPrescriptions] = useState<LocalPrescription[]>([]);
-  const [prescriptionDraft, setPrescriptionDraft] =
-    useState<PrescriptionDraftInput | null>(null);
+  // Bumped after a synchronization or a save: the pages reload their lists.
+  const [version, setVersion] = useState(0);
   const [sync, setSync] = useState<SyncStatus>({
     state: navigator.onLine ? "ONLINE" : "OFFLINE",
     pendingCount: 0,
     conflictCount: 0,
   });
+  const bump = useCallback(() => setVersion((current) => current + 1), []);
 
   const refreshPatients = useCallback(
     async (search = query) => {
@@ -65,20 +63,10 @@ function App() {
       if (!search.trim()) setPatientCount(rows.length);
       const fresh = (patient: LocalPatient) => rows.find((row) => row.id === patient.id) ?? patient;
       setRecentPatients((current) => current.map(fresh));
-      setSelected((current) =>
-        current ? (rows.find((row) => row.id === current.id) ?? current) : null,
-      );
+      setSelected((current) => (current ? fresh(current) : null));
     },
     [query],
   );
-
-  const refreshPrescriptions = useCallback(async (patientId?: string) => {
-    if (!patientId) {
-      setPrescriptions([]);
-      return;
-    }
-    setPrescriptions(await listPatientPrescriptions(patientId));
-  }, []);
 
   const performSync = useCallback(async () => {
     // navigator.onLine is an indication only: the real availability is the
@@ -89,24 +77,19 @@ function App() {
       const next = await syncNow();
       setSync(next);
       await refreshPatients();
-      await refreshPrescriptions(selected?.id);
+      bump();
     } catch {
       const currentSession = await sessionStatus();
       if (!currentSession.authorized) {
         setSession({ authorized: false });
         setPatients([]);
         setSelected(null);
-        setDraft(null);
+        setRoute({ name: "today" });
       } else {
         setSync((current) => ({ ...current, state: "OFFLINE" }));
       }
     }
-  }, [refreshPatients, refreshPrescriptions, selected?.id]);
-
-  useEffect(() => {
-    setPrescriptionDraft(null);
-    void refreshPrescriptions(selected?.id);
-  }, [refreshPrescriptions, selected?.id]);
+  }, [refreshPatients, bump]);
 
   useEffect(() => {
     void (async () => {
@@ -118,7 +101,7 @@ function App() {
           setSync(await getSyncStatus());
         }
       } catch (cause) {
-        setError(String(cause));
+        setError(describeError(cause));
       } finally {
         setLoading(false);
       }
@@ -138,11 +121,6 @@ function App() {
     };
   }, [performSync, session.authorized]);
 
-  const patientSummary = useMemo(
-    () => selected?.medicalSummary ?? {},
-    [selected],
-  );
-
   if (loading) return <main className="center-card">Ouverture sécurisée…</main>;
 
   if (!session.authorized) {
@@ -156,10 +134,12 @@ function App() {
             const next = await loginAndBootstrap(input);
             setSession(next);
             setRoute({ name: "today" });
+            setBackStack([]);
             await refreshPatients("");
             setSync(await getSyncStatus());
+            bump();
           } catch (cause) {
-            setError(String(cause));
+            setError(describeError(cause));
           } finally {
             setLoading(false);
           }
@@ -168,32 +148,144 @@ function App() {
     );
   }
 
+  // A detail page remembers where it was opened from, for "Retour".
+  const go = (next: Route) => {
+    setBackStack((current) => (isDetailRoute(next) ? [...current, route].slice(-20) : []));
+    setRoute(next);
+  };
+
   const openPatient = (patient: LocalPatient) => {
     setSelected(patient);
-    setDraft(null);
-    setPrescriptionDraft(null);
-    setRecordTab("SUMMARY");
-    setRoute({ name: "patient", id: patient.id });
     setRecentPatients((current) => pushRecentPatient(current, patient));
+    go({ name: "patient", id: patient.id });
+  };
+
+  // The record may not be in the (searched) list: the whole device is asked.
+  const findPatient = async (id: string) =>
+    patients.find((row) => row.id === id) ??
+    recentPatients.find((row) => row.id === id) ??
+    (await listLocalPatients("")).find((row) => row.id === id);
+
+  const openPatientById = async (id: string) => {
+    const patient = await findPatient(id);
+    if (patient) openPatient(patient);
   };
 
   const navigate = (next: Route) => {
-    if (next.name === "patient") {
-      const patient = patients.find((row) => row.id === next.id) ?? recentPatients.find((row) => row.id === next.id);
-      if (patient) openPatient(patient);
+    if (next.name === "patient") void openPatientById(next.id);
+    else go(next);
+  };
+
+  const goBack = async () => {
+    const previous = backStack[backStack.length - 1];
+    setBackStack((current) => current.slice(0, -1));
+    const target = previous ?? parentOf(route);
+    if (target.name === "patient") {
+      const patient = await findPatient(target.id);
+      if (patient) {
+        setSelected(patient);
+        setRoute(target);
+        return;
+      }
+      setRoute({ name: "patients" });
       return;
     }
-    setSelected(null);
-    setDraft(null);
-    setPrescriptionDraft(null);
-    setRoute(next);
+    setRoute(target);
   };
+
+  const startConsultation = (appointment: LocalAppointment) =>
+    go({
+      name: "consultation",
+      id: NEW_ID,
+      patientId: appointment.patientId,
+      patientName: appointment.patientName,
+      reason: appointment.reason ?? "",
+    });
+
+  // After a draft is saved: the lists reload and the outbox is pushed.
+  const afterSave = async () => {
+    bump();
+    setSync(await getSyncStatus());
+    void performSync();
+  };
+
+  const offline = sync.state === "OFFLINE";
+  const openConsultation = (id: string) => go({ name: "consultation", id });
+  const openPrescription = (id: string) => go({ name: "prescription", id });
+
+  const page =
+    route.name === "today" ? (
+      <TodayPage
+        name={session.user?.fullName ?? "Docteur"}
+        sync={sync}
+        version={version}
+        recentPatients={recentPatients}
+        onOpenPatient={(id) => void openPatientById(id)}
+        onStartConsultation={startConsultation}
+        onOpenConsultation={openConsultation}
+        onOpenPrescription={openPrescription}
+      />
+    ) : route.name === "patients" || (route.name === "patient" && selected?.id !== route.id) ? (
+      <PatientDirectory patients={patients} query={query} onSelect={openPatient} />
+    ) : route.name === "patient" && selected ? (
+      <PatientRecordPage
+        key={selected.id}
+        patient={selected}
+        version={version}
+        offline={offline}
+        onNewConsultation={() =>
+          go({ name: "consultation", id: NEW_ID, patientId: selected.id, patientName: `${selected.firstName} ${selected.lastName}` })
+        }
+        onNewPrescription={() =>
+          go({ name: "prescription", id: NEW_ID, patientId: selected.id, patientName: `${selected.firstName} ${selected.lastName}` })
+        }
+        onOpenConsultation={openConsultation}
+        onOpenPrescription={openPrescription}
+        onOpenHealixAi={() => void openHealixAi(selected.id).catch(() => undefined)}
+      />
+    ) : route.name === "appointments" ? (
+      <AppointmentsPage
+        sync={sync}
+        version={version}
+        onOpenPatient={(id) => void openPatientById(id)}
+        onStartConsultation={startConsultation}
+      />
+    ) : route.name === "consultations" ? (
+      <ConsultationsPage version={version} onOpen={openConsultation} />
+    ) : route.name === "consultation" ? (
+      <ConsultationPage
+        key={route.id === NEW_ID ? `new-${route.patientId}` : route.id}
+        id={route.id}
+        isNew={route.id === NEW_ID}
+        patientId={route.patientId}
+        patientName={route.patientName}
+        reason={route.reason}
+        onSaved={afterSave}
+        onClose={() => void goBack()}
+      />
+    ) : route.name === "prescriptions" ? (
+      <PrescriptionsPage version={version} onOpen={openPrescription} />
+    ) : route.name === "prescription" ? (
+      <PrescriptionPage
+        key={route.id === NEW_ID ? `new-${route.patientId}` : route.id}
+        id={route.id}
+        isNew={route.id === NEW_ID}
+        patientId={route.patientId}
+        patientName={route.patientName}
+        onSaved={afterSave}
+        onClose={() => void goBack()}
+      />
+    ) : route.name === "sync" ? (
+      <SyncPage status={sync} onSync={() => void performSync()} />
+    ) : (
+      <SettingsPage session={session} sync={sync} />
+    );
 
   return (
     <DashboardShell
       session={session}
       route={route}
-      patient={selected}
+      patient={route.name === "patient" ? selected : null}
       patientCount={patientCount}
       recentPatients={recentPatients}
       query={query}
@@ -206,87 +298,23 @@ function App() {
       }}
       onNavigate={navigate}
       onOpenPatient={openPatient}
-      onOpenHealixAi={() => void openHealixAi(selected?.id).catch(() => undefined)}
+      onOpenHealixAi={() =>
+        void openHealixAi(route.name === "patient" ? route.id : undefined).catch(() => undefined)
+      }
       onLogout={() =>
         void logoutLocal().then(() => {
           setSession({ authorized: false });
           setSelected(null);
           setRecentPatients([]);
+          setBackStack([]);
           setRoute({ name: "today" });
         })
       }
     >
-      {route.name === "today" ? (
-        <TodayPage
-          name={session.user?.fullName ?? "Docteur"}
-          patientCount={patientCount}
-          sync={sync}
-          recentPatients={recentPatients}
-          onOpenPatient={openPatient}
-        />
-      ) : route.name === "patients" || (route.name === "patient" && !selected) ? (
-        <PatientDirectory patients={patients} query={query} onSelect={openPatient} />
-      ) : route.name === "appointments" ? (
-        <PagePlaceholder icon={Calendar} title={fr.nav.items.appointments} />
-      ) : route.name === "consultations" ? (
-        <PagePlaceholder icon={ClipboardList} title={fr.nav.items.consultations} />
-      ) : route.name === "prescriptions" ? (
-        <PagePlaceholder icon={PillIcon} title={fr.nav.items.prescriptions} />
-      ) : route.name === "sync" ? (
-        <SyncPage status={sync} onSync={() => void performSync()} />
-      ) : route.name === "settings" ? (
-        <SettingsPage session={session} sync={sync} />
-      ) : !selected ? null : prescriptionDraft ? (
-        <PrescriptionEditorPage
-          patient={selected}
-          value={prescriptionDraft}
-          onChange={setPrescriptionDraft}
-          onCancel={() => setPrescriptionDraft(null)}
-          onSave={async () => {
-            const saved = await savePrescriptionDraft(prescriptionDraft);
-            setPrescriptionDraft((current) =>
-              current ? { ...current, localId: saved.localId } : current,
-            );
-            await refreshPrescriptions(selected.id);
-            setSync(await getSyncStatus());
-            void performSync();
-          }}
-        />
-      ) : draft ? (
-        <ConsultationEditorPage
-          patient={selected}
-          value={draft}
-          onChange={setDraft}
-          onCancel={() => setDraft(null)}
-          onSave={async () => {
-            const saved = await saveConsultationDraft(draft);
-            setDraft((current) =>
-              current ? { ...current, localId: saved.localId } : current,
-            );
-            setSync(await getSyncStatus());
-            void performSync();
-          }}
-        />
-      ) : (
-        <PatientRecordPage
-          patient={selected}
-          summary={patientSummary}
-          tab={recordTab}
-          prescriptions={prescriptions}
-          onTab={setRecordTab}
-          onNewConsultation={() => setDraft(emptyDraft(selected.id))}
-          onNewPrescription={() => setPrescriptionDraft(emptyPrescriptionDraft(selected.id))}
-          onEditPrescription={(prescription) =>
-            setPrescriptionDraft({
-              localId: prescription.localId,
-              patientId: prescription.patientId,
-              type: prescription.type,
-              validUntil: prescription.validUntil,
-              items: prescription.items,
-            })
-          }
-        />
-      )}
+      <div className="space-y-4">
+        {isDetailRoute(route) ? <BackButton onClick={() => void goBack()} /> : null}
+        {page}
+      </div>
     </DashboardShell>
   );
 }

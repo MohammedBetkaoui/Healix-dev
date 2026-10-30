@@ -25,3 +25,9 @@ export async function openHealixAi(patientId?: string) {
   if (!WEB_APP_URL) return;
   await openUrl(healixAiUrl(WEB_APP_URL, patientId));
 }
+
+// A page of the Web platform's doctor space (the opener scope allows /doctor/*).
+export async function openWebPath(path: string) {
+  if (!WEB_APP_URL) return;
+  await openUrl(`${WEB_APP_URL}${path}`);
+}

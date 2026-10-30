@@ -1,10 +1,14 @@
 import { invoke as tauriInvoke } from "@tauri-apps/api/core";
 import type {
+  ConsultationDetail,
   ConsultationDraftInput,
+  ConsultationSummary,
+  LocalAppointment,
   LocalPatient,
   LocalMedication,
   LocalPrescription,
   PrescriptionDraftInput,
+  PrescriptionSummary,
   SessionStatus,
   SyncStatus,
 } from "./types";
@@ -67,6 +71,29 @@ export async function loginAndBootstrap(input: {
 
 export async function listLocalPatients(query: string) {
   return invokeDesktop<LocalPatient[]>("list_local_patients", { query });
+}
+
+// Read-only views for the pages: the agenda of a period (ISO instants, the end
+// excluded), and the consultations and prescriptions of the workspace or of one
+// patient.
+export async function listAppointments(from: string, to: string) {
+  return invokeDesktop<LocalAppointment[]>("list_appointments", { from, to });
+}
+
+export async function listConsultations(patientId?: string | null) {
+  return invokeDesktop<ConsultationSummary[]>("list_consultations", {
+    patientId: patientId ?? null,
+  });
+}
+
+export async function getConsultation(localId: string) {
+  return invokeDesktop<ConsultationDetail>("get_consultation", { localId });
+}
+
+export async function listPrescriptions(patientId?: string | null) {
+  return invokeDesktop<PrescriptionSummary[]>("list_prescriptions", {
+    patientId: patientId ?? null,
+  });
 }
 
 export async function saveConsultationDraft(input: ConsultationDraftInput) {

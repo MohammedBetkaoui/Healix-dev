@@ -13,9 +13,15 @@ export type Route =
   | { name: "patient"; id: string }
   | { name: "appointments" }
   | { name: "consultations" }
+  // A consultation or a prescription: `id` is its local id, or NEW_ID to start
+  // one (for a patient, optionally with the reason of an appointment).
+  | { name: "consultation"; id: string; patientId?: string; patientName?: string; reason?: string }
+  | { name: "prescription"; id: string; patientId?: string; patientName?: string }
   | { name: "prescriptions" }
   | { name: "sync" }
   | { name: "settings" };
+
+export const NEW_ID = "new";
 
 export type NavKey = keyof typeof fr.nav.items;
 
@@ -56,8 +62,21 @@ export const navSections: NavSection[] = [
 
 // The menu entry a route belongs to: an open record is under Patients.
 export function activeNavKey(route: Route): NavKey {
-  return route.name === "patient" ? "patients" : route.name;
+  switch (route.name) {
+    case "patient":
+      return "patients";
+    case "consultation":
+      return "consultations";
+    case "prescription":
+      return "prescriptions";
+    default:
+      return route.name;
+  }
 }
+
+// Pages that open from another one and offer "Retour".
+export const isDetailRoute = (route: Route) =>
+  route.name === "patient" || route.name === "consultation" || route.name === "prescription";
 
 export function routeTitle(route: Route, patient?: LocalPatient | null): string {
   if (route.name === "patient") {

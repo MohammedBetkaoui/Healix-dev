@@ -1,18 +1,18 @@
 import { useState } from "react";
 import { FileText, Plus, TriangleAlert } from "lucide-react";
 import { Button, Field, Notice, PageHeader, Pill, inputClass } from "../dashboard-ui";
-import type { LocalPatient, PrescriptionDraftInput, PrescriptionItemInput } from "../types";
+import type { PrescriptionDraftInput, PrescriptionItemInput } from "../types";
 import { emptyPrescriptionItem } from "../drafts";
 import { PrescriptionItemEditor } from "../components/PrescriptionItemEditor";
 
 export function PrescriptionEditorPage({
-  patient,
+  patientName,
   value,
   onChange,
   onCancel,
   onSave,
 }: {
-  patient: LocalPatient;
+  patientName: string;
   value: PrescriptionDraftInput;
   onChange: (value: PrescriptionDraftInput) => void;
   onCancel: () => void;
@@ -43,7 +43,7 @@ export function PrescriptionEditorPage({
       <PageHeader
         icon={<FileText className="h-5 w-5" strokeWidth={1.7} aria-hidden="true" />}
         eyebrow="Ordonnance hors ligne"
-        title={`${patient.firstName} ${patient.lastName}`}
+        title={patientName}
         description="La validation officielle et le numéro d’ordonnance exigent une connexion Internet."
         actions={<Pill tone="warning">Brouillon local</Pill>}
       />

@@ -13,6 +13,7 @@ export type LocalPatient = {
   lastNameAr: string;
   birthDate: string;
   bloodGroup?: string | null;
+  gender?: string | null;
   hospitalRecordNumber?: string | null;
   locked?: boolean;
   lockReason?: string;
@@ -114,4 +115,92 @@ export type LocalPrescription = {
   items: PrescriptionItemInput[];
   number?: string | null;
   updatedAt: string;
+};
+
+export type AppointmentStatus =
+  | "SCHEDULED"
+  | "CONFIRMED"
+  | "COMPLETED"
+  | "NO_SHOW"
+  | "CANCELED";
+
+// A cached appointment (cloud -> device, read-only), with its patient.
+export type LocalAppointment = {
+  id: string;
+  patientId: string;
+  patientName: string;
+  patientLocked: boolean;
+  scheduledAt: string;
+  durationMinutes: number | null;
+  reason: string | null;
+  status: AppointmentStatus | null;
+};
+
+// What the pages show of a consultation, deduced from the consultation and the
+// outbox: DRAFT (local draft), PENDING_SYNC, SYNCED, CONFLICT.
+export type ConsultationState = "DRAFT" | "PENDING_SYNC" | "SYNCED" | "CONFLICT";
+
+export type ConsultationSummary = {
+  localId: string;
+  serverId: string | null;
+  patientId: string;
+  patientName: string;
+  patientLocked: boolean;
+  date: string;
+  chiefComplaint: string | null;
+  firstDiagnosis: string | null;
+  status: string | null;
+  localStatus: string;
+  state: ConsultationState;
+  pendingSync: boolean;
+  editable: boolean;
+};
+
+export type ConsultationDiagnosis = {
+  label: string;
+  code?: string | null;
+  isPrimary?: boolean;
+  note?: string | null;
+};
+
+export type ConsultationVitalSigns = {
+  systolicBp?: number | null;
+  diastolicBp?: number | null;
+  heartRate?: number | null;
+  respiratoryRate?: number | null;
+  oxygenSaturation?: number | null;
+  temperature?: number | null;
+  weightKg?: number | null;
+  heightCm?: number | null;
+};
+
+export type ConsultationDetail = Omit<ConsultationSummary, "chiefComplaint" | "firstDiagnosis"> & {
+  appointmentId: string | null;
+  startedAt: string | null;
+  completedAt: string | null;
+  chiefComplaint: string;
+  historyPresentIllness: string;
+  clinicalExamination: string;
+  assessment: string;
+  carePlan: string;
+  followUpPlan: string;
+  vitalSigns: ConsultationVitalSigns | null;
+  diagnoses: ConsultationDiagnosis[];
+  addenda: Array<{ id: string; content: string; createdAt?: string }>;
+};
+
+export type PrescriptionSummary = {
+  localId: string;
+  serverId: string | null;
+  patientId: string;
+  patientName: string;
+  patientLocked: boolean;
+  serverStatus: LocalPrescription["serverStatus"];
+  localStatus: LocalPrescription["localStatus"];
+  type: string;
+  validUntil: string | null;
+  number: string | null;
+  updatedAt: string;
+  itemCount: number;
+  medications: string | null;
 };

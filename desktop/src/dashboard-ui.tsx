@@ -1,5 +1,5 @@
 import type { ComponentProps, ReactNode } from "react";
-import type { LucideIcon } from "lucide-react";
+import { ArrowLeft, WifiOff, type LucideIcon } from "lucide-react";
 
 // Building blocks of the Desktop dashboard. The class strings are the Web
 // app's own (components/ui/button.tsx, PatientRegistryPage.tsx) so a control
@@ -204,4 +204,86 @@ export function Pill({ tone, children }: { tone: "success" | "warning" | "danger
       {children}
     </span>
   );
+}
+
+// The Web StatusBadge (components/dashboard/shared/StatusBadge.tsx).
+export type StatusTone = "neutral" | "success" | "warning" | "danger" | "info";
+
+const statusTones: Record<StatusTone, string> = {
+  neutral: "border-[var(--line)] bg-[var(--panel-soft)] text-[var(--ink-soft)]",
+  success: "border-[var(--success-line)] bg-[var(--success-soft)] text-[var(--success-ink)]",
+  warning: "border-[var(--warning-line)] bg-[var(--warning-soft)] text-[var(--warning-ink)]",
+  danger: "border-[var(--danger-line)] bg-[var(--danger-soft)] text-[var(--danger-ink)]",
+  info: "border-[var(--accent-line)] bg-[var(--accent-soft)] text-[var(--accent-dark)]",
+};
+
+export function StatusBadge({ label, tone = "neutral" }: { label: string; tone?: StatusTone }) {
+  return (
+    <span
+      data-tone={tone}
+      className={cn(
+        "clinical-status-badge inline-flex items-center whitespace-nowrap rounded-full border px-2.5 py-1 font-[var(--font-auth-mono)] text-[0.66rem] font-medium tracking-[0.03em]",
+        statusTones[tone],
+      )}
+    >
+      {label}
+    </span>
+  );
+}
+
+// "Retour" of the detail views.
+export function BackButton({ onClick, label = "Retour" }: { onClick: () => void; label?: string }) {
+  return (
+    <button type="button" className="clinical-link -mb-2" onClick={onClick}>
+      <ArrowLeft size={16} strokeWidth={1.8} aria-hidden="true" />
+      {label}
+    </button>
+  );
+}
+
+// The strip shown while the application is offline (same shape as the Web
+// subscription banner).
+export function OfflineBanner({ children }: { children: ReactNode }) {
+  return (
+    <section
+      role="status"
+      data-offline-banner=""
+      className="flex items-start gap-3 rounded-[var(--radius-md)] border border-[var(--warning-line)] bg-[var(--warning-soft)] px-5 py-3 text-[var(--warning-ink)]"
+    >
+      <WifiOff aria-hidden="true" size={18} strokeWidth={1.9} className="mt-0.5 shrink-0" />
+      <p className="text-sm font-semibold">{children}</p>
+    </section>
+  );
+}
+
+// Loading, error and empty states of a list: one place, same look everywhere.
+export function ListState({ loading, error, empty, children, emptyIcon: Icon, emptyTitle, emptyText }: {
+  loading: boolean;
+  error: string | null;
+  empty: boolean;
+  children: ReactNode;
+  emptyIcon: LucideIcon;
+  emptyTitle: string;
+  emptyText: string;
+}) {
+  if (error) {
+    return (
+      <div role="alert" className="px-6 py-12 text-center text-sm text-[var(--danger-ink)]">
+        {error}
+      </div>
+    );
+  }
+  if (loading && empty) {
+    return <div role="status" className="px-6 py-12 text-center text-sm text-[var(--ink-faint)]">Chargement…</div>;
+  }
+  if (empty) {
+    return (
+      <div className="team-empty">
+        <Icon size={32} strokeWidth={1.5} aria-hidden="true" />
+        <strong className="text-[var(--ink)]">{emptyTitle}</strong>
+        <span>{emptyText}</span>
+      </div>
+    );
+  }
+  return <>{children}</>;
 }

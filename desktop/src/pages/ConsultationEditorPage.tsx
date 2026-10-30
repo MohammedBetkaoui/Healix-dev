@@ -1,16 +1,16 @@
 import { useState } from "react";
 import { Stethoscope } from "lucide-react";
 import { Button, Field, PageHeader, Pill, textareaClass } from "../dashboard-ui";
-import type { ConsultationDraftInput, LocalPatient } from "../types";
+import type { ConsultationDraftInput } from "../types";
 
 export function ConsultationEditorPage({
-  patient,
+  patientName,
   value,
   onChange,
   onCancel,
   onSave,
 }: {
-  patient: LocalPatient;
+  patientName: string;
   value: ConsultationDraftInput;
   onChange: (value: ConsultationDraftInput) => void;
   onCancel: () => void;
@@ -31,7 +31,7 @@ export function ConsultationEditorPage({
       <PageHeader
         icon={<Stethoscope className="h-5 w-5" strokeWidth={1.7} aria-hidden="true" />}
         eyebrow="Consultation hors ligne"
-        title={`${patient.firstName} ${patient.lastName}`}
+        title={patientName}
         actions={<Pill tone="warning">Brouillon local</Pill>}
       />
       <div className="surface-section p-5 sm:p-6">
