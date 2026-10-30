@@ -258,12 +258,23 @@ jobs:
           if ($process.ExitCode -ne 0) {
             throw "Le package NSIS s'est terminé avec l'exit code $($process.ExitCode) (attendu 0)."
           }
-          $app = Join-Path $smokeDir "HealixDz Desktop.exe"
-          $deadline = [DateTime]::UtcNow.AddSeconds(60)
-          while (([DateTime]::UtcNow -lt $deadline) -and -not (Test-Path $app)) {
-            Start-Sleep -Seconds 2
+          # L'exécutable installé porte le nom du binaire cargo
+          # (healixdz-desktop.exe) : le résoudre via l'InstallLocation de
+          # la clé de désinstallation, en cherchant tout .exe qui n'est pas
+          # uninstall.exe — sans supposer de nom.
+          $app = $null
+          $registryLocations = @($(
+            (Get-ItemProperty "HKCU:\Software\Microsoft\Windows\CurrentVersion\Uninstall\*" -ErrorAction SilentlyContinue |
+              Where-Object { $_.DisplayName -eq "HealixDz Desktop" }).InstallLocation
+          )) | Where-Object { $_ } | ForEach-Object { $_.Trim('"') }
+          $dirs = @($smokeDir) + $registryLocations
+          foreach ($dir in $dirs) {
+            if (-not (Test-Path $dir)) { continue }
+            $found = Get-ChildItem $dir -Filter "*.exe" -ErrorAction SilentlyContinue |
+              Where-Object { $_.Name -ine "uninstall.exe" } | Select-Object -First 1
+            if ($found) { $app = $found; break }
           }
-          if (-not (Test-Path $app)) {
+          if (-not $app) {
             # Auto-diagnostic dans les logs CI avant l'échec explicite.
             if (Test-Path $smokeDir) {
               "Contenu de $smokeDir :"
@@ -272,30 +283,29 @@ jobs:
             "Clés de désinstallation HKCU :"
             Get-ItemProperty "HKCU:\Software\Microsoft\Windows\CurrentVersion\Uninstall\*" -ErrorAction SilentlyContinue |
               Select-Object DisplayName, InstallLocation | Format-Table -AutoSize
-            "Contenu de $env:LOCALAPPDATA :"
-            (Get-ChildItem $env:LOCALAPPDATA -Directory -ErrorAction SilentlyContinue | Select-Object -ExpandProperty Name) -join ", "
-            throw "L'installateur NSIS n'a pas placé l'application dans $smokeDir malgré un exit code 0."
+            throw "L'installateur NSIS n'a produit aucun exécutable d'application détectable ($( [string]::Join('; ', ($dirs | Where-Object { Test-Path $_ }))) )."
           }
-          "Installé : $app"
-          $running = Start-Process -FilePath $app -PassThru
+          "Installé : $($app.FullName)"
+          $running = Start-Process -FilePath $app.FullName -PassThru
           Start-Sleep -Seconds 8
-          $alive = [bool](Get-Process -Name "HealixDz Desktop*" -ErrorAction SilentlyContinue)
-          if (-not $alive) {
-            if ($running.HasExited) { "processus initial quitté ($($running.ExitCode))" }
+          $refreshed = Get-Process -Id $running.Id -ErrorAction SilentlyContinue
+          if (-not $refreshed -or $refreshed.HasExited) {
+            "processus initial quitté ($($running.ExitCode))"
             throw "L'exécutable HealixDz Desktop ne reste pas actif au démarrage."
           }
-          "Démarrage réel vérifié (WebView2 chargé et fenêtre affichée)."
-          Get-Process -Name "HealixDz Desktop*" -ErrorAction SilentlyContinue | Stop-Process -Force
+          "Démarrage réel vérifié (processus vivant, WebView2 chargé)."
+          $installLocation = $app.Directory.FullName
+          Get-Process -Id $running.Id -ErrorAction SilentlyContinue | Stop-Process -Force
           Start-Sleep -Seconds 2
-          $uninstaller = Join-Path $smokeDir "uninstall.exe"
+          $uninstaller = Join-Path $installLocation "uninstall.exe"
           if (Test-Path $uninstaller) {
             Start-Process -FilePath $uninstaller -ArgumentList "/S" -Wait
             Start-Sleep -Seconds 4
           } else {
-            throw "Désinstallateur NSIS introuvable dans $smokeDir."
+            throw "Désinstallateur NSIS introuvable dans $installLocation."
           }
-          if (Test-Path $smokeDir) {
-            "AVERTISSEMENT: $smokeDir subsiste après la désinstallation — à noter ; les données chiffrées %APPDATA% restent en place par design (docs/windows-release.md)."
+          if (Test-Path $installLocation) {
+            "AVERTISSEMENT: $installLocation subsiste après la désinstallation — à noter ; les données chiffrées %APPDATA% restent en place par design (docs/windows-release.md)."
           } else {
             "Désinstallé proprement (programmes uniquement ; les données chiffrées de l'utilisateur restent en place)."
           }
