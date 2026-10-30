@@ -604,7 +604,7 @@ mod tests {
     }
 
     fn secret(units: usize, filler: char) -> String {
-        std::iter::repeat(filler).take(units).collect()
+        std::iter::repeat_n(filler, units).collect()
     }
 
     #[test]
@@ -1071,7 +1071,7 @@ mod real_credential_manager {
     }
 
     fn secret(units: usize, filler: char) -> String {
-        std::iter::repeat(filler).take(units).collect()
+        std::iter::repeat_n(filler, units).collect()
     }
 
     #[test]

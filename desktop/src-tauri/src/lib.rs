@@ -4,6 +4,7 @@ pub mod e2e_harness;
 mod failpoint;
 mod network;
 mod protocol;
+mod reads;
 mod security;
 
 use database::EngineEnv;
@@ -13,6 +14,16 @@ fn authorize(app: &EngineEnv) -> Result<(String, security::GrantClaims), String>
     let verified = security::verified_grant()?;
     database::assert_clock(app, &verified.1)?;
     Ok(verified)
+}
+
+// Runs a read of clinical data only with a valid offline authorization: the
+// grant is verified and the clock checked before the read is even attempted.
+fn guarded<T>(
+    env: &EngineEnv,
+    read: impl FnOnce(&EngineEnv) -> Result<T, String>,
+) -> Result<T, String> {
+    authorize(env)?;
+    read(env)
 }
 
 #[tauri::command]
@@ -68,6 +79,45 @@ fn get_local_prescription(app: AppHandle, local_id: String) -> Result<serde_json
     let app = EngineEnv::from_app(&app);
     authorize(&app)?;
     database::get_local_prescription(&app, &local_id)
+}
+
+// Read-only views for the Desktop pages (src/reads.rs).
+#[tauri::command]
+fn list_appointments(
+    app: AppHandle,
+    from: String,
+    to: String,
+) -> Result<Vec<serde_json::Value>, String> {
+    guarded(&EngineEnv::from_app(&app), |env| {
+        reads::list_appointments(env, &from, &to)
+    })
+}
+
+#[tauri::command]
+fn list_consultations(
+    app: AppHandle,
+    patient_id: Option<String>,
+) -> Result<Vec<serde_json::Value>, String> {
+    guarded(&EngineEnv::from_app(&app), |env| {
+        reads::list_consultations(env, patient_id.as_deref())
+    })
+}
+
+#[tauri::command]
+fn get_consultation(app: AppHandle, local_id: String) -> Result<serde_json::Value, String> {
+    guarded(&EngineEnv::from_app(&app), |env| {
+        reads::get_consultation(env, &local_id)
+    })
+}
+
+#[tauri::command]
+fn list_prescriptions(
+    app: AppHandle,
+    patient_id: Option<String>,
+) -> Result<Vec<serde_json::Value>, String> {
+    guarded(&EngineEnv::from_app(&app), |env| {
+        reads::list_prescriptions(env, patient_id.as_deref())
+    })
 }
 
 #[tauri::command]
@@ -158,6 +208,10 @@ pub fn run() {
             save_consultation_draft,
             list_patient_prescriptions,
             get_local_prescription,
+            list_appointments,
+            list_consultations,
+            get_consultation,
+            list_prescriptions,
             save_prescription_draft,
             search_local_medications,
             sync_now,
@@ -166,4 +220,29 @@ pub fn run() {
         ])
         .run(tauri::generate_context!())
         .expect("HealixDz Desktop failed to start");
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::cell::Cell;
+
+    #[test]
+    fn reads_are_refused_without_a_valid_grant_and_never_attempted() {
+        let directory =
+            std::env::temp_dir().join(format!("healixdz-guard-{}", uuid::Uuid::new_v4()));
+        let env = EngineEnv::from_dir(directory.clone());
+        let attempted = Cell::new(false);
+
+        let refused = guarded(&env, |_| {
+            attempted.set(true);
+            Ok(())
+        });
+
+        assert!(refused.is_err());
+        assert!(!attempted.get(), "the read ran without an authorization");
+        // The refusal happens before the encrypted database is even created.
+        assert!(!directory.join("healixdz-offline-v1.db").exists());
+        let _ = std::fs::remove_dir_all(directory);
+    }
 }

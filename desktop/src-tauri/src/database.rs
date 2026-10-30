@@ -197,7 +197,7 @@ impl EngineEnv {
         }
     }
 
-    #[cfg(feature = "e2e-harness")]
+    #[cfg(any(test, feature = "e2e-harness"))]
     pub fn from_dir(data_dir: PathBuf) -> Self {
         Self {
             data_dir: Ok(data_dir),
@@ -1146,6 +1146,9 @@ pub fn save_prescription_draft(
     save_prescription_draft_on_connection(&mut connection, claims, input)
 }
 
+// patient, server id, base version, server status, local status.
+type ExistingPrescription = (String, Option<String>, Option<i64>, Option<String>, String);
+
 fn save_prescription_draft_on_connection(
     connection: &mut Connection,
     claims: &GrantClaims,
@@ -1174,7 +1177,7 @@ fn save_prescription_draft_on_connection(
         .local_id
         .clone()
         .unwrap_or_else(|| Uuid::new_v4().to_string());
-    let existing: Option<(String, Option<String>, Option<i64>, Option<String>, String)> = tx
+    let existing: Option<ExistingPrescription> = tx
         .query_row(
             "SELECT patient_server_id, server_id, base_version, server_status, local_status
              FROM prescription_drafts WHERE local_id=?1",
@@ -1324,6 +1327,8 @@ fn save_prescription_draft_on_connection(
     })
 }
 
+// One argument per column of the row: the callers already hold them as a tuple.
+#[allow(clippy::too_many_arguments)]
 fn prescription_row_value(
     connection: &Connection,
     local_id: String,
@@ -1728,7 +1733,7 @@ fn apply_push_results_on_connection(
                     .and_then(Value::as_i64)
                     .unwrap_or(1);
                 let dirty_after_attempt =
-                    has_local_changes_after_attempt(&tx, &operation_id, &entity_type, &local_id)?;
+                    has_local_changes_after_attempt(&tx, &operation_id, entity_type, &local_id)?;
                 tx.execute(
                     "UPDATE sync_outbox SET status='ACK' WHERE operation_id=?1",
                     params![operation_id],
@@ -1768,7 +1773,7 @@ fn apply_push_results_on_connection(
                     queue_follow_up_after_ack(
                         &tx,
                         &operation_id,
-                        &entity_type,
+                        entity_type,
                         &local_id,
                         &server_id,
                         version,
@@ -2290,6 +2295,22 @@ fn apply_prescription_tombstone(
 // ---- Storage tests ---------------------------------------------------------
 // The reconciliation helpers are exercised against an in-memory database
 // seeded with the same schema: no keyring, no host, no network.
+// Shared with the tests of the read-only views (reads.rs).
+#[cfg(test)]
+pub(crate) fn memory_db_for_tests() -> Connection {
+    let connection = Connection::open_in_memory().expect("sqlite memory");
+    connection.execute_batch(SCHEMA).expect("schema");
+    apply_local_migrations(&connection).expect("local migrations");
+    connection
+}
+
+#[cfg(test)]
+pub(crate) fn purge_patient_for_tests(connection: &mut Connection, patient_id: &str) {
+    let tx = connection.transaction().expect("transaction");
+    purge_patient(&tx, patient_id).expect("purge");
+    tx.commit().expect("commit");
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -2693,7 +2714,8 @@ mod tests {
             "localEntityId": first.local_id, "status":"ACK",
             "serverEntityId":"rx-double-ack", "serverVersion":1
         });
-        apply_push_results_on_connection(&mut connection, &[ack.clone()]).expect("first");
+        apply_push_results_on_connection(&mut connection, std::slice::from_ref(&ack))
+            .expect("first");
         apply_push_results_on_connection(&mut connection, &[ack]).expect("second");
 
         let follow_ups: i64 = connection
