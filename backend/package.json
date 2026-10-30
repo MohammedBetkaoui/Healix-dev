@@ -18,7 +18,10 @@
     "test:watch": "jest --watch",
     "test:cov": "jest --coverage",
     "test:debug": "node --inspect-brk -r tsconfig-paths/register -r ts-node/register node_modules/.bin/jest --runInBand",
-    "test:e2e": "jest --config ./test/jest-e2e.json"
+    "test:e2e": "jest --config ./test/jest-e2e.json",
+    "test:offline-e2e": "jest --config ./test/offline-e2e/jest.config.json --runInBand",
+    "test:offline-e2e:full": "node ../scripts/test-offline-e2e.mjs",
+    "typecheck:offline-e2e": "tsc -p test/offline-e2e/tsconfig.json"
   },
   "prisma": {
     "seed": "ts-node prisma/seed.ts"

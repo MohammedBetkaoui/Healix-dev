@@ -1,4 +1,4 @@
-use rusqlite::{params, Connection, OptionalExtension, Transaction};
+use rusqlite::{params, Connection, OptionalExtension, Transaction, TransactionBehavior};
 use serde::{Deserialize, Serialize};
 use serde_json::{json, Value};
 use std::{
@@ -179,17 +179,40 @@ const LOCAL_MIGRATIONS: [(&str, &str, &str); 17] = [
     ("sync_outbox", "last_attempted_at", "ALTER TABLE sync_outbox ADD COLUMN last_attempted_at TEXT"),
 ];
 
-fn db_path(app: &AppHandle) -> Result<PathBuf, String> {
-    let directory = app
-        .path()
-        .app_data_dir()
-        .map_err(|_| "Répertoire de données local indisponible.".to_string())?;
-    fs::create_dir_all(&directory)
+// What the storage layer needs from its host: the folder of the encrypted
+// database. The Tauri application derives it from its AppHandle; the offline
+// reliability harness points it at a throw-away profile, so the very same
+// engine runs without a window, a webview or the OS data folder.
+pub struct EngineEnv {
+    data_dir: Result<PathBuf, String>,
+}
+
+impl EngineEnv {
+    pub fn from_app(app: &AppHandle) -> Self {
+        Self {
+            data_dir: app
+                .path()
+                .app_data_dir()
+                .map_err(|_| "Répertoire de données local indisponible.".to_string()),
+        }
+    }
+
+    #[cfg(feature = "e2e-harness")]
+    pub fn from_dir(data_dir: PathBuf) -> Self {
+        Self {
+            data_dir: Ok(data_dir),
+        }
+    }
+}
+
+fn db_path(app: &EngineEnv) -> Result<PathBuf, String> {
+    let directory = app.data_dir.as_ref().map_err(String::clone)?;
+    fs::create_dir_all(directory)
         .map_err(|_| "Impossible de créer le répertoire local.".to_string())?;
     Ok(directory.join("healixdz-offline-v1.db"))
 }
 
-pub fn open(app: &AppHandle) -> Result<Connection, String> {
+pub fn open(app: &EngineEnv) -> Result<Connection, String> {
     let key = database_key()?;
     let connection = Connection::open(db_path(app)?)
         .map_err(|_| "Impossible d’ouvrir la base locale chiffrée.".to_string())?;
@@ -271,7 +294,7 @@ fn purge_clinical_data(tx: &Transaction<'_>) -> rusqlite::Result<()> {
     )
 }
 
-pub fn apply_bootstrap(app: &AppHandle, bootstrap: &Value) -> Result<(), String> {
+pub fn apply_bootstrap(app: &EngineEnv, bootstrap: &Value) -> Result<(), String> {
     let mut connection = open(app)?;
     let tx = connection
         .transaction()
@@ -440,7 +463,7 @@ pub struct SessionStatus {
 }
 
 pub fn session_status(
-    app: &AppHandle,
+    app: &EngineEnv,
     claims: Option<&GrantClaims>,
 ) -> Result<SessionStatus, String> {
     let Some(claims) = claims else {
@@ -492,7 +515,7 @@ pub fn session_status(
     })
 }
 
-pub fn assert_clock(app: &AppHandle, claims: &GrantClaims) -> Result<(), String> {
+pub fn assert_clock(app: &EngineEnv, claims: &GrantClaims) -> Result<(), String> {
     let now = SystemTime::now()
         .duration_since(UNIX_EPOCH)
         .map_err(|_| "Horloge système invalide.".to_string())?
@@ -522,7 +545,7 @@ pub fn assert_clock(app: &AppHandle, claims: &GrantClaims) -> Result<(), String>
     Ok(())
 }
 
-pub fn list_patients(app: &AppHandle, query: &str) -> Result<Vec<Value>, String> {
+pub fn list_patients(app: &EngineEnv, query: &str) -> Result<Vec<Value>, String> {
     let connection = open(app)?;
     let pattern = format!("%{}%", query.trim().to_lowercase());
     let mut statement = connection
@@ -558,7 +581,7 @@ pub fn list_patients(app: &AppHandle, query: &str) -> Result<Vec<Value>, String>
 // The medication catalogue remains inside SQLCipher. It is deliberately a
 // read-only UX cache: push still sends medicationId and the backend reloads
 // the authoritative MedicationReference before it creates/updates a draft.
-pub fn apply_medication_catalog(app: &AppHandle, response: &Value) -> Result<(), String> {
+pub fn apply_medication_catalog(app: &EngineEnv, response: &Value) -> Result<(), String> {
     let medications = response
         .get("medications")
         .and_then(Value::as_array)
@@ -611,7 +634,7 @@ pub fn apply_medication_catalog(app: &AppHandle, response: &Value) -> Result<(),
         .map_err(|_| "Catalogue local non validé.".to_string())
 }
 
-pub fn search_local_medications(app: &AppHandle, query: &str) -> Result<Vec<Value>, String> {
+pub fn search_local_medications(app: &EngineEnv, query: &str) -> Result<Vec<Value>, String> {
     let connection = open(app)?;
     let query = query.trim().to_lowercase();
     if query.is_empty() {
@@ -649,15 +672,19 @@ pub fn search_local_medications(app: &AppHandle, query: &str) -> Result<Vec<Valu
 
 // ---- Scope reconciliation -------------------------------------------------
 
-// Unsent clinical data for one patient: PENDING/RETRYABLE outbox entries or
-// an OPEN conflict on a cached consultation or prescription. Both must survive a
-// scope leave, so the decision never destroys them silently.
+// Unsent clinical data for one patient: any outbox entry that is not
+// acknowledged (PENDING/RETRYABLE, but also CONFLICT and REJECTED: the Cloud
+// refused them, it never stored them) or an OPEN conflict on a cached
+// consultation or prescription. They must survive a scope leave, so the
+// decision never destroys them silently: once the Cloud has rejected an
+// operation for a patient who left the scope, the next session would
+// otherwise find "nothing pending" and purge the only copy of that work.
 fn patient_unsent_state(tx: &Transaction<'_>, patient_id: &str) -> rusqlite::Result<(bool, bool)> {
     let pending: bool = tx.query_row(
         "SELECT EXISTS(
            SELECT 1 FROM sync_outbox
            WHERE entity_type IN ('CONSULTATION', 'PRESCRIPTION')
-             AND status IN ('PENDING','RETRYABLE')
+             AND status <> 'ACK'
              AND local_entity_id IN (
                SELECT local_id FROM consultations WHERE patient_server_id=?1
                UNION ALL
@@ -820,7 +847,7 @@ pub fn reconcile_patients_tx(
 }
 
 // The result of POST /sync/reconcile: the server-authoritative patient set.
-pub fn apply_reconcile(app: &AppHandle, response: &Value) -> Result<(), String> {
+pub fn apply_reconcile(app: &EngineEnv, response: &Value) -> Result<(), String> {
     let authorized: Vec<String> = response
         .get("authorizedPatientIds")
         .and_then(Value::as_array)
@@ -871,7 +898,7 @@ pub struct SavedDraft {
 }
 
 pub fn save_draft(
-    app: &AppHandle,
+    app: &EngineEnv,
     claims: &GrantClaims,
     input: ConsultationDraftInput,
 ) -> Result<SavedDraft, String> {
@@ -1111,7 +1138,7 @@ fn replace_prescription_items(
 }
 
 pub fn save_prescription_draft(
-    app: &AppHandle,
+    app: &EngineEnv,
     claims: &GrantClaims,
     input: PrescriptionDraftInput,
 ) -> Result<SavedDraft, String> {
@@ -1337,7 +1364,7 @@ fn prescription_row_value(
     }))
 }
 
-pub fn list_patient_prescriptions(app: &AppHandle, patient_id: &str) -> Result<Vec<Value>, String> {
+pub fn list_patient_prescriptions(app: &EngineEnv, patient_id: &str) -> Result<Vec<Value>, String> {
     let connection = open(app)?;
     let mut statement = connection
         .prepare(
@@ -1398,7 +1425,7 @@ pub fn list_patient_prescriptions(app: &AppHandle, patient_id: &str) -> Result<V
         .collect()
 }
 
-pub fn get_local_prescription(app: &AppHandle, local_id: &str) -> Result<Value, String> {
+pub fn get_local_prescription(app: &EngineEnv, local_id: &str) -> Result<Value, String> {
     let connection = open(app)?;
     let row = connection
         .query_row(
@@ -1454,7 +1481,7 @@ pub struct SyncStatus {
     pub total: Option<i64>,
 }
 
-pub fn sync_status(app: &AppHandle) -> Result<SyncStatus, String> {
+pub fn sync_status(app: &EngineEnv) -> Result<SyncStatus, String> {
     let connection = open(app)?;
     let pending_count = connection
         .query_row(
@@ -1502,7 +1529,7 @@ pub fn sync_status(app: &AppHandle) -> Result<SyncStatus, String> {
     })
 }
 
-pub fn pending_operations(app: &AppHandle) -> Result<Vec<Value>, String> {
+pub fn pending_operations(app: &EngineEnv) -> Result<Vec<Value>, String> {
     let mut connection = open(app)?;
     pending_operations_on_connection(&mut connection)
 }
@@ -1548,7 +1575,7 @@ fn pending_operations_on_connection(connection: &mut Connection) -> Result<Vec<V
         .collect()
 }
 
-pub fn current_cursor(app: &AppHandle) -> Result<String, String> {
+pub fn current_cursor(app: &EngineEnv) -> Result<String, String> {
     open(app)?
         .query_row("SELECT cursor FROM sync_state WHERE id=1", [], |row| {
             row.get(0)
@@ -1656,7 +1683,7 @@ fn queue_follow_up_after_ack(
     Ok(())
 }
 
-pub fn apply_push_results(app: &AppHandle, results: &[Value]) -> Result<(), String> {
+pub fn apply_push_results(app: &EngineEnv, results: &[Value]) -> Result<(), String> {
     let mut connection = open(app)?;
     apply_push_results_on_connection(&mut connection, results)
 }
@@ -1666,12 +1693,28 @@ fn apply_push_results_on_connection(
     results: &[Value],
 ) -> Result<(), String> {
     let detected_at = now_iso(connection)?;
+    // IMMEDIATE: the "already applied?" check below and the writes that follow
+    // are one atomic step, even against another connection on the database.
     let tx = connection
-        .transaction()
+        .transaction_with_behavior(TransactionBehavior::Immediate)
         .map_err(|_| "Transaction locale impossible.".to_string())?;
     for result in results {
         let operation_id = string(result, "operationId")?;
         let status = string(result, "status")?;
+        // A result already applied to this operation (the same ACK processed
+        // twice) changes nothing: re-running it would queue a second
+        // follow-up UPDATE or record the same conflict again.
+        let settled: Option<String> = tx
+            .query_row(
+                "SELECT status FROM sync_outbox WHERE operation_id=?1",
+                params![operation_id],
+                |row| row.get(0),
+            )
+            .optional()
+            .map_err(|_| "Outbox locale illisible.".to_string())?;
+        if matches!(settled.as_deref(), Some("ACK" | "CONFLICT" | "REJECTED")) {
+            continue;
+        }
         let entity_type = result
             .get("entityType")
             .and_then(Value::as_str)
@@ -1798,7 +1841,7 @@ fn apply_push_results_on_connection(
         .map_err(|_| "Résultats push non validés.".to_string())
 }
 
-pub fn apply_pull(app: &AppHandle, response: &Value) -> Result<String, String> {
+pub fn apply_pull(app: &EngineEnv, response: &Value) -> Result<String, String> {
     let mut connection = open(app)?;
     let synced_at = string(response, "serverTime")?;
     let tx = connection
@@ -1957,6 +2000,31 @@ fn apply_server_patient(
     Ok(())
 }
 
+// A pulled change whose version this device already holds is an echo, not a
+// divergence: its own write (acknowledged, possibly replayed after a lost
+// ACK) or an older state. Unsent local work stacked on top of that version
+// stays untouched and raises no conflict; only a strictly newer server
+// version differs from the base that work started from.
+fn is_known_server_version(
+    table: &str,
+    tx: &Transaction<'_>,
+    local_id: &str,
+    payload: &Value,
+) -> Result<bool, String> {
+    let Some(incoming) = payload.get("syncVersion").and_then(Value::as_i64) else {
+        return Ok(false);
+    };
+    let known: Option<Option<i64>> = tx
+        .query_row(
+            &format!("SELECT base_version FROM {table} WHERE local_id=?1"),
+            params![local_id],
+            |row| row.get(0),
+        )
+        .optional()
+        .map_err(|_| "Version locale illisible.".to_string())?;
+    Ok(known.flatten().is_some_and(|known| incoming <= known))
+}
+
 fn apply_server_consultation(
     tx: &Transaction<'_>,
     payload: &Value,
@@ -1979,6 +2047,9 @@ fn apply_server_consultation(
             params![local_id], |row| row.get(0),
         ).map_err(|_| "Outbox consultation illisible.".to_string())?;
         if pending {
+            if is_known_server_version("consultations", tx, &local_id, payload)? {
+                return Ok(());
+            }
             tx.execute(
                 "INSERT INTO sync_conflicts(id, entity_type, entity_id, local_version, server_version, local_payload, server_payload, detected_at, status)
                  SELECT ?1, 'CONSULTATION', local_id, base_version, ?2, payload, ?3, ?4, 'OPEN' FROM consultations WHERE local_id=?5",
@@ -2058,6 +2129,9 @@ fn apply_server_prescription(
         false
     };
     if has_pending {
+        if is_known_server_version("prescription_drafts", tx, &local_id, payload)? {
+            return Ok(());
+        }
         tx.execute(
             "INSERT INTO sync_conflicts(id, entity_type, entity_id, local_version, server_version,
              local_payload, server_payload, detected_at, status)
@@ -2215,7 +2289,7 @@ fn apply_prescription_tombstone(
 
 // ---- Storage tests ---------------------------------------------------------
 // The reconciliation helpers are exercised against an in-memory database
-// seeded with the same schema: no keyring, no AppHandle, no network.
+// seeded with the same schema: no keyring, no host, no network.
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -2479,6 +2553,191 @@ mod tests {
             serde_json::from_str::<Value>(&y.2).expect("Y")["payload"]["chiefComplaint"],
             "B"
         );
+    }
+
+    fn server_consultation(id: &str, patient_id: &str, version: i64, complaint: &str) -> Value {
+        json!({
+            "id": id, "patientId": patient_id, "syncVersion": version,
+            "chiefComplaint": complaint, "updatedAt": "2026-10-30T10:00:00.000Z"
+        })
+    }
+
+    fn open_conflicts(connection: &Connection) -> i64 {
+        connection
+            .query_row(
+                "SELECT COUNT(*) FROM sync_conflicts WHERE status='OPEN'",
+                [],
+                |r| r.get(0),
+            )
+            .expect("conflict count")
+    }
+
+    // The echo of an already-acknowledged write comes back in the next pull
+    // while the follow-up UPDATE (carrying the newer local edit) is still
+    // queued: it is not a divergence, and it must not freeze or overwrite B.
+    #[test]
+    fn pulled_echo_of_an_acknowledged_version_does_not_conflict_with_the_queued_follow_up() {
+        let mut connection = memory_db();
+        insert_patient(&connection, "patient-echo");
+        let local_id = "local-echo-consultation";
+        connection.execute(
+            "INSERT INTO consultations(local_id, server_id, patient_server_id, local_status, base_version, payload, updated_at)
+             VALUES (?1, 'consultation-echo', 'patient-echo', 'LOCAL_DRAFT', 2, '{\"chiefComplaint\":\"B\"}', '2026-10-30T00:00:00Z')",
+            params![local_id],
+        ).expect("local B on the ACK version");
+        insert_outbox(&connection, "follow-up-y", local_id, "PENDING");
+
+        let tx = connection.transaction().expect("tx");
+        apply_server_consultation(
+            &tx,
+            &server_consultation("consultation-echo", "patient-echo", 2, "A"),
+            "2026-10-30T10:00:01Z",
+            true,
+        )
+        .expect("echo of the ACK version");
+        tx.commit().expect("commit");
+
+        assert_eq!(open_conflicts(&connection), 0);
+        let local: (String, String) = connection
+            .query_row(
+                "SELECT payload, local_status FROM consultations WHERE local_id=?1",
+                params![local_id],
+                |r| Ok((r.get(0)?, r.get(1)?)),
+            )
+            .expect("local");
+        assert_eq!(local.0, "{\"chiefComplaint\":\"B\"}");
+        assert_eq!(local.1, "LOCAL_DRAFT");
+        let status: String = connection
+            .query_row(
+                "SELECT status FROM sync_outbox WHERE operation_id='follow-up-y'",
+                [],
+                |r| r.get(0),
+            )
+            .expect("Y");
+        assert_eq!(status, "PENDING");
+    }
+
+    #[test]
+    fn pulled_echo_of_an_acknowledged_prescription_keeps_the_queued_follow_up() {
+        let mut connection = memory_db();
+        insert_patient(&connection, "patient-rx-echo");
+        let first = save_prescription_draft_on_connection(
+            &mut connection,
+            &test_claims(),
+            prescription_input("patient-rx-echo", None),
+        )
+        .expect("create A");
+        pending_operations_on_connection(&mut connection).expect("attempt X");
+        let mut changed = prescription_input("patient-rx-echo", Some(first.local_id.clone()));
+        changed.items[0].quantity = "2 boîtes".to_string();
+        save_prescription_draft_on_connection(&mut connection, &test_claims(), changed)
+            .expect("B while the ACK is lost");
+        apply_push_results_on_connection(
+            &mut connection,
+            &[json!({
+                "operationId": first.operation_id, "entityType":"PRESCRIPTION",
+                "localEntityId": first.local_id, "status":"ACK",
+                "serverEntityId":"rx-echo", "serverVersion":1
+            })],
+        )
+        .expect("replayed ACK");
+
+        let tx = connection.transaction().expect("tx");
+        apply_server_prescription(
+            &tx,
+            &server_prescription("rx-echo", "patient-rx-echo", "DRAFT", 1),
+            "2026-10-30T10:00:01Z",
+            true,
+        )
+        .expect("echo of the ACK version");
+        tx.commit().expect("commit");
+
+        assert_eq!(open_conflicts(&connection), 0);
+        let pending: i64 = connection
+            .query_row(
+                "SELECT COUNT(*) FROM sync_outbox WHERE status='PENDING' AND operation='UPDATE'",
+                [],
+                |r| r.get(0),
+            )
+            .expect("pending follow-up");
+        assert_eq!(pending, 1);
+        let state: String = connection
+            .query_row(
+                "SELECT local_status FROM prescription_drafts WHERE local_id=?1",
+                params![first.local_id],
+                |r| r.get(0),
+            )
+            .expect("state");
+        assert_eq!(state, "PENDING_SYNC");
+    }
+
+    // The same ACK processed twice (two overlapping sessions, or a replay)
+    // queues one follow-up, not two.
+    #[test]
+    fn the_same_ack_applied_twice_queues_a_single_follow_up() {
+        let mut connection = memory_db();
+        insert_patient(&connection, "patient-double-ack");
+        let first = save_prescription_draft_on_connection(
+            &mut connection,
+            &test_claims(),
+            prescription_input("patient-double-ack", None),
+        )
+        .expect("create A");
+        pending_operations_on_connection(&mut connection).expect("attempt X");
+        let mut changed = prescription_input("patient-double-ack", Some(first.local_id.clone()));
+        changed.items[0].quantity = "2 boîtes".to_string();
+        save_prescription_draft_on_connection(&mut connection, &test_claims(), changed)
+            .expect("B while the ACK is lost");
+        let ack = json!({
+            "operationId": first.operation_id, "entityType":"PRESCRIPTION",
+            "localEntityId": first.local_id, "status":"ACK",
+            "serverEntityId":"rx-double-ack", "serverVersion":1
+        });
+        apply_push_results_on_connection(&mut connection, &[ack.clone()]).expect("first");
+        apply_push_results_on_connection(&mut connection, &[ack]).expect("second");
+
+        let follow_ups: i64 = connection
+            .query_row(
+                "SELECT COUNT(*) FROM sync_outbox WHERE status='PENDING' AND operation='UPDATE'",
+                [],
+                |r| r.get(0),
+            )
+            .expect("follow-ups");
+        assert_eq!(follow_ups, 1);
+    }
+
+    // A strictly newer server version is a real divergence: unchanged.
+    #[test]
+    fn pulled_newer_version_still_conflicts_with_unsent_local_work() {
+        let mut connection = memory_db();
+        insert_patient(&connection, "patient-newer");
+        let local_id = "local-newer-consultation";
+        connection.execute(
+            "INSERT INTO consultations(local_id, server_id, patient_server_id, local_status, base_version, payload, updated_at)
+             VALUES (?1, 'consultation-newer', 'patient-newer', 'LOCAL_DRAFT', 2, '{\"chiefComplaint\":\"B\"}', '2026-10-30T00:00:00Z')",
+            params![local_id],
+        ).expect("local B");
+        insert_outbox(&connection, "pending-y", local_id, "PENDING");
+
+        let tx = connection.transaction().expect("tx");
+        apply_server_consultation(
+            &tx,
+            &server_consultation("consultation-newer", "patient-newer", 3, "web edit"),
+            "2026-10-30T10:00:01Z",
+            true,
+        )
+        .expect("newer server version");
+        tx.commit().expect("commit");
+
+        assert_eq!(open_conflicts(&connection), 1);
+        let payload: String = connection
+            .query_row(
+                "SELECT payload FROM consultations WHERE local_id=?1",
+                params![local_id],
+                |r| r.get(0),
+            )
+            .expect("local");
+        assert_eq!(payload, "{\"chiefComplaint\":\"B\"}");
     }
 
     #[test]
@@ -2826,6 +3085,52 @@ mod tests {
             )
             .expect("consult");
         assert_eq!(consult, 1, "donnée clinique intacte");
+    }
+
+    // The Cloud rejected the operation of a patient who left the scope: the
+    // work is still only here. It must keep the folder locked, session after
+    // session; an acknowledged operation is delivered work and lets it go.
+    #[test]
+    fn rejected_or_conflicted_operations_keep_the_patient_locked_but_acknowledged_ones_do_not() {
+        for (status, locked) in [
+            ("REJECTED", true),
+            ("CONFLICT", true),
+            ("PENDING", true),
+            ("ACK", false),
+        ] {
+            let mut connection = memory_db();
+            insert_patient(&connection, "patient-kept");
+            insert_patient(&connection, "patient-left");
+            insert_consultation(&connection, "local-left", "patient-left");
+            insert_outbox(&connection, "op-left", "local-left", status);
+
+            for _session in 0..3 {
+                let tx = connection.transaction().expect("tx");
+                reconcile_patients_tx(&tx, &["patient-kept".to_string()]).expect("reconcile");
+                tx.commit().expect("commit");
+            }
+
+            let remaining = patient_count(&connection, "server_id='patient-left'");
+            let consultations: i64 = connection
+                .query_row(
+                    "SELECT COUNT(*) FROM consultations WHERE local_id='local-left'",
+                    [],
+                    |r| r.get(0),
+                )
+                .expect("consultations");
+            if locked {
+                assert_eq!(remaining, 1, "{status}: the folder is kept");
+                assert_eq!(
+                    patient_count(&connection, "server_id='patient-left' AND locked=1"),
+                    1,
+                    "{status}: and locked"
+                );
+                assert_eq!(consultations, 1, "{status}: the work is intact");
+            } else {
+                assert_eq!(remaining, 0, "{status}: delivered work lets the folder go");
+                assert_eq!(consultations, 0, "{status}: and its data with it");
+            }
+        }
     }
 
     #[test]

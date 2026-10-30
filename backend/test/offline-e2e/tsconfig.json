@@ -1,0 +1,10 @@
+{
+  "extends": "../../tsconfig.json",
+  "compilerOptions": {
+    "noEmit": true,
+    "incremental": false,
+    "isolatedModules": true,
+    "types": ["jest", "node"]
+  },
+  "include": ["./**/*.ts", "../../src/prisma/**/*.ts", "../../src/common/testing/**/*.ts"]
+}

@@ -63,14 +63,10 @@ pub fn set_secret(name: &str, value: &str) -> Result<(), String> {
         set_entry_secret(&chunk_name(name, index), chunk)?;
     }
     set_entry_secret(&manifest_name(name), &chunks.len().to_string())?;
-    if let Ok(item) = entry(name) {
-        let _ = item.delete_credential();
-    }
+    delete_entry_secret(name);
     if let Some(previous_chunk_count) = previous_chunk_count {
         for index in chunks.len()..previous_chunk_count {
-            if let Ok(item) = entry(&chunk_name(name, index)) {
-                let _ = item.delete_credential();
-            }
+            delete_entry_secret(&chunk_name(name, index));
         }
     }
     Ok(())
@@ -96,6 +92,9 @@ fn get_optional_secret(name: &str) -> Result<Option<String>, String> {
 }
 
 fn get_entry_secret(name: &str) -> Result<Option<String>, String> {
+    if file_vault::active() {
+        return file_vault::get(name);
+    }
     match entry(name)?.get_password() {
         Ok(value) => Ok(Some(value)),
         Err(keyring::Error::NoEntry) => Ok(None),
@@ -105,7 +104,18 @@ fn get_entry_secret(name: &str) -> Result<Option<String>, String> {
     }
 }
 
+fn delete_entry_secret(name: &str) {
+    if file_vault::active() {
+        file_vault::delete(name);
+    } else if let Ok(item) = entry(name) {
+        let _ = item.delete_credential();
+    }
+}
+
 fn set_entry_secret(name: &str, value: &str) -> Result<(), String> {
+    if file_vault::active() {
+        return file_vault::set(name, value);
+    }
     entry(name)?.set_password(value).map_err(|error| {
         format!(
             "Impossible de protéger le secret local dans le Gestionnaire d’informations d’identification Windows ({error})."
@@ -151,22 +161,16 @@ fn split_secret(value: &str) -> Vec<String> {
 }
 
 fn delete_chunked_secret(name: &str, chunk_count: Option<usize>) {
-    if let Ok(item) = entry(&manifest_name(name)) {
-        let _ = item.delete_credential();
-    }
+    delete_entry_secret(&manifest_name(name));
     if let Some(chunk_count) = chunk_count {
         for index in 0..chunk_count {
-            if let Ok(item) = entry(&chunk_name(name, index)) {
-                let _ = item.delete_credential();
-            }
+            delete_entry_secret(&chunk_name(name, index));
         }
     }
 }
 
 pub fn delete_secret(name: &str) {
-    if let Ok(item) = entry(name) {
-        let _ = item.delete_credential();
-    }
+    delete_entry_secret(name);
     let count = chunk_count(name).ok().flatten();
     delete_chunked_secret(name, count);
 }
@@ -305,6 +309,63 @@ pub fn signed_request_headers(
         (DEVICE_NONCE_HEADER, signed.nonce),
         (DEVICE_SIGNATURE_HEADER, signed.signature),
     ])
+}
+
+// Secrets in a plain folder, for the offline reliability harness only: the
+// feature is off in every shipped build, where the secrets stay in the OS
+// credential vault. Selected by HEALIX_E2E_SECRET_DIR; one file per secret.
+#[cfg(feature = "e2e-harness")]
+mod file_vault {
+    use std::{fs, path::PathBuf};
+
+    fn dir() -> Option<PathBuf> {
+        std::env::var_os("HEALIX_E2E_SECRET_DIR").map(PathBuf::from)
+    }
+
+    pub fn active() -> bool {
+        dir().is_some()
+    }
+
+    fn file(name: &str) -> Result<PathBuf, String> {
+        let directory = dir().ok_or_else(|| "Coffre de test absent.".to_string())?;
+        fs::create_dir_all(&directory).map_err(|_| "Coffre de test inaccessible.".to_string())?;
+        Ok(directory.join(format!("{name}.secret")))
+    }
+
+    pub fn get(name: &str) -> Result<Option<String>, String> {
+        match fs::read_to_string(file(name)?) {
+            Ok(value) => Ok(Some(value)),
+            Err(error) if error.kind() == std::io::ErrorKind::NotFound => Ok(None),
+            Err(_) => Err("Coffre de test illisible.".to_string()),
+        }
+    }
+
+    pub fn set(name: &str, value: &str) -> Result<(), String> {
+        fs::write(file(name)?, value).map_err(|_| "Coffre de test non écrit.".to_string())
+    }
+
+    pub fn delete(name: &str) {
+        if let Ok(path) = file(name) {
+            let _ = fs::remove_file(path);
+        }
+    }
+}
+
+#[cfg(not(feature = "e2e-harness"))]
+mod file_vault {
+    pub fn active() -> bool {
+        false
+    }
+
+    pub fn get(_name: &str) -> Result<Option<String>, String> {
+        Ok(None)
+    }
+
+    pub fn set(_name: &str, _value: &str) -> Result<(), String> {
+        Ok(())
+    }
+
+    pub fn delete(_name: &str) {}
 }
 
 #[cfg(test)]

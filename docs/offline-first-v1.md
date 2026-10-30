@@ -40,6 +40,11 @@ Le Desktop inscrit `attempt_count` et les horodatages de première/dernière ten
 
 Quand un ACK est perdu puis qu’un clinicien modifie le brouillon, l’ancienne enveloppe est réessayée telle quelle. À son ACK, le mapping et la `serverVersion` sont appliqués sans écraser la version locale plus récente ; une nouvelle UPDATE, avec un nouvel `operationId` et la `baseVersion` de l’ACK, est alors créée. Une CREATE n’a donc jamais d’UPDATE dépendante envoyée avant son ACK.
 
+Deux règles complètent ce mécanisme (révélées par le banc de [offline-reliability-testing.md](offline-reliability-testing.md)) :
+
+- **Écho de sa propre écriture.** Le flux `SyncChange` ramène aussi les écritures de l’appareil lui-même. Un changement tiré dont la version est ≤ à la `base_version` locale (la dernière version serveur intégrée par l’ACK) est un écho : il n’écrase pas le travail local non envoyé et ne crée pas de conflit. Seule une version **strictement plus récente** que la base du travail local est une divergence (`sync_conflicts`).
+- **Une seule session de synchronisation à la fois.** `sync_now` est sérialisé (un verrou de processus) : un second appel attend la fin du premier au lieu de sélectionner et d’envoyer les mêmes opérations. L’application d’un résultat déjà appliqué à une opération (ACK, CONFLICT, REJECTED) est sans effet, sous transaction SQLite `IMMEDIATE` : un même ACK n’enfile jamais deux UPDATE de suite.
+
 Le serveur renvoie son résultat durable uniquement si le même appareil réessaie le même `operationId` avec le même `payloadHash`. Un autre appareil reçoit `OPERATION_ID_ALREADY_USED`; un payload différent reçoit `OPERATION_ID_PAYLOAD_MISMATCH`, sans retry automatique et sans exposer le payload clinique dans les logs. Les anciennes lignes serveur reçoivent un marqueur legacy distinct : elles sont traitées conservativement comme non comparables à une nouvelle enveloppe canonique.
 
 ## Preuve de possession (device PoP) et anti-rejeu

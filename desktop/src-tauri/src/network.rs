@@ -2,18 +2,36 @@ use reqwest::{Client, Response, Url};
 use serde::Deserialize;
 use serde_json::{json, Value};
 use std::time::Duration;
-use tauri::AppHandle;
 
 use crate::{
-    database,
+    database::{self, EngineEnv},
+    failpoint,
     protocol::{sha256_hex, EMPTY_BODY_SHA256},
     security::{self, GrantClaims},
 };
 
+const REQUEST_TIMEOUT: Duration = Duration::from_secs(25);
+
+// The harness shortens the timeout so an ambiguous (timed-out) exchange can be
+// provoked for real within a test; a release build always uses 25 seconds.
+#[cfg(feature = "e2e-harness")]
+fn request_timeout() -> Duration {
+    std::env::var("HEALIX_E2E_HTTP_TIMEOUT_MS")
+        .ok()
+        .and_then(|value| value.parse::<u64>().ok())
+        .map(Duration::from_millis)
+        .unwrap_or(REQUEST_TIMEOUT)
+}
+
+#[cfg(not(feature = "e2e-harness"))]
+fn request_timeout() -> Duration {
+    REQUEST_TIMEOUT
+}
+
 pub fn client() -> Result<Client, String> {
     Client::builder()
         .cookie_store(true)
-        .timeout(Duration::from_secs(25))
+        .timeout(request_timeout())
         .user_agent("HealixDz-Desktop/0.1")
         .build()
         .map_err(|_| "Client réseau indisponible.".to_string())
@@ -121,7 +139,7 @@ async fn signed_request(
 }
 
 pub async fn login_register_and_bootstrap(
-    app: &AppHandle,
+    app: &EngineEnv,
     api_base: &str,
     input: LoginInput,
 ) -> Result<database::SessionStatus, String> {
@@ -176,12 +194,21 @@ pub async fn login_register_and_bootstrap(
     database::session_status(app, Some(&claims))
 }
 
+// One sync session at a time. Two overlapping sessions would select the same
+// pending operations, send them twice and apply the same ACK twice; a second
+// call simply waits for the first to finish, then finds nothing left to do.
+fn sync_gate() -> &'static tokio::sync::Mutex<()> {
+    static GATE: std::sync::OnceLock<tokio::sync::Mutex<()>> = std::sync::OnceLock::new();
+    GATE.get_or_init(|| tokio::sync::Mutex::new(()))
+}
+
 pub async fn sync_now(
-    app: &AppHandle,
+    app: &EngineEnv,
     api_base: &str,
     _grant: &str,
     claims: &GrantClaims,
 ) -> Result<database::SyncStatus, String> {
+    let _session = sync_gate().lock().await;
     let http = client()?;
     let http = &http;
 
@@ -194,6 +221,8 @@ pub async fn sync_now(
 
     let operations = database::pending_operations(app)?;
     let total = operations.len() as i64;
+    // The attempt is durable, the request has not left yet.
+    failpoint::hit("after-attempt-marked");
     if !operations.is_empty() {
         let body = serde_json::to_vec(&json!({ "operations": operations }))
             .map_err(|_| "Opérations locales illisibles.".to_string())?;
@@ -211,7 +240,10 @@ pub async fn sync_now(
             .get("results")
             .and_then(Value::as_array)
             .ok_or_else(|| "Résultats push absents.".to_string())?;
+        // The server answered; nothing is applied locally yet.
+        failpoint::hit("after-push-response");
         database::apply_push_results(app, results)?;
+        failpoint::hit("after-push-applied");
     }
 
     loop {
@@ -222,6 +254,8 @@ pub async fn sync_now(
             signed_request(claims, http, pull_with_query, reqwest::Method::GET, None).await?;
         let body = checked_grant_json(response).await?;
         let next_cursor = database::apply_pull(app, &body)?;
+        // The pull is committed locally, the cursor not yet acknowledged.
+        failpoint::hit("after-pull-applied");
         let ack_body = serde_json::to_vec(&json!({ "cursor": next_cursor }))
             .map_err(|_| "Curseur local illisible.".to_string())?;
         let ack_url = endpoint(api_base, "sync/ack")?;

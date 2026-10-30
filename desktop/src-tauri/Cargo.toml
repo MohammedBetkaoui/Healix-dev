@@ -4,10 +4,26 @@ version = "0.1.0"
 description = "HealixDz offline-first clinical desktop"
 authors = ["HealixDz"]
 edition = "2021"
+default-run = "healixdz-desktop"
 
 [lib]
 name = "healixdz_desktop_lib"
 crate-type = ["staticlib", "cdylib", "rlib"]
+
+# Offline reliability harness (docs/offline-reliability-testing.md): the real
+# sync engine driven from a command line, with its secrets in a folder instead
+# of the OS vault and crash points. Never enabled in a shipped build.
+[features]
+e2e-harness = ["tokio/rt"]
+
+[[bin]]
+name = "healixdz-desktop"
+path = "src/main.rs"
+
+[[bin]]
+name = "offline-e2e-harness"
+path = "src/bin/offline_e2e_harness.rs"
+required-features = ["e2e-harness"]
 
 [build-dependencies]
 tauri-build = { version = "2", features = [] }

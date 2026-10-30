@@ -1,11 +1,15 @@
 mod database;
+#[cfg(feature = "e2e-harness")]
+pub mod e2e_harness;
+mod failpoint;
 mod network;
 mod protocol;
 mod security;
 
+use database::EngineEnv;
 use tauri::AppHandle;
 
-fn authorize(app: &AppHandle) -> Result<(String, security::GrantClaims), String> {
+fn authorize(app: &EngineEnv) -> Result<(String, security::GrantClaims), String> {
     let verified = security::verified_grant()?;
     database::assert_clock(app, &verified.1)?;
     Ok(verified)
@@ -13,6 +17,7 @@ fn authorize(app: &AppHandle) -> Result<(String, security::GrantClaims), String>
 
 #[tauri::command]
 fn session_status(app: AppHandle) -> Result<database::SessionStatus, String> {
+    let app = EngineEnv::from_app(&app);
     match security::verified_grant() {
         Ok((_, claims)) if database::assert_clock(&app, &claims).is_ok() => {
             database::session_status(&app, Some(&claims))
@@ -28,11 +33,12 @@ async fn login_register_and_bootstrap(
     api_base: String,
     input: network::LoginInput,
 ) -> Result<database::SessionStatus, String> {
-    network::login_register_and_bootstrap(&app, &api_base, input).await
+    network::login_register_and_bootstrap(&EngineEnv::from_app(&app), &api_base, input).await
 }
 
 #[tauri::command]
 fn list_local_patients(app: AppHandle, query: String) -> Result<Vec<serde_json::Value>, String> {
+    let app = EngineEnv::from_app(&app);
     authorize(&app)?;
     database::list_patients(&app, &query)
 }
@@ -42,6 +48,7 @@ fn save_consultation_draft(
     app: AppHandle,
     input: database::ConsultationDraftInput,
 ) -> Result<database::SavedDraft, String> {
+    let app = EngineEnv::from_app(&app);
     let (_, claims) = authorize(&app)?;
     database::save_draft(&app, &claims, input)
 }
@@ -51,12 +58,14 @@ fn list_patient_prescriptions(
     app: AppHandle,
     patient_id: String,
 ) -> Result<Vec<serde_json::Value>, String> {
+    let app = EngineEnv::from_app(&app);
     authorize(&app)?;
     database::list_patient_prescriptions(&app, &patient_id)
 }
 
 #[tauri::command]
 fn get_local_prescription(app: AppHandle, local_id: String) -> Result<serde_json::Value, String> {
+    let app = EngineEnv::from_app(&app);
     authorize(&app)?;
     database::get_local_prescription(&app, &local_id)
 }
@@ -66,6 +75,7 @@ fn save_prescription_draft(
     app: AppHandle,
     input: database::PrescriptionDraftInput,
 ) -> Result<database::SavedDraft, String> {
+    let app = EngineEnv::from_app(&app);
     let (_, claims) = authorize(&app)?;
     database::save_prescription_draft(&app, &claims, input)
 }
@@ -75,18 +85,21 @@ fn search_local_medications(
     app: AppHandle,
     query: String,
 ) -> Result<Vec<serde_json::Value>, String> {
+    let app = EngineEnv::from_app(&app);
     authorize(&app)?;
     database::search_local_medications(&app, &query)
 }
 
 #[tauri::command]
 async fn sync_now(app: AppHandle, api_base: String) -> Result<database::SyncStatus, String> {
+    let app = EngineEnv::from_app(&app);
     let (grant, claims) = authorize(&app)?;
     network::sync_now(&app, &api_base, &grant, &claims).await
 }
 
 #[tauri::command]
 fn get_sync_status(app: AppHandle) -> Result<database::SyncStatus, String> {
+    let app = EngineEnv::from_app(&app);
     authorize(&app)?;
     database::sync_status(&app)
 }

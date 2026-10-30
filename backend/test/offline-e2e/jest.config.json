@@ -1,0 +1,14 @@
+{
+  "displayName": "Desktop <-> Backend Offline Reliability (E2E)",
+  "rootDir": ".",
+  "testEnvironment": "node",
+  "testRegex": "scenarios/.*\\.offline-e2e\\.ts$",
+  "moduleFileExtensions": ["ts", "js", "json"],
+  "transform": {
+    "^.+\\.ts$": ["ts-jest", { "tsconfig": "<rootDir>/tsconfig.json" }]
+  },
+  "globalSetup": "<rootDir>/global-setup.ts",
+  "globalTeardown": "<rootDir>/global-teardown.ts",
+  "testTimeout": 240000,
+  "maxWorkers": 1
+}

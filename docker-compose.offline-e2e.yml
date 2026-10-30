@@ -1,0 +1,34 @@
+# Offline reliability E2E (docs/offline-reliability-testing.md): the throw-away
+# database of the suite in backend/test/offline-e2e. Never production, never
+# the development database: it is its own project, on its own port.
+#
+#   docker compose -f docker-compose.offline-e2e.yml up -d --wait
+#   (scripts/test-offline-e2e.mjs does this and the rest in one command)
+#
+# MySQL lives in memory (tmpfs): every start is a clean database, `down` leaves
+# nothing behind. The Backend, the Desktop engine and the fault proxies are
+# processes of the test run itself, not services: the suite must be able to
+# kill and restart the Backend at an exact point of a request, which a
+# compose-managed container could not offer deterministically.
+
+name: healixdz-offline-e2e
+
+services:
+  mysql:
+    image: mysql:8.4
+    command:
+      - --character-set-server=utf8mb4
+      - --collation-server=utf8mb4_unicode_ci
+    environment:
+      # Throwaway credentials of this test service, not a secret.
+      MYSQL_ROOT_PASSWORD: offline-e2e-root
+      MYSQL_DATABASE: healixdz_offline_e2e
+    ports:
+      - "127.0.0.1:33306:3306"
+    tmpfs:
+      - /var/lib/mysql
+    healthcheck:
+      test: ["CMD-SHELL", "mysqladmin ping -h 127.0.0.1 -uroot -poffline-e2e-root --silent"]
+      interval: 3s
+      timeout: 5s
+      retries: 40

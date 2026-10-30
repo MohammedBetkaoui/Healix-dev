@@ -1,5 +1,6 @@
 # Continuous integration: the four components are built and tested in
-# parallel, on every pull request and on every push to main.
+# parallel, plus the Desktop <-> Backend offline reliability suite, on every
+# pull request and on every push to main.
 name: CI
 
 on:
@@ -214,3 +215,84 @@ jobs:
       - run: python -m pytest
         env:
           AI_MODELS_DIR: ${{ runner.temp }}/no-model-weights
+
+  # Desktop <-> Backend offline reliability (docs/offline-reliability-testing.md):
+  # the real Rust sync engine on a real SQLCipher database, the real NestJS
+  # backend and a real MySQL, with a fault proxy in between (lost ACK,
+  # timeouts, resets, restarts...). Independent of the four jobs above.
+  offline-e2e:
+    name: Offline E2E Reliability
+    runs-on: ubuntu-24.04
+    timeout-minutes: 60
+    defaults:
+      run:
+        working-directory: backend
+    services:
+      mysql:
+        image: mysql:8.4
+        env:
+          # Throwaway credentials of the CI service, not a secret.
+          MYSQL_ROOT_PASSWORD: offline-e2e-root
+          MYSQL_DATABASE: healixdz_offline_e2e
+        ports:
+          - 33306:3306
+        options: >-
+          --health-cmd "mysqladmin ping -h 127.0.0.1 -uroot -poffline-e2e-root --silent"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 30
+    env:
+      OFFLINE_E2E_DATABASE_URL: mysql://root:offline-e2e-root@127.0.0.1:33306/healixdz_offline_e2e?allowPublicKeyRetrieval=true
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: backend/package-lock.json
+
+      - run: npm ci
+
+      - run: npx prisma generate
+
+      - run: npm run build
+
+      - run: npm run typecheck:offline-e2e
+
+      - uses: actions-rust-lang/setup-rust-toolchain@v1
+        with:
+          toolchain: stable
+
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: desktop/src-tauri
+          key: offline-e2e
+
+      - name: Tauri system dependencies
+        run: >-
+          sudo apt-get update && sudo apt-get install -y
+          build-essential
+          curl
+          file
+          libayatana-appindicator3-dev
+          librsvg2-dev
+          libssl-dev
+          libwebkit2gtk-4.1-dev
+          libxdo-dev
+          wget
+
+      # tauri::generate_context! wants the front-end folder to exist; the
+      # engine under test never loads it, so a stub replaces the real build.
+      - name: Front-end stub for the Tauri build
+        working-directory: desktop
+        run: |
+          mkdir -p dist
+          echo '<!doctype html><title>stub</title>' > dist/index.html
+
+      - name: Build the Desktop engine harness
+        working-directory: desktop/src-tauri
+        run: cargo build --features e2e-harness --bin offline-e2e-harness
+
+      - name: Offline reliability suite
+        run: npm run test:offline-e2e
