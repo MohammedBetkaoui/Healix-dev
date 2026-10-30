@@ -244,54 +244,58 @@ jobs:
 
       # §10/§36 — smoke test au niveau runner Windows : installation
       # silencieuse, démarrage réel de l'application, fermeture,
-      # désinstallation.
+      # désinstallation. /D= (dernier argument NSIS) fixe un répertoire
+      # d'installation déterministe ; diagnostics automatiques dans le log
+      # si l'installation ne se manifeste pas.
       - name: NSIS smoke test (silent install, launch, uninstall)
         shell: pwsh
         run: |
           $setup = Get-ChildItem "release-package" -Filter "*_x64-setup.exe" | Select-Object -First 1
-          Start-Process -FilePath $setup.FullName -ArgumentList "/S" -Wait
-          # NSIS currentUser : le répertoire d'installation réel est lu dans
-          # la clé de désinstallation plutôt que supposé.
-          $deadline = [DateTime]::UtcNow.AddSeconds(90)
-          $exe = $null
-          while (-not $exe -and [DateTime]::UtcNow -lt $deadline) {
+          $smokeDir = "C:\HealixSmokeTest"
+          if (Test-Path $smokeDir) { Remove-Item $smokeDir -Recurse -Force }
+          $process = Start-Process -FilePath $setup.FullName -ArgumentList "/S", "/D=$smokeDir" -PassThru -Wait
+          "NSIS exit code : $($process.ExitCode)"
+          if ($process.ExitCode -ne 0) {
+            throw "Le package NSIS s'est terminé avec l'exit code $($process.ExitCode) (attendu 0)."
+          }
+          $app = Join-Path $smokeDir "HealixDz Desktop.exe"
+          $deadline = [DateTime]::UtcNow.AddSeconds(60)
+          while (([DateTime]::UtcNow -lt $deadline) -and -not (Test-Path $app)) {
             Start-Sleep -Seconds 2
-            $registry = Get-ItemProperty "HKCU:\Software\Microsoft\Windows\CurrentVersion\Uninstall\*" -ErrorAction SilentlyContinue |
-              Where-Object { $_.DisplayName -eq "HealixDz Desktop" }
-            $dirs = @($registry.InstallLocation) + @(
-              (Join-Path $env:LOCALAPPDATA "Programs\HealixDz Desktop"),
-              (Join-Path $env:LOCALAPPDATA "HealixDz Desktop")
-            )
-            $exe = foreach ($dir in $dirs) {
-              if ($dir -and (Test-Path $dir)) {
-                Get-ChildItem $dir -Filter "HealixDz Desktop.exe" -ErrorAction SilentlyContinue | Select-Object -First 1
-              }
+          }
+          if (-not (Test-Path $app)) {
+            # Auto-diagnostic dans les logs CI avant l'échec explicite.
+            if (Test-Path $smokeDir) {
+              "Contenu de $smokeDir :"
+              Get-ChildItem $smokeDir -Force | Select-Object -ExpandProperty Name
             }
+            "Clés de désinstallation HKCU :"
+            Get-ItemProperty "HKCU:\Software\Microsoft\Windows\CurrentVersion\Uninstall\*" -ErrorAction SilentlyContinue |
+              Select-Object DisplayName, InstallLocation | Format-Table -AutoSize
+            "Contenu de $env:LOCALAPPDATA :"
+            (Get-ChildItem $env:LOCALAPPDATA -Directory -ErrorAction SilentlyContinue | Select-Object -ExpandProperty Name) -join ", "
+            throw "L'installateur NSIS n'a pas placé l'application dans $smokeDir malgré un exit code 0."
           }
-          if (-not $exe) {
-            throw "Le package NSIS ne s'est pas installé correctement (clé de désinstallation et chemins de recherche infructueux), cf. docs/windows-release-checklist.md."
-          }
-          "Installé : $($exe.FullName)"
-          $process = Start-Process -FilePath $exe.FullName -PassThru
+          "Installé : $app"
+          $running = Start-Process -FilePath $app -PassThru
           Start-Sleep -Seconds 8
           $alive = [bool](Get-Process -Name "HealixDz Desktop*" -ErrorAction SilentlyContinue)
           if (-not $alive) {
-            if ($process.HasExited) { "processus initial quitté ($($process.ExitCode))" }
+            if ($running.HasExited) { "processus initial quitté ($($running.ExitCode))" }
             throw "L'exécutable HealixDz Desktop ne reste pas actif au démarrage."
           }
           "Démarrage réel vérifié (WebView2 chargé et fenêtre affichée)."
           Get-Process -Name "HealixDz Desktop*" -ErrorAction SilentlyContinue | Stop-Process -Force
           Start-Sleep -Seconds 2
-          $installDir = Split-Path $exe.FullName
-          $uninstaller = Join-Path $installDir "uninstall.exe"
+          $uninstaller = Join-Path $smokeDir "uninstall.exe"
           if (Test-Path $uninstaller) {
             Start-Process -FilePath $uninstaller -ArgumentList "/S" -Wait
             Start-Sleep -Seconds 4
           } else {
-            throw "Désinstallateur NSIS introuvable dans $installDir."
+            throw "Désinstallateur NSIS introuvable dans $smokeDir."
           }
-          if (Test-Path $installDir) {
-            "AVERTISSEMENT: $installDir subsiste après la désinstallation — cohérent avec la politique conservatrice des données locales (docs/windows-release.md)."
+          if (Test-Path $smokeDir) {
+            "AVERTISSEMENT: $smokeDir subsiste après la désinstallation — à noter ; les données chiffrées %APPDATA% restent en place par design (docs/windows-release.md)."
           } else {
             "Désinstallé proprement (programmes uniquement ; les données chiffrées de l'utilisateur restent en place)."
           }
