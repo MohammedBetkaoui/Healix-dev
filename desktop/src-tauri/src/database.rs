@@ -117,7 +117,10 @@ CREATE TABLE IF NOT EXISTS sync_outbox (
   occurred_at TEXT NOT NULL,
   sequence INTEGER NOT NULL UNIQUE,
   status TEXT NOT NULL,
-  retry_count INTEGER NOT NULL DEFAULT 0
+  retry_count INTEGER NOT NULL DEFAULT 0,
+  attempt_count INTEGER NOT NULL DEFAULT 0,
+  first_attempted_at TEXT,
+  last_attempted_at TEXT
 );
 CREATE INDEX IF NOT EXISTS sync_outbox_pending_idx ON sync_outbox(status, sequence);
 CREATE TABLE IF NOT EXISTS sync_entity_map (
@@ -146,7 +149,7 @@ INSERT OR IGNORE INTO sync_state(id, cursor) VALUES (1, '');
 
 // Columns added after the first release; CREATE TABLE IF NOT EXISTS cannot
 // upgrade an existing database file, so opening the storage rechecks them.
-const LOCAL_MIGRATIONS: [(&str, &str, &str); 14] = [
+const LOCAL_MIGRATIONS: [(&str, &str, &str); 17] = [
     (
         "patients",
         "locked",
@@ -169,6 +172,11 @@ const LOCAL_MIGRATIONS: [(&str, &str, &str); 14] = [
     ("prescription_drafts", "server_updated_at", "ALTER TABLE prescription_drafts ADD COLUMN server_updated_at TEXT"),
     ("prescription_drafts", "last_synced_at", "ALTER TABLE prescription_drafts ADD COLUMN last_synced_at TEXT"),
     ("prescription_drafts", "updated_at", "ALTER TABLE prescription_drafts ADD COLUMN updated_at TEXT NOT NULL DEFAULT ''"),
+    // Existing rows predate durable attempt tracking. Their send history is
+    // unknowable, so they are deliberately treated as possibly sent.
+    ("sync_outbox", "attempt_count", "ALTER TABLE sync_outbox ADD COLUMN attempt_count INTEGER NOT NULL DEFAULT 1"),
+    ("sync_outbox", "first_attempted_at", "ALTER TABLE sync_outbox ADD COLUMN first_attempted_at TEXT"),
+    ("sync_outbox", "last_attempted_at", "ALTER TABLE sync_outbox ADD COLUMN last_attempted_at TEXT"),
 ];
 
 fn db_path(app: &AppHandle) -> Result<PathBuf, String> {
@@ -929,38 +937,56 @@ pub fn save_draft(
     } else {
         "CREATE"
     };
-    let existing_operation: Option<String> = tx
+    let mutable_operation: Option<String> = tx
         .query_row(
-            "SELECT operation_id FROM sync_outbox WHERE local_entity_id=?1 AND operation=?2 AND status IN ('PENDING','RETRYABLE') ORDER BY sequence LIMIT 1",
+            "SELECT operation_id FROM sync_outbox WHERE entity_type='CONSULTATION' AND local_entity_id=?1 AND operation=?2 AND status IN ('PENDING','RETRYABLE') AND attempt_count=0 ORDER BY sequence LIMIT 1",
             params![local_id, operation],
             |row| row.get(0),
         )
         .optional()
         .map_err(|_| "Outbox locale illisible.".to_string())?;
-    let operation_id = existing_operation.unwrap_or_else(|| Uuid::new_v4().to_string());
-    let envelope = json!({
-        "operationId": operation_id,
-        "entityType": "CONSULTATION",
-        "localEntityId": local_id,
-        "operation": operation,
-        "baseVersion": base_version,
-        "occurredAt": occurred_at,
-        "payload": payload
-    });
-    let sequence: i64 = tx
-        .query_row(
-            "SELECT COALESCE(MAX(sequence), 0) + 1 FROM sync_outbox",
-            [],
+    let attempted_operation: Option<String> = if mutable_operation.is_none() {
+        tx.query_row(
+            "SELECT operation_id FROM sync_outbox WHERE entity_type='CONSULTATION' AND local_entity_id=?1 AND status IN ('PENDING','RETRYABLE') AND attempt_count>0 ORDER BY sequence LIMIT 1",
+            params![local_id],
             |row| row.get(0),
         )
-        .map_err(|_| "Séquence outbox indisponible.".to_string())?;
-    tx.execute(
-        "INSERT INTO sync_outbox(operation_id, device_id, entity_type, local_entity_id, operation, base_version, payload, occurred_at, sequence, status)
-         VALUES (?1, ?2, 'CONSULTATION', ?3, ?4, ?5, ?6, ?7, ?8, 'PENDING')
+        .optional()
+        .map_err(|_| "Outbox locale illisible.".to_string())?
+    } else {
+        None
+    };
+    let operation_id = mutable_operation
+        .clone()
+        .or_else(|| attempted_operation.clone())
+        .unwrap_or_else(|| Uuid::new_v4().to_string());
+    // A previous network attempt freezes its operation envelope. The freshly
+    // saved aggregate remains local until that operation receives an ACK.
+    if attempted_operation.is_none() {
+        let envelope = json!({
+            "operationId": operation_id,
+            "entityType": "CONSULTATION",
+            "localEntityId": local_id,
+            "operation": operation,
+            "baseVersion": base_version,
+            "occurredAt": occurred_at,
+            "payload": payload
+        });
+        let sequence: i64 = tx
+            .query_row(
+                "SELECT COALESCE(MAX(sequence), 0) + 1 FROM sync_outbox",
+                [],
+                |row| row.get(0),
+            )
+            .map_err(|_| "Séquence outbox indisponible.".to_string())?;
+        tx.execute(
+        "INSERT INTO sync_outbox(operation_id, device_id, entity_type, local_entity_id, operation, base_version, payload, occurred_at, sequence, status, attempt_count)
+         VALUES (?1, ?2, 'CONSULTATION', ?3, ?4, ?5, ?6, ?7, ?8, 'PENDING', 0)
          ON CONFLICT(operation_id) DO UPDATE SET base_version=excluded.base_version, payload=excluded.payload, occurred_at=excluded.occurred_at, status='PENDING'",
         params![operation_id, claims.device_id, local_id, operation, base_version, envelope.to_string(), occurred_at, sequence],
     )
     .map_err(|_| "Outbox locale non enregistrée.".to_string())?;
+    }
     tx.execute(
         "INSERT INTO local_audit_events(id, action, entity_type, entity_id, actor_id, device_id, occurred_at)
          VALUES (?1, 'CONSULTATION_SAVED_OFFLINE', 'PatientConsultation', ?2, ?3, ?4, ?5)",
@@ -1204,41 +1230,59 @@ fn save_prescription_draft_on_connection(
     }
     replace_prescription_items(&tx, &local_id, &input.items)?;
 
-    let existing_operation: Option<String> = tx
+    let mutable_operation: Option<String> = tx
         .query_row(
             "SELECT operation_id FROM sync_outbox
              WHERE entity_type='PRESCRIPTION' AND local_entity_id=?1 AND operation=?2
-               AND status IN ('PENDING','RETRYABLE') ORDER BY sequence LIMIT 1",
+               AND status IN ('PENDING','RETRYABLE') AND attempt_count=0 ORDER BY sequence LIMIT 1",
             params![local_id, operation],
             |row| row.get(0),
         )
         .optional()
         .map_err(|_| "Outbox ordonnance illisible.".to_string())?;
-    let operation_id = existing_operation.unwrap_or_else(|| Uuid::new_v4().to_string());
-    let envelope = json!({
-        "operationId": operation_id,
-        "entityType": "PRESCRIPTION",
-        "localEntityId": local_id,
-        "operation": operation,
-        "baseVersion": base_version,
-        "occurredAt": occurred_at,
-        "payload": payload,
-    });
-    let sequence: i64 = tx
-        .query_row(
-            "SELECT COALESCE(MAX(sequence), 0) + 1 FROM sync_outbox",
-            [],
+    let attempted_operation: Option<String> = if mutable_operation.is_none() {
+        tx.query_row(
+            "SELECT operation_id FROM sync_outbox
+             WHERE entity_type='PRESCRIPTION' AND local_entity_id=?1
+               AND status IN ('PENDING','RETRYABLE') AND attempt_count>0 ORDER BY sequence LIMIT 1",
+            params![local_id],
             |row| row.get(0),
         )
-        .map_err(|_| "Séquence outbox indisponible.".to_string())?;
-    tx.execute(
-        "INSERT INTO sync_outbox(operation_id, device_id, entity_type, local_entity_id, operation, base_version, payload, occurred_at, sequence, status)
-         VALUES (?1, ?2, 'PRESCRIPTION', ?3, ?4, ?5, ?6, ?7, ?8, 'PENDING')
+        .optional()
+        .map_err(|_| "Outbox ordonnance illisible.".to_string())?
+    } else {
+        None
+    };
+    let operation_id = mutable_operation
+        .clone()
+        .or_else(|| attempted_operation.clone())
+        .unwrap_or_else(|| Uuid::new_v4().to_string());
+    if attempted_operation.is_none() {
+        let envelope = json!({
+            "operationId": operation_id,
+            "entityType": "PRESCRIPTION",
+            "localEntityId": local_id,
+            "operation": operation,
+            "baseVersion": base_version,
+            "occurredAt": occurred_at,
+            "payload": payload,
+        });
+        let sequence: i64 = tx
+            .query_row(
+                "SELECT COALESCE(MAX(sequence), 0) + 1 FROM sync_outbox",
+                [],
+                |row| row.get(0),
+            )
+            .map_err(|_| "Séquence outbox indisponible.".to_string())?;
+        tx.execute(
+        "INSERT INTO sync_outbox(operation_id, device_id, entity_type, local_entity_id, operation, base_version, payload, occurred_at, sequence, status, attempt_count)
+         VALUES (?1, ?2, 'PRESCRIPTION', ?3, ?4, ?5, ?6, ?7, ?8, 'PENDING', 0)
          ON CONFLICT(operation_id) DO UPDATE SET base_version=excluded.base_version,
            payload=excluded.payload, occurred_at=excluded.occurred_at, status='PENDING'",
         params![operation_id, claims.device_id, local_id, operation, base_version, envelope.to_string(), occurred_at, sequence],
     )
     .map_err(|_| "Outbox ordonnance non enregistrée.".to_string())?;
+    }
     tx.execute(
         "INSERT INTO local_audit_events(id, action, entity_type, entity_id, actor_id, device_id, occurred_at)
          VALUES (?1, 'PRESCRIPTION_SAVED_OFFLINE', 'PRESCRIPTION', ?2, ?3, ?4, ?5)",
@@ -1459,18 +1503,49 @@ pub fn sync_status(app: &AppHandle) -> Result<SyncStatus, String> {
 }
 
 pub fn pending_operations(app: &AppHandle) -> Result<Vec<Value>, String> {
-    let connection = open(app)?;
+    let mut connection = open(app)?;
+    pending_operations_on_connection(&mut connection)
+}
+
+// Selection and attempt marking are one local transaction. Once returned to
+// network.rs, the exact stored envelope is immutable even across a crash.
+fn pending_operations_on_connection(connection: &mut Connection) -> Result<Vec<Value>, String> {
     let mut statement = connection
-        .prepare("SELECT payload FROM sync_outbox WHERE status IN ('PENDING','RETRYABLE') ORDER BY sequence LIMIT 50")
+        .prepare("SELECT operation_id, payload FROM sync_outbox WHERE status IN ('PENDING','RETRYABLE') ORDER BY sequence LIMIT 50")
         .map_err(|_| "Outbox locale indisponible.".to_string())?;
     let rows = statement
-        .query_map([], |row| row.get::<_, String>(0))
+        .query_map([], |row| {
+            Ok((row.get::<_, String>(0)?, row.get::<_, String>(1)?))
+        })
         .map_err(|_| "Outbox locale illisible.".to_string())?;
-    rows.map(|row| {
-        serde_json::from_str(&row.map_err(|_| "Opération locale illisible.".to_string())?)
-            .map_err(|_| "Opération locale corrompue.".to_string())
-    })
-    .collect()
+    let selected: Vec<(String, String)> = rows
+        .collect::<Result<Vec<_>, _>>()
+        .map_err(|_| "Opération locale illisible.".to_string())?;
+    drop(statement);
+    if selected.is_empty() {
+        return Ok(Vec::new());
+    }
+    let attempted_at = now_iso(connection)?;
+    let tx = connection
+        .transaction()
+        .map_err(|_| "Transaction d’envoi locale impossible.".to_string())?;
+    for (operation_id, _) in &selected {
+        tx.execute(
+            "UPDATE sync_outbox SET attempt_count=attempt_count+1,
+             first_attempted_at=COALESCE(first_attempted_at, ?2), last_attempted_at=?2
+             WHERE operation_id=?1",
+            params![operation_id, attempted_at],
+        )
+        .map_err(|_| "Tentative de synchronisation non enregistrée.".to_string())?;
+    }
+    tx.commit()
+        .map_err(|_| "Tentative de synchronisation non validée.".to_string())?;
+    selected
+        .into_iter()
+        .map(|(_, payload)| {
+            serde_json::from_str(&payload).map_err(|_| "Opération locale corrompue.".to_string())
+        })
+        .collect()
 }
 
 pub fn current_cursor(app: &AppHandle) -> Result<String, String> {
@@ -1479,6 +1554,106 @@ pub fn current_cursor(app: &AppHandle) -> Result<String, String> {
             row.get(0)
         })
         .map_err(|_| "Curseur local indisponible.".to_string())
+}
+
+fn has_local_changes_after_attempt(
+    tx: &Transaction<'_>,
+    operation_id: &str,
+    entity_type: &str,
+    local_id: &str,
+) -> Result<bool, String> {
+    let envelope: String = tx
+        .query_row(
+            "SELECT payload FROM sync_outbox WHERE operation_id=?1",
+            params![operation_id],
+            |row| row.get(0),
+        )
+        .map_err(|_| "Opération acquittée introuvable.".to_string())?;
+    let sent: Value = serde_json::from_str(&envelope)
+        .map_err(|_| "Opération acquittée illisible.".to_string())?;
+    let sent_payload = sent
+        .get("payload")
+        .ok_or_else(|| "Payload acquitté absent.".to_string())?;
+    let local_payload: String = match entity_type {
+        "CONSULTATION" => tx.query_row(
+            "SELECT payload FROM consultations WHERE local_id=?1",
+            params![local_id],
+            |row| row.get(0),
+        ),
+        "PRESCRIPTION" => tx.query_row(
+            "SELECT payload FROM prescription_drafts WHERE local_id=?1",
+            params![local_id],
+            |row| row.get(0),
+        ),
+        _ => return Ok(false),
+    }
+    .map_err(|_| "Donnée locale acquittée introuvable.".to_string())?;
+    let local: Value = serde_json::from_str(&local_payload)
+        .map_err(|_| "Donnée locale acquittée illisible.".to_string())?;
+    Ok(&local != sent_payload)
+}
+
+fn queue_follow_up_after_ack(
+    tx: &Transaction<'_>,
+    operation_id: &str,
+    entity_type: &str,
+    local_id: &str,
+    server_id: &str,
+    base_version: i64,
+    occurred_at: &str,
+) -> Result<(), String> {
+    let (device_id, local_payload): (String, String) = tx
+        .query_row(
+            "SELECT o.device_id, CASE WHEN ?2='CONSULTATION' THEN c.payload ELSE p.payload END
+             FROM sync_outbox o
+             LEFT JOIN consultations c ON c.local_id=?3
+             LEFT JOIN prescription_drafts p ON p.local_id=?3
+             WHERE o.operation_id=?1",
+            params![operation_id, entity_type, local_id],
+            |row| Ok((row.get(0)?, row.get(1)?)),
+        )
+        .map_err(|_| "Nouvelle opération locale impossible.".to_string())?;
+    let payload: Value =
+        serde_json::from_str(&local_payload).map_err(|_| "Payload local illisible.".to_string())?;
+    let next_id = Uuid::new_v4().to_string();
+    let sequence: i64 = tx
+        .query_row(
+            "SELECT COALESCE(MAX(sequence), 0) + 1 FROM sync_outbox",
+            [],
+            |row| row.get(0),
+        )
+        .map_err(|_| "Séquence outbox indisponible.".to_string())?;
+    let envelope = json!({
+        "operationId": next_id,
+        "entityType": entity_type,
+        "localEntityId": local_id,
+        "operation": "UPDATE",
+        "baseVersion": base_version,
+        "occurredAt": occurred_at,
+        "payload": payload,
+    });
+    tx.execute(
+        "INSERT INTO sync_outbox(operation_id, device_id, entity_type, local_entity_id, operation, base_version, payload, occurred_at, sequence, status, attempt_count)
+         VALUES (?1, ?2, ?3, ?4, 'UPDATE', ?5, ?6, ?7, ?8, 'PENDING', 0)",
+        params![next_id, device_id, entity_type, local_id, base_version, envelope.to_string(), occurred_at, sequence],
+    )
+    .map_err(|_| "Suite de synchronisation non enregistrée.".to_string())?;
+    // The payload has now been captured in a fresh immutable envelope.
+    if entity_type == "CONSULTATION" {
+        tx.execute(
+            "UPDATE consultations SET local_status='LOCAL_DRAFT' WHERE local_id=?1",
+            params![local_id],
+        )
+        .map_err(|_| "État consultation non actualisé.".to_string())?;
+    } else if entity_type == "PRESCRIPTION" {
+        tx.execute(
+            "UPDATE prescription_drafts SET local_status='PENDING_SYNC' WHERE local_id=?1",
+            params![local_id],
+        )
+        .map_err(|_| "État ordonnance non actualisé.".to_string())?;
+    }
+    let _ = server_id; // The mapping was committed by the caller in this transaction.
+    Ok(())
 }
 
 pub fn apply_push_results(app: &AppHandle, results: &[Value]) -> Result<(), String> {
@@ -1509,22 +1684,36 @@ fn apply_push_results_on_connection(
                     .get("serverVersion")
                     .and_then(Value::as_i64)
                     .unwrap_or(1);
+                let dirty_after_attempt =
+                    has_local_changes_after_attempt(&tx, &operation_id, &entity_type, &local_id)?;
                 tx.execute(
                     "UPDATE sync_outbox SET status='ACK' WHERE operation_id=?1",
                     params![operation_id],
                 )
                 .map_err(|_| "ACK local impossible.".to_string())?;
                 tx.execute(
-                    "UPDATE consultations SET server_id=?1, base_version=?2, local_status='SYNCED', last_synced_at=?3 WHERE local_id=?4 AND ?5='CONSULTATION'",
-                    params![server_id, version, detected_at, local_id, entity_type],
-                ).map_err(|_| "Consultation locale non acquittée.".to_string())?;
+                    "UPDATE consultations SET server_id=?1, base_version=?2,
+                     local_status=CASE WHEN ?3 THEN local_status ELSE 'SYNCED' END,
+                     last_synced_at=?4 WHERE local_id=?5 AND ?6='CONSULTATION'",
+                    params![
+                        server_id,
+                        version,
+                        dirty_after_attempt as i64,
+                        detected_at,
+                        local_id,
+                        entity_type
+                    ],
+                )
+                .map_err(|_| "Consultation locale non acquittée.".to_string())?;
                 tx.execute(
                     "INSERT OR REPLACE INTO sync_entity_map(entity_type, local_entity_id, server_entity_id) SELECT 'CONSULTATION', ?1, ?2 WHERE ?3='CONSULTATION'",
                     params![local_id, server_id, entity_type],
                 ).map_err(|_| "Mapping local non enregistré.".to_string())?;
                 tx.execute(
-                    "UPDATE prescription_drafts SET server_id=?1, base_version=?2, server_status='DRAFT', local_status='SYNCED', last_synced_at=?3 WHERE local_id=?4 AND ?5='PRESCRIPTION'",
-                    params![server_id, version, detected_at, local_id, entity_type],
+                    "UPDATE prescription_drafts SET server_id=?1, base_version=?2, server_status='DRAFT',
+                     local_status=CASE WHEN ?3 THEN local_status ELSE 'SYNCED' END,
+                     last_synced_at=?4 WHERE local_id=?5 AND ?6='PRESCRIPTION'",
+                    params![server_id, version, dirty_after_attempt as i64, detected_at, local_id, entity_type],
                 ).map_err(|_| "Ordonnance locale non acquittée.".to_string())?;
                 tx.execute(
                     "INSERT OR REPLACE INTO sync_entity_map(entity_type, local_entity_id, server_entity_id) SELECT 'PRESCRIPTION', ?1, ?2 WHERE ?3='PRESCRIPTION'",
@@ -1532,6 +1721,17 @@ fn apply_push_results_on_connection(
                 ).map_err(|_| "Mapping ordonnance non enregistré.".to_string())?;
                 tx.execute("UPDATE local_audit_events SET synced_at=?1 WHERE entity_id=?2 AND synced_at IS NULL", params![detected_at, local_id])
                     .map_err(|_| "Audit local non acquitté.".to_string())?;
+                if dirty_after_attempt {
+                    queue_follow_up_after_ack(
+                        &tx,
+                        &operation_id,
+                        &entity_type,
+                        &local_id,
+                        &server_id,
+                        version,
+                        &detected_at,
+                    )?;
+                }
             }
             "CONFLICT" => {
                 let local_id = string(result, "localEntityId")?;
@@ -1574,6 +1774,17 @@ fn apply_push_results_on_connection(
                         params![local_id],
                     )
                     .map_err(|_| "Rejet ordonnance non enregistré.".to_string())?;
+                } else if result.get("code").and_then(Value::as_str)
+                    == Some("OPERATION_ID_PAYLOAD_MISMATCH")
+                {
+                    // Never mint a replacement operation automatically after an
+                    // integrity mismatch; preserve the local record for review.
+                    let local_id = string(result, "localEntityId")?;
+                    tx.execute(
+                        "UPDATE consultations SET local_status='CONFLICT' WHERE local_id=?1",
+                        params![local_id],
+                    )
+                    .map_err(|_| "Incohérence consultation non enregistrée.".to_string())?;
                 }
             }
             "RETRYABLE" => {
@@ -2163,6 +2374,111 @@ mod tests {
             )
             .expect("ack row");
         assert_eq!(row, ("rx-server-1".to_string(), 1, "SYNCED".to_string()));
+    }
+
+    #[test]
+    fn attempted_prescription_create_is_immutable_and_lost_ack_queues_fresh_update() {
+        let mut connection = memory_db();
+        insert_patient(&connection, "patient-lost-ack-rx");
+        let first = save_prescription_draft_on_connection(
+            &mut connection,
+            &test_claims(),
+            prescription_input("patient-lost-ack-rx", None),
+        )
+        .expect("create A");
+        let sent = pending_operations_on_connection(&mut connection).expect("mark attempted");
+        assert_eq!(sent.len(), 1);
+
+        let mut changed = prescription_input("patient-lost-ack-rx", Some(first.local_id.clone()));
+        changed.items[0].quantity = "2 boîtes".to_string();
+        let second =
+            save_prescription_draft_on_connection(&mut connection, &test_claims(), changed)
+                .expect("save B while ACK is lost");
+        assert_eq!(first.operation_id, second.operation_id);
+        let immutable: (String, i64) = connection
+            .query_row(
+                "SELECT payload, attempt_count FROM sync_outbox WHERE operation_id=?1",
+                params![first.operation_id],
+                |row| Ok((row.get(0)?, row.get(1)?)),
+            )
+            .expect("immutable X");
+        assert_eq!(immutable.1, 1);
+        assert_eq!(
+            serde_json::from_str::<Value>(&immutable.0).expect("envelope")["payload"]["items"][0]
+                ["quantity"],
+            "1 boîte"
+        );
+
+        apply_push_results_on_connection(
+            &mut connection,
+            &[json!({
+                "operationId": first.operation_id,
+                "entityType": "PRESCRIPTION",
+                "localEntityId": first.local_id,
+                "status": "ACK",
+                "serverEntityId": "rx-lost-ack",
+                "serverVersion": 1,
+            })],
+        )
+        .expect("delayed ACK");
+        let follow_up: (String, String, i64, String) = connection
+            .query_row(
+                "SELECT operation_id, operation, base_version, payload FROM sync_outbox
+                 WHERE status='PENDING' ORDER BY sequence DESC LIMIT 1",
+                [],
+                |row| Ok((row.get(0)?, row.get(1)?, row.get(2)?, row.get(3)?)),
+            )
+            .expect("follow-up Y");
+        assert_ne!(follow_up.0, first.operation_id);
+        assert_eq!(follow_up.1, "UPDATE");
+        assert_eq!(follow_up.2, 1);
+        assert_eq!(
+            serde_json::from_str::<Value>(&follow_up.3).expect("Y")["payload"]["items"][0]
+                ["quantity"],
+            "2 boîtes"
+        );
+    }
+
+    #[test]
+    fn attempted_consultation_update_lost_ack_keeps_local_change_and_uses_ack_version() {
+        let mut connection = memory_db();
+        insert_patient(&connection, "patient-lost-ack-consultation");
+        let local_id = "local-lost-ack-consultation";
+        let sent_payload =
+            json!({"patientId":"patient-lost-ack-consultation","chiefComplaint":"A"});
+        let local_payload =
+            json!({"patientId":"patient-lost-ack-consultation","chiefComplaint":"B"});
+        connection.execute(
+            "INSERT INTO consultations(local_id, server_id, patient_server_id, local_status, base_version, payload, updated_at)
+             VALUES (?1, 'consultation-lost-ack', ?2, 'LOCAL_DRAFT', 4, ?3, '2026-10-30T00:00:00Z')",
+            params![local_id, "patient-lost-ack-consultation", local_payload.to_string()],
+        ).expect("local B");
+        let x = Uuid::new_v4().to_string();
+        let envelope = json!({"operationId":x.clone(),"entityType":"CONSULTATION","localEntityId":local_id,"operation":"UPDATE","baseVersion":4,"occurredAt":"2026-10-30T00:00:00Z","payload":sent_payload});
+        connection.execute(
+            "INSERT INTO sync_outbox(operation_id, device_id, entity_type, local_entity_id, operation, base_version, payload, occurred_at, sequence, status)
+             VALUES (?1, 'device-1', 'CONSULTATION', ?2, 'UPDATE', 4, ?3, '2026-10-30T00:00:00Z', 1, 'PENDING')",
+            params![x, local_id, envelope.to_string()],
+        ).expect("X");
+        pending_operations_on_connection(&mut connection).expect("attempt X");
+        apply_push_results_on_connection(
+            &mut connection,
+            &[json!({
+                "operationId": x.clone(), "entityType":"CONSULTATION", "localEntityId":local_id,
+                "status":"ACK", "serverEntityId":"consultation-lost-ack", "serverVersion":5
+            })],
+        )
+        .expect("delayed ACK");
+        let y: (String, i64, String) = connection.query_row(
+            "SELECT operation_id, base_version, payload FROM sync_outbox WHERE status='PENDING'",
+            [], |row| Ok((row.get(0)?, row.get(1)?, row.get(2)?)),
+        ).expect("Y");
+        assert_ne!(x, y.0);
+        assert_eq!(y.1, 5);
+        assert_eq!(
+            serde_json::from_str::<Value>(&y.2).expect("Y")["payload"]["chiefComplaint"],
+            "B"
+        );
     }
 
     #[test]

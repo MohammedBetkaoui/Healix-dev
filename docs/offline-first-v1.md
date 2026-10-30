@@ -30,6 +30,18 @@ Les routes de synchronisation utilisent `Authorization: Bearer <OfflineAccessGra
 
 Le curseur est opaque. Chaque mutation contient un UUID `operationId`; le serveur conserve son résultat et le retourne à l’identique lors d’un retry. Les mises à jour de consultation exigent `baseVersion`. Une version divergente produit `CONFLICT` et ne remplace jamais silencieusement la donnée serveur.
 
+### Immutabilité de l’outbox et retries
+
+Chaque `SyncOperation` durable porte également un `payloadHash` SHA-256 (hexadécimal minuscule) calculé sur une représentation JSON canonique de `entityType`, `localEntityId`, `operation`, `baseVersion` et `payload`. Les clés des objets JSON sont triées récursivement ; l’ordre des tableaux reste significatif. `occurredAt` est volontairement exclu : il s’agit de métadonnée de transport, pas du contenu clinique.
+
+> **Invariant : une fois une opération tentée, son `operationId` et son payload sémantique sont immuables.**
+
+Le Desktop inscrit `attempt_count` et les horodatages de première/dernière tentative dans SQLCipher **avant** l’appel HTTP. Une panne DNS, TLS, un timeout ou un crash conserve donc l’opération figée et un retry renvoie exactement la même enveloppe. Tant que `attempt_count = 0`, les sauvegardes peuvent coalescer une création locale en une seule opération.
+
+Quand un ACK est perdu puis qu’un clinicien modifie le brouillon, l’ancienne enveloppe est réessayée telle quelle. À son ACK, le mapping et la `serverVersion` sont appliqués sans écraser la version locale plus récente ; une nouvelle UPDATE, avec un nouvel `operationId` et la `baseVersion` de l’ACK, est alors créée. Une CREATE n’a donc jamais d’UPDATE dépendante envoyée avant son ACK.
+
+Le serveur renvoie son résultat durable uniquement si le même appareil réessaie le même `operationId` avec le même `payloadHash`. Un autre appareil reçoit `OPERATION_ID_ALREADY_USED`; un payload différent reçoit `OPERATION_ID_PAYLOAD_MISMATCH`, sans retry automatique et sans exposer le payload clinique dans les logs. Les anciennes lignes serveur reçoivent un marqueur legacy distinct : elles sont traitées conservativement comme non comparables à une nouvelle enveloppe canonique.
+
 ## Preuve de possession (device PoP) et anti-rejeu
 
 Chaque route `/api/sync/*` passe deux guards : le grant offline (`OfflineGrantGuard`) puis la preuve de possession (`DeviceProofGuard`). Avec le Bearer, la requête porte quatre en-têtes :

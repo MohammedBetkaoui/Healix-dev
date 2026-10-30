@@ -821,6 +821,7 @@ model SyncOperation {
   operation        SyncOperationKind
   baseVersion      Int?                @map("base_version")
   payload          Json
+  payloadHash      String              @map("payload_hash") @db.VarChar(64)
   clientOccurredAt DateTime            @map("client_occurred_at")
   receivedAt       DateTime            @default(now()) @map("received_at")
   status           SyncOperationStatus @default(PROCESSING)

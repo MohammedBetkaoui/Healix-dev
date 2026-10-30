@@ -12,6 +12,7 @@ import { type PrismaService } from '../prisma/prisma.service';
 import { type OfflineScopeService } from './offline-scope.service';
 import { type PrescriptionSyncService } from './prescription-sync.service';
 import { SyncService } from './sync.service';
+import { computeSyncOperationHash } from './sync-operation-hash';
 
 const actor: OfflineActor = {
   grantId: 'grant-1',
@@ -89,6 +90,7 @@ describe('SyncService operation safety', () => {
         findUnique: jest.fn().mockResolvedValue({
           operationId: operation.operationId,
           deviceId: actor.deviceId,
+          payloadHash: computeSyncOperationHash(operation),
           status: SyncOperationStatus.ACK,
           result: previous,
         }),
@@ -101,6 +103,49 @@ describe('SyncService operation safety', () => {
     expect(response.results).toEqual([previous]);
     expect((prisma as any).$transaction).toBeUndefined();
   });
+
+  it.each([
+    ['CONSULTATION', operation],
+    [
+      'PRESCRIPTION',
+      {
+        ...operation,
+        entityType: SyncEntityType.PRESCRIPTION,
+        payload: { patientId: 'patient-1', type: 'STANDARD', items: [] },
+      },
+    ],
+  ])(
+    'rejects a same-device operationId with a different %s semantic payload',
+    async (_entityType, original) => {
+      const durable = { operationId: original.operationId, status: SyncOperationStatus.ACK };
+      const prisma = {
+        syncOperation: {
+          findUnique: jest.fn().mockResolvedValue({
+            operationId: original.operationId,
+            deviceId: actor.deviceId,
+            payloadHash: computeSyncOperationHash(original as any),
+            status: SyncOperationStatus.ACK,
+            result: durable,
+          }),
+        },
+      } as unknown as PrismaService;
+      const service = new SyncService(prisma, scope, prescriptionSync);
+      const changed = {
+        ...original,
+        payload: { ...(original as any).payload, changedForSafetyTest: true },
+      };
+
+      const response = await service.push(actor, { operations: [changed as any] });
+
+      expect(response.results).toEqual([
+        expect.objectContaining({
+          status: SyncOperationStatus.REJECTED,
+          code: 'OPERATION_ID_PAYLOAD_MISMATCH',
+        }),
+      ]);
+      expect((prisma as any).$transaction).toBeUndefined();
+    },
+  );
 
   it('returns a conflict and never updates a newer server version', async () => {
     const current = {

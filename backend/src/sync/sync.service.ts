@@ -27,6 +27,7 @@ import {
   toPrescriptionSyncPayload,
 } from './prescription-sync-change';
 import { PrescriptionSyncService } from './prescription-sync.service';
+import { computeSyncOperationHash } from './sync-operation-hash';
 import { decodeSyncCursor, encodeSyncCursor } from './sync-cursor';
 import { PrescriptionStatus } from '@prisma/client';
 
@@ -311,10 +312,13 @@ export class SyncService {
     allowedPatients: Set<string>,
     operation: SyncOperationDto,
   ) {
+    // Hash before the idempotency lookup: operationId alone is insufficient
+    // when a lost ACK is followed by a local edit.
+    const payloadHash = computeSyncOperationHash(operation);
     const existing = await this.prisma.syncOperation.findUnique({
       where: { operationId: operation.operationId },
     });
-    if (existing) return this.existingOperationResult(actor, existing);
+    if (existing) return this.existingOperationResult(actor, existing, payloadHash);
 
     try {
       return await this.prisma.$transaction(async (client) => {
@@ -329,6 +333,7 @@ export class SyncService {
             operation: operation.operation,
             baseVersion: operation.baseVersion,
             payload: operation.payload as unknown as Prisma.InputJsonValue,
+            payloadHash,
             clientOccurredAt: new Date(operation.occurredAt),
           },
         });
@@ -354,7 +359,7 @@ export class SyncService {
         const raced = await this.prisma.syncOperation.findUnique({
           where: { operationId: operation.operationId },
         });
-        if (raced) return this.existingOperationResult(actor, raced);
+        if (raced) return this.existingOperationResult(actor, raced, payloadHash);
       }
       return {
         operationId: operation.operationId,
@@ -678,9 +683,11 @@ export class SyncService {
     existing: {
       deviceId: string;
       operationId: string;
+      payloadHash: string;
       status: SyncOperationStatus;
       result: Prisma.JsonValue | null;
     },
+    incomingPayloadHash: string,
   ) {
     if (existing.deviceId !== actor.deviceId) {
       return {
@@ -688,6 +695,14 @@ export class SyncService {
         status: SyncOperationStatus.REJECTED,
         code: 'OPERATION_ID_ALREADY_USED',
         message: 'Identifiant d’opération déjà utilisé.',
+      };
+    }
+    if (existing.payloadHash !== incomingPayloadHash) {
+      return {
+        operationId: existing.operationId,
+        status: SyncOperationStatus.REJECTED,
+        code: 'OPERATION_ID_PAYLOAD_MISMATCH',
+        message: 'Cette opération a déjà été envoyée avec un contenu différent.',
       };
     }
     return (
