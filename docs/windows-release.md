@@ -47,6 +47,30 @@ une production officielle :
    `TAURI_SIGNING_PRIVATE_KEY`, le mot de passe éventuel dans
    `TAURI_SIGNING_PRIVATE_KEY_PASSWORD`.
 
+**Ce qu'une rotation implique (à ne pas improviser).** Une version
+installée n'accepte une mise à jour que si sa signature correspond à la
+clé publique **qu'elle embarque**. Soit la version A, qui embarque la clé
+publique K1 :
+
+- A ne peut mettre à jour que vers un paquet signé avec la clé privée
+  K1 ;
+- pour passer à K2, il faut donc publier une version B **signée avec K1**
+  mais dont `tauri.conf.json` embarque la clé publique **K2** ;
+- une fois B installée, les versions suivantes (C, D…) sont signées avec
+  K2 ; K1 peut alors être retirée, mais pas avant que tous les postes
+  aient installé B ;
+- un poste resté sur A ne peut pas atteindre une version signée seulement
+  avec K2 : ne jamais publier C avant d'avoir publié B, et conserver K1
+  tant que A reste déployée ;
+- changer `plugins.updater.pubkey` sans cette étape intermédiaire coupe
+  le canal de mise à jour de tous les postes existants (réinstallation
+  manuelle requise).
+
+La clé de test initiale (K1 de développement) ne doit pas servir à une
+diffusion réelle : générer la paire de production (étape 1) **avant** la
+première bêta distribuée, de sorte que les postes bêta n'embarquent
+jamais la clé de test.
+
 ## 2. Versioning
 
 - Source de vérité : `desktop/package.json`.

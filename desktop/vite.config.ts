@@ -1,5 +1,6 @@
 import { defineConfig } from "vite";
 import react from "@vitejs/plugin-react";
+import tailwindcss from "@tailwindcss/vite";
 import pkg from "./package.json" with { type: "json" };
 
 const isBuild = process.env.NODE_ENV === "production" || process.argv.some((arg) => arg === "build");
@@ -14,9 +15,15 @@ if (releaseWantsApiBase && !process.env.VITE_API_BASE_URL) {
 }
 
 export default defineConfig({
-  plugins: [react()],
+  plugins: [react(), tailwindcss()],
   clearScreen: false,
-  server: { port: 1420, strictPort: true },
+  server: {
+    port: 1420,
+    strictPort: true,
+    // The dashboard theme and the brand logos are the Web app's own files:
+    // the dev server may serve them from outside this package.
+    fs: { allow: [".", "../frontend"] },
+  },
   envPrefix: ["VITE_", "TAURI_"],
   build: { target: "es2022", minify: "esbuild", sourcemap: true },
   define: {

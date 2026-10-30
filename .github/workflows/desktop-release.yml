@@ -372,9 +372,12 @@ jobs:
             "Release $tag existante — reprise idempotente des assets (clobber)."
             gh release upload $tag $assets -R "${{ github.repository }}" --clobber
           } else {
-            gh release create $tag $assets -R "${{ github.repository }}" --title $title --notes-file "release-package\release-notes.md"
-            if ($tag -match "-") {
-              gh release edit $tag -R "${{ github.repository }}" --prerelease
-            }
+            # A pre-release is created as one: never as a normal release first,
+            # so it can never be `releases/latest` (stable channel), even if a
+            # later step fails.
+            $flags = @()
+            if ($tag -match "-") { $flags += "--prerelease" }
+            gh release create $tag $assets -R "${{ github.repository }}" --title $title --notes-file "release-package\release-notes.md" @flags
+            if ($LASTEXITCODE -ne 0) { throw "Création de la release $tag échouée." }
           }
           "Publication terminée : $title"

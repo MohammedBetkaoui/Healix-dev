@@ -68,10 +68,26 @@ Release testée : `desktop-v…`
 - [ ] Secret proche de la limite (~1 200 unités UTF-16) : write/read OK.
 - [ ] Secret > limite (multi-fragments) : write → fragments visibles
       dans Credential Manager + manifest `-chunk-manifest-v1` ; read OK.
+      Les fragments sont `<nom>-chunk-v1-<i>` (jeu A, manifest `<n>`) ou
+      `<nom>-chunk-v1b-<i>` (jeu B, manifest `b:<n>`) : une réécriture
+      alterne les deux jeux, l'ancien jeu reste lisible jusqu'à la
+      publication du manifest puis est supprimé.
 - [ ] Surécriture (réécriture → ancienne taille nettoyée), suppression
       (logout) : fragments + manifest disparaissent.
 - [ ] Réinstallation/MAJ : les fragments restent lisibles (test réel via
       §3 + §5).
+
+Tests automatisés de cette partie (`desktop/src-tauri/src/security.rs`) :
+
+- logique (coffre en mémoire, tous les OS, CI standard) : `cargo test --lib
+  security` — limite, multi-fragments, Unicode, surécriture, suppression,
+  manifest corrompu, fragment manquant, écriture interrompue ;
+- **vrai Credential Manager** (données synthétiques, service
+  `dz.healix.desktop.test`, jamais les secrets d'une installation) :
+  `$env:HEALIX_REAL_KEYRING_TESTS = "1"; cargo test --lib
+  real_credential_manager -- --ignored --test-threads=1` ; exécuté par le
+  workflow `desktop-windows-secrets.yml`. Ils ne remplacent pas le
+  redémarrage Windows, qui reste manuel (§3).
 
 ## 5. Mise à jour sans perte (§15/§52)
 

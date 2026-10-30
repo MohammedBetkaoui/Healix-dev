@@ -1,4 +1,14 @@
 import { FormEvent, useCallback, useEffect, useMemo, useState } from "react";
+import {
+  Droplets, FileText, HeartPulse, History, LockKeyhole, Pill as PillIcon, Plus, ShieldCheck,
+  Sparkles, Stethoscope, TriangleAlert, UserRound,
+} from "lucide-react";
+import { DashboardShell } from "./DashboardShell";
+import { PatientDirectory } from "./PatientDirectory";
+import {
+  Button, Field, MetricStrip, Notice, PageHeader, Pill, ageFromBirthDate, cn, formatBirthDate,
+  formatDate, initials, inputClass, textareaClass,
+} from "./dashboard-ui";
 import { relaunch } from "@tauri-apps/plugin-process";
 import {
   check,
@@ -65,14 +75,6 @@ const emptyPrescriptionDraft = (patientId: string): PrescriptionDraftInput => ({
   regulatory: null,
   items: [emptyPrescriptionItem()],
 });
-
-function formatDate(value?: string | null) {
-  if (!value) return "Jamais";
-  return new Intl.DateTimeFormat("fr-DZ", {
-    dateStyle: "short",
-    timeStyle: "short",
-  }).format(new Date(value));
-}
 
 function App() {
   const [session, setSession] = useState<SessionStatus>({ authorized: false });
@@ -200,223 +202,87 @@ function App() {
     );
   }
 
+  const openPatient = (patient: LocalPatient) => {
+    setSelected(patient);
+    setDraft(null);
+    setPrescriptionDraft(null);
+    setRecordTab("SUMMARY");
+  };
+
   return (
-    <div className="app-shell">
-      <header className="topbar">
-        <div>
-          <p className="eyebrow">HealixDz Desktop</p>
-          <h1>{session.workspace?.name}</h1>
-        </div>
-        <SyncIndicator status={sync} onSync={performSync} />
-        <div className="user-block">
-          <span>{session.user?.fullName}</span>
-          <button
-            className="text-button"
-            onClick={() =>
-              void logoutLocal().then(() => setSession({ authorized: false }))
-            }
-          >
-            Verrouiller
-          </button>
-        </div>
-      </header>
-
-      <div className="workspace">
-        <aside className="patient-panel">
-          <label htmlFor="patient-search">Rechercher un patient</label>
-          <input
-            id="patient-search"
-            value={query}
-            onChange={(event) => {
-              const value = event.target.value;
-              setQuery(value);
-              void refreshPatients(value);
-            }}
-            placeholder="Nom ou numéro de dossier"
-          />
-          {sync.state === "OFFLINE" && (
-            <p className="scope-note">Résultats disponibles sur cet appareil</p>
-          )}
-          <div className="patient-list">
-            {patients.map((patient) => (
-              <button
-                key={patient.id}
-                className={
-                  selected?.id === patient.id ? "patient active" : "patient"
-                }
-                onClick={() => {
-                  setSelected(patient);
-                  setDraft(null);
-                  setPrescriptionDraft(null);
-                  setRecordTab("SUMMARY");
-                }}
-              >
-                <strong>
-                  {patient.firstName} {patient.lastName}
-                </strong>
-                <span>
-                  {patient.locked
-                    ? "Dossier verrouillé"
-                    : (patient.hospitalRecordNumber ?? "Sans N° dossier")}
-                </span>
-              </button>
-            ))}
-          </div>
-        </aside>
-
-        <main className="record-panel">
-          {!selected ? (
-            <section className="empty-state">
-              <h2>Dossiers disponibles hors ligne</h2>
-              <p>
-                Sélectionnez un patient synchronisé pour consulter son dossier.
-              </p>
-            </section>
-          ) : prescriptionDraft ? (
-            <PrescriptionEditor
-              patient={selected}
-              value={prescriptionDraft}
-              onChange={setPrescriptionDraft}
-              onCancel={() => setPrescriptionDraft(null)}
-              onSave={async () => {
-                const saved = await savePrescriptionDraft(prescriptionDraft);
-                setPrescriptionDraft((current) =>
-                  current ? { ...current, localId: saved.localId } : current,
-                );
-                await refreshPrescriptions(selected.id);
-                setSync(await getSyncStatus());
-                void performSync();
-              }}
-            />
-          ) : draft ? (
-            <ConsultationEditor
-              patient={selected}
-              value={draft}
-              onChange={setDraft}
-              onCancel={() => setDraft(null)}
-              onSave={async () => {
-                const saved = await saveConsultationDraft(draft);
-                setDraft((current) =>
-                  current ? { ...current, localId: saved.localId } : current,
-                );
-                setSync(await getSyncStatus());
-                void performSync();
-              }}
-            />
-          ) : (
-            <section>
-              <div className="record-heading">
-                <div>
-                  <p className="eyebrow">Dossier patient</p>
-                  <h2>
-                    {selected.firstName} {selected.lastName}
-                  </h2>
-                  {selected.locked ? (
-                    <p className="available">
-                      Dossier verrouillé ({selected.lockReason ?? "hors périmètre"}) ·
-                      lecture seule
-                    </p>
-                  ) : (
-                    <p className="available">
-                      Disponible hors ligne · Dernière synchronisation :{" "}
-                      {formatDate(selected.lastSyncedAt)}
-                    </p>
-                  )}
-                </div>
-                <nav className="record-tabs" aria-label="Dossier patient">
-                  <button
-                    className={recordTab === "SUMMARY" ? "active" : ""}
-                    onClick={() => setRecordTab("SUMMARY")}
-                  >
-                    Résumé
-                  </button>
-                  <button
-                    className={recordTab === "CONSULTATIONS" ? "active" : ""}
-                    onClick={() => setRecordTab("CONSULTATIONS")}
-                  >
-                    Consultations
-                  </button>
-                  <button
-                    className={recordTab === "PRESCRIPTIONS" ? "active" : ""}
-                    onClick={() => setRecordTab("PRESCRIPTIONS")}
-                  >
-                    Ordonnances
-                  </button>
-                </nav>
-                {!selected.locked && recordTab === "CONSULTATIONS" && (
-                  <button
-                    className="primary"
-                    onClick={() => setDraft(emptyDraft(selected.id))}
-                  >
-                    Nouvelle consultation
-                  </button>
-                )}
-                {!selected.locked && recordTab === "PRESCRIPTIONS" && (
-                  <button
-                    className="primary"
-                    onClick={() => setPrescriptionDraft(emptyPrescriptionDraft(selected.id))}
-                  >
-                    + Nouveau brouillon
-                  </button>
-                )}
-              </div>
-              {recordTab === "PRESCRIPTIONS" ? (
-                <PrescriptionList
-                  prescriptions={prescriptions}
-                  locked={Boolean(selected.locked)}
-                  onEdit={(prescription) =>
-                    setPrescriptionDraft({
-                      localId: prescription.localId,
-                      patientId: prescription.patientId,
-                      type: prescription.type,
-                      validUntil: prescription.validUntil,
-                      items: prescription.items,
-                    })
-                  }
-                />
-              ) : recordTab === "CONSULTATIONS" ? (
-                <section className="empty-state compact-empty">
-                  <h3>Consultations hors ligne</h3>
-                  <p>Créez une nouvelle consultation depuis ce dossier.</p>
-                </section>
-              ) : (
-                <>
-              <div className="clinical-grid">
-                <ClinicalCard
-                  title="Groupe sanguin"
-                  values={[selected.bloodGroup ?? "Non renseigné"]}
-                />
-                <ClinicalCard
-                  title="Allergies"
-                  values={patientSummary.allergies}
-                />
-                <ClinicalCard
-                  title="Maladies chroniques"
-                  values={patientSummary.chronicDiseases}
-                />
-                <ClinicalCard
-                  title="Médicaments actuels"
-                  values={patientSummary.currentMedications}
-                />
-                <ClinicalCard
-                  title="Antécédents"
-                  values={patientSummary.history}
-                />
-              </div>
-              <div className="online-only">
-                Analyse IA indisponible hors connexion
-              </div>
-              <p className="freshness">
-                Dernière mise à jour serveur :{" "}
-                {formatDate(selected.serverUpdatedAt)}
-              </p>
-                </>
-              )}
-            </section>
-          )}
-        </main>
-      </div>
-    </div>
+    <DashboardShell
+      session={session}
+      patients={patients}
+      selectedId={selected?.id}
+      query={query}
+      sync={sync}
+      onQuery={(value) => {
+        setQuery(value);
+        void refreshPatients(value);
+      }}
+      onSelect={openPatient}
+      onHome={() => {
+        setSelected(null);
+        setDraft(null);
+        setPrescriptionDraft(null);
+      }}
+      onLock={() => void logoutLocal().then(() => setSession({ authorized: false }))}
+      onSync={() => void performSync()}
+    >
+      {!selected ? (
+        <PatientDirectory patients={patients} query={query} onSelect={openPatient} />
+      ) : prescriptionDraft ? (
+        <PrescriptionEditor
+          patient={selected}
+          value={prescriptionDraft}
+          onChange={setPrescriptionDraft}
+          onCancel={() => setPrescriptionDraft(null)}
+          onSave={async () => {
+            const saved = await savePrescriptionDraft(prescriptionDraft);
+            setPrescriptionDraft((current) =>
+              current ? { ...current, localId: saved.localId } : current,
+            );
+            await refreshPrescriptions(selected.id);
+            setSync(await getSyncStatus());
+            void performSync();
+          }}
+        />
+      ) : draft ? (
+        <ConsultationEditor
+          patient={selected}
+          value={draft}
+          onChange={setDraft}
+          onCancel={() => setDraft(null)}
+          onSave={async () => {
+            const saved = await saveConsultationDraft(draft);
+            setDraft((current) =>
+              current ? { ...current, localId: saved.localId } : current,
+            );
+            setSync(await getSyncStatus());
+            void performSync();
+          }}
+        />
+      ) : (
+        <PatientRecord
+          patient={selected}
+          summary={patientSummary}
+          tab={recordTab}
+          prescriptions={prescriptions}
+          onTab={setRecordTab}
+          onNewConsultation={() => setDraft(emptyDraft(selected.id))}
+          onNewPrescription={() => setPrescriptionDraft(emptyPrescriptionDraft(selected.id))}
+          onEditPrescription={(prescription) =>
+            setPrescriptionDraft({
+              localId: prescription.localId,
+              patientId: prescription.patientId,
+              type: prescription.type,
+              validUntil: prescription.validUntil,
+              items: prescription.items,
+            })
+          }
+        />
+      )}
+    </DashboardShell>
   );
 }
 
@@ -754,51 +620,158 @@ function LoginScreen({
   );
 }
 
-function SyncIndicator({
-  status,
-  onSync,
+type RecordTab = "SUMMARY" | "CONSULTATIONS" | "PRESCRIPTIONS";
+
+const RECORD_TABS: Array<{ key: RecordTab; label: string }> = [
+  { key: "SUMMARY", label: "Résumé" },
+  { key: "CONSULTATIONS", label: "Consultations" },
+  { key: "PRESCRIPTIONS", label: "Ordonnances" },
+];
+
+type PatientSummary = NonNullable<LocalPatient["medicalSummary"]>;
+
+function PatientRecord({
+  patient,
+  summary,
+  tab,
+  prescriptions,
+  onTab,
+  onNewConsultation,
+  onNewPrescription,
+  onEditPrescription,
 }: {
-  status: SyncStatus;
-  onSync: () => Promise<void>;
+  patient: LocalPatient;
+  summary: PatientSummary;
+  tab: RecordTab;
+  prescriptions: LocalPrescription[];
+  onTab: (tab: RecordTab) => void;
+  onNewConsultation: () => void;
+  onNewPrescription: () => void;
+  onEditPrescription: (prescription: LocalPrescription) => void;
 }) {
-  const label =
-    status.state === "SYNCING"
-      ? `Synchronisation… ${status.processed ?? 0} / ${status.total ?? status.pendingCount}`
-      : status.state === "OFFLINE"
-        ? "Hors ligne"
-        : status.state === "SCOPE_REVOKED" || status.state === "LOCKED"
-          ? `${status.lockedCount ?? 0} dossiers verrouillés hors périmètre`
-          : status.state === "CONFLICT"
-            ? `${status.conflictCount} éléments nécessitent votre attention`
-            : "En ligne";
+  const fullName = `${patient.firstName} ${patient.lastName}`;
+  const age = ageFromBirthDate(patient.birthDate);
+  const synced = patient.lastSyncedAt ? new Date(patient.lastSyncedAt) : null;
+
   return (
-    <button
-      className={`sync-indicator ${status.state.toLowerCase()}`}
-      onClick={() => void onSync()}
-    >
-      <span>●</span>
-      <span>
-        <strong>{label}</strong>
-        <small>
-          {status.pendingCount
-            ? `${status.pendingCount} modifications en attente`
-            : "Toutes les données sont synchronisées"}{" "}
-          · Dernière synchronisation : {formatDate(status.lastSyncedAt)}
-        </small>
-      </span>
-    </button>
+    <section className="workspace-stack" aria-label={`Dossier de ${fullName}`}>
+      <PageHeader
+        icon={<span className="text-base font-semibold" aria-hidden="true">{initials(fullName)}</span>}
+        eyebrow={<><ShieldCheck className="h-3.5 w-3.5" strokeWidth={1.8} aria-hidden="true" />Dossier patient</>}
+        title={fullName}
+        description={
+          patient.locked
+            ? `Dossier verrouillé (${patient.lockReason ?? "hors périmètre"}) · lecture seule`
+            : `Disponible hors ligne · Dernière synchronisation : ${formatDate(patient.lastSyncedAt)}`
+        }
+        actions={
+          !patient.locked && tab === "CONSULTATIONS" ? (
+            <Button onClick={onNewConsultation}><Plus className="h-4 w-4" strokeWidth={1.8} aria-hidden="true" />Nouvelle consultation</Button>
+          ) : !patient.locked && tab === "PRESCRIPTIONS" ? (
+            <Button onClick={onNewPrescription}><Plus className="h-4 w-4" strokeWidth={1.8} aria-hidden="true" />Nouveau brouillon</Button>
+          ) : undefined
+        }
+      >
+        <MetricStrip
+          items={[
+            { icon: FileText, tone: "neutral", value: patient.hospitalRecordNumber ?? "Non renseigné", label: "N° de dossier", compact: true },
+            { icon: UserRound, tone: "neutral", value: age !== null ? `${age} ans` : "—", label: "Âge", note: formatBirthDate(patient.birthDate) },
+            { icon: patient.locked ? LockKeyhole : ShieldCheck, tone: patient.locked ? "accent" : "success", value: patient.locked ? "Lecture seule" : "Modifiable", label: "Accès local", note: patient.locked ? undefined : "Consultations et ordonnances" },
+            { icon: History, tone: "neutral", value: synced ? new Intl.DateTimeFormat("fr-DZ", { dateStyle: "short" }).format(synced) : "Jamais", label: "Dernière synchronisation", note: synced ? new Intl.DateTimeFormat("fr-DZ", { timeStyle: "short" }).format(synced) : undefined },
+          ]}
+        />
+      </PageHeader>
+
+      <div className="team-content">
+        <nav className="team-tabs" aria-label="Dossier patient">
+          <ul>
+            {RECORD_TABS.map(({ key, label }) => (
+              <li key={key}>
+                <button type="button" className="team-tab" aria-current={tab === key ? "page" : undefined} onClick={() => onTab(key)}>
+                  {label}
+                  {key === "PRESCRIPTIONS" && prescriptions.length ? <span className="team-tab-count">{prescriptions.length}</span> : null}
+                </button>
+              </li>
+            ))}
+          </ul>
+        </nav>
+
+        {tab === "PRESCRIPTIONS" ? (
+          <PrescriptionList prescriptions={prescriptions} locked={Boolean(patient.locked)} onEdit={onEditPrescription} />
+        ) : tab === "CONSULTATIONS" ? (
+          <div className="team-empty">
+            <Stethoscope size={32} strokeWidth={1.5} aria-hidden="true" />
+            <strong className="text-[var(--ink)]">Consultations hors ligne</strong>
+            <span>Créez une nouvelle consultation depuis ce dossier.</span>
+          </div>
+        ) : (
+          <div className="space-y-5 p-5 sm:p-6">
+            <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
+              <ClinicalCard icon={Droplets} title="Groupe sanguin" values={[patient.bloodGroup ?? "Non renseigné"]} />
+              <ClinicalCard icon={TriangleAlert} tone="warning" title="Allergies" values={summary.allergies} />
+              <ClinicalCard icon={HeartPulse} title="Maladies chroniques" values={summary.chronicDiseases} />
+              <ClinicalCard icon={PillIcon} title="Médicaments actuels" values={summary.currentMedications} />
+              <ClinicalCard icon={History} title="Antécédents" values={summary.history} />
+            </div>
+            <aside className="surface-section ai-widget overflow-hidden">
+              <div className="clinical-section-heading">
+                <h2 className="flex items-center gap-2"><Sparkles size={16} strokeWidth={1.8} aria-hidden="true" />Analyse IA</h2>
+              </div>
+              <p className="px-5 pb-5 text-xs leading-5 text-[var(--ink-soft)]">Analyse IA indisponible hors connexion</p>
+            </aside>
+            <p className="text-xs text-[var(--ink-faint)]">
+              Dernière mise à jour serveur : {formatDate(patient.serverUpdatedAt)}
+            </p>
+          </div>
+        )}
+      </div>
+    </section>
   );
 }
 
-function ClinicalCard({ title, values }: { title: string; values?: string[] }) {
+function ClinicalCard({
+  icon: Icon,
+  title,
+  values,
+  tone = "default",
+}: {
+  icon: typeof Droplets;
+  title: string;
+  values?: string[];
+  tone?: "default" | "warning";
+}) {
   return (
-    <article className="clinical-card">
-      <h3>{title}</h3>
-      <p>
-        {values?.length
-          ? values.join(" · ")
-          : "Aucune information synchronisée"}
-      </p>
+    <article className="surface-section p-5">
+      <div className="flex items-center gap-3">
+        <span
+          className={cn(
+            "flex h-9 w-9 shrink-0 items-center justify-center rounded-[var(--radius-sm)]",
+            tone === "warning" ? "bg-[var(--warning-soft)] text-[var(--warning-ink)]" : "bg-[var(--medical-soft)] text-[var(--medical)]",
+          )}
+        >
+          <Icon className="h-4 w-4" strokeWidth={1.8} aria-hidden="true" />
+        </span>
+        <h3 className="text-sm font-semibold text-[var(--ink)]">{title}</h3>
+      </div>
+      {values?.length ? (
+        <ul className="mt-4 flex flex-wrap gap-2">
+          {values.map((value) => (
+            <li
+              key={value}
+              className={cn(
+                "rounded-full border px-2.5 py-1 text-[0.7rem] font-medium",
+                tone === "warning"
+                  ? "border-[var(--warning-line)] bg-[var(--warning-soft)] text-[var(--warning-ink)]"
+                  : "border-[var(--accent-line)] bg-[var(--accent-soft)] text-[var(--accent-dark)]",
+              )}
+            >
+              {value}
+            </li>
+          ))}
+        </ul>
+      ) : (
+        <p className="mt-4 text-xs text-[var(--ink-faint)]">Aucune information synchronisée</p>
+      )}
     </article>
   );
 }
@@ -818,43 +791,38 @@ function ConsultationEditor({
 }) {
   const [saving, setSaving] = useState(false);
   const field = (key: keyof ConsultationDraftInput, label: string) => (
-    <label>
-      {label}
+    <Field label={label}>
       <textarea
+        className={textareaClass}
         value={String(value[key] ?? "")}
         onChange={(event) => onChange({ ...value, [key]: event.target.value })}
       />
-    </label>
+    </Field>
   );
   return (
-    <section>
-      <div className="record-heading">
-        <div>
-          <p className="eyebrow">Consultation hors ligne</p>
-          <h2>
-            {patient.firstName} {patient.lastName}
-          </h2>
+    <section className="workspace-stack" aria-label="Consultation hors ligne">
+      <PageHeader
+        icon={<Stethoscope className="h-5 w-5" strokeWidth={1.7} aria-hidden="true" />}
+        eyebrow="Consultation hors ligne"
+        title={`${patient.firstName} ${patient.lastName}`}
+        actions={<Pill tone="warning">Brouillon local</Pill>}
+      />
+      <div className="surface-section p-5 sm:p-6">
+        <div className="grid gap-4 md:grid-cols-2">
+          {field("chiefComplaint", "Motif")}
+          {field("historyPresentIllness", "Histoire de la maladie")}
+          {field("clinicalExamination", "Examen clinique")}
+          {field("assessment", "Évaluation")}
+          {field("carePlan", "Plan thérapeutique")}
+          {field("followUpPlan", "Suivi")}
         </div>
-        <span className="draft-badge">Brouillon local</span>
       </div>
-      <div className="editor-grid">
-        {field("chiefComplaint", "Motif")}
-        {field("historyPresentIllness", "Histoire de la maladie")}
-        {field("clinicalExamination", "Examen clinique")}
-        {field("assessment", "Évaluation")}
-        {field("carePlan", "Plan thérapeutique")}
-        {field("followUpPlan", "Suivi")}
-      </div>
-      <div className="editor-actions">
-        <button onClick={onCancel}>Fermer</button>
-        <button
-          className="secondary"
-          onClick={() => onChange({ ...value, localStatus: "READY_TO_SYNC" })}
-        >
+      <div className="flex flex-wrap justify-end gap-2">
+        <Button variant="outline" onClick={onCancel}>Fermer</Button>
+        <Button variant="secondary" onClick={() => onChange({ ...value, localStatus: "READY_TO_SYNC" })}>
           Marquer prête à synchroniser
-        </button>
-        <button
-          className="primary"
+        </Button>
+        <Button
           disabled={saving}
           onClick={() => {
             setSaving(true);
@@ -862,7 +830,7 @@ function ConsultationEditor({
           }}
         >
           {saving ? "Enregistrement…" : "Enregistrer localement"}
-        </button>
+        </Button>
       </div>
     </section>
   );
@@ -879,50 +847,54 @@ function PrescriptionList({
 }) {
   if (!prescriptions.length) {
     return (
-      <section className="empty-state compact-empty">
-        <h3>Aucune ordonnance locale</h3>
-        <p>Créez un brouillon pour préparer une ordonnance hors ligne.</p>
-      </section>
+      <div className="team-empty">
+        <FileText size={32} strokeWidth={1.5} aria-hidden="true" />
+        <strong className="text-[var(--ink)]">Aucune ordonnance locale</strong>
+        <span>Créez un brouillon pour préparer une ordonnance hors ligne.</span>
+      </div>
     );
   }
   return (
-    <div className="prescription-list">
+    <ul className="divide-y divide-[var(--line)]">
       {prescriptions.map((prescription) => {
         const editable =
           !locked &&
           prescription.localStatus !== "CONFLICT" &&
           prescription.localStatus !== "READ_ONLY" &&
           (!prescription.serverStatus || prescription.serverStatus === "DRAFT");
-        const label =
+        const status: { label: string; tone: "success" | "warning" | "danger" | "accent" | "neutral" } =
           prescription.localStatus === "CONFLICT"
-            ? "Conflit — attention requise"
+            ? { label: "Conflit — attention requise", tone: "danger" }
             : prescription.serverStatus === "VALIDATED"
-              ? `Validée ${prescription.number ?? ""} · lecture seule`
+              ? { label: `Validée ${prescription.number ?? ""} · lecture seule`, tone: "success" }
               : prescription.serverStatus === "CANCELED"
-                ? "Annulée · lecture seule"
+                ? { label: "Annulée · lecture seule", tone: "neutral" }
                 : prescription.localStatus === "PENDING_SYNC"
-                  ? "En attente de synchronisation"
+                  ? { label: "En attente de synchronisation", tone: "accent" }
                   : prescription.serverStatus === "DRAFT"
-                    ? "Brouillon synchronisé"
-                    : "Brouillon local";
+                    ? { label: "Brouillon synchronisé", tone: "accent" }
+                    : { label: "Brouillon local", tone: "warning" };
         return (
-          <article key={prescription.localId} className="prescription-card">
-            <div>
-              <strong>{prescription.number ?? "Ordonnance sans numéro"}</strong>
-              <p>{label}</p>
-              <small>
+          <li key={prescription.localId} className="flex flex-wrap items-center gap-4 px-5 py-4 sm:px-6">
+            <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-[var(--radius-sm)] bg-[var(--medical-soft)] text-[var(--medical)]">
+              <FileText className="h-4 w-4" strokeWidth={1.8} aria-hidden="true" />
+            </span>
+            <div className="min-w-0 flex-1">
+              <p className="text-sm font-semibold text-[var(--ink)]">{prescription.number ?? "Ordonnance sans numéro"}</p>
+              <div className="mt-1.5"><Pill tone={status.tone}>{status.label}</Pill></div>
+              <p className="mt-1.5 text-xs text-[var(--ink-faint)]">
                 {prescription.items.map((item) => item.dci).join(" · ") || "Sans médicament"}
-              </small>
+              </p>
             </div>
             {editable && (
-              <button className="secondary" onClick={() => onEdit(prescription)}>
+              <Button variant="outline" size="sm" onClick={() => onEdit(prescription)}>
                 Modifier
-              </button>
+              </Button>
             )}
-          </article>
+          </li>
         );
       })}
-    </div>
+    </ul>
   );
 }
 
@@ -960,72 +932,68 @@ function PrescriptionEditor({
       (!item.durationDays || item.durationDays > 0),
   );
   return (
-    <section>
-      <div className="record-heading">
-        <div>
-          <p className="eyebrow">Ordonnance hors ligne</p>
-          <h2>
-            {patient.firstName} {patient.lastName}
-          </h2>
-          <p className="scope-note">
-            La validation officielle et le numéro d’ordonnance exigent une connexion Internet.
-          </p>
+    <section className="workspace-stack" aria-label="Ordonnance hors ligne">
+      <PageHeader
+        icon={<FileText className="h-5 w-5" strokeWidth={1.7} aria-hidden="true" />}
+        eyebrow="Ordonnance hors ligne"
+        title={`${patient.firstName} ${patient.lastName}`}
+        description="La validation officielle et le numéro d’ordonnance exigent une connexion Internet."
+        actions={<Pill tone="warning">Brouillon local</Pill>}
+      />
+      <div className="surface-section p-5 sm:p-6">
+        <div className="grid gap-4 sm:grid-cols-2">
+          <Field label="Type">
+            <input
+              className={inputClass}
+              value={value.type}
+              onChange={(event) => onChange({ ...value, type: event.target.value })}
+              placeholder="STANDARD"
+            />
+          </Field>
+          <Field label="Valable jusqu’au">
+            <input
+              className={inputClass}
+              type="date"
+              value={value.validUntil?.slice(0, 10) ?? ""}
+              onChange={(event) =>
+                onChange({ ...value, validUntil: event.target.value || null })
+              }
+            />
+          </Field>
         </div>
-        <span className="draft-badge">Brouillon local</span>
       </div>
-      <div className="editor-grid prescription-meta">
-        <label>
-          Type
-          <input
-            value={value.type}
-            onChange={(event) => onChange({ ...value, type: event.target.value })}
-            placeholder="STANDARD"
-          />
-        </label>
-        <label>
-          Valable jusqu’au
-          <input
-            type="date"
-            value={value.validUntil?.slice(0, 10) ?? ""}
-            onChange={(event) =>
-              onChange({ ...value, validUntil: event.target.value || null })
-            }
-          />
-        </label>
+      {value.items.map((item, index) => (
+        <PrescriptionItemEditor
+          key={`${item.medicationId ?? "manual"}-${index}`}
+          index={index}
+          item={item}
+          onChange={(next) => updateItem(index, next)}
+          onRemove={
+            value.items.length > 1
+              ? () =>
+                  onChange({
+                    ...value,
+                    items: value.items.filter((_, itemIndex) => itemIndex !== index),
+                  })
+              : undefined
+          }
+        />
+      ))}
+      <div>
+        <Button
+          variant="secondary"
+          onClick={() => onChange({ ...value, items: [...value.items, emptyPrescriptionItem()] })}
+        >
+          <Plus className="h-4 w-4" strokeWidth={1.8} aria-hidden="true" />Ajouter un médicament
+        </Button>
       </div>
-      <div className="prescription-items">
-        {value.items.map((item, index) => (
-          <PrescriptionItemEditor
-            key={`${item.medicationId ?? "manual"}-${index}`}
-            index={index}
-            item={item}
-            onChange={(next) => updateItem(index, next)}
-            onRemove={
-              value.items.length > 1
-                ? () =>
-                    onChange({
-                      ...value,
-                      items: value.items.filter((_, itemIndex) => itemIndex !== index),
-                    })
-                : undefined
-            }
-          />
-        ))}
-      </div>
-      <button
-        className="secondary"
-        onClick={() => onChange({ ...value, items: [...value.items, emptyPrescriptionItem()] })}
-      >
-        + Ajouter un médicament
-      </button>
-      {error && <p className="error">{error}</p>}
-      <div className="editor-actions">
-        <button onClick={onCancel}>Fermer</button>
-        <button className="secondary" disabled title="Connexion Internet requise pour la validation officielle.">
+      {error && <Notice tone="danger" icon={<TriangleAlert className="mt-0.5 h-3.5 w-3.5 shrink-0" strokeWidth={1.8} aria-hidden="true" />}>{error}</Notice>}
+      <div className="flex flex-wrap justify-end gap-2">
+        <Button variant="outline" onClick={onCancel}>Fermer</Button>
+        <button type="button" className="clinical-button clinical-button-unavailable" disabled title="Connexion Internet requise pour la validation officielle.">
           Valider l’ordonnance (connexion requise)
         </button>
-        <button
-          className="primary"
+        <Button
           disabled={saving || !locallyValid}
           onClick={() => {
             setSaving(true);
@@ -1036,7 +1004,7 @@ function PrescriptionEditor({
           }}
         >
           {saving ? "Enregistrement…" : "Enregistrer localement"}
-        </button>
+        </Button>
       </div>
     </section>
   );
@@ -1054,9 +1022,9 @@ function PrescriptionItemEditor({
   onRemove?: () => void;
 }) {
   const field = (key: keyof PrescriptionItemInput, label: string, type = "text") => (
-    <label>
-      {label}
+    <Field label={label}>
       <input
+        className={inputClass}
         type={type}
         value={String(item[key] ?? "")}
         onChange={(event) =>
@@ -1066,13 +1034,29 @@ function PrescriptionItemEditor({
           })
         }
       />
+    </Field>
+  );
+  const checkbox = (key: "asNeeded" | "renewalAllowed" | "substitutionAllowed", label: string) => (
+    <label className="flex cursor-pointer items-center gap-2.5 text-sm text-[var(--ink-soft)]">
+      <input
+        className="h-4 w-4 accent-[var(--accent)]"
+        type="checkbox"
+        checked={item[key]}
+        onChange={(event) => onChange({ ...item, [key]: event.target.checked })}
+      />
+      {label}
     </label>
   );
   return (
-    <article className="prescription-item">
-      <div className="item-heading">
-        <h3>Médicament {index + 1}</h3>
-        {onRemove && <button className="text-button" onClick={onRemove}>Retirer</button>}
+    <article className="surface-section p-5 sm:p-6">
+      <div className="mb-4 flex items-center justify-between gap-3">
+        <div className="flex items-center gap-3">
+          <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-[var(--radius-sm)] bg-[var(--medical-soft)] text-[var(--medical)]">
+            <PillIcon className="h-4 w-4" strokeWidth={1.8} aria-hidden="true" />
+          </span>
+          <h3 className="text-sm font-semibold text-[var(--ink)]">Médicament {index + 1}</h3>
+        </div>
+        {onRemove && <Button variant="ghost" size="sm" onClick={onRemove}>Retirer</Button>}
       </div>
       <MedicationPicker
         selected={item}
@@ -1090,7 +1074,7 @@ function PrescriptionItemEditor({
           })
         }
       />
-      <div className="editor-grid">
+      <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
         {field("dci", "DCI")}
         {field("brandName", "Marque")}
         {field("strength", "Dosage")}
@@ -1104,10 +1088,10 @@ function PrescriptionItemEditor({
         {field("patientInstructions", "Instructions patient")}
         {field("indication", "Indication")}
       </div>
-      <div className="checkbox-row">
-        <label><input type="checkbox" checked={item.asNeeded} onChange={(event) => onChange({ ...item, asNeeded: event.target.checked })} /> Si besoin</label>
-        <label><input type="checkbox" checked={item.renewalAllowed} onChange={(event) => onChange({ ...item, renewalAllowed: event.target.checked })} /> Renouvelable</label>
-        <label><input type="checkbox" checked={item.substitutionAllowed} onChange={(event) => onChange({ ...item, substitutionAllowed: event.target.checked })} /> Substitution autorisée</label>
+      <div className="mt-5 flex flex-wrap gap-x-6 gap-y-3 border-t border-[var(--line)] pt-4">
+        {checkbox("asNeeded", "Si besoin")}
+        {checkbox("renewalAllowed", "Renouvelable")}
+        {checkbox("substitutionAllowed", "Substitution autorisée")}
       </div>
     </article>
   );
@@ -1130,19 +1114,22 @@ function MedicationPicker({
     void searchLocalMedications(query).then(setMatches).catch(() => setMatches([]));
   }, [query]);
   return (
-    <label className="medication-picker">
-      Rechercher dans le catalogue local (DCI, marque, dosage)
-      <input
-        value={query}
-        onChange={(event) => setQuery(event.target.value)}
-        placeholder={selected.dci || "ex. para"}
-      />
+    <div className="relative mb-4">
+      <Field label="Rechercher dans le catalogue local (DCI, marque, dosage)">
+        <input
+          className={inputClass}
+          value={query}
+          onChange={(event) => setQuery(event.target.value)}
+          placeholder={selected.dci || "ex. para"}
+        />
+      </Field>
       {matches.length > 0 && (
-        <div className="medication-results">
+        <div className="absolute inset-x-0 top-full z-20 mt-1 max-h-56 overflow-auto rounded-[var(--radius-md)] border border-[var(--line)] bg-[var(--panel)] p-1.5 shadow-[var(--shadow-raised)]">
           {matches.map((medication) => (
             <button
               key={medication.id}
               type="button"
+              className="w-full rounded-[var(--radius-sm)] px-3 py-2.5 text-start text-sm font-medium text-[var(--ink-soft)] hover:bg-[var(--accent-soft)] hover:text-[var(--accent-dark)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--accent)]"
               onClick={() => {
                 onSelect(medication);
                 setQuery("");
@@ -1154,7 +1141,7 @@ function MedicationPicker({
           ))}
         </div>
       )}
-    </label>
+    </div>
   );
 }
 

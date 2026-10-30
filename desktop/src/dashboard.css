@@ -1,0 +1,89 @@
+/* Web dashboard foundations, mirrored from frontend/src/app/globals.css so the
+   Web's class names render the same here. The colours, spacing and components
+   come from the Web's own dashboard-theme.css (imported by main.tsx); this
+   file only provides what that theme expects from Tailwind and the app shell.
+
+   Layers: styles.css (the sign-in screen) sits above Tailwind's preflight but
+   below its utilities, so a utility class always wins inside the dashboard and
+   the sign-in screen never inherits dashboard rules. */
+@layer theme, base, legacy, components, utilities;
+@import "tailwindcss" source(".");
+
+:root {
+  --radius: 0.5rem;
+  /* next/font supplies these on the Web; the Desktop bundles the same faces. */
+  --font-auth-mono: "IBM Plex Mono";
+}
+
+@theme inline {
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-card: var(--card);
+  --color-card-foreground: var(--card-foreground);
+  --color-popover: var(--popover);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-primary: var(--primary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-secondary: var(--secondary);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-muted: var(--muted);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-accent: var(--accent);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-destructive: var(--destructive);
+  --color-destructive-foreground: var(--destructive-foreground);
+  --color-border: var(--border);
+  --color-input: var(--input);
+  --color-ring: var(--ring);
+  --font-sans: var(--font-auth-sans), sans-serif;
+  --font-mono: var(--font-auth-mono), monospace;
+  --radius-sm: calc(var(--radius) * 0.75);
+  --radius-md: calc(var(--radius) * 0.875);
+  --radius-lg: var(--radius);
+}
+
+.dashboard-sidebar-scroll {
+  overscroll-behavior-y: contain;
+  scroll-behavior: smooth;
+  scrollbar-color: var(--sidebar-scroll-thumb) transparent;
+  scrollbar-gutter: stable;
+  scrollbar-width: thin;
+}
+
+.dashboard-sidebar-scroll::-webkit-scrollbar {
+  width: 10px;
+}
+
+.dashboard-sidebar-scroll::-webkit-scrollbar-track {
+  background: linear-gradient(
+    90deg,
+    transparent 4px,
+    var(--sidebar-scroll-track) 4px,
+    var(--sidebar-scroll-track) 5px,
+    transparent 5px
+  );
+  margin-block: 10px;
+}
+
+.dashboard-sidebar-scroll::-webkit-scrollbar-thumb {
+  min-height: 64px;
+  border: 3px solid transparent;
+  border-radius: 999px;
+  background: var(--sidebar-scroll-thumb);
+  background-clip: padding-box;
+  transition: background-color 160ms ease;
+}
+
+.dashboard-sidebar-scroll::-webkit-scrollbar-thumb:hover {
+  border-width: 2px;
+  background: var(--sidebar-scroll-thumb-hover);
+  background-clip: padding-box;
+}
+
+.dashboard-sidebar-scroll::-webkit-scrollbar-button,
+.dashboard-sidebar-scroll::-webkit-scrollbar-corner {
+  display: none;
+  width: 0;
+  height: 0;
+  background: transparent;
+}
