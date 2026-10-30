@@ -9,6 +9,7 @@
 use rusqlite::{params, Connection, OptionalExtension};
 use serde_json::{json, Value};
 
+use crate::consultation::{normalize_diagnoses, normalize_vitals};
 use crate::database::{open, EngineEnv};
 
 const LIST_LIMIT: i64 = 500;
@@ -202,6 +203,7 @@ fn list_consultations_on(
                 "patientName": full_name(row.first_name.clone(), row.last_name.clone()),
                 "patientLocked": row.patient_locked,
                 "date": consultation_date(&payload, &row.updated_at),
+                "appointmentId": text(&payload, "appointmentId"),
                 "chiefComplaint": text(&payload, "chiefComplaint"),
                 "firstDiagnosis": first_diagnosis,
                 "status": text(&payload, "status"),
@@ -266,10 +268,10 @@ fn get_consultation_on(connection: &Connection, local_id: &str) -> Result<Value,
         )
         .optional()
         .map_err(|_| "Constantes locales illisibles.".to_string())?;
-    let vital_signs = match vitals {
+    let vital_signs = normalize_vitals(&match vitals {
         Some(raw) => parse(&raw, "Constantes")?,
         None => payload.get("vitalSigns").cloned().unwrap_or(Value::Null),
-    };
+    });
 
     let mut statement = connection
         .prepare(
@@ -285,14 +287,14 @@ fn get_consultation_on(connection: &Connection, local_id: &str) -> Result<Value,
             parse(&raw, "Diagnostic")
         })
         .collect::<Result<Vec<_>, _>>()?;
-    let diagnoses = if stored.is_empty() {
+    let diagnoses = normalize_diagnoses(&if stored.is_empty() {
         payload
             .get("diagnoses")
             .cloned()
             .unwrap_or_else(|| Value::Array(Vec::new()))
     } else {
         Value::Array(stored)
-    };
+    });
 
     Ok(json!({
         "localId": row.local_id,
@@ -857,5 +859,54 @@ mod tests {
             .unwrap()
             .is_empty());
         assert!(get_consultation_on(&connection, "c1").is_err());
+    }
+
+    #[test]
+    fn the_list_carries_the_appointment_a_consultation_was_started_from() {
+        let connection = memory_db_for_tests();
+        patient(&connection, "p1", "Amine", "Benali", false);
+        consultation(
+            &connection,
+            "linked",
+            "p1",
+            "LOCAL_DRAFT",
+            "2026-10-30T10:00:00Z",
+            json!({ "chiefComplaint": "Toux", "appointmentId": "a1" }),
+        );
+        consultation(
+            &connection,
+            "free",
+            "p1",
+            "LOCAL_DRAFT",
+            "2026-10-30T09:00:00Z",
+            json!({ "chiefComplaint": "Suivi" }),
+        );
+        let list = list_consultations_on(&connection, None).unwrap();
+        assert_eq!(list[0]["appointmentId"], "a1");
+        assert_eq!(list[1]["appointmentId"], Value::Null);
+    }
+
+    #[test]
+    fn a_consultation_comes_back_with_its_vital_signs_and_diagnoses_in_the_shape_the_editor_sends()
+    {
+        let connection = memory_db_for_tests();
+        patient(&connection, "p1", "Amine", "Benali", false);
+        consultation(
+            &connection,
+            "c1",
+            "p1",
+            "SYNCED",
+            "2026-10-25T10:00:00Z",
+            json!({
+                "vitalSigns": { "id": "v1", "consultationId": "c1", "systolicBp": 130, "heartRate": null, "createdAt": "x" },
+                "diagnoses": [{ "id": "d1", "label": "Bronchite", "code": null, "isPrimary": true, "createdAt": "x" }]
+            }),
+        );
+        let whole = get_consultation_on(&connection, "c1").unwrap();
+        assert_eq!(whole["vitalSigns"], json!({ "systolicBp": 130 }));
+        assert_eq!(
+            whole["diagnoses"],
+            json!([{ "label": "Bronchite", "isPrimary": true }])
+        );
     }
 }

@@ -51,12 +51,19 @@ export type ConsultationDraftInput = {
   localId?: string;
   patientId: string;
   localStatus: "LOCAL_DRAFT" | "IN_PROGRESS" | "READY_TO_SYNC";
+  // The appointment this consultation is for. Absent: the stored link is kept.
+  appointmentId?: string | null;
   chiefComplaint: string;
   historyPresentIllness: string;
   clinicalExamination: string;
   assessment: string;
   carePlan: string;
   followUpPlan: string;
+  // Three states, decided by the presence of the key (see consultation.rs):
+  // absent = untouched (the stored value is kept, whether it came from the
+  // server or from an earlier save), null = removed on purpose, a value = entered.
+  vitalSigns?: ConsultationVitalSigns | null;
+  diagnoses?: ConsultationDiagnosis[] | null;
 };
 
 export type LocalMedication = {
@@ -143,6 +150,8 @@ export type ConsultationState = "DRAFT" | "PENDING_SYNC" | "SYNCED" | "CONFLICT"
 export type ConsultationSummary = {
   localId: string;
   serverId: string | null;
+  // The appointment it was started from, when it is linked to one.
+  appointmentId?: string | null;
   patientId: string;
   patientName: string;
   patientLocked: boolean;
@@ -159,6 +168,7 @@ export type ConsultationSummary = {
 export type ConsultationDiagnosis = {
   label: string;
   code?: string | null;
+  codeSystem?: string | null;
   isPrimary?: boolean;
   note?: string | null;
 };

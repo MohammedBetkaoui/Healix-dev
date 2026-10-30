@@ -15,7 +15,7 @@ export type Route =
   | { name: "consultations" }
   // A consultation or a prescription: `id` is its local id, or NEW_ID to start
   // one (for a patient, optionally with the reason of an appointment).
-  | { name: "consultation"; id: string; patientId?: string; patientName?: string; reason?: string }
+  | { name: "consultation"; id: string; patientId?: string; patientName?: string; reason?: string; appointmentId?: string }
   | { name: "prescription"; id: string; patientId?: string; patientName?: string }
   | { name: "prescriptions" }
   | { name: "sync" }

@@ -1,3 +1,4 @@
+mod consultation;
 mod database;
 #[cfg(feature = "e2e-harness")]
 pub mod e2e_harness;

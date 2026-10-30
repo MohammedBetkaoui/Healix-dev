@@ -542,6 +542,229 @@ describeWithDatabase('the sync contract against real queries', () => {
     });
   });
 
+  describe('the clinical content of a consultation written offline', () => {
+    const vitalSigns = {
+      systolicBp: 150,
+      diastolicBp: 95,
+      heartRate: 80,
+      respiratoryRate: 16,
+      oxygenSaturation: 97.5,
+      temperature: 37.2,
+      weightKg: 82.5,
+      heightCm: 178,
+    };
+    const diagnoses = [
+      {
+        label: 'Hypertension artérielle',
+        code: 'I10',
+        codeSystem: 'CIM-10',
+        isPrimary: true,
+      },
+      { label: 'Surpoids', isPrimary: false },
+    ];
+
+    const push = (
+      actor: OfflineActor,
+      input: {
+        localEntityId: string;
+        operation: 'CREATE' | 'UPDATE';
+        baseVersion?: number;
+        payload: Record<string, unknown>;
+      },
+    ) =>
+      sync.push(actor, {
+        operations: [
+          {
+            operationId: randomUUID(),
+            entityType: 'CONSULTATION',
+            localEntityId: input.localEntityId,
+            operation: input.operation,
+            baseVersion: input.baseVersion,
+            occurredAt: new Date().toISOString(),
+            payload: input.payload as never,
+          },
+        ],
+      } as never);
+
+    const load = (id: string) =>
+      prisma.patientConsultation.findUniqueOrThrow({
+        where: { id },
+        include: {
+          vitalSigns: true,
+          diagnoses: { orderBy: { createdAt: 'asc' } },
+        },
+      });
+
+    it('creates the vital signs, the diagnoses and the appointment link, exactly as the desktop sends them', async () => {
+      const doctor = await fixtures.independentDoctor();
+      const { actor } = await registerDevice(doctor, 'content-create');
+      const patient = await fixtures.patient(
+        doctor.workspace.id,
+        doctor.profile.id,
+      );
+      const appointment = await fixtures.appointment(
+        patient.id,
+        doctor.profile.id,
+        doctor.user.id,
+        new Date(),
+      );
+      const payload = {
+        patientId: patient.id,
+        appointmentId: appointment.id,
+        localStatus: 'READY_TO_SYNC',
+        chiefComplaint: 'Douleur thoracique',
+        vitalSigns,
+        diagnoses,
+      };
+
+      // (The payload shape is covered without a database by dto/sync-consultation-dto.spec.ts.)
+      const results = await push(actor, {
+        localEntityId: randomUUID(),
+        operation: 'CREATE',
+        payload,
+      });
+      const result = results.results[0] as {
+        status: string;
+        serverEntityId: string;
+      };
+      expect(result.status).toBe('ACK');
+
+      const row = await load(result.serverEntityId);
+      expect(row.appointmentId).toBe(appointment.id);
+      expect(row.status).toBe('COMPLETED');
+      expect(row.vitalSigns).toMatchObject(vitalSigns);
+      expect(row.diagnoses.map((diagnosis) => diagnosis.label)).toEqual([
+        'Hypertension artérielle',
+        'Surpoids',
+      ]);
+      expect(row.diagnoses.find((diagnosis) => diagnosis.isPrimary)?.code).toBe(
+        'I10',
+      );
+    });
+
+    it('an update keeps the vital signs and the diagnoses unless it says otherwise: absent = untouched, null = delete', async () => {
+      const doctor = await fixtures.independentDoctor();
+      const { actor } = await registerDevice(doctor, 'content-update');
+      const patient = await fixtures.patient(
+        doctor.workspace.id,
+        doctor.profile.id,
+      );
+      const localEntityId = randomUUID();
+      const created = await push(actor, {
+        localEntityId,
+        operation: 'CREATE',
+        payload: {
+          patientId: patient.id,
+          localStatus: 'IN_PROGRESS',
+          chiefComplaint: 'Douleur',
+          vitalSigns,
+          diagnoses,
+        },
+      });
+      const { serverEntityId, serverVersion } = created.results[0] as {
+        serverEntityId: string;
+        serverVersion: number;
+      };
+
+      // 1. What the desktop sends for an edit of the reason alone: the values
+      //    it already holds, in the DTO shape. Everything stays.
+      const resent = await push(actor, {
+        localEntityId,
+        operation: 'UPDATE',
+        baseVersion: serverVersion,
+        payload: {
+          patientId: patient.id,
+          serverEntityId,
+          localStatus: 'IN_PROGRESS',
+          chiefComplaint: 'Douleur thoracique à l’effort',
+          vitalSigns,
+          diagnoses,
+        },
+      });
+      const second = resent.results[0] as {
+        status: string;
+        serverVersion: number;
+      };
+      expect(second.status).toBe('ACK');
+      let row = await load(serverEntityId);
+      expect(row.chiefComplaint).toBe('Douleur thoracique à l’effort');
+      expect(row.vitalSigns).toMatchObject(vitalSigns);
+      expect(row.diagnoses).toHaveLength(2);
+
+      // 2. Keys left out: untouched.
+      const omitted = await push(actor, {
+        localEntityId,
+        operation: 'UPDATE',
+        baseVersion: second.serverVersion,
+        payload: {
+          patientId: patient.id,
+          serverEntityId,
+          localStatus: 'IN_PROGRESS',
+          chiefComplaint: 'Douleur thoracique',
+        },
+      });
+      const third = omitted.results[0] as {
+        status: string;
+        serverVersion: number;
+      };
+      expect(third.status).toBe('ACK');
+      row = await load(serverEntityId);
+      expect(row.vitalSigns).toMatchObject(vitalSigns);
+      expect(row.diagnoses).toHaveLength(2);
+
+      // 3. null / [] delete: the reason the desktop never invents them.
+      const cleared = await push(actor, {
+        localEntityId,
+        operation: 'UPDATE',
+        baseVersion: third.serverVersion,
+        payload: {
+          patientId: patient.id,
+          serverEntityId,
+          localStatus: 'IN_PROGRESS',
+          chiefComplaint: 'Douleur thoracique',
+          vitalSigns: null,
+          diagnoses: [],
+        },
+      });
+      expect((cleared.results[0] as { status: string }).status).toBe('ACK');
+      row = await load(serverEntityId);
+      expect(row.vitalSigns).toBeNull();
+      expect(row.diagnoses).toHaveLength(0);
+    });
+
+    it('refuses an appointment of another patient (the desktop checks it first)', async () => {
+      const doctor = await fixtures.independentDoctor();
+      const { actor } = await registerDevice(doctor, 'content-appointment');
+      const patient = await fixtures.patient(
+        doctor.workspace.id,
+        doctor.profile.id,
+      );
+      const other = await fixtures.patient(
+        doctor.workspace.id,
+        doctor.profile.id,
+      );
+      const appointment = await fixtures.appointment(
+        other.id,
+        doctor.profile.id,
+        doctor.user.id,
+        new Date(),
+      );
+      const results = await push(actor, {
+        localEntityId: randomUUID(),
+        operation: 'CREATE',
+        payload: {
+          patientId: patient.id,
+          appointmentId: appointment.id,
+          localStatus: 'LOCAL_DRAFT',
+          chiefComplaint: 'Contrôle',
+        },
+      });
+      const result = results.results[0] as { status: string; code: string };
+      expect(result.status).toBe('REJECTED');
+      expect(result.code).toBe('APPOINTMENT_MISMATCH');
+    });
+  });
+
   describe('revoked membership', () => {
     it('a suspended membership stops the sync of the doctor even with a live grant', async () => {
       const doctor = await fixtures.independentDoctor();

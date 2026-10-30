@@ -9,6 +9,7 @@ use std::{
 use tauri::{AppHandle, Manager};
 use uuid::Uuid;
 
+use crate::consultation::{self, DiagnosisInput, Patch, VitalSignsInput};
 use crate::security::{database_key, GrantClaims};
 
 const SCHEMA: &str = r#"
@@ -882,12 +883,22 @@ pub struct ConsultationDraftInput {
     pub local_id: Option<String>,
     pub patient_id: String,
     pub local_status: String,
+    // The appointment this consultation is for. Absent: the link already
+    // stored is kept (the desktop never unlinks one).
+    #[serde(default)]
+    pub appointment_id: Option<String>,
     pub chief_complaint: String,
     pub history_present_illness: String,
     pub clinical_examination: String,
     pub assessment: String,
     pub care_plan: String,
     pub follow_up_plan: String,
+    // Absent: untouched (the stored value is kept). null: removed on purpose.
+    // A value: entered by the doctor. See consultation.rs.
+    #[serde(default)]
+    pub vital_signs: Patch<VitalSignsInput>,
+    #[serde(default)]
+    pub diagnoses: Patch<Vec<DiagnosisInput>>,
 }
 
 #[derive(Debug, Serialize)]
@@ -902,14 +913,22 @@ pub fn save_draft(
     claims: &GrantClaims,
     input: ConsultationDraftInput,
 ) -> Result<SavedDraft, String> {
+    let mut connection = open(app)?;
+    save_draft_on_connection(&mut connection, claims, input)
+}
+
+fn save_draft_on_connection(
+    connection: &mut Connection,
+    claims: &GrantClaims,
+    input: ConsultationDraftInput,
+) -> Result<SavedDraft, String> {
     if !matches!(
         input.local_status.as_str(),
         "LOCAL_DRAFT" | "IN_PROGRESS" | "READY_TO_SYNC"
     ) {
         return Err("État local de consultation invalide.".to_string());
     }
-    let mut connection = open(app)?;
-    let occurred_at = now_iso(&connection)?;
+    let occurred_at = now_iso(connection)?;
     let tx = connection
         .transaction()
         .map_err(|_| "Transaction locale impossible.".to_string())?;
@@ -930,16 +949,53 @@ pub fn save_draft(
         );
     }
     let local_id = input.local_id.unwrap_or_else(|| Uuid::new_v4().to_string());
-    let existing: Option<(Option<String>, Option<i64>)> = tx
+    let existing: Option<(Option<String>, Option<i64>, String)> = tx
         .query_row(
-            "SELECT server_id, base_version FROM consultations WHERE local_id=?1",
+            "SELECT server_id, base_version, payload FROM consultations WHERE local_id=?1",
             params![local_id],
-            |row| Ok((row.get(0)?, row.get(1)?)),
+            |row| Ok((row.get(0)?, row.get(1)?, row.get(2)?)),
         )
         .optional()
         .map_err(|_| "Brouillon local illisible.".to_string())?;
-    let (server_id, base_version) = existing.unwrap_or((None, None));
-    let payload = json!({
+    let (server_id, base_version, stored) = match existing {
+        Some((server_id, base_version, payload)) => (
+            server_id,
+            base_version,
+            serde_json::from_str::<Value>(&payload).ok(),
+        ),
+        None => (None, None, None),
+    };
+    // A new link must point at an appointment of this patient that this device
+    // holds (the server refuses any other one). A link already stored is kept
+    // without being re-checked.
+    if let Some(appointment_id) = input.appointment_id.as_deref() {
+        let stored_link = stored
+            .as_ref()
+            .and_then(|payload| payload.get("appointmentId"))
+            .and_then(Value::as_str);
+        if stored_link != Some(appointment_id) {
+            let known: bool = tx
+                .query_row(
+                    "SELECT EXISTS(SELECT 1 FROM appointments_cache WHERE server_id=?1 AND patient_server_id=?2)",
+                    params![appointment_id, input.patient_id],
+                    |row| row.get(0),
+                )
+                .map_err(|_| "Rendez-vous local illisible.".to_string())?;
+            if !known {
+                return Err("Ce rendez-vous ne correspond pas à ce patient.".to_string());
+            }
+        }
+    }
+    // Vital signs, diagnoses and the appointment link: the doctor's input where
+    // there is one, what is already stored otherwise (never an invented
+    // null / []: on the server those mean "delete").
+    let resolved = consultation::resolve(
+        &input.vital_signs,
+        &input.diagnoses,
+        input.appointment_id.as_deref(),
+        stored.as_ref(),
+    )?;
+    let mut payload = json!({
         "patientId": input.patient_id,
         "serverEntityId": server_id,
         "localStatus": input.local_status,
@@ -949,9 +1005,21 @@ pub fn save_draft(
         "assessment": input.assessment,
         "carePlan": input.care_plan,
         "followUpPlan": input.follow_up_plan,
-        "vitalSigns": Value::Null,
-        "diagnoses": []
+        "vitalSigns": resolved.vital_signs,
+        "diagnoses": resolved.diagnoses
     });
+    // The key is left out, not null, without a link: on an update the server
+    // reads null as "unlink the appointment".
+    if let Some(appointment_id) = &resolved.appointment_id {
+        payload["appointmentId"] = json!(appointment_id);
+    }
+    consultation::validate_texts(&payload)?;
+    if input.local_status == "READY_TO_SYNC" && !consultation::has_clinical_content(&payload) {
+        return Err(
+            "Une consultation terminée doit contenir un motif, un examen, une évaluation ou un diagnostic."
+                .to_string(),
+        );
+    }
     tx.execute(
         "INSERT INTO consultations(local_id, server_id, patient_server_id, local_status, base_version, payload, updated_at)
          VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7)
@@ -3211,5 +3279,343 @@ mod tests {
             PATIENT_DELETED_LOCK_REASON,
             "PATIENT_DELETED_WITH_PENDING_DATA"
         );
+    }
+}
+
+// The clinical content of a local consultation: vital signs, diagnoses and the
+// appointment link, as saved and as sent (see consultation.rs).
+#[cfg(test)]
+mod consultation_content_tests {
+    use super::*;
+
+    fn claims() -> GrantClaims {
+        GrantClaims {
+            token_type: "offline-grant".to_string(),
+            grant_id: "grant-1".to_string(),
+            user_id: "user-1".to_string(),
+            device_id: "device-1".to_string(),
+            workspace_id: "ws-1".to_string(),
+            role: "INDEPENDENT_DOCTOR".to_string(),
+            exp: 9_999_999_999,
+            iat: 1,
+            iss: "healixdz-api".to_string(),
+            aud: "healixdz-desktop".to_string(),
+        }
+    }
+
+    fn db_with_patient() -> Connection {
+        let connection = memory_db_for_tests();
+        connection
+            .execute(
+                "INSERT INTO patients(server_id, workspace_id, search_text, payload, server_updated_at, last_synced_at)
+                 VALUES ('p1', 'ws-1', 'a', '{}', '2026-10-28T00:00:00Z', '2026-10-28T00:00:00Z')",
+                [],
+            )
+            .unwrap();
+        connection
+    }
+
+    fn appointment(connection: &Connection, id: &str, patient_id: &str) {
+        connection
+            .execute(
+                "INSERT INTO appointments_cache(server_id, patient_server_id, payload, server_updated_at, last_synced_at)
+                 VALUES (?1, ?2, '{}', '2026-10-28T00:00:00Z', '2026-10-28T00:00:00Z')",
+                params![id, patient_id],
+            )
+            .unwrap();
+    }
+
+    // The desktop's request for a consultation: only the keys given are present,
+    // exactly as the interface sends them.
+    fn input(extra: Value) -> ConsultationDraftInput {
+        let mut base = json!({
+            "patientId": "p1",
+            "localStatus": "IN_PROGRESS",
+            "chiefComplaint": "Toux",
+            "historyPresentIllness": "",
+            "clinicalExamination": "",
+            "assessment": "",
+            "carePlan": "",
+            "followUpPlan": ""
+        });
+        for (key, value) in extra.as_object().unwrap() {
+            base[key] = value.clone();
+        }
+        serde_json::from_value(base).expect("input")
+    }
+
+    fn save(connection: &mut Connection, extra: Value) -> Result<SavedDraft, String> {
+        save_draft_on_connection(connection, &claims(), input(extra))
+    }
+
+    fn stored(connection: &Connection, local_id: &str) -> Value {
+        let raw: String = connection
+            .query_row(
+                "SELECT payload FROM consultations WHERE local_id=?1",
+                params![local_id],
+                |row| row.get(0),
+            )
+            .unwrap();
+        serde_json::from_str(&raw).unwrap()
+    }
+
+    // The payload of the latest operation of this consultation.
+    fn sent(connection: &Connection, local_id: &str) -> Value {
+        let raw: String = connection
+            .query_row(
+                "SELECT payload FROM sync_outbox WHERE entity_type='CONSULTATION' AND local_entity_id=?1 ORDER BY sequence DESC LIMIT 1",
+                params![local_id],
+                |row| row.get(0),
+            )
+            .unwrap();
+        let envelope: Value = serde_json::from_str(&raw).unwrap();
+        envelope["payload"].clone()
+    }
+
+    fn assert_no_write(connection: &Connection) {
+        let rows: i64 = connection
+            .query_row(
+                "SELECT (SELECT COUNT(*) FROM consultations) + (SELECT COUNT(*) FROM sync_outbox)",
+                [],
+                |row| row.get(0),
+            )
+            .unwrap();
+        assert_eq!(rows, 0, "a refused save must write nothing");
+    }
+
+    #[test]
+    fn vital_signs_diagnoses_and_the_appointment_survive_a_save_and_are_sent() {
+        let mut connection = db_with_patient();
+        appointment(&connection, "a1", "p1");
+        let saved = save(
+            &mut connection,
+            json!({
+                "appointmentId": "a1",
+                "vitalSigns": { "systolicBp": 150, "diastolicBp": 95, "heartRate": 80, "respiratoryRate": 16,
+                                "oxygenSaturation": 97.5, "temperature": 37.2, "weightKg": 82.5, "heightCm": 178 },
+                "diagnoses": [
+                    { "label": "Hypertension artérielle", "code": "I10", "codeSystem": "CIM-10", "isPrimary": true },
+                    { "label": "Surpoids", "isPrimary": false }
+                ]
+            }),
+        )
+        .unwrap();
+
+        let expected_vitals = json!({ "systolicBp": 150, "diastolicBp": 95, "heartRate": 80, "respiratoryRate": 16,
+                                      "oxygenSaturation": 97.5, "temperature": 37.2, "weightKg": 82.5, "heightCm": 178 });
+        let expected_diagnoses = json!([
+            { "label": "Hypertension artérielle", "code": "I10", "codeSystem": "CIM-10", "isPrimary": true },
+            { "label": "Surpoids", "isPrimary": false }
+        ]);
+        let local = stored(&connection, &saved.local_id);
+        assert_eq!(local["vitalSigns"], expected_vitals);
+        assert_eq!(local["diagnoses"], expected_diagnoses);
+        assert_eq!(local["appointmentId"], "a1");
+        // What is sent is what is stored, field for field.
+        assert_eq!(sent(&connection, &saved.local_id), local);
+
+        // A second save of other fields only keeps all of it.
+        save(
+            &mut connection,
+            json!({ "localId": saved.local_id, "chiefComplaint": "Céphalées" }),
+        )
+        .unwrap();
+        let again = stored(&connection, &saved.local_id);
+        assert_eq!(again["chiefComplaint"], "Céphalées");
+        assert_eq!(again["vitalSigns"], expected_vitals);
+        assert_eq!(again["diagnoses"], expected_diagnoses);
+        assert_eq!(again["appointmentId"], "a1");
+    }
+
+    #[test]
+    fn a_new_consultation_without_clinical_content_sends_no_invented_values() {
+        let mut connection = db_with_patient();
+        let saved = save(&mut connection, json!({})).unwrap();
+        let payload = sent(&connection, &saved.local_id);
+        assert_eq!(payload["vitalSigns"], Value::Null);
+        assert_eq!(payload["diagnoses"], json!([]));
+        // No appointment: the key is absent, not null (null unlinks on the server).
+        assert!(payload.get("appointmentId").is_none());
+    }
+
+    #[test]
+    fn an_out_of_bounds_vital_sign_is_refused_and_nothing_is_written() {
+        let mut connection = db_with_patient();
+        for vitals in [
+            json!({ "systolicBp": 301 }),
+            json!({ "diastolicBp": 19 }),
+            json!({ "heartRate": 400 }),
+            json!({ "oxygenSaturation": 101 }),
+            json!({ "temperature": 50 }),
+            json!({ "weightKg": 0 }),
+            json!({ "heightCm": 5 }),
+        ] {
+            let error = save(&mut connection, json!({ "vitalSigns": vitals })).unwrap_err();
+            assert!(error.contains("hors limites"), "{vitals}: {error}");
+            assert_no_write(&connection);
+        }
+    }
+
+    #[test]
+    fn two_primary_diagnoses_are_refused() {
+        let mut connection = db_with_patient();
+        let error = save(
+            &mut connection,
+            json!({ "diagnoses": [{ "label": "A", "isPrimary": true }, { "label": "B", "isPrimary": true }] }),
+        )
+        .unwrap_err();
+        assert_eq!(
+            error,
+            "Un seul diagnostic peut être le diagnostic principal."
+        );
+        assert_no_write(&connection);
+    }
+
+    #[test]
+    fn an_unknown_appointment_or_one_of_another_patient_is_refused() {
+        let mut connection = db_with_patient();
+        appointment(&connection, "other", "p2");
+        for id in ["missing", "other"] {
+            let error = save(&mut connection, json!({ "appointmentId": id })).unwrap_err();
+            assert_eq!(error, "Ce rendez-vous ne correspond pas à ce patient.");
+        }
+        assert_no_write(&connection);
+    }
+
+    #[test]
+    fn a_finished_consultation_without_clinical_content_is_refused_like_on_the_server() {
+        let mut connection = db_with_patient();
+        let error = save(
+            &mut connection,
+            json!({ "localStatus": "READY_TO_SYNC", "chiefComplaint": "  ", "carePlan": "Repos" }),
+        )
+        .unwrap_err();
+        assert!(error.contains("terminée"), "{error}");
+        assert_no_write(&connection);
+        // With a diagnosis it is accepted.
+        assert!(save(
+            &mut connection,
+            json!({ "localStatus": "READY_TO_SYNC", "chiefComplaint": "", "diagnoses": [{ "label": "Angine" }] }),
+        )
+        .is_ok());
+    }
+
+    // A consultation as the server pushes it: ids and timestamps everywhere.
+    fn server_consultation() -> Value {
+        json!({
+            "id": "server-c1", "workspaceId": "ws-1", "patientId": "p1", "appointmentId": "a1",
+            "status": "IN_PROGRESS", "syncVersion": 3,
+            "startedAt": "2026-10-28T09:00:00.000Z", "completedAt": null,
+            "chiefComplaint": "Douleur", "historyPresentIllness": null, "clinicalExamination": null,
+            "assessment": null, "carePlan": null, "followUpPlan": null,
+            "createdAt": "2026-10-28T09:00:00.000Z", "updatedAt": "2026-10-28T10:00:00.000Z",
+            "vitalSigns": { "id": "v1", "consultationId": "server-c1", "systolicBp": 135, "diastolicBp": 85,
+                            "heartRate": null, "respiratoryRate": null, "oxygenSaturation": 98, "temperature": 36.8,
+                            "weightKg": 70.5, "heightCm": null,
+                            "createdAt": "2026-10-28T09:30:00.000Z", "updatedAt": "2026-10-28T09:30:00.000Z" },
+            "diagnoses": [
+                { "id": "d1", "consultationId": "server-c1", "label": "Lombalgie", "code": "M54.5", "codeSystem": null,
+                  "isPrimary": true, "note": null, "createdAt": "2026-10-28T09:40:00.000Z" }
+            ],
+            "addenda": []
+        })
+    }
+
+    fn pulled(connection: &mut Connection) -> String {
+        let tx = connection.transaction().unwrap();
+        apply_server_consultation(&tx, &server_consultation(), "2026-10-28T11:00:00Z", false)
+            .unwrap();
+        tx.commit().unwrap();
+        connection
+            .query_row(
+                "SELECT local_id FROM consultations WHERE server_id='server-c1'",
+                [],
+                |row| row.get(0),
+            )
+            .unwrap()
+    }
+
+    #[test]
+    fn a_consultation_from_the_server_edited_only_on_its_reason_keeps_its_vital_signs_and_diagnoses(
+    ) {
+        let mut connection = db_with_patient();
+        let local_id = pulled(&mut connection);
+
+        // The interface touches only the reason: no vitalSigns, no diagnoses key.
+        save(
+            &mut connection,
+            json!({ "localId": local_id, "chiefComplaint": "Douleur lombaire irradiant" }),
+        )
+        .unwrap();
+
+        let payload = sent(&connection, &local_id);
+        assert_eq!(payload["chiefComplaint"], "Douleur lombaire irradiant");
+        // Kept in the operation (never null / []), without the server's ids and timestamps.
+        assert_eq!(
+            payload["vitalSigns"],
+            json!({ "systolicBp": 135, "diastolicBp": 85, "oxygenSaturation": 98, "temperature": 36.8, "weightKg": 70.5 })
+        );
+        assert_eq!(
+            payload["diagnoses"],
+            json!([{ "label": "Lombalgie", "code": "M54.5", "isPrimary": true }])
+        );
+        assert_eq!(payload["appointmentId"], "a1");
+        assert_eq!(payload["serverEntityId"], "server-c1");
+        // The operation is an UPDATE against the version the device knew.
+        let (operation, base_version): (String, i64) = connection
+            .query_row(
+                "SELECT operation, base_version FROM sync_outbox WHERE local_entity_id=?1",
+                params![local_id],
+                |row| Ok((row.get(0)?, row.get(1)?)),
+            )
+            .unwrap();
+        assert_eq!((operation.as_str(), base_version), ("UPDATE", 3));
+    }
+
+    #[test]
+    fn clearing_on_purpose_removes_them_and_a_value_replaces_them() {
+        let mut connection = db_with_patient();
+        let local_id = pulled(&mut connection);
+        save(
+            &mut connection,
+            json!({ "localId": local_id, "vitalSigns": null, "diagnoses": null }),
+        )
+        .unwrap();
+        let cleared = sent(&connection, &local_id);
+        assert_eq!(cleared["vitalSigns"], Value::Null);
+        assert_eq!(cleared["diagnoses"], json!([]));
+
+        save(
+            &mut connection,
+            json!({ "localId": local_id, "vitalSigns": { "heartRate": 64 },
+                    "diagnoses": [{ "label": "Sciatique", "isPrimary": true }] }),
+        )
+        .unwrap();
+        let replaced = sent(&connection, &local_id);
+        assert_eq!(replaced["vitalSigns"], json!({ "heartRate": 64 }));
+        assert_eq!(
+            replaced["diagnoses"],
+            json!([{ "label": "Sciatique", "isPrimary": true }])
+        );
+        // An empty entry (every field blank) means no vital signs at all.
+        save(
+            &mut connection,
+            json!({ "localId": local_id, "vitalSigns": {} }),
+        )
+        .unwrap();
+        assert_eq!(sent(&connection, &local_id)["vitalSigns"], Value::Null);
+    }
+
+    #[test]
+    fn a_link_already_stored_is_kept_when_the_appointment_left_the_cache() {
+        let mut connection = db_with_patient();
+        let local_id = pulled(&mut connection);
+        // "a1" is not in appointments_cache any more: editing must still work.
+        assert!(save(
+            &mut connection,
+            json!({ "localId": local_id, "chiefComplaint": "Suite" })
+        )
+        .is_ok());
+        assert_eq!(sent(&connection, &local_id)["appointmentId"], "a1");
     }
 }

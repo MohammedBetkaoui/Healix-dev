@@ -12,7 +12,7 @@ import {
 import { describeError } from "./errors";
 import { isDetailRoute, NEW_ID, pushRecentPatient, type Route } from "./layout/navigation";
 import { AppointmentsPage } from "./pages/AppointmentsPage";
-import { ConsultationPage } from "./pages/ConsultationPage";
+import { ConsultationPage, type SaveKind } from "./pages/ConsultationPage";
 import { ConsultationsPage } from "./pages/ConsultationsPage";
 import { LoginPage } from "./pages/LoginPage";
 import { PatientRecordPage } from "./pages/PatientRecordPage";
@@ -193,6 +193,7 @@ function App() {
     setRoute(target);
   };
 
+  // Starting from an appointment links the consultation to it.
   const startConsultation = (appointment: LocalAppointment) =>
     go({
       name: "consultation",
@@ -200,13 +201,16 @@ function App() {
       patientId: appointment.patientId,
       patientName: appointment.patientName,
       reason: appointment.reason ?? "",
+      appointmentId: appointment.id,
     });
 
   // After a draft is saved: the lists reload and the outbox is pushed.
-  const afterSave = async () => {
+  // An automatic save (timer, leaving a field) only refreshes the counters;
+  // saving or finishing on purpose also starts a synchronization.
+  const afterSave = async (kind: SaveKind = "manual") => {
     bump();
     setSync(await getSyncStatus());
-    void performSync();
+    if (kind !== "auto") void performSync();
   };
 
   const offline = sync.state === "OFFLINE";
@@ -261,8 +265,12 @@ function App() {
         patientId={route.patientId}
         patientName={route.patientName}
         reason={route.reason}
+        appointmentId={route.appointmentId}
         onSaved={afterSave}
         onClose={() => void goBack()}
+        onWritePrescription={(patientId, patientName) =>
+          go({ name: "prescription", id: NEW_ID, patientId, patientName })
+        }
       />
     ) : route.name === "prescriptions" ? (
       <PrescriptionsPage version={version} onOpen={openPrescription} />

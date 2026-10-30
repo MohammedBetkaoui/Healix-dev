@@ -32,10 +32,17 @@ export const canStartConsultation = (appointment: LocalAppointment) =>
 // (the sync protocol does not link a local draft to an appointment). A saved
 // consultation wins over a draft.
 export function consultationFor(appointment: LocalAppointment, consultations: ConsultationSummary[]) {
+  // A consultation started from this appointment says so.
+  const linked = consultations.filter((consultation) => consultation.appointmentId === appointment.id);
+  if (linked.length) return linked.find((consultation) => consultation.state !== "DRAFT") ?? linked[0];
+  // Otherwise (a consultation that is not linked to any appointment): the same
+  // patient on the same day. One linked to another appointment never counts.
   const day = new Date(appointment.scheduledAt);
   const sameDay = consultations.filter(
     (consultation) =>
-      consultation.patientId === appointment.patientId && isSameDay(new Date(consultation.date), day),
+      !consultation.appointmentId &&
+      consultation.patientId === appointment.patientId &&
+      isSameDay(new Date(consultation.date), day),
   );
   return sameDay.find((consultation) => consultation.state !== "DRAFT") ?? sameDay[0];
 }

@@ -3,11 +3,10 @@ import { Notice, PageHeader, StatusBadge } from "../dashboard-ui";
 import { formatDateOnly } from "../dates";
 import { fr } from "../i18n/fr";
 import { consultationState } from "../statuses";
-import type { ConsultationDetail, ConsultationVitalSigns } from "../types";
+import type { ConsultationDetail } from "../types";
+import { bmi, formatBmi, VITAL_FIELDS, vitalFlags, type FlagKey } from "../vitals";
 
-const VITAL_KEYS = [
-  "systolicBp", "diastolicBp", "heartRate", "respiratoryRate", "oxygenSaturation", "temperature", "weightKg", "heightCm",
-] as const satisfies ReadonlyArray<keyof ConsultationVitalSigns>;
+const decimal = (value: number) => String(value).replace(".", ",");
 
 const SECTION_KEYS = [
   "chiefComplaint", "historyPresentIllness", "clinicalExamination", "assessment", "carePlan", "followUpPlan",
@@ -17,7 +16,10 @@ const SECTION_KEYS = [
 // of a record locked out of the authorized scope): shown, never edited.
 export function ConsultationView({ consultation }: { consultation: ConsultationDetail }) {
   const state = consultationState(consultation.state);
-  const vitals = VITAL_KEYS.filter((key) => consultation.vitalSigns?.[key] != null);
+  const values = consultation.vitalSigns ?? {};
+  const vitals = VITAL_FIELDS.filter((field) => values[field.key] != null);
+  const index = bmi(values.weightKg, values.heightCm);
+  const flags = vitalFlags(values);
   const notice =
     consultation.state === "CONFLICT"
       ? fr.consultation.conflict
@@ -62,13 +64,30 @@ export function ConsultationView({ consultation }: { consultation: ConsultationD
         <section className="surface-section p-5 sm:p-6" aria-label={fr.consultation.vitals.title}>
           <h2 className="text-sm font-semibold text-[var(--ink)]">{fr.consultation.vitals.title}</h2>
           <dl className="mt-4 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-            {vitals.map((key) => (
-              <div key={key}>
-                <dt className="text-xs text-[var(--ink-soft)]">{fr.consultation.vitals[key]}</dt>
-                <dd className="clinical-figure mt-1 text-base font-semibold text-[var(--ink)]">{consultation.vitalSigns?.[key]}</dd>
+            {vitals.map((field) => (
+              <div key={field.key}>
+                <dt className="text-xs text-[var(--ink-soft)]">{field.label}</dt>
+                <dd className="clinical-figure mt-1 text-base font-semibold text-[var(--ink)]">
+                  {decimal(values[field.key] as number)} <span className="text-xs font-normal text-[var(--ink-faint)]">{field.unit}</span>
+                </dd>
               </div>
             ))}
+            {index !== null ? (
+              <div>
+                <dt className="text-xs text-[var(--ink-soft)]">IMC</dt>
+                <dd className="clinical-figure mt-1 text-base font-semibold text-[var(--ink)]" data-bmi="">
+                  {formatBmi(index)} <span className="text-xs font-normal text-[var(--ink-faint)]">kg/m²</span>
+                </dd>
+              </div>
+            ) : null}
           </dl>
+          {Object.keys(flags).length ? (
+            <ul aria-label="Valeurs à surveiller" className="mt-4 flex flex-wrap gap-2">
+              {(Object.keys(flags) as FlagKey[]).map((key) => (
+                <li key={key}><StatusBadge label={flags[key]!.text} tone={flags[key]!.level === "alert" ? "danger" : "warning"} /></li>
+              ))}
+            </ul>
+          ) : null}
         </section>
       ) : null}
 
