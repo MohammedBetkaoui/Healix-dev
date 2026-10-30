@@ -42,8 +42,9 @@ signature, URL d'API HTTPS) : cette protection n'a pas été modifiée.
 
 | Sujet | Statut | Détail |
 | --- | --- | --- |
-| Logique des secrets longs (coffre en mémoire) | voir §4 | `cargo test --lib security` |
-| Vrai Credential Manager (données synthétiques) | **non exécuté** à ce jour | tests `real_credential_manager` (ignorés par défaut) ; workflow `desktop-windows-secrets.yml` à exécuter |
+| Logique des secrets longs (coffre en mémoire) | **réussi en local** — 24 tests `security` (court, limite 1 200/1 201 unités, multi-fragments, Unicode, surécriture long→plus court et long→court, suppression, manifest corrompu, fragment manquant, écriture interrompue à chaque point, restes d'écriture interrompue, format de la première version, logout) | `cargo test` : 48 réussis, 0 échec, 6 ignorés ; `cargo fmt --check` OK |
+| Compilation du harnais E2E après changement de `cfg` | **réussi en local** | `cargo check --features e2e-harness --bin offline-e2e-harness` |
+| Vrai Credential Manager (données synthétiques) | **réussi en local** — 6 tests : court, autour de la limite (1…6 000 unités), Unicode et multi-fragments reconstruits exactement, nettoyage à la surécriture, nettoyage à la suppression, manifest corrompu / fragment manquant | exécutés le 2026-10-30 sur le poste de développement (Windows 11 Pro 10.0.26300, **poste non propre**, session utilisateur courante) ; service `dz.healix.desktop.test`, aucun reste dans le coffre. **Pas encore exécuté sur un runner GitHub** : workflow `desktop-windows-secrets.yml` à lancer après push |
 | SQLCipher chiffré (en-tête ≠ `SQLite format 3`) | **non testé** sur machine réelle | checklist §3 |
 | Redémarrage Windows | **non testé** — un runner GitHub ne redémarre pas | manuel obligatoire |
 
@@ -105,7 +106,7 @@ Procédure détaillée : `docs/windows-release-checklist.md`.
 | 8 | Credential Manager : `installation-id`, `database-key-v1`, `device-private-key`, `offline-grant`, `grant-public-key` (service `dz.healix.desktop`) | NON TESTÉ |
 | 9 | Aucun secret en clair dans `%APPDATA%` / `%LOCALAPPDATA%` | NON TESTÉ |
 | 10 | SQLCipher : les 16 premiers octets ≠ `SQLite format 3` | NON TESTÉ |
-| 11 | Secrets longs sur le vrai Credential Manager (court, limite, multi-fragments, Unicode, surécriture, suppression) | NON TESTÉ (tests prêts, à lancer) |
+| 11 | Secrets longs sur le vrai Credential Manager (court, limite, multi-fragments, Unicode, surécriture, suppression) | tests automatisés **réussis sur le poste de développement** (§3) ; à refaire sur la machine de qualification propre via l'application installée |
 | 12 | Hors ligne : 1 consultation + 1 brouillon d'ordonnance (aucune validation officielle) | NON TESTÉ |
 | 13 | Fermeture complète puis relance hors ligne | NON TESTÉ |
 | 14 | **Redémarrage Windows réel**, puis ouverture hors ligne | NON TESTÉ |
