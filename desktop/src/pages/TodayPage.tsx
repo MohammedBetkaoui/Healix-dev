@@ -7,7 +7,7 @@ import { addDays, formatTime, startOfDay } from "../dates";
 import { listAppointments, listConsultations, listPrescriptions } from "../desktop-api";
 import { fr } from "../i18n/fr";
 import { relativeTime } from "../relative-time";
-import { consultationDoneFor, consultationState, prescriptionStatus } from "../statuses";
+import { consultationDoneFor, consultationState, draftFor, prescriptionStatus } from "../statuses";
 import type { LocalAppointment, LocalPatient, SyncStatus } from "../types";
 
 export function TodayPage({ name, sync, version, recentPatients, onOpenPatient, onStartConsultation, onOpenConsultation, onOpenPrescription }: {
@@ -109,10 +109,12 @@ export function TodayPage({ name, sync, version, recentPatients, onOpenPatient, 
                 key={appointment.id}
                 appointment={appointment}
                 done={consultationDoneFor(appointment, consultations.data ?? [])}
+                draftId={draftFor(appointment, consultations.data ?? [])?.localId}
                 highlighted={appointment.id === nextId}
                 canStart
                 onOpenPatient={onOpenPatient}
                 onStart={onStartConsultation}
+                onResume={onOpenConsultation}
               />
             ))}
           </ul>

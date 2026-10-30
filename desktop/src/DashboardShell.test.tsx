@@ -68,6 +68,13 @@ describe("logout confirmation", () => {
   });
 });
 
+describe("footer", () => {
+  it("shows the version of the application as a beta", () => {
+    renderShell();
+    expect(document.querySelector("footer")?.textContent).toMatch(/HealixDz Desktop v0.0.0 test/);
+  });
+});
+
 describe("header", () => {
   it("follows the current page and Ctrl+K focuses the patient search", () => {
     renderShell();

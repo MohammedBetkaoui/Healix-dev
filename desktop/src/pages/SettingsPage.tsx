@@ -5,6 +5,7 @@ import { PageHeader } from "../dashboard-ui";
 import { API_BASE } from "../desktop-api";
 import { fr } from "../i18n/fr";
 import type { SessionStatus, SyncStatus } from "../types";
+import { versionLabel } from "../version";
 import { DESKTOP_BUILD_SHA, UpdateControl, inTauriWindow } from "../updates";
 
 function Row({ label, children }: { label: string; children: ReactNode }) {
@@ -39,7 +40,7 @@ export function SettingsPage({ session, sync }: { session: SessionStatus; sync: 
             {inTauriWindow ? <UpdateControl appearance="dashboard" blockedReason={blockedReason} /> : "Disponibles dans l’application installée."}
           </Row>
           <Row label="Version">
-            <span className="clinical-figure">v{__APP_VERSION__}{DESKTOP_BUILD_SHA ? ` · build ${DESKTOP_BUILD_SHA}` : ""}</span>
+            <span className="clinical-figure">v{versionLabel(__APP_VERSION__)}{DESKTOP_BUILD_SHA ? ` · build ${DESKTOP_BUILD_SHA}` : ""}</span>
           </Row>
           <Row label="Serveur"><span className="clinical-figure break-all">{API_BASE || "—"}</span></Row>
           <Row label="Appareil">

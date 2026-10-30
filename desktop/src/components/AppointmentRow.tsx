@@ -9,19 +9,22 @@ import type { LocalAppointment } from "../types";
 // with the same badges and edge colours as the Web agenda. The row opens the
 // patient's record; "Démarrer la consultation" opens the editor with the
 // patient and the reason already filled in.
-export function AppointmentRow({ appointment, done, highlighted, canStart, onOpenPatient, onStart }: {
+export function AppointmentRow({ appointment, done, draftId, highlighted, canStart, onOpenPatient, onStart, onResume }: {
   appointment: LocalAppointment;
-  // A consultation of this patient already exists that day.
+  // A consultation of this patient is already saved that day.
   done: boolean;
+  // ...or only a draft of it exists: it can be resumed.
+  draftId?: string;
   // The next appointment of the day.
   highlighted?: boolean;
   // Only appointments of the current day can be started.
   canStart: boolean;
   onOpenPatient: (patientId: string) => void;
   onStart: (appointment: LocalAppointment) => void;
+  onResume?: (localId: string) => void;
 }) {
   const status = appointmentStatus(appointment);
-  const startable = canStart && canStartConsultation(appointment) && !done;
+  const startable = canStart && canStartConsultation(appointment) && !done && !draftId;
   return (
     <li
       data-highlighted={highlighted ? "" : undefined}
@@ -50,6 +53,11 @@ export function AppointmentRow({ appointment, done, highlighted, canStart, onOpe
       <StatusBadge label={status.label} tone={status.tone} />
       {done ? (
         <span className="text-xs font-medium text-[var(--success-ink)]">{fr.appointment.done}</span>
+      ) : draftId && onResume && !appointment.patientLocked ? (
+        <Button variant="outline" size="sm" onClick={() => onResume(draftId)}>
+          <Play className="h-4 w-4" strokeWidth={1.8} aria-hidden="true" />
+          {fr.appointment.resume}
+        </Button>
       ) : startable ? (
         <Button size="sm" onClick={() => onStart(appointment)}>
           <Play className="h-4 w-4" strokeWidth={1.8} aria-hidden="true" />

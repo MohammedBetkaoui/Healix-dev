@@ -1,6 +1,9 @@
 import { useState } from "react";
 import { relaunch } from "@tauri-apps/plugin-process";
 import { check, type Update } from "@tauri-apps/plugin-updater";
+import { describeError } from "./errors";
+import { fr } from "./i18n/fr";
+import { versionLabel } from "./version";
 
 // ---------------------------------------------------------------------------
 // App identity and self-update
@@ -21,7 +24,7 @@ export function ReleaseFooter() {
   return (
     <footer className="release-footer">
       <span className="release-version">
-        HealixDz Desktop v{__APP_VERSION__}
+        HealixDz Desktop v{versionLabel(__APP_VERSION__)}
         {DESKTOP_BUILD_SHA ? (
           <small> · build {DESKTOP_BUILD_SHA}</small>
         ) : null}
@@ -65,7 +68,7 @@ export function UpdateControl({ appearance = "login", blockedReason }: {
     } catch (error) {
       // Unreachable endpoint (offline, no published release yet) is a normal
       // state, not a support case.
-      setPhase({ kind: "error", message: String(error) });
+      setPhase({ kind: "error", message: describeError(error, fr.errors.update) });
     }
   };
 
@@ -82,7 +85,7 @@ export function UpdateControl({ appearance = "login", blockedReason }: {
       setPhase({ kind: "applying", update: phase.update, step: "Redémarrage de l'application..." });
       await relaunch();
     } catch (error) {
-      setPhase({ kind: "error", message: String(error) });
+      setPhase({ kind: "error", message: describeError(error, fr.errors.update) });
     }
   };
 

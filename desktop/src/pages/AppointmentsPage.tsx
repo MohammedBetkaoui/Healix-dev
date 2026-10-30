@@ -6,17 +6,18 @@ import { useLoad } from "../data";
 import { addDays, formatLongDay, formatShortDay, formatTime, formatWeekRange, isSameDay, startOfDay, startOfWeek } from "../dates";
 import { listAppointments, listConsultations } from "../desktop-api";
 import { fr } from "../i18n/fr";
-import { appointmentStatus, consultationDoneFor } from "../statuses";
+import { appointmentStatus, consultationDoneFor, draftFor } from "../statuses";
 import type { LocalAppointment, SyncStatus } from "../types";
 import { WEB_APP_URL, openWebPath } from "../web-app";
 
 type View = "day" | "week";
 
-export function AppointmentsPage({ sync, version, onOpenPatient, onStartConsultation }: {
+export function AppointmentsPage({ sync, version, onOpenPatient, onStartConsultation, onOpenConsultation }: {
   sync: SyncStatus;
   version: number;
   onOpenPatient: (patientId: string) => void;
   onStartConsultation: (appointment: LocalAppointment) => void;
+  onOpenConsultation: (localId: string) => void;
 }) {
   const offline = sync.state === "OFFLINE";
   const [view, setView] = useState<View>("day");
@@ -35,6 +36,7 @@ export function AppointmentsPage({ sync, version, onOpenPatient, onStartConsulta
   const title = view === "week" ? formatWeekRange(start) : formatLongDay(start);
 
   const done = (appointment: LocalAppointment) => consultationDoneFor(appointment, consultations.data ?? []);
+  const draftId = (appointment: LocalAppointment) => draftFor(appointment, consultations.data ?? [])?.localId;
   const onDay = (day: Date) => list.filter((item) => isSameDay(new Date(item.scheduledAt), day));
   const canStartOn = (day: Date) => isSameDay(day, today);
 
@@ -93,9 +95,11 @@ export function AppointmentsPage({ sync, version, onOpenPatient, onStartConsulta
                   key={appointment.id}
                   appointment={appointment}
                   done={done(appointment)}
+                  draftId={draftId(appointment)}
                   canStart={canStartOn(start)}
                   onOpenPatient={onOpenPatient}
                   onStart={onStartConsultation}
+                  onResume={onOpenConsultation}
                 />
               ))}
             </ul>
@@ -151,9 +155,11 @@ export function AppointmentsPage({ sync, version, onOpenPatient, onStartConsulta
                             key={appointment.id}
                             appointment={appointment}
                             done={done(appointment)}
+                            draftId={draftId(appointment)}
                             canStart={canStartOn(day)}
                             onOpenPatient={onOpenPatient}
                             onStart={onStartConsultation}
+                            onResume={onOpenConsultation}
                           />
                         ))}
                       </ul>

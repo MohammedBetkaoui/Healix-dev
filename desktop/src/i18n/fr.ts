@@ -72,7 +72,17 @@ export const fr = {
       settings: "Paramètres",
     },
   },
-  placeholder: "Disponible dans la prochaine version.",
+  // What the doctor reads when something fails: never a code, an identifier,
+  // English text or JSON. The native messages are matched in src/errors.ts.
+  errors: {
+    generic: "Une erreur est survenue. Réessayez ; si elle persiste, contactez le support HealixDz.",
+    authorization: "Votre autorisation hors ligne est expirée ou invalide. Reconnectez-vous en ligne.",
+    storage: "Le stockage sécurisé de cet appareil est indisponible. Redémarrez l’application ; si le problème persiste, contactez le support HealixDz.",
+    vault: "Le coffre sécurisé de Windows est indisponible pour ce compte. Vos données restent protégées sur cet appareil.",
+    localWrite: "L’enregistrement sur cet appareil a échoué. Vos modifications précédentes sont conservées. Réessayez.",
+    server: "Le serveur HealixDz est injoignable ou a répondu de façon inattendue. Vos données restent sur cet appareil et seront envoyées plus tard.",
+    update: "Le serveur de mises à jour est injoignable pour le moment. Réessayez plus tard.",
+  },
   common: {
     back: "Retour",
     loading: "Chargement…",
@@ -92,6 +102,7 @@ export const fr = {
     },
     start: "Démarrer la consultation",
     done: "Consultation faite",
+    resume: "Reprendre la consultation",
     next: "Prochain rendez-vous",
     minutes: (value: number) => (value >= 60 && value % 60 === 0 ? `${value / 60} h` : `${value} min`),
     noReason: "Motif non précisé",
@@ -141,5 +152,15 @@ export const fr = {
       localDraft: "Brouillon local",
     },
     readOnly: "Lecture seule : cette ordonnance n’est plus un brouillon modifiable.",
+    // Same labels as the Web (locales/fr/prescriptions.ts).
+    forms: {
+      TABLET: "Comprimé", CAPSULE: "Gélule", ORAL_SOLUTION: "Solution buvable", INJECTABLE: "Injectable",
+      EYE_DROPS: "Collyre", OINTMENT: "Pommade", INHALER: "Inhalateur", OTHER: "Autre",
+    } as Record<string, string>,
+    routes: {
+      ORAL: "Orale", IV: "IV", IM: "IM", SC: "SC", CUTANEOUS: "Cutanée", OPHTHALMIC: "Ophtalmique",
+      INHALED: "Inhalée", OTHER: "Autre",
+    } as Record<string, string>,
+    days: (count: number) => `${count} jour${count > 1 ? "s" : ""}`,
   },
 } as const;

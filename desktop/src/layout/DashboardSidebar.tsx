@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { ExternalLink, LockKeyhole, LogOut, PanelLeftClose, PanelLeftOpen, X } from "lucide-react";
-import logo from "../../../frontend/public/HealixDz-logo/logo_avec_titre.svg";
+import logo from "../../../frontend/public/HealixDz-logo/logo_avec_titre_clair.svg";
 import logoMark from "../../../frontend/public/HealixDz-logo/logo.svg";
 import { CountBadge, WebBadge } from "../components/badges";
 import { cn, initials } from "../dashboard-ui";

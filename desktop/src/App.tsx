@@ -249,6 +249,7 @@ function App() {
         version={version}
         onOpenPatient={(id) => void openPatientById(id)}
         onStartConsultation={startConsultation}
+        onOpenConsultation={openConsultation}
       />
     ) : route.name === "consultations" ? (
       <ConsultationsPage version={version} onOpen={openConsultation} />

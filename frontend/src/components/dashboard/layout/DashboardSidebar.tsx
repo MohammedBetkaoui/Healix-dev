@@ -110,7 +110,7 @@ export function DashboardSidebar({ activeKey, direction, isCollapsed, isOpen, na
           <div className={cn("flex items-center gap-2", isCollapsed && !isOpen && "lg:justify-center lg:flex-col")}>
             {showFullLogo ? (
               <span className={cn("min-w-0 flex-1", isCollapsed && "lg:hidden")}>
-                <HealixLogo variant="full" priority />
+                <HealixLogo variant="full" tone="light" priority />
               </span>
             ) : (
               <HealixLogo variant="mark" priority />

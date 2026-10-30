@@ -91,7 +91,7 @@ export function PatientRecordPage({
         title={fullName}
         description={
           <>
-            {arabicName ? <span className="mb-1 block text-base text-[var(--ink)]" dir="rtl" lang="ar">{arabicName}</span> : null}
+            {arabicName ? <span className="mb-1 block text-left text-base text-[var(--ink)]" dir="rtl" lang="ar">{arabicName}</span> : null}
             {patient.locked
               ? `Dossier verrouillé (${patient.lockReason ?? "hors périmètre"}) · lecture seule`
               : `Disponible hors ligne · Dernière synchronisation : ${formatDate(patient.lastSyncedAt)}`}

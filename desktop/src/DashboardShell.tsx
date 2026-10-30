@@ -7,6 +7,8 @@ import { fr } from "./i18n/fr";
 import { DashboardSidebar } from "./layout/DashboardSidebar";
 import { routeTitle, type Route } from "./layout/navigation";
 import type { LocalPatient, SessionStatus, SyncStatus } from "./types";
+import { DESKTOP_BUILD_SHA } from "./updates";
+import { versionLabel } from "./version";
 import { WEB_APP_URL } from "./web-app";
 
 // Assembly of the Desktop workspace, the counterpart of the Web
@@ -101,6 +103,10 @@ export function DashboardShell({
               {children}
             </div>
           </div>
+          <footer className="clinical-caption px-6 pb-6 pt-2 text-[var(--ink-faint)]">
+            HealixDz Desktop v{versionLabel(__APP_VERSION__)}
+            {DESKTOP_BUILD_SHA ? ` · build ${DESKTOP_BUILD_SHA}` : ""}
+          </footer>
         </div>
       </div>
       <ConfirmDialog

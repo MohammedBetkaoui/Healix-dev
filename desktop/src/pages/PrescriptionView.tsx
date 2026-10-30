@@ -43,10 +43,12 @@ export function PrescriptionView({ prescription, patientName, patientLocked }: {
                   {item.brandName ? <span className="font-normal text-[var(--ink-soft)]"> · {item.brandName}</span> : null}
                 </p>
                 <p className="mt-1 text-xs text-[var(--ink-soft)]">
-                  {[item.strength, item.pharmaceuticalForm, item.route].filter(Boolean).join(" · ")}
+                  {[item.strength, fr.prescription.forms[item.pharmaceuticalForm] ?? item.pharmaceuticalForm, fr.prescription.routes[item.route] ?? item.route]
+                    .filter(Boolean)
+                    .join(" · ")}
                 </p>
                 <p className="mt-1 text-xs text-[var(--ink)]">
-                  {[item.dosePerIntake, item.frequency, item.durationDays ? `${item.durationDays} jours` : null, item.quantity]
+                  {[item.dosePerIntake, item.frequency, item.durationDays ? fr.prescription.days(item.durationDays) : null, item.quantity]
                     .filter(Boolean)
                     .join(" · ")}
                 </p>

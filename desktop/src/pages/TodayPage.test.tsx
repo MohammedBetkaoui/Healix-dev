@@ -40,7 +40,7 @@ describe("TodayPage", () => {
     const next = appointment("a2", "2", { scheduledAt: inHours(2), reason: "Fièvre", status: "CONFIRMED", durationMinutes: 45 });
     mocked.listAppointments.mockResolvedValue([past, next]);
     // The first patient was already seen that day.
-    mocked.listConsultations.mockResolvedValue([consultationSummary("c1", "1", { date: past.scheduledAt })]);
+    mocked.listConsultations.mockResolvedValue([consultationSummary("c1", "1", { date: past.scheduledAt, state: "SYNCED", editable: false })]);
     const props = renderToday();
 
     await screen.findByText("Fièvre · 45 min");
@@ -91,6 +91,15 @@ describe("TodayPage", () => {
     expect(await screen.findByText("Hors ligne — vos modifications seront synchronisées au retour de la connexion.")).toBeTruthy();
   });
 
+  it("shows a loading skeleton, not a blank page, while the lists load", () => {
+    mocked.listAppointments.mockReturnValue(new Promise(() => undefined));
+    mocked.listConsultations.mockReturnValue(new Promise(() => undefined));
+    mocked.listPrescriptions.mockReturnValue(new Promise(() => undefined));
+    renderToday();
+    expect(document.querySelectorAll("[data-skeleton]").length).toBeGreaterThan(0);
+    expect(screen.getAllByRole("status", { name: "Chargement" }).length).toBeGreaterThan(0);
+  });
+
   it("shows no banner online", async () => {
     renderToday();
     await screen.findByText("Rien à terminer");
@@ -100,6 +109,22 @@ describe("TodayPage", () => {
   it("shows a French message when a list cannot be read", async () => {
     mocked.listAppointments.mockRejectedValue("Autorisation offline expirée ou invalide.");
     renderToday();
-    expect(await screen.findByText("Autorisation offline expirée ou invalide.")).toBeTruthy();
+    // The engine's message is shown as the plain sentence of fr.errors.
+    expect(await screen.findByText("Votre autorisation hors ligne est expirée ou invalide. Reconnectez-vous en ligne.")).toBeTruthy();
+  });
+});
+
+describe("TodayPage: an appointment whose consultation is only a draft", () => {
+  it("offers to resume the draft instead of saying the consultation is done", async () => {
+    const slot = appointment("a1", "1", { scheduledAt: inHours(-1), reason: "Toux" });
+    mocked.listAppointments.mockResolvedValue([slot]);
+    mocked.listConsultations.mockResolvedValue([consultationSummary("draft-1", "1", { date: slot.scheduledAt })]);
+    const props = renderToday();
+
+    const resume = await screen.findByRole("button", { name: "Reprendre la consultation" });
+    expect(screen.queryByText("Consultation faite")).toBeNull();
+    expect(screen.queryByRole("button", { name: "Démarrer la consultation" })).toBeNull();
+    fireEvent.click(resume);
+    expect(props.onOpenConsultation).toHaveBeenCalledWith("draft-1");
   });
 });

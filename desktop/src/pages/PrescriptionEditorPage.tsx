@@ -3,6 +3,7 @@ import { FileText, Plus, TriangleAlert } from "lucide-react";
 import { Button, Field, Notice, PageHeader, Pill, inputClass } from "../dashboard-ui";
 import type { PrescriptionDraftInput, PrescriptionItemInput } from "../types";
 import { emptyPrescriptionItem } from "../drafts";
+import { describeError } from "../errors";
 import { PrescriptionItemEditor } from "../components/PrescriptionItemEditor";
 
 export function PrescriptionEditorPage({
@@ -106,7 +107,7 @@ export function PrescriptionEditorPage({
             setSaving(true);
             setError("");
             void onSave()
-              .catch((cause) => setError(String(cause)))
+              .catch((cause) => setError(describeError(cause)))
               .finally(() => setSaving(false));
           }}
         >

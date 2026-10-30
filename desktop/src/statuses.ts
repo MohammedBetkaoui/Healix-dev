@@ -28,15 +28,29 @@ export const canStartConsultation = (appointment: LocalAppointment) =>
   !appointment.patientLocked &&
   (appointment.status === null || appointment.status === "SCHEDULED" || appointment.status === "CONFIRMED");
 
-// "Consultation faite": a consultation of the same patient on the same day
-// (the sync protocol does not link a local draft to an appointment).
-export function consultationDoneFor(appointment: LocalAppointment, consultations: ConsultationSummary[]) {
+// The consultation of an appointment: one of the same patient on the same day
+// (the sync protocol does not link a local draft to an appointment). A saved
+// consultation wins over a draft.
+export function consultationFor(appointment: LocalAppointment, consultations: ConsultationSummary[]) {
   const day = new Date(appointment.scheduledAt);
-  return consultations.some(
+  const sameDay = consultations.filter(
     (consultation) =>
       consultation.patientId === appointment.patientId && isSameDay(new Date(consultation.date), day),
   );
+  return sameDay.find((consultation) => consultation.state !== "DRAFT") ?? sameDay[0];
 }
+
+// "Consultation faite": the consultation is past the draft stage. A draft is
+// not done: the doctor is offered to resume it instead.
+export const consultationDoneFor = (appointment: LocalAppointment, consultations: ConsultationSummary[]) => {
+  const found = consultationFor(appointment, consultations);
+  return found !== undefined && found.state !== "DRAFT";
+};
+
+export const draftFor = (appointment: LocalAppointment, consultations: ConsultationSummary[]) => {
+  const found = consultationFor(appointment, consultations);
+  return found?.state === "DRAFT" ? found : undefined;
+};
 
 const consultationTones: Record<ConsultationState, Tone> = {
   DRAFT: "warning",
