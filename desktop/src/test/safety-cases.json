@@ -1,0 +1,37 @@
+{
+  "item": {
+    "dci": "Paracétamol",
+    "strength": "500 mg",
+    "pharmaceuticalForm": "TABLET",
+    "regulatoryCategory": "STANDARD",
+    "dosePerIntake": "1 comprimé",
+    "frequency": "2 fois par jour",
+    "durationDays": 5,
+    "quantity": "10 comprimés"
+  },
+  "cases": [
+    { "name": "the same medication twice is a duplicate", "items": [{}, {}], "summary": { "allergies": [] } },
+    { "name": "same DCI but another strength is not a duplicate", "items": [{}, { "strength": "1 g" }], "summary": { "allergies": [] } },
+    { "name": "same DCI and strength but another form is not a duplicate", "items": [{}, { "pharmaceuticalForm": "CAPSULE" }], "summary": { "allergies": [] } },
+    { "name": "a duplicate is found whatever the case and accents of the DCI and strength", "items": [{}, { "dci": "PARACETAMOL", "strength": " 500 MG " }], "summary": { "allergies": [] } },
+    { "name": "an exact normalized allergy is reported", "items": [{}], "summary": { "allergies": ["paracetamol"] } },
+    { "name": "a broad allergy is not reported", "items": [{}], "summary": { "allergies": ["antalgiques"] } },
+    { "name": "the allergy match ignores case, accents and spaces", "items": [{}], "summary": { "allergies": ["  PARACÉTAMOL "] } },
+    { "name": "an allergy of the second line points at the second line", "items": [{ "dci": "Amoxicilline" }, { "dci": "Pénicilline" }], "summary": { "allergies": ["penicilline"] } },
+    { "name": "non-text allergy entries are ignored", "items": [{}], "summary": { "allergies": [1, null, { "x": 1 }, "paracetamol"] } },
+    { "name": "allergies that are not a list are ignored", "items": [{}], "summary": { "allergies": "paracetamol" } },
+    { "name": "no medical summary", "items": [{}], "summary": null },
+    { "name": "a medical summary that is a list is no summary", "items": [{}], "summary": ["paracetamol"] },
+    { "name": "an empty summary object is a summary", "items": [{}], "summary": {} },
+    { "name": "a regulated medication", "items": [{ "regulatoryCategory": "REGULATED" }], "summary": { "allergies": [] } },
+    { "name": "a zero duration", "items": [{ "durationDays": 0 }], "summary": { "allergies": [] } },
+    { "name": "a negative duration", "items": [{ "durationDays": -3 }], "summary": { "allergies": [] } },
+    { "name": "no duration is fine", "items": [{ "durationDays": null }], "summary": { "allergies": [] } },
+    { "name": "missing quantity", "items": [{ "quantity": "   " }], "summary": { "allergies": [] } },
+    { "name": "missing dose", "items": [{ "dosePerIntake": "" }], "summary": { "allergies": [] } },
+    { "name": "missing frequency", "items": [{ "frequency": " " }], "summary": { "allergies": [] } },
+    { "name": "several alerts on several lines keep the order of the server", "items": [{ "regulatoryCategory": "REGULATED", "durationDays": 0, "quantity": "" }, { "regulatoryCategory": "REGULATED", "durationDays": 0, "quantity": "" }], "summary": { "allergies": ["paracetamol"] } },
+    { "name": "no items", "items": [], "summary": { "allergies": ["paracetamol"] } },
+    { "name": "no items and no summary", "items": [], "summary": null }
+  ]
+}

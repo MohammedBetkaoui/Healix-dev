@@ -20,7 +20,7 @@ const prescription: LocalPrescription = {
 
 describe("PrescriptionView", () => {
   it("reads in French: form and route labels, no enum value, and the read-only notice", () => {
-    render(<PrescriptionView prescription={prescription} patientName="Yacine Mebarki" patientLocked={false} />);
+    render(<PrescriptionView prescription={prescription} patientName="Yacine Mebarki" patientLocked={false} patient={null} identity={{ prescriber: null, organization: null }} />);
     expect(screen.getByText("5 mg · Comprimé · Orale")).toBeTruthy();
     expect(screen.getByText(/30 jours/)).toBeTruthy();
     expect(screen.getByText("Validée")).toBeTruthy();

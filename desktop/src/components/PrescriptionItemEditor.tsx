@@ -1,18 +1,23 @@
 import { Pill as PillIcon } from "lucide-react";
 import { Button, Field, inputClass } from "../dashboard-ui";
+import type { SafetyAlert } from "../prescription-safety";
 import type { PrescriptionItemInput } from "../types";
 import { MedicationPicker } from "./MedicationPicker";
+import { ItemAlerts } from "./SafetyAlerts";
 
 export function PrescriptionItemEditor({
   index,
   item,
   onChange,
   onRemove,
+  alerts = [],
 }: {
   index: number;
   item: PrescriptionItemInput;
   onChange: (item: PrescriptionItemInput) => void;
   onRemove?: () => void;
+  // The safety alerts about this line.
+  alerts?: SafetyAlert[];
 }) {
   const field = (key: keyof PrescriptionItemInput, label: string, type = "text") => (
     <Field label={label}>
@@ -51,6 +56,7 @@ export function PrescriptionItemEditor({
         </div>
         {onRemove && <Button variant="ghost" size="sm" onClick={onRemove}>Retirer</Button>}
       </div>
+      {alerts.length ? <div className="mb-4 rounded-[var(--radius-sm)] border border-[var(--line)] bg-[var(--panel-soft)] p-3"><ItemAlerts alerts={alerts} /></div> : null}
       <MedicationPicker
         selected={item}
         onSelect={(medication) =>

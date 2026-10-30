@@ -150,7 +150,7 @@ INSERT OR IGNORE INTO sync_state(id, cursor) VALUES (1, '');
 
 // Columns added after the first release; CREATE TABLE IF NOT EXISTS cannot
 // upgrade an existing database file, so opening the storage rechecks them.
-const LOCAL_MIGRATIONS: [(&str, &str, &str); 17] = [
+const LOCAL_MIGRATIONS: [(&str, &str, &str); 20] = [
     (
         "patients",
         "locked",
@@ -178,6 +178,12 @@ const LOCAL_MIGRATIONS: [(&str, &str, &str); 17] = [
     ("sync_outbox", "attempt_count", "ALTER TABLE sync_outbox ADD COLUMN attempt_count INTEGER NOT NULL DEFAULT 1"),
     ("sync_outbox", "first_attempted_at", "ALTER TABLE sync_outbox ADD COLUMN first_attempted_at TEXT"),
     ("sync_outbox", "last_attempted_at", "ALTER TABLE sync_outbox ADD COLUMN last_attempted_at TEXT"),
+    // What is printed on a prescription offline: the prescriber's lines and the
+    // cabinet's, as JSON, from the bootstrap. Emptied at logout.
+    ("local_user", "prescriber_profile", "ALTER TABLE local_user ADD COLUMN prescriber_profile TEXT"),
+    ("local_workspace", "organization_profile", "ALTER TABLE local_workspace ADD COLUMN organization_profile TEXT"),
+    // Free text of a local audit event (the reason of an allergy confirmation).
+    ("local_audit_events", "detail", "ALTER TABLE local_audit_events ADD COLUMN detail TEXT"),
 ];
 
 // What the storage layer needs from its host: the folder of the encrypted
@@ -295,8 +301,36 @@ fn purge_clinical_data(tx: &Transaction<'_>) -> rusqlite::Result<()> {
     )
 }
 
+// The lines printed in the "Prescripteur" block and in the header of a
+// prescription. Only these are kept, whatever the server sends.
+const PRESCRIBER_KEYS: [&str; 5] = [
+    "fullName",
+    "speciality",
+    "registrationNumber",
+    "regionalCouncil",
+    "professionalAddress",
+];
+const ORGANIZATION_KEYS: [&str; 4] = ["name", "address", "wilaya", "phone"];
+
+fn print_block(block: Option<&Value>, keys: &[&str]) -> Option<String> {
+    let source = block?.as_object()?;
+    let mut kept = serde_json::Map::new();
+    for key in keys {
+        let value = match source.get(*key) {
+            Some(Value::String(text)) => Value::String(text.clone()),
+            _ => Value::Null,
+        };
+        kept.insert((*key).to_string(), value);
+    }
+    Some(Value::Object(kept).to_string())
+}
+
 pub fn apply_bootstrap(app: &EngineEnv, bootstrap: &Value) -> Result<(), String> {
     let mut connection = open(app)?;
+    apply_bootstrap_on(&mut connection, bootstrap)
+}
+
+fn apply_bootstrap_on(connection: &mut Connection, bootstrap: &Value) -> Result<(), String> {
     let tx = connection
         .transaction()
         .map_err(|_| "Transaction locale impossible.".to_string())?;
@@ -325,21 +359,23 @@ pub fn apply_bootstrap(app: &EngineEnv, bootstrap: &Value) -> Result<(), String>
         purge_clinical_data(&tx).map_err(|_| "Purge inter-workspace impossible.".to_string())?;
     }
     tx.execute(
-        "INSERT OR REPLACE INTO local_user(id, full_name, email, role) VALUES (?1, ?2, ?3, ?4)",
+        "INSERT OR REPLACE INTO local_user(id, full_name, email, role, prescriber_profile) VALUES (?1, ?2, ?3, ?4, ?5)",
         params![
             user_id,
             string(user, "fullName")?,
             string(user, "email")?,
-            string(user, "role")?
+            string(user, "role")?,
+            print_block(bootstrap.get("prescriber"), &PRESCRIBER_KEYS)
         ],
     )
     .map_err(|_| "Utilisateur local non enregistré.".to_string())?;
     tx.execute(
-        "INSERT OR REPLACE INTO local_workspace(id, name, workspace_type) VALUES (?1, ?2, ?3)",
+        "INSERT OR REPLACE INTO local_workspace(id, name, workspace_type, organization_profile) VALUES (?1, ?2, ?3, ?4)",
         params![
             workspace_id,
             string(workspace, "name")?,
-            string(workspace, "type")?
+            string(workspace, "type")?,
+            print_block(bootstrap.get("organization"), &ORGANIZATION_KEYS)
         ],
     )
     .map_err(|_| "Workspace local non enregistré.".to_string())?;
@@ -475,10 +511,28 @@ pub fn session_status(
             user: None,
         });
     };
-    let connection = open(app)?;
-    let context: Option<(String, String, String, String, String, String)> = connection
+    session_status_on(&open(app)?, claims)
+}
+
+type LocalContext = (
+    String,
+    String,
+    String,
+    String,
+    String,
+    String,
+    Option<String>,
+    Option<String>,
+);
+
+fn session_status_on(
+    connection: &Connection,
+    claims: &GrantClaims,
+) -> Result<SessionStatus, String> {
+    let context: Option<LocalContext> = connection
         .query_row(
-            "SELECT u.id, u.full_name, u.email, w.id, w.name, w.workspace_type
+            "SELECT u.id, u.full_name, u.email, w.id, w.name, w.workspace_type,
+                    u.prescriber_profile, w.organization_profile
              FROM local_user u CROSS JOIN local_workspace w LIMIT 1",
             [],
             |row| {
@@ -489,12 +543,23 @@ pub fn session_status(
                     row.get(3)?,
                     row.get(4)?,
                     row.get(5)?,
+                    row.get(6)?,
+                    row.get(7)?,
                 ))
             },
         )
         .optional()
         .map_err(|_| "Contexte local illisible.".to_string())?;
-    let Some((user_id, full_name, email, workspace_id, workspace_name, workspace_type)) = context
+    let Some((
+        user_id,
+        full_name,
+        email,
+        workspace_id,
+        workspace_name,
+        workspace_type,
+        prescriber,
+        organization,
+    )) = context
     else {
         return Ok(SessionStatus {
             authorized: false,
@@ -509,11 +574,30 @@ pub fn session_status(
     Ok(SessionStatus {
         authorized: true,
         expires_at: Some(claims.exp.to_string()),
-        workspace: Some(
-            json!({ "id": workspace_id, "name": workspace_name, "type": workspace_type }),
-        ),
-        user: Some(json!({ "id": user_id, "fullName": full_name, "email": email })),
+        workspace: Some(json!({
+            "id": workspace_id, "name": workspace_name, "type": workspace_type,
+            "organization": organization.and_then(|raw| serde_json::from_str::<Value>(&raw).ok())
+        })),
+        user: Some(json!({
+            "id": user_id, "fullName": full_name, "email": email,
+            "prescriber": prescriber.and_then(|raw| serde_json::from_str::<Value>(&raw).ok())
+        })),
     })
+}
+
+// At logout the printed identity goes: it is held only while a session is open
+// (the next login brings it back with the bootstrap).
+pub fn clear_print_identity(app: &EngineEnv) -> Result<(), String> {
+    clear_print_identity_on(&open(app)?)
+}
+
+fn clear_print_identity_on(connection: &Connection) -> Result<(), String> {
+    connection
+        .execute_batch(
+            "UPDATE local_user SET prescriber_profile = NULL;
+             UPDATE local_workspace SET organization_profile = NULL;",
+        )
+        .map_err(|_| "Identité d’impression non effacée.".to_string())
 }
 
 pub fn assert_clock(app: &EngineEnv, claims: &GrantClaims) -> Result<(), String> {
@@ -1122,6 +1206,17 @@ pub struct PrescriptionItemInput {
     pub substitution_allowed: bool,
 }
 
+// The doctor's confirmation of a prescription despite a known allergy. The
+// server payload has no field for it: it is kept in the local audit trail only,
+// in the same transaction as the draft.
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct AllergyOverrideInput {
+    pub reason: String,
+    #[serde(default)]
+    pub medications: Vec<String>,
+}
+
 #[derive(Debug, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct PrescriptionDraftInput {
@@ -1133,9 +1228,17 @@ pub struct PrescriptionDraftInput {
     pub valid_until: Option<String>,
     pub regulatory: Option<Value>,
     pub items: Vec<PrescriptionItemInput>,
+    #[serde(default)]
+    pub allergy_override: Option<AllergyOverrideInput>,
 }
 
 fn validate_prescription_input(input: &PrescriptionDraftInput) -> Result<(), String> {
+    if let Some(confirmation) = &input.allergy_override {
+        let reason = confirmation.reason.trim().encode_utf16().count();
+        if !(3..=500).contains(&reason) {
+            return Err("Le motif de la confirmation malgré l’allergie est obligatoire (3 à 500 caractères).".to_string());
+        }
+    }
     if input.prescription_type.trim().is_empty() {
         return Err("Type d’ordonnance requis.".to_string());
     }
@@ -1387,12 +1490,97 @@ fn save_prescription_draft_on_connection(
         params![Uuid::new_v4().to_string(), local_id, claims.user_id, claims.device_id, occurred_at],
     )
     .map_err(|_| "Audit ordonnance non enregistré.".to_string())?;
+    if let Some(confirmation) = &input.allergy_override {
+        insert_audit_event(
+            &tx,
+            claims,
+            "PRESCRIPTION_ALLERGY_OVERRIDE",
+            &local_id,
+            &occurred_at,
+            Some(json!({
+                "reason": confirmation.reason.trim(),
+                "medications": confirmation.medications,
+            })),
+        )?;
+    }
     tx.commit()
         .map_err(|_| "Brouillon d’ordonnance non validé.".to_string())?;
     Ok(SavedDraft {
         local_id,
         operation_id,
     })
+}
+
+fn insert_audit_event(
+    tx: &Transaction<'_>,
+    claims: &GrantClaims,
+    action: &str,
+    prescription_local_id: &str,
+    occurred_at: &str,
+    detail: Option<Value>,
+) -> Result<(), String> {
+    tx.execute(
+        "INSERT INTO local_audit_events(id, action, entity_type, entity_id, actor_id, device_id, occurred_at, detail)
+         VALUES (?1, ?2, 'PRESCRIPTION', ?3, ?4, ?5, ?6, ?7)",
+        params![
+            Uuid::new_v4().to_string(),
+            action,
+            prescription_local_id,
+            claims.user_id,
+            claims.device_id,
+            occurred_at,
+            detail.map(|value| value.to_string())
+        ],
+    )
+    .map_err(|_| "Audit ordonnance non enregistré.".to_string())?;
+    Ok(())
+}
+
+// A prescription printed on this device, recorded in the local audit trail: a
+// draft ("DRAFT_PRINTED_OFFLINE", no number yet) or a validated one.
+pub fn record_prescription_print(
+    app: &EngineEnv,
+    claims: &GrantClaims,
+    local_id: &str,
+) -> Result<(), String> {
+    record_prescription_print_on(&mut open(app)?, claims, local_id)
+}
+
+fn record_prescription_print_on(
+    connection: &mut Connection,
+    claims: &GrantClaims,
+    local_id: &str,
+) -> Result<(), String> {
+    let occurred_at = now_iso(connection)?;
+    let tx = connection
+        .transaction()
+        .map_err(|_| "Transaction ordonnance impossible.".to_string())?;
+    let row: Option<(Option<String>, Option<String>)> = tx
+        .query_row(
+            "SELECT server_status, number FROM prescription_drafts WHERE local_id=?1",
+            params![local_id],
+            |row| Ok((row.get(0)?, row.get(1)?)),
+        )
+        .optional()
+        .map_err(|_| "Ordonnance locale illisible.".to_string())?;
+    let Some((server_status, number)) = row else {
+        return Err("Ordonnance locale introuvable.".to_string());
+    };
+    let validated = server_status.as_deref() == Some("VALIDATED");
+    insert_audit_event(
+        &tx,
+        claims,
+        if validated {
+            "PRESCRIPTION_PRINTED_OFFLINE"
+        } else {
+            "PRESCRIPTION_DRAFT_PRINTED_OFFLINE"
+        },
+        local_id,
+        &occurred_at,
+        Some(json!({ "validated": validated, "number": number })),
+    )?;
+    tx.commit()
+        .map_err(|_| "Audit ordonnance non validé.".to_string())
 }
 
 // One argument per column of the row: the callers already hold them as a tuple.
@@ -1499,7 +1687,10 @@ pub fn list_patient_prescriptions(app: &EngineEnv, patient_id: &str) -> Result<V
 }
 
 pub fn get_local_prescription(app: &EngineEnv, local_id: &str) -> Result<Value, String> {
-    let connection = open(app)?;
+    get_local_prescription_on(&open(app)?, local_id)
+}
+
+fn get_local_prescription_on(connection: &Connection, local_id: &str) -> Result<Value, String> {
     let row = connection
         .query_row(
             "SELECT local_id, server_id, patient_server_id, server_status, local_status,
@@ -1524,19 +1715,28 @@ pub fn get_local_prescription(app: &EngineEnv, local_id: &str) -> Result<Value, 
         .optional()
         .map_err(|_| "Ordonnance locale illisible.".to_string())?
         .ok_or_else(|| "Ordonnance locale introuvable.".to_string())?;
-    prescription_row_value(
-        &connection,
-        row.0,
-        row.1,
-        row.2,
-        row.3,
-        row.4,
-        row.5,
-        row.6,
-        row.7,
-        row.8,
-        row.9,
-    )
+    let mut value = prescription_row_value(
+        connection, row.0, row.1, row.2, row.3, row.4, row.5, row.6, row.7, row.8, row.9,
+    )?;
+    // A prescription validated on the server keeps its whole payload: its
+    // content fingerprint and the date it was prescribed are printed with it.
+    let payload: Option<String> = connection
+        .query_row(
+            "SELECT payload FROM prescription_drafts WHERE local_id=?1",
+            params![local_id],
+            |row| row.get(0),
+        )
+        .optional()
+        .map_err(|_| "Ordonnance locale illisible.".to_string())?;
+    let payload: Value = payload
+        .and_then(|raw| serde_json::from_str(&raw).ok())
+        .unwrap_or(Value::Null);
+    value["contentFingerprint"] = payload
+        .get("contentFingerprint")
+        .cloned()
+        .unwrap_or(Value::Null);
+    value["prescribedAt"] = payload.get("prescribedAt").cloned().unwrap_or(Value::Null);
+    Ok(value)
 }
 
 #[derive(Debug, Serialize)]
@@ -2471,6 +2671,7 @@ mod tests {
                 renewal_allowed: false,
                 substitution_allowed: false,
             }],
+            allergy_override: None,
         }
     }
 
@@ -3617,5 +3818,362 @@ mod consultation_content_tests {
         )
         .is_ok());
         assert_eq!(sent(&connection, &local_id)["appointmentId"], "a1");
+    }
+}
+
+// What a prescription needs to be printed offline: the identity of the
+// prescriber and of the cabinet, the allergy confirmation and the print record
+// in the local audit trail, the fingerprint of a validated prescription.
+#[cfg(test)]
+mod print_tests {
+    use super::*;
+
+    fn claims() -> GrantClaims {
+        GrantClaims {
+            token_type: "offline-grant".to_string(),
+            grant_id: "grant-1".to_string(),
+            user_id: "user-1".to_string(),
+            device_id: "device-1".to_string(),
+            workspace_id: "ws-1".to_string(),
+            role: "INDEPENDENT_DOCTOR".to_string(),
+            exp: 9_999_999_999,
+            iat: 1,
+            iss: "healixdz-api".to_string(),
+            aud: "healixdz-desktop".to_string(),
+        }
+    }
+
+    fn bootstrap(user_id: &str, extra: Value) -> Value {
+        let mut base = json!({
+            "workspace": { "id": "ws-1", "name": "Cabinet Dr Démonstration", "type": "PRIVATE_PRACTICE" },
+            "user": { "id": user_id, "fullName": "Dr Démonstration", "email": "demo@healixdz.dz", "role": "INDEPENDENT_DOCTOR" },
+            "deviceId": "device-1",
+            "serverTime": "2026-10-30T09:00:00.000Z",
+            "syncCursor": "c1",
+            "authorizedPatientIds": [],
+            "patients": [], "consultations": [], "prescriptions": [], "appointments": []
+        });
+        for (key, value) in extra.as_object().unwrap() {
+            base[key] = value.clone();
+        }
+        base
+    }
+
+    fn identity() -> Value {
+        json!({
+            "prescriber": {
+                "fullName": "Dr Démonstration", "speciality": "Médecine générale",
+                "registrationNumber": "34/1234", "regionalCouncil": "Conseil régional de Sétif",
+                "professionalAddress": "12 rue des Frères Bouadou"
+            },
+            "organization": {
+                "name": "Cabinet du Dr Démonstration", "address": "12 rue des Frères Bouadou",
+                "wilaya": "Bordj Bou Arréridj", "phone": "0550-CABINET"
+            }
+        })
+    }
+
+    #[test]
+    fn the_new_columns_are_added_to_an_existing_database_once() {
+        // A database of the first release: the tables without the new columns.
+        let connection = Connection::open_in_memory().unwrap();
+        connection.execute_batch(SCHEMA).unwrap();
+        for _ in 0..2 {
+            apply_local_migrations(&connection).unwrap();
+        }
+        for (table, column) in [
+            ("local_user", "prescriber_profile"),
+            ("local_workspace", "organization_profile"),
+            ("local_audit_events", "detail"),
+        ] {
+            let count: i64 = connection
+                .query_row(
+                    &format!("SELECT COUNT(*) FROM pragma_table_info('{table}') WHERE name = ?1"),
+                    params![column],
+                    |row| row.get(0),
+                )
+                .unwrap();
+            assert_eq!(count, 1, "{table}.{column}");
+        }
+    }
+
+    #[test]
+    fn the_bootstrap_stores_the_prescriber_and_the_organization_and_the_session_returns_them() {
+        let mut connection = memory_db_for_tests();
+        apply_bootstrap_on(&mut connection, &bootstrap("user-1", identity())).unwrap();
+        let status = session_status_on(&connection, &claims()).unwrap();
+        assert!(status.authorized);
+        let user = status.user.unwrap();
+        let workspace = status.workspace.unwrap();
+        assert_eq!(user["prescriber"], identity()["prescriber"]);
+        assert_eq!(workspace["organization"], identity()["organization"]);
+        // The rest of the user and workspace is as before.
+        assert_eq!(user["fullName"], "Dr Démonstration");
+        assert_eq!(workspace["name"], "Cabinet Dr Démonstration");
+    }
+
+    #[test]
+    fn only_the_lines_of_the_two_blocks_are_kept() {
+        let mut connection = memory_db_for_tests();
+        let noisy = json!({
+            "prescriber": {
+                "fullName": "Dr X", "speciality": "Cardiologie", "registrationNumber": null, "regionalCouncil": 12,
+                "professionalAddress": "Adresse", "phone": "0555-PERSONAL", "id": "doctor-1", "email": "x@y.dz"
+            },
+            "organization": { "name": "Clinique", "address": "A", "wilaya": "Sétif", "phone": "036", "id": "establishment-1" }
+        });
+        apply_bootstrap_on(&mut connection, &bootstrap("user-1", noisy)).unwrap();
+        let (prescriber, organization): (String, String) = connection
+            .query_row(
+                "SELECT u.prescriber_profile, w.organization_profile FROM local_user u CROSS JOIN local_workspace w",
+                [],
+                |row| Ok((row.get(0)?, row.get(1)?)),
+            )
+            .unwrap();
+        let prescriber: Value = serde_json::from_str(&prescriber).unwrap();
+        let organization: Value = serde_json::from_str(&organization).unwrap();
+        assert_eq!(
+            prescriber,
+            json!({ "fullName": "Dr X", "speciality": "Cardiologie", "registrationNumber": null,
+                    "regionalCouncil": null, "professionalAddress": "Adresse" })
+        );
+        assert_eq!(
+            organization,
+            json!({ "name": "Clinique", "address": "A", "wilaya": "Sétif", "phone": "036" })
+        );
+        let stored = format!("{prescriber}{organization}");
+        assert!(
+            !stored.contains("0555-PERSONAL")
+                && !stored.contains("doctor-1")
+                && !stored.contains("establishment-1")
+        );
+    }
+
+    #[test]
+    fn a_server_without_the_blocks_leaves_them_empty() {
+        let mut connection = memory_db_for_tests();
+        apply_bootstrap_on(&mut connection, &bootstrap("user-1", json!({}))).unwrap();
+        let status = session_status_on(&connection, &claims()).unwrap();
+        assert_eq!(status.user.unwrap()["prescriber"], Value::Null);
+        assert_eq!(status.workspace.unwrap()["organization"], Value::Null);
+    }
+
+    #[test]
+    fn the_identity_is_purged_at_logout_and_when_another_user_signs_in() {
+        let mut connection = memory_db_for_tests();
+        apply_bootstrap_on(&mut connection, &bootstrap("user-1", identity())).unwrap();
+        clear_print_identity_on(&connection).unwrap();
+        let status = session_status_on(&connection, &claims()).unwrap();
+        assert_eq!(status.user.as_ref().unwrap()["prescriber"], Value::Null);
+        assert_eq!(
+            status.workspace.as_ref().unwrap()["organization"],
+            Value::Null
+        );
+        // The rest of the local session stays: only the printed identity goes.
+        assert_eq!(status.user.unwrap()["fullName"], "Dr Démonstration");
+
+        // Another doctor on the same PC: the local data are purged, identity included.
+        apply_bootstrap_on(&mut connection, &bootstrap("user-1", identity())).unwrap();
+        let mut other = bootstrap("user-2", json!({}));
+        other["workspace"]["id"] = json!("ws-2");
+        apply_bootstrap_on(&mut connection, &other).unwrap();
+        let rows: i64 = connection
+            .query_row(
+                "SELECT COUNT(*) FROM local_user WHERE prescriber_profile IS NOT NULL",
+                [],
+                |row| row.get(0),
+            )
+            .unwrap();
+        assert_eq!(rows, 0);
+    }
+
+    fn db_with_patient() -> Connection {
+        let connection = memory_db_for_tests();
+        connection
+            .execute(
+                "INSERT INTO patients(server_id, workspace_id, search_text, payload, server_updated_at, last_synced_at)
+                 VALUES ('p1', 'ws-1', 'a', '{}', '2026-10-28T00:00:00Z', '2026-10-28T00:00:00Z')",
+                [],
+            )
+            .unwrap();
+        connection
+    }
+
+    fn prescription(extra: Value) -> PrescriptionDraftInput {
+        let mut base = json!({
+            "patientId": "p1", "type": "STANDARD",
+            "items": [{
+                "medicationId": "med-1", "dci": "Paracétamol", "brandName": "Doliprane", "strength": "500 mg",
+                "pharmaceuticalForm": "TABLET", "route": "ORAL", "regulatoryCategory": "STANDARD",
+                "dosePerIntake": "1 comprimé", "frequency": "3 fois par jour", "durationDays": 3, "quantity": "1 boîte",
+                "asNeeded": false, "renewalAllowed": false, "substitutionAllowed": false
+            }]
+        });
+        for (key, value) in extra.as_object().unwrap() {
+            base[key] = value.clone();
+        }
+        serde_json::from_value(base).expect("prescription input")
+    }
+
+    fn audit(connection: &Connection) -> Vec<(String, Option<Value>)> {
+        let mut statement = connection
+            .prepare("SELECT action, detail FROM local_audit_events ORDER BY occurred_at, rowid")
+            .unwrap();
+        statement
+            .query_map([], |row| {
+                let detail: Option<String> = row.get(1)?;
+                Ok((
+                    row.get::<_, String>(0)?,
+                    detail.map(|raw| serde_json::from_str(&raw).unwrap()),
+                ))
+            })
+            .unwrap()
+            .map(Result::unwrap)
+            .collect()
+    }
+
+    #[test]
+    fn a_confirmation_despite_an_allergy_is_kept_in_the_local_audit_trail_with_its_reason() {
+        let mut connection = db_with_patient();
+        let saved = save_prescription_draft_on_connection(
+            &mut connection,
+            &claims(),
+            prescription(json!({ "allergyOverride": { "reason": "  Allergie ancienne, tolérance démontrée  ", "medications": ["Paracétamol"] } })),
+        )
+        .unwrap();
+        let events = audit(&connection);
+        assert_eq!(events.len(), 2);
+        assert_eq!(events[0].0, "PRESCRIPTION_SAVED_OFFLINE");
+        assert_eq!(events[1].0, "PRESCRIPTION_ALLERGY_OVERRIDE");
+        assert_eq!(
+            events[1].1.as_ref().unwrap(),
+            &json!({ "reason": "Allergie ancienne, tolérance démontrée", "medications": ["Paracétamol"] })
+        );
+        // The server payload has no field for it: nothing of it is sent.
+        let sent: String = connection
+            .query_row(
+                "SELECT payload FROM sync_outbox WHERE local_entity_id=?1",
+                params![saved.local_id],
+                |row| row.get(0),
+            )
+            .unwrap();
+        assert!(
+            !sent.contains("allergy") && !sent.contains("Allergie ancienne"),
+            "{sent}"
+        );
+    }
+
+    #[test]
+    fn without_a_confirmation_no_allergy_event_is_written_and_a_blank_reason_is_refused() {
+        let mut connection = db_with_patient();
+        save_prescription_draft_on_connection(&mut connection, &claims(), prescription(json!({})))
+            .unwrap();
+        assert_eq!(audit(&connection).len(), 1);
+
+        let error = save_prescription_draft_on_connection(
+            &mut connection,
+            &claims(),
+            prescription(json!({ "allergyOverride": { "reason": "  ", "medications": [] } })),
+        )
+        .unwrap_err();
+        assert!(error.contains("motif"), "{error}");
+        let error = save_prescription_draft_on_connection(
+            &mut connection,
+            &claims(),
+            prescription(json!({ "allergyOverride": { "reason": "x".repeat(501) } })),
+        )
+        .unwrap_err();
+        assert!(error.contains("motif"), "{error}");
+        assert_eq!(audit(&connection).len(), 1);
+    }
+
+    #[test]
+    fn a_print_is_recorded_for_a_draft_and_for_a_validated_prescription() {
+        let mut connection = db_with_patient();
+        let draft = save_prescription_draft_on_connection(
+            &mut connection,
+            &claims(),
+            prescription(json!({})),
+        )
+        .unwrap();
+        record_prescription_print_on(&mut connection, &claims(), &draft.local_id).unwrap();
+
+        let tx = connection.transaction().unwrap();
+        apply_server_prescription(
+            &tx,
+            &json!({
+                "id": "server-rx", "patientId": "p1", "status": "VALIDATED", "type": "STANDARD", "syncVersion": 2,
+                "number": "ORD-2026-000184", "updatedAt": "2026-10-29T10:00:00.000Z",
+                "prescribedAt": "2026-10-29T10:00:00.000Z",
+                "contentFingerprint": "a".repeat(64),
+                "items": [{ "id": "i1", "position": 0, "dci": "Amlodipine", "strength": "5 mg", "pharmaceuticalForm": "TABLET",
+                            "route": "ORAL", "regulatoryCategory": "STANDARD", "dosePerIntake": "1 comprimé",
+                            "frequency": "1 fois par jour", "quantity": "1 boîte" }]
+            }),
+            "2026-10-29T11:00:00Z",
+            false,
+        )
+        .unwrap();
+        tx.commit().unwrap();
+        let validated: String = connection
+            .query_row(
+                "SELECT local_id FROM prescription_drafts WHERE server_id='server-rx'",
+                [],
+                |row| row.get(0),
+            )
+            .unwrap();
+        record_prescription_print_on(&mut connection, &claims(), &validated).unwrap();
+
+        let events = audit(&connection);
+        let prints: Vec<_> = events
+            .iter()
+            .filter(|(action, _)| action.contains("PRINTED"))
+            .collect();
+        assert_eq!(prints.len(), 2);
+        assert_eq!(prints[0].0, "PRESCRIPTION_DRAFT_PRINTED_OFFLINE");
+        assert_eq!(prints[0].1.as_ref().unwrap()["validated"], false);
+        assert_eq!(prints[1].0, "PRESCRIPTION_PRINTED_OFFLINE");
+        assert_eq!(prints[1].1.as_ref().unwrap()["number"], "ORD-2026-000184");
+
+        assert!(record_prescription_print_on(&mut connection, &claims(), "missing").is_err());
+    }
+
+    #[test]
+    fn a_validated_prescription_comes_back_with_its_fingerprint_and_its_date() {
+        let mut connection = db_with_patient();
+        let tx = connection.transaction().unwrap();
+        apply_server_prescription(
+            &tx,
+            &json!({
+                "id": "server-rx", "patientId": "p1", "status": "VALIDATED", "type": "STANDARD", "syncVersion": 2,
+                "number": "ORD-2026-000184", "updatedAt": "2026-10-29T10:00:00.000Z",
+                "prescribedAt": "2026-10-29T09:55:00.000Z", "contentFingerprint": "b".repeat(64),
+                "items": []
+            }),
+            "2026-10-29T11:00:00Z",
+            false,
+        )
+        .unwrap();
+        tx.commit().unwrap();
+        let local_id: String = connection
+            .query_row("SELECT local_id FROM prescription_drafts", [], |row| {
+                row.get(0)
+            })
+            .unwrap();
+        let value = get_local_prescription_on(&connection, &local_id).unwrap();
+        assert_eq!(value["contentFingerprint"], "b".repeat(64));
+        assert_eq!(value["prescribedAt"], "2026-10-29T09:55:00.000Z");
+        assert_eq!(value["number"], "ORD-2026-000184");
+
+        // A local draft has neither.
+        let draft = save_prescription_draft_on_connection(
+            &mut connection,
+            &claims(),
+            prescription(json!({})),
+        )
+        .unwrap();
+        let value = get_local_prescription_on(&connection, &draft.local_id).unwrap();
+        assert_eq!(value["contentFingerprint"], Value::Null);
+        assert_eq!(value["prescribedAt"], Value::Null);
     }
 }

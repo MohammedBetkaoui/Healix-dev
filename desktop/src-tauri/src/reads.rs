@@ -32,6 +32,36 @@ fn text(value: &Value, key: &str) -> Option<String> {
 }
 
 // ---------------------------------------------------------------------------
+// One patient
+// ---------------------------------------------------------------------------
+
+pub fn get_patient(app: &EngineEnv, patient_id: &str) -> Result<Value, String> {
+    get_patient_on(&open(app)?, patient_id)
+}
+
+// The same shape as an entry of list_local_patients, for a patient who may lie
+// beyond the first 200 of a search: the medical summary of a prescription's
+// safety checks, the identity printed on it.
+fn get_patient_on(connection: &Connection, patient_id: &str) -> Result<Value, String> {
+    let row: Option<(String, i64, Option<String>)> = connection
+        .query_row(
+            "SELECT payload, locked, lock_reason FROM patients WHERE server_id=?1",
+            params![patient_id],
+            |row| Ok((row.get(0)?, row.get(1)?, row.get(2)?)),
+        )
+        .optional()
+        .map_err(|_| "Patient local illisible.".to_string())?;
+    let (payload, locked, lock_reason) =
+        row.ok_or_else(|| "Patient local introuvable.".to_string())?;
+    let mut value = parse(&payload, "Patient")?;
+    if locked != 0 {
+        value["locked"] = Value::Bool(true);
+        value["lockReason"] = Value::String(lock_reason.unwrap_or_else(|| "LOCKED".to_string()));
+    }
+    Ok(value)
+}
+
+// ---------------------------------------------------------------------------
 // Appointments (cloud -> desktop cache, read-only)
 // ---------------------------------------------------------------------------
 
@@ -908,5 +938,27 @@ mod tests {
             whole["diagnoses"],
             json!([{ "label": "Bronchite", "isPrimary": true }])
         );
+    }
+
+    #[test]
+    fn one_patient_comes_back_in_the_shape_of_the_list_with_its_medical_summary() {
+        let connection = memory_db_for_tests();
+        connection
+            .execute(
+                "INSERT INTO patients(server_id, workspace_id, search_text, payload, server_updated_at, last_synced_at, locked, lock_reason)
+                 VALUES ('p1', 'ws-1', 'a', ?1, '2026-10-28T00:00:00Z', '2026-10-28T00:00:00Z', 0, NULL),
+                        ('p2', 'ws-1', 'b', '{\"firstName\":\"Samira\"}', '2026-10-28T00:00:00Z', '2026-10-28T00:00:00Z', 1, 'SCOPE_REVOKED')",
+                params![json!({ "id": "p1", "firstName": "Amine", "lastName": "Benali", "birthDate": "1988-04-12T00:00:00.000Z",
+                                "hospitalRecordNumber": "HD-1", "medicalSummary": { "allergies": ["Pénicilline"], "currentMedications": ["Amlodipine 5 mg"] } }).to_string()],
+            )
+            .unwrap();
+        let patient = get_patient_on(&connection, "p1").unwrap();
+        assert_eq!(patient["lastName"], "Benali");
+        assert_eq!(patient["medicalSummary"]["allergies"][0], "Pénicilline");
+        assert!(patient.get("locked").is_none());
+        let locked = get_patient_on(&connection, "p2").unwrap();
+        assert_eq!(locked["locked"], true);
+        assert_eq!(locked["lockReason"], "SCOPE_REVOKED");
+        assert!(get_patient_on(&connection, "nobody").is_err());
     }
 }

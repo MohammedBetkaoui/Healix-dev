@@ -28,6 +28,9 @@ export const prescriptionSyncSelect = {
   validatedAt: true,
   canceledAt: true,
   regulatoryData: true,
+  // The fingerprint only, never the frozen snapshots: the desktop prints it on
+  // a validated prescription it holds read-only.
+  contentFingerprint: true,
   createdAt: true,
   updatedAt: true,
   items: {

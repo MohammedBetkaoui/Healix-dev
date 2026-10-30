@@ -11,6 +11,10 @@ import {
 import { sanitizeTextInput } from '../common/utils/sanitize';
 import { type OfflineActor } from '../offline-devices/offline-device.types';
 import { PrismaService } from '../prisma/prisma.service';
+import {
+  printIdentitySelect,
+  toPrintIdentity,
+} from '../prescriptions/prescriber-identity';
 import { appointmentSyncSelect, toAppointmentSyncPayload } from './appointment-sync-change';import {
   consultationSyncSelect,
   recordConsultationSyncChange,
@@ -57,7 +61,7 @@ export class SyncService {
     const result = await this.prisma.$transaction(
       async (tx) => {
         const scope = await this.scope.resolve(actor, tx);
-        const [workspace, user, patients, consultations, appointments, prescriptions, latest] =
+        const [workspace, user, identity, patients, consultations, appointments, prescriptions, latest] =
           await Promise.all([
             tx.workspace.findUniqueOrThrow({
               where: { id: actor.workspaceId },
@@ -66,6 +70,12 @@ export class SyncService {
             tx.user.findUniqueOrThrow({
               where: { id: actor.userId },
               select: { id: true, fullName: true, email: true, role: true },
+            }),
+            // What the desktop prints on a prescription offline (same source as
+            // the PDF of a validated prescription).
+            tx.user.findUniqueOrThrow({
+              where: { id: actor.userId },
+              select: printIdentitySelect,
             }),
             // Minimum data necessary: no nationalId, no phone, no clinical
             // notes (still online-only in V1).
@@ -143,6 +153,7 @@ export class SyncService {
         return {
           workspace,
           user,
+          ...toPrintIdentity(identity),
           deviceId: actor.deviceId,
           offlineCapabilities: actor.offlineCapabilities,
           offlineScope: actor.offlineScope,

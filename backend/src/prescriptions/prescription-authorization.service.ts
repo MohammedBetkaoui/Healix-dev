@@ -17,6 +17,7 @@ import {
   prescriptionConflict,
   prescriptionForbidden,
 } from './prescription-errors';
+import { organizationSnapshot } from './prescriber-identity';
 
 export type PrescriptionPermission =
   | 'VIEW'
@@ -205,16 +206,7 @@ export class PrescriptionAuthorizationService {
     }
 
     const verification = profile.verificationRequest?.doctorData;
-    const organization = profile.establishment
-      ? profile.establishment
-      : {
-          id: null,
-          name:
-            verification?.cabinetName ?? `Cabinet du Dr ${account.fullName}`,
-          address: verification?.cabinetAddress ?? profile.professionalAddress,
-          wilaya: verification?.cabinetWilaya ?? profile.wilaya,
-          phone: verification?.cabinetPhone ?? account.phone,
-        };
+    const organization = organizationSnapshot(profile, account, verification);
     const identity: PrescriberIdentity = {
       doctorProfileId: profile.id,
       fullName: account.fullName,

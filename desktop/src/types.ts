@@ -1,8 +1,26 @@
+// What is printed on a prescription, from the last online login (see the
+// bootstrap): the prescriber's lines and the cabinet's. Absent from an older
+// server, and emptied at logout.
+export type PrescriberIdentity = {
+  fullName?: string | null;
+  speciality?: string | null;
+  registrationNumber?: string | null;
+  regionalCouncil?: string | null;
+  professionalAddress?: string | null;
+};
+
+export type OrganizationIdentity = {
+  name?: string | null;
+  address?: string | null;
+  wilaya?: string | null;
+  phone?: string | null;
+};
+
 export type SessionStatus = {
   authorized: boolean;
   expiresAt?: string;
-  workspace?: { id: string; name: string };
-  user?: { id: string; fullName: string; email: string };
+  workspace?: { id: string; name: string; organization?: OrganizationIdentity | null };
+  user?: { id: string; fullName: string; email: string; prescriber?: PrescriberIdentity | null };
 };
 
 export type LocalPatient = {
@@ -108,6 +126,9 @@ export type PrescriptionDraftInput = {
   validUntil?: string | null;
   regulatory?: Record<string, unknown> | null;
   items: PrescriptionItemInput[];
+  // The doctor's confirmation despite a known allergy: kept in the local audit
+  // trail only (the server payload has no field for it).
+  allergyOverride?: { reason: string; medications: string[] };
 };
 
 export type LocalPrescription = {
@@ -122,6 +143,10 @@ export type LocalPrescription = {
   items: PrescriptionItemInput[];
   number?: string | null;
   updatedAt: string;
+  // A prescription validated on the server: the fingerprint of its content and
+  // the date it was prescribed, printed with it.
+  contentFingerprint?: string | null;
+  prescribedAt?: string | null;
 };
 
 export type AppointmentStatus =

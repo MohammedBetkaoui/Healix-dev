@@ -3,17 +3,27 @@ import { Notice, PageHeader, StatusBadge } from "../dashboard-ui";
 import { formatDateOnly } from "../dates";
 import { fr } from "../i18n/fr";
 import { prescriptionStatus } from "../statuses";
-import type { LocalPrescription } from "../types";
+import { hasPrintIdentity, printInputForPrescription, type PrintIdentity } from "../print/build-print-input";
+import { PrintControls } from "../print/PrintControls";
+import { renderPrescriptionHtml } from "../print/prescription-print";
+import type { LocalPatient, LocalPrescription } from "../types";
 
 // A prescription that is no longer an editable draft (validated, canceled, in
-// conflict, or of a record locked out of the scope): shown, never edited.
-export function PrescriptionView({ prescription, patientName, patientLocked }: {
+// conflict, or of a record locked out of the scope): shown, never edited. A
+// validated one prints with its official number and its fingerprint.
+export function PrescriptionView({ prescription, patientName, patientLocked, patient, identity }: {
   prescription: LocalPrescription;
   patientName: string;
   patientLocked: boolean;
+  patient: LocalPatient | null;
+  identity: PrintIdentity;
 }) {
   const status = prescriptionStatus({ ...prescription, patientLocked });
   const conflict = prescription.localStatus === "CONFLICT";
+  const validated = prescription.serverStatus === "VALIDATED" && Boolean(prescription.number);
+  // A canceled prescription is not printed.
+  const printable = prescription.serverStatus !== "CANCELED" && (validated || prescription.serverStatus !== "VALIDATED");
+  const printBlock = !hasPrintIdentity(identity) ? fr.print.noIdentity : !patient ? fr.common.loading : null;
   return (
     <section className="workspace-stack" aria-label="Ordonnance en lecture seule">
       <PageHeader
@@ -21,7 +31,25 @@ export function PrescriptionView({ prescription, patientName, patientLocked }: {
         eyebrow={`${fr.header.titles.prescription} · ${formatDateOnly(prescription.updatedAt)}`}
         title={patientName}
         description={prescription.number ? `N° ${prescription.number}` : undefined}
-        actions={<StatusBadge label={status.label} tone={status.tone} />}
+        actions={
+          <>
+            <StatusBadge label={status.label} tone={status.tone} />
+            {printable ? (
+              <PrintControls
+                filename={validated ? `ordonnance-${prescription.number}.html` : "ordonnance-brouillon.html"}
+                disabledReason={printBlock}
+                prepare={async () =>
+                  patient
+                    ? {
+                        localId: prescription.localId,
+                        html: renderPrescriptionHtml(printInputForPrescription(prescription, prescription.items, patient, identity)),
+                      }
+                    : null
+                }
+              />
+            ) : null}
+          </>
+        }
       />
       <Notice
         tone={conflict ? "danger" : "neutral"}

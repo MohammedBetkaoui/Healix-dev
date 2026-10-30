@@ -163,4 +163,23 @@ export const fr = {
     } as Record<string, string>,
     days: (count: number) => `${count} jour${count > 1 ? "s" : ""}`,
   },
+  print: {
+    button: "Imprimer",
+    printing: "Ouverture de l’impression…",
+    failed: "L’impression n’a pas pu s’ouvrir sur cet ordinateur. Enregistrez la version imprimable, ouvrez-la dans un navigateur, puis imprimez-la ou enregistrez-la en PDF.",
+    download: "Enregistrer la version imprimable",
+    unrecorded: "L’impression a été lancée, mais elle n’a pas pu être notée dans le journal de cet appareil.",
+    noIdentity: "Les coordonnées du prescripteur ne sont pas disponibles sur cet appareil : reconnectez-vous en ligne pour les récupérer.",
+    draftNote: "Un brouillon s’imprime sans numéro : il sera attribué à la synchronisation.",
+  },
+  safety: {
+    title: "Contrôles de sécurité",
+    none: "Aucune alerte sur cette ordonnance.",
+    summary: (count: number) => `${count} alerte${count > 1 ? "s" : ""} à lire`,
+    notEvaluated: "Non évalué ici : interactions, contre-indications complexes, posologie complexe, grossesse, fonctions rénale et hépatique.",
+    line: (index: number) => `Ligne ${index + 1}`,
+    allergyTitle: "Allergie connue",
+    allergyReason: "Motif de la confirmation (obligatoire)",
+    allergyBlocked: "L’enregistrement est suspendu tant que cette prescription n’est pas confirmée malgré l’allergie connue.",
+  },
 } as const;

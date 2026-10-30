@@ -1,0 +1,592 @@
+{
+  "the same medication twice is a duplicate": {
+    "alerts": [
+      {
+        "id": "duplication-2",
+        "kind": "DUPLICATION",
+        "level": "attention",
+        "title": "Médicament dupliqué dans cette ordonnance.",
+        "detail": "Les lignes 1 et 2 ont la même DCI, le même dosage et la même forme.",
+        "resolved": false
+      }
+    ],
+    "evaluatedChecks": [
+      "EXACT_DUPLICATE",
+      "EXACT_STRUCTURED_ALLERGY_MATCH",
+      "REGULATORY_CATEGORY",
+      "REQUIRED_DOSING_FIELDS"
+    ],
+    "notEvaluated": [
+      "DRUG_INTERACTIONS",
+      "COMPLEX_CONTRAINDICATIONS",
+      "COMPLEX_DOSING",
+      "PREGNANCY",
+      "RENAL_FUNCTION",
+      "HEPATIC_FUNCTION"
+    ]
+  },
+  "same DCI but another strength is not a duplicate": {
+    "alerts": [],
+    "evaluatedChecks": [
+      "EXACT_DUPLICATE",
+      "EXACT_STRUCTURED_ALLERGY_MATCH",
+      "REGULATORY_CATEGORY",
+      "REQUIRED_DOSING_FIELDS"
+    ],
+    "notEvaluated": [
+      "DRUG_INTERACTIONS",
+      "COMPLEX_CONTRAINDICATIONS",
+      "COMPLEX_DOSING",
+      "PREGNANCY",
+      "RENAL_FUNCTION",
+      "HEPATIC_FUNCTION"
+    ]
+  },
+  "same DCI and strength but another form is not a duplicate": {
+    "alerts": [],
+    "evaluatedChecks": [
+      "EXACT_DUPLICATE",
+      "EXACT_STRUCTURED_ALLERGY_MATCH",
+      "REGULATORY_CATEGORY",
+      "REQUIRED_DOSING_FIELDS"
+    ],
+    "notEvaluated": [
+      "DRUG_INTERACTIONS",
+      "COMPLEX_CONTRAINDICATIONS",
+      "COMPLEX_DOSING",
+      "PREGNANCY",
+      "RENAL_FUNCTION",
+      "HEPATIC_FUNCTION"
+    ]
+  },
+  "a duplicate is found whatever the case and accents of the DCI and strength": {
+    "alerts": [
+      {
+        "id": "duplication-2",
+        "kind": "DUPLICATION",
+        "level": "attention",
+        "title": "Médicament dupliqué dans cette ordonnance.",
+        "detail": "Les lignes 1 et 2 ont la même DCI, le même dosage et la même forme.",
+        "resolved": false
+      }
+    ],
+    "evaluatedChecks": [
+      "EXACT_DUPLICATE",
+      "EXACT_STRUCTURED_ALLERGY_MATCH",
+      "REGULATORY_CATEGORY",
+      "REQUIRED_DOSING_FIELDS"
+    ],
+    "notEvaluated": [
+      "DRUG_INTERACTIONS",
+      "COMPLEX_CONTRAINDICATIONS",
+      "COMPLEX_DOSING",
+      "PREGNANCY",
+      "RENAL_FUNCTION",
+      "HEPATIC_FUNCTION"
+    ]
+  },
+  "an exact normalized allergy is reported": {
+    "alerts": [
+      {
+        "id": "allergy-1",
+        "kind": "ALLERGY",
+        "level": "critical",
+        "title": "Correspondance exacte avec une allergie structurée connue.",
+        "detail": "Paracétamol",
+        "resolved": false
+      }
+    ],
+    "evaluatedChecks": [
+      "EXACT_DUPLICATE",
+      "EXACT_STRUCTURED_ALLERGY_MATCH",
+      "REGULATORY_CATEGORY",
+      "REQUIRED_DOSING_FIELDS"
+    ],
+    "notEvaluated": [
+      "DRUG_INTERACTIONS",
+      "COMPLEX_CONTRAINDICATIONS",
+      "COMPLEX_DOSING",
+      "PREGNANCY",
+      "RENAL_FUNCTION",
+      "HEPATIC_FUNCTION"
+    ]
+  },
+  "a broad allergy is not reported": {
+    "alerts": [],
+    "evaluatedChecks": [
+      "EXACT_DUPLICATE",
+      "EXACT_STRUCTURED_ALLERGY_MATCH",
+      "REGULATORY_CATEGORY",
+      "REQUIRED_DOSING_FIELDS"
+    ],
+    "notEvaluated": [
+      "DRUG_INTERACTIONS",
+      "COMPLEX_CONTRAINDICATIONS",
+      "COMPLEX_DOSING",
+      "PREGNANCY",
+      "RENAL_FUNCTION",
+      "HEPATIC_FUNCTION"
+    ]
+  },
+  "the allergy match ignores case, accents and spaces": {
+    "alerts": [
+      {
+        "id": "allergy-1",
+        "kind": "ALLERGY",
+        "level": "critical",
+        "title": "Correspondance exacte avec une allergie structurée connue.",
+        "detail": "Paracétamol",
+        "resolved": false
+      }
+    ],
+    "evaluatedChecks": [
+      "EXACT_DUPLICATE",
+      "EXACT_STRUCTURED_ALLERGY_MATCH",
+      "REGULATORY_CATEGORY",
+      "REQUIRED_DOSING_FIELDS"
+    ],
+    "notEvaluated": [
+      "DRUG_INTERACTIONS",
+      "COMPLEX_CONTRAINDICATIONS",
+      "COMPLEX_DOSING",
+      "PREGNANCY",
+      "RENAL_FUNCTION",
+      "HEPATIC_FUNCTION"
+    ]
+  },
+  "an allergy of the second line points at the second line": {
+    "alerts": [
+      {
+        "id": "allergy-2",
+        "kind": "ALLERGY",
+        "level": "critical",
+        "title": "Correspondance exacte avec une allergie structurée connue.",
+        "detail": "Pénicilline",
+        "resolved": false
+      }
+    ],
+    "evaluatedChecks": [
+      "EXACT_DUPLICATE",
+      "EXACT_STRUCTURED_ALLERGY_MATCH",
+      "REGULATORY_CATEGORY",
+      "REQUIRED_DOSING_FIELDS"
+    ],
+    "notEvaluated": [
+      "DRUG_INTERACTIONS",
+      "COMPLEX_CONTRAINDICATIONS",
+      "COMPLEX_DOSING",
+      "PREGNANCY",
+      "RENAL_FUNCTION",
+      "HEPATIC_FUNCTION"
+    ]
+  },
+  "non-text allergy entries are ignored": {
+    "alerts": [
+      {
+        "id": "allergy-1",
+        "kind": "ALLERGY",
+        "level": "critical",
+        "title": "Correspondance exacte avec une allergie structurée connue.",
+        "detail": "Paracétamol",
+        "resolved": false
+      }
+    ],
+    "evaluatedChecks": [
+      "EXACT_DUPLICATE",
+      "EXACT_STRUCTURED_ALLERGY_MATCH",
+      "REGULATORY_CATEGORY",
+      "REQUIRED_DOSING_FIELDS"
+    ],
+    "notEvaluated": [
+      "DRUG_INTERACTIONS",
+      "COMPLEX_CONTRAINDICATIONS",
+      "COMPLEX_DOSING",
+      "PREGNANCY",
+      "RENAL_FUNCTION",
+      "HEPATIC_FUNCTION"
+    ]
+  },
+  "allergies that are not a list are ignored": {
+    "alerts": [],
+    "evaluatedChecks": [
+      "EXACT_DUPLICATE",
+      "EXACT_STRUCTURED_ALLERGY_MATCH",
+      "REGULATORY_CATEGORY",
+      "REQUIRED_DOSING_FIELDS"
+    ],
+    "notEvaluated": [
+      "DRUG_INTERACTIONS",
+      "COMPLEX_CONTRAINDICATIONS",
+      "COMPLEX_DOSING",
+      "PREGNANCY",
+      "RENAL_FUNCTION",
+      "HEPATIC_FUNCTION"
+    ]
+  },
+  "no medical summary": {
+    "alerts": [
+      {
+        "id": "missing-medical-summary",
+        "kind": "MISSING_CONTEXT",
+        "level": "information",
+        "title": "Résumé médical non renseigné.",
+        "detail": "Les allergies, traitements et antécédents ne peuvent pas être évalués.",
+        "resolved": false
+      }
+    ],
+    "evaluatedChecks": [
+      "EXACT_DUPLICATE",
+      "EXACT_STRUCTURED_ALLERGY_MATCH",
+      "REGULATORY_CATEGORY",
+      "REQUIRED_DOSING_FIELDS"
+    ],
+    "notEvaluated": [
+      "DRUG_INTERACTIONS",
+      "COMPLEX_CONTRAINDICATIONS",
+      "COMPLEX_DOSING",
+      "PREGNANCY",
+      "RENAL_FUNCTION",
+      "HEPATIC_FUNCTION"
+    ]
+  },
+  "a medical summary that is a list is no summary": {
+    "alerts": [
+      {
+        "id": "missing-medical-summary",
+        "kind": "MISSING_CONTEXT",
+        "level": "information",
+        "title": "Résumé médical non renseigné.",
+        "detail": "Les allergies, traitements et antécédents ne peuvent pas être évalués.",
+        "resolved": false
+      }
+    ],
+    "evaluatedChecks": [
+      "EXACT_DUPLICATE",
+      "EXACT_STRUCTURED_ALLERGY_MATCH",
+      "REGULATORY_CATEGORY",
+      "REQUIRED_DOSING_FIELDS"
+    ],
+    "notEvaluated": [
+      "DRUG_INTERACTIONS",
+      "COMPLEX_CONTRAINDICATIONS",
+      "COMPLEX_DOSING",
+      "PREGNANCY",
+      "RENAL_FUNCTION",
+      "HEPATIC_FUNCTION"
+    ]
+  },
+  "an empty summary object is a summary": {
+    "alerts": [],
+    "evaluatedChecks": [
+      "EXACT_DUPLICATE",
+      "EXACT_STRUCTURED_ALLERGY_MATCH",
+      "REGULATORY_CATEGORY",
+      "REQUIRED_DOSING_FIELDS"
+    ],
+    "notEvaluated": [
+      "DRUG_INTERACTIONS",
+      "COMPLEX_CONTRAINDICATIONS",
+      "COMPLEX_DOSING",
+      "PREGNANCY",
+      "RENAL_FUNCTION",
+      "HEPATIC_FUNCTION"
+    ]
+  },
+  "a regulated medication": {
+    "alerts": [
+      {
+        "id": "regulated-1",
+        "kind": "REGULATED",
+        "level": "attention",
+        "title": "Médicament soumis à une vigilance réglementaire supplémentaire.",
+        "detail": "REGULATED",
+        "resolved": false
+      }
+    ],
+    "evaluatedChecks": [
+      "EXACT_DUPLICATE",
+      "EXACT_STRUCTURED_ALLERGY_MATCH",
+      "REGULATORY_CATEGORY",
+      "REQUIRED_DOSING_FIELDS"
+    ],
+    "notEvaluated": [
+      "DRUG_INTERACTIONS",
+      "COMPLEX_CONTRAINDICATIONS",
+      "COMPLEX_DOSING",
+      "PREGNANCY",
+      "RENAL_FUNCTION",
+      "HEPATIC_FUNCTION"
+    ]
+  },
+  "a zero duration": {
+    "alerts": [
+      {
+        "id": "duration-1",
+        "kind": "DURATION",
+        "level": "critical",
+        "title": "Durée de traitement invalide.",
+        "resolved": false
+      }
+    ],
+    "evaluatedChecks": [
+      "EXACT_DUPLICATE",
+      "EXACT_STRUCTURED_ALLERGY_MATCH",
+      "REGULATORY_CATEGORY",
+      "REQUIRED_DOSING_FIELDS"
+    ],
+    "notEvaluated": [
+      "DRUG_INTERACTIONS",
+      "COMPLEX_CONTRAINDICATIONS",
+      "COMPLEX_DOSING",
+      "PREGNANCY",
+      "RENAL_FUNCTION",
+      "HEPATIC_FUNCTION"
+    ]
+  },
+  "a negative duration": {
+    "alerts": [
+      {
+        "id": "duration-1",
+        "kind": "DURATION",
+        "level": "critical",
+        "title": "Durée de traitement invalide.",
+        "resolved": false
+      }
+    ],
+    "evaluatedChecks": [
+      "EXACT_DUPLICATE",
+      "EXACT_STRUCTURED_ALLERGY_MATCH",
+      "REGULATORY_CATEGORY",
+      "REQUIRED_DOSING_FIELDS"
+    ],
+    "notEvaluated": [
+      "DRUG_INTERACTIONS",
+      "COMPLEX_CONTRAINDICATIONS",
+      "COMPLEX_DOSING",
+      "PREGNANCY",
+      "RENAL_FUNCTION",
+      "HEPATIC_FUNCTION"
+    ]
+  },
+  "no duration is fine": {
+    "alerts": [],
+    "evaluatedChecks": [
+      "EXACT_DUPLICATE",
+      "EXACT_STRUCTURED_ALLERGY_MATCH",
+      "REGULATORY_CATEGORY",
+      "REQUIRED_DOSING_FIELDS"
+    ],
+    "notEvaluated": [
+      "DRUG_INTERACTIONS",
+      "COMPLEX_CONTRAINDICATIONS",
+      "COMPLEX_DOSING",
+      "PREGNANCY",
+      "RENAL_FUNCTION",
+      "HEPATIC_FUNCTION"
+    ]
+  },
+  "missing quantity": {
+    "alerts": [
+      {
+        "id": "dosage-1",
+        "kind": "DOSAGE",
+        "level": "critical",
+        "title": "Posologie, fréquence ou quantité manquante.",
+        "resolved": false
+      }
+    ],
+    "evaluatedChecks": [
+      "EXACT_DUPLICATE",
+      "EXACT_STRUCTURED_ALLERGY_MATCH",
+      "REGULATORY_CATEGORY",
+      "REQUIRED_DOSING_FIELDS"
+    ],
+    "notEvaluated": [
+      "DRUG_INTERACTIONS",
+      "COMPLEX_CONTRAINDICATIONS",
+      "COMPLEX_DOSING",
+      "PREGNANCY",
+      "RENAL_FUNCTION",
+      "HEPATIC_FUNCTION"
+    ]
+  },
+  "missing dose": {
+    "alerts": [
+      {
+        "id": "dosage-1",
+        "kind": "DOSAGE",
+        "level": "critical",
+        "title": "Posologie, fréquence ou quantité manquante.",
+        "resolved": false
+      }
+    ],
+    "evaluatedChecks": [
+      "EXACT_DUPLICATE",
+      "EXACT_STRUCTURED_ALLERGY_MATCH",
+      "REGULATORY_CATEGORY",
+      "REQUIRED_DOSING_FIELDS"
+    ],
+    "notEvaluated": [
+      "DRUG_INTERACTIONS",
+      "COMPLEX_CONTRAINDICATIONS",
+      "COMPLEX_DOSING",
+      "PREGNANCY",
+      "RENAL_FUNCTION",
+      "HEPATIC_FUNCTION"
+    ]
+  },
+  "missing frequency": {
+    "alerts": [
+      {
+        "id": "dosage-1",
+        "kind": "DOSAGE",
+        "level": "critical",
+        "title": "Posologie, fréquence ou quantité manquante.",
+        "resolved": false
+      }
+    ],
+    "evaluatedChecks": [
+      "EXACT_DUPLICATE",
+      "EXACT_STRUCTURED_ALLERGY_MATCH",
+      "REGULATORY_CATEGORY",
+      "REQUIRED_DOSING_FIELDS"
+    ],
+    "notEvaluated": [
+      "DRUG_INTERACTIONS",
+      "COMPLEX_CONTRAINDICATIONS",
+      "COMPLEX_DOSING",
+      "PREGNANCY",
+      "RENAL_FUNCTION",
+      "HEPATIC_FUNCTION"
+    ]
+  },
+  "several alerts on several lines keep the order of the server": {
+    "alerts": [
+      {
+        "id": "allergy-1",
+        "kind": "ALLERGY",
+        "level": "critical",
+        "title": "Correspondance exacte avec une allergie structurée connue.",
+        "detail": "Paracétamol",
+        "resolved": false
+      },
+      {
+        "id": "regulated-1",
+        "kind": "REGULATED",
+        "level": "attention",
+        "title": "Médicament soumis à une vigilance réglementaire supplémentaire.",
+        "detail": "REGULATED",
+        "resolved": false
+      },
+      {
+        "id": "duration-1",
+        "kind": "DURATION",
+        "level": "critical",
+        "title": "Durée de traitement invalide.",
+        "resolved": false
+      },
+      {
+        "id": "dosage-1",
+        "kind": "DOSAGE",
+        "level": "critical",
+        "title": "Posologie, fréquence ou quantité manquante.",
+        "resolved": false
+      },
+      {
+        "id": "duplication-2",
+        "kind": "DUPLICATION",
+        "level": "attention",
+        "title": "Médicament dupliqué dans cette ordonnance.",
+        "detail": "Les lignes 1 et 2 ont la même DCI, le même dosage et la même forme.",
+        "resolved": false
+      },
+      {
+        "id": "allergy-2",
+        "kind": "ALLERGY",
+        "level": "critical",
+        "title": "Correspondance exacte avec une allergie structurée connue.",
+        "detail": "Paracétamol",
+        "resolved": false
+      },
+      {
+        "id": "regulated-2",
+        "kind": "REGULATED",
+        "level": "attention",
+        "title": "Médicament soumis à une vigilance réglementaire supplémentaire.",
+        "detail": "REGULATED",
+        "resolved": false
+      },
+      {
+        "id": "duration-2",
+        "kind": "DURATION",
+        "level": "critical",
+        "title": "Durée de traitement invalide.",
+        "resolved": false
+      },
+      {
+        "id": "dosage-2",
+        "kind": "DOSAGE",
+        "level": "critical",
+        "title": "Posologie, fréquence ou quantité manquante.",
+        "resolved": false
+      }
+    ],
+    "evaluatedChecks": [
+      "EXACT_DUPLICATE",
+      "EXACT_STRUCTURED_ALLERGY_MATCH",
+      "REGULATORY_CATEGORY",
+      "REQUIRED_DOSING_FIELDS"
+    ],
+    "notEvaluated": [
+      "DRUG_INTERACTIONS",
+      "COMPLEX_CONTRAINDICATIONS",
+      "COMPLEX_DOSING",
+      "PREGNANCY",
+      "RENAL_FUNCTION",
+      "HEPATIC_FUNCTION"
+    ]
+  },
+  "no items": {
+    "alerts": [],
+    "evaluatedChecks": [
+      "EXACT_DUPLICATE",
+      "EXACT_STRUCTURED_ALLERGY_MATCH",
+      "REGULATORY_CATEGORY",
+      "REQUIRED_DOSING_FIELDS"
+    ],
+    "notEvaluated": [
+      "DRUG_INTERACTIONS",
+      "COMPLEX_CONTRAINDICATIONS",
+      "COMPLEX_DOSING",
+      "PREGNANCY",
+      "RENAL_FUNCTION",
+      "HEPATIC_FUNCTION"
+    ]
+  },
+  "no items and no summary": {
+    "alerts": [
+      {
+        "id": "missing-medical-summary",
+        "kind": "MISSING_CONTEXT",
+        "level": "information",
+        "title": "Résumé médical non renseigné.",
+        "detail": "Les allergies, traitements et antécédents ne peuvent pas être évalués.",
+        "resolved": false
+      }
+    ],
+    "evaluatedChecks": [
+      "EXACT_DUPLICATE",
+      "EXACT_STRUCTURED_ALLERGY_MATCH",
+      "REGULATORY_CATEGORY",
+      "REQUIRED_DOSING_FIELDS"
+    ],
+    "notEvaluated": [
+      "DRUG_INTERACTIONS",
+      "COMPLEX_CONTRAINDICATIONS",
+      "COMPLEX_DOSING",
+      "PREGNANCY",
+      "RENAL_FUNCTION",
+      "HEPATIC_FUNCTION"
+    ]
+  }
+}

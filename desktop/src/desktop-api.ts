@@ -86,6 +86,17 @@ export async function listConsultations(patientId?: string | null) {
   });
 }
 
+// One patient of this device, wherever it lies in the list: the medical summary
+// of the safety checks and the identity of a printed prescription.
+export async function getLocalPatient(patientId: string) {
+  return invokeDesktop<LocalPatient>("get_local_patient", { patientId });
+}
+
+// A prescription printed here is noted in the local audit trail.
+export async function recordPrescriptionPrint(localId: string) {
+  return invokeDesktop<void>("record_prescription_print", { localId });
+}
+
 export async function getConsultation(localId: string) {
   return invokeDesktop<ConsultationDetail>("get_consultation", { localId });
 }

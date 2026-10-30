@@ -281,6 +281,7 @@ function App() {
         isNew={route.id === NEW_ID}
         patientId={route.patientId}
         patientName={route.patientName}
+        session={session}
         onSaved={afterSave}
         onClose={() => void goBack()}
       />

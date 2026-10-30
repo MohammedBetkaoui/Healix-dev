@@ -95,6 +95,21 @@ fn list_appointments(
 }
 
 #[tauri::command]
+fn get_local_patient(app: AppHandle, patient_id: String) -> Result<serde_json::Value, String> {
+    guarded(&EngineEnv::from_app(&app), |env| {
+        reads::get_patient(env, &patient_id)
+    })
+}
+
+// A prescription printed on this device is recorded in the local audit trail.
+#[tauri::command]
+fn record_prescription_print(app: AppHandle, local_id: String) -> Result<(), String> {
+    let env = EngineEnv::from_app(&app);
+    let (_, claims) = authorize(&env)?;
+    database::record_prescription_print(&env, &claims, &local_id)
+}
+
+#[tauri::command]
 fn list_consultations(
     app: AppHandle,
     patient_id: Option<String>,
@@ -156,8 +171,11 @@ fn get_sync_status(app: AppHandle) -> Result<database::SyncStatus, String> {
 }
 
 #[tauri::command]
-fn logout_local() {
+fn logout_local(app: AppHandle) {
     security::clear_session();
+    // The printed identity (registration number, cabinet) goes with the
+    // session; the next login brings it back.
+    let _ = database::clear_print_identity(&EngineEnv::from_app(&app));
 }
 
 // Address of the HealixDz Web platform (Healix AI lives there), from the same
@@ -210,6 +228,8 @@ pub fn run() {
             list_patient_prescriptions,
             get_local_prescription,
             list_appointments,
+            get_local_patient,
+            record_prescription_print,
             list_consultations,
             get_consultation,
             list_prescriptions,
