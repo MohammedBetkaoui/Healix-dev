@@ -228,7 +228,7 @@ describe("printing a draft from the editor", () => {
     await screen.findByRole("region", { name: "Contrôles de sécurité" });
     fillMedication("Paracétamol");
     expect(printButton().disabled).toBe(true);
-    expect(printButton().title).toContain("confirmée malgré l’allergie connue");
+    expect(printButton().title).toBe("Confirmez d’abord l’allergie connue pour imprimer.");
   });
 
   it("explains that the prescriber's lines are missing, and prints nothing", async () => {

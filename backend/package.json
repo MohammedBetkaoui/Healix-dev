@@ -21,7 +21,8 @@
     "test:e2e": "jest --config ./test/jest-e2e.json",
     "test:offline-e2e": "jest --config ./test/offline-e2e/jest.config.json --runInBand",
     "test:offline-e2e:full": "node ../scripts/test-offline-e2e.mjs",
-    "typecheck:offline-e2e": "tsc -p test/offline-e2e/tsconfig.json"
+    "typecheck:offline-e2e": "tsc -p test/offline-e2e/tsconfig.json",
+    "seed:demo": "ts-node prisma/seed-demo-cabinet.ts"
   },
   "prisma": {
     "seed": "ts-node prisma/seed.ts"

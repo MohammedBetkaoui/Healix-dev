@@ -95,6 +95,29 @@ Il n’y a **pas** de TOMBSTONE en V1 : la sortie d’un patient du scope est pr
 
 Les limites multi-appareils d’un même utilisateur partagent les règles de concurrence : la création d’une consultation complète (`READY_TO_SYNC`) est atomique, une seconde écriture locale se voit refuser le conflit par statut, et la version serveur ne change pas.
 
+## Contenu clinique d'une consultation hors ligne
+
+Le Desktop envoie, dans le même agrégat, les **signes vitaux**, les **diagnostics** et le **lien avec le rendez-vous** (`appointmentId`). Ce que le serveur fait de ces champs conditionne ce que le Desktop a le droit d'envoyer :
+
+- le serveur valide la charge utile avec `whitelist` + `forbidNonWhitelisted`, objets imbriqués compris : **aucun champ inconnu** (donc ni `id`, ni `createdAt` d'un instantané serveur) ;
+- à la **mise à jour**, une clé absente laisse la valeur serveur intacte, mais `vitalSigns: null` ou `diagnoses: []` la **supprime**, et `appointmentId: null` délie le rendez-vous.
+
+Le Desktop ne fabrique donc jamais de `null` ou de `[]`. Chacun des trois champs a une sémantique explicite (`Patch`, `desktop/src-tauri/src/consultation.rs`) :
+
+| Interface | Effet |
+| --- | --- |
+| clé **absente** | *inchangé* : la valeur déjà connue (du serveur, par synchronisation, ou d'un enregistrement précédent) est conservée, **y compris dans l'opération envoyée** |
+| `null` | *supprimé volontairement* |
+| une valeur | *saisi par le médecin* (bornes du serveur vérifiées en Rust) |
+
+Les valeurs stockées sont **normalisées à la forme du DTO** avant d'être envoyées. Le lien avec un rendez-vous n'est jamais retiré par le Desktop (une clé absente, jamais `null`), et un nouveau lien doit désigner un rendez-vous de ce patient présent sur l'appareil. Une consultation « terminée » (`READY_TO_SYNC`) exige, comme sur le serveur, un motif, un examen, une évaluation ou un diagnostic.
+
+## Impression hors ligne d'une ordonnance
+
+Le bootstrap (et lui seul) apporte deux blocs, tirés de la même source que les instantanés du PDF serveur (`prescriptions/prescriber-identity.ts`) : `prescriber` (nom, spécialité, n° d'Ordre, conseil régional, adresse professionnelle) et `organization` (nom, adresse, wilaya, téléphone du cabinet). Le Desktop n'en garde que ces lignes, dans `local_user.prescriber_profile` et `local_workspace.organization_profile`, les expose avec la session, les **efface à la déconnexion** et les purge au changement d'utilisateur. Le flux de changements d'ordonnance porte l'`contentFingerprint` (pas les instantanés) : une ordonnance validée s'imprime avec son numéro et son empreinte ; un brouillon, avec la mention « Établie hors ligne… numéro attribué lors de la synchronisation » et sans empreinte. Chaque impression, et chaque confirmation malgré une allergie connue, est inscrite dans `local_audit_events` (colonne `detail`).
+
+L'impression ouvre la boîte d'impression du système depuis un cadre caché : elle n'a pas été vérifiée dans WebView2 (voir le journal de qualification, cas 24 à 27).
+
 ## Limites connues de la V1 (choix assumés)
 
 - **Rétention du flux `SyncChange`** : les lignes ne sont pas purgées (pas de TTL, pas d’archivage). La croissance du flux est bornée par l’activité ; le chantier SyncChange retention est reporté et reste documenté ici.

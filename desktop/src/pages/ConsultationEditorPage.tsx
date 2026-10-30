@@ -93,17 +93,18 @@ export function ConsultationEditorPage({
   const setVital = (key: VitalKey, next: string) =>
     onChange({ ...value, vitals: { ...value.vitals, [key]: next }, vitalsTouched: true });
 
+  const comma = (value: number | null | undefined) => String(value).replace(".", ",");
   const flagDetail = (flag: FlagKey) =>
     flag === "bloodPressure"
       ? `${values.systolicBp ?? "—"}/${values.diastolicBp ?? "—"} mmHg`
       : flag === "heartRate"
-        ? `${values.heartRate} bpm`
+        ? `${comma(values.heartRate)} bpm`
         : flag === "respiratoryRate"
-          ? `${values.respiratoryRate} /min`
+          ? `${comma(values.respiratoryRate)} /min`
           : flag === "oxygenSaturation"
-            ? `${values.oxygenSaturation} %`
+            ? `${comma(values.oxygenSaturation)} %`
             : flag === "temperature"
-              ? `${values.temperature} °C`
+              ? `${comma(values.temperature)} °C`
               : `IMC ${formatBmi(index!)}`;
 
   return (

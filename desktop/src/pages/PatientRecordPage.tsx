@@ -200,7 +200,6 @@ export function PatientRecordPage({
         ) : (
           <div className="space-y-5 p-5 sm:p-6">
             <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
-              <ClinicalCard icon={Droplets} title="Groupe sanguin" values={[patient.bloodGroup ?? fr.common.notProvided]} />
               <ClinicalCard icon={HeartPulse} title="Maladies chroniques" values={summary.chronicDiseases} />
               <ClinicalCard icon={PillIcon} title="Médicaments actuels" values={summary.currentMedications} />
               <ClinicalCard icon={History} title="Antécédents" values={summary.history} />

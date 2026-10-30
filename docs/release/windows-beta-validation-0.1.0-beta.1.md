@@ -119,6 +119,16 @@ Procédure détaillée : `docs/windows-release-checklist.md`.
 | 21 | Updater : B détectée via `latest.json`, installation sur clic explicite | NON TESTÉ |
 | 22 | Updater : paquet corrompu / signé par une autre clé → rejeté | NON TESTÉ |
 | 23 | Désinstallation (données + Credential Manager conservés) puis réinstallation | NON TESTÉ |
+| 24 | **Impression d'une ordonnance** (brouillon puis validée) : la boîte d'impression de Windows s'ouvre depuis la fenêtre de l'application (WebView2) | **NON TESTÉ** — la page imprimable est vérifiée (tests + rendu A4 + PDF dans `docs/release/captures/`), l'ouverture de la boîte depuis un iframe de WebView2 ne l'a pas été |
+| 25 | Impression vers « Microsoft Print to PDF » : mise en page A4 identique à l'aperçu, marges, cachet/signature, pied de page | NON TESTÉ |
+| 26 | Impression vers une imprimante réelle | NON TESTÉ |
+| 27 | Si l'impression échoue : « Enregistrer la version imprimable » télécharge la même page (téléchargement depuis WebView2) | NON TESTÉ |
+| 28 | Consultation hors ligne complète : constantes (bornes, IMC, valeurs anormales), diagnostics, enregistrement automatique, « Terminer » → « Rédiger l'ordonnance » | tests automatisés réussis (Vitest, parcours simulé) ; **NON TESTÉ** sur l'application installée |
+| 29 | Consultation d'un rendez-vous : le rendez-vous passe à « Consultation faite », compteur d'opérations en attente +1, synchronisation au retour du réseau, **aucun doublon** côté serveur | NON TESTÉ (test d'intégration backend écrit, exécuté en CI uniquement) |
+| 30 | Une consultation créée sur le web avec constantes et diagnostics, **modifiée seulement sur le motif** depuis le Desktop : constantes et diagnostics intacts côté serveur après synchronisation | NON TESTÉ sur machine réelle (règle vérifiée en Rust et par le contrat serveur) |
+| 31 | Alerte d'allergie : enregistrement et impression bloqués tant que la confirmation et son motif manquent ; la confirmation est dans le journal local | tests automatisés réussis ; **NON TESTÉ** sur l'application installée |
+| 32 | Identité du prescripteur et du cabinet : présente après une connexion en ligne, **effacée à la déconnexion**, absente avec un serveur ancien (bouton Imprimer grisé, avec la raison) | tests Rust réussis ; NON TESTÉ sur l'application installée |
+| 33 | Le jeu de démonstration (`npm run seed:demo`) charge un cabinet complet et arrive sur le Desktop (rendez-vous du jour, ordonnance validée via le flux) | NON TESTÉ — le script compile et refuse la production, il n'a **pas été exécuté** sur une base |
 
 Les versions A et B doivent être **cohérentes avec le versioning
 réel** (aujourd'hui 0.1.0) : par exemple `0.1.0-beta.1` puis

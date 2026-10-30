@@ -104,7 +104,7 @@ export function PrescriptionEditorPage({
       : !locallyValid
         ? "Complétez chaque médicament pour imprimer."
         : !confirmed
-          ? fr.safety.allergyBlocked
+          ? fr.safety.printBlocked
           : null;
 
   return (

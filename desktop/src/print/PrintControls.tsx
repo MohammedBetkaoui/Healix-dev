@@ -54,7 +54,7 @@ export function PrintControls({ prepare, filename, disabledReason }: {
         <Printer className="h-4 w-4" strokeWidth={1.8} aria-hidden="true" />
         {busy ? fr.print.printing : fr.print.button}
       </Button>
-      {disabledReason ? <p className="max-w-sm text-end text-xs text-[var(--ink-faint)]">{disabledReason}</p> : null}
+      {disabledReason ? <p className="max-w-[15rem] text-end text-[0.68rem] leading-4 text-[var(--ink-faint)]">{disabledReason}</p> : null}
       {phase.kind === "unrecorded" ? (
         <Notice tone="danger" icon={<TriangleAlert className="mt-0.5 h-3.5 w-3.5 shrink-0" strokeWidth={1.8} aria-hidden="true" />}>{fr.print.unrecorded}</Notice>
       ) : null}

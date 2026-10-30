@@ -65,6 +65,22 @@ const connectionDots = {
   danger: "bg-[var(--danger)]",
 } as const;
 
+// A short window (a laptop at 820 px) cannot hold the whole sidebar: the recent
+// records are then three, so that they stay in view.
+const SHORT_WINDOW = "(max-height: 900px)";
+
+function useShortWindow() {
+  const [short, setShort] = useState(() => window.matchMedia?.(SHORT_WINDOW).matches ?? false);
+  useEffect(() => {
+    const media = window.matchMedia?.(SHORT_WINDOW);
+    if (!media) return;
+    const follow = () => setShort(media.matches);
+    media.addEventListener?.("change", follow);
+    return () => media.removeEventListener?.("change", follow);
+  }, []);
+  return short;
+}
+
 // The relative "last sync" text refreshes on its own.
 function useNow(intervalMs: number) {
   const [now, setNow] = useState(() => Date.now());
@@ -134,6 +150,8 @@ export function DashboardSidebar(props: SidebarProps) {
   const { route, name, workspace, recentPatients, sync, isCollapsed, isOpen, onClose, onToggleCollapse, onNavigate, onOpenPatient, onLogout } = props;
   const asideRef = useRef<HTMLElement>(null);
   const now = useNow(30_000);
+  const short = useShortWindow();
+  const shownRecent = recentPatients.slice(0, short ? 3 : 5);
   const CollapseIcon = isCollapsed ? PanelLeftOpen : PanelLeftClose;
   // Open navigation (expanded or mobile drawer) -> logo with title, else the mark.
   const showFullLogo = !isCollapsed || isOpen;
@@ -220,10 +238,10 @@ export function DashboardSidebar(props: SidebarProps) {
               {section.items.map((item) => <NavRow key={item.key} item={item} props={props} />)}
             </section>
           ))}
-          {recentPatients.length ? (
+          {shownRecent.length ? (
             <section className="mb-4 last:mb-0" aria-label={fr.nav.sections.recent}>
               <h2 className={cn("clinical-nav-heading", isCollapsed && "lg:sr-only")}>{fr.nav.sections.recent}</h2>
-              {recentPatients.map((patient) => {
+              {shownRecent.map((patient) => {
                 const patientName = `${patient.firstName} ${patient.lastName}`;
                 const label = patient.locked ? `${patientName}, ${fr.nav.lockedRecord}` : patientName;
                 return (

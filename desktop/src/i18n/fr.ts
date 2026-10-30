@@ -181,5 +181,6 @@ export const fr = {
     allergyTitle: "Allergie connue",
     allergyReason: "Motif de la confirmation (obligatoire)",
     allergyBlocked: "L’enregistrement est suspendu tant que cette prescription n’est pas confirmée malgré l’allergie connue.",
+    printBlocked: "Confirmez d’abord l’allergie connue pour imprimer.",
   },
 } as const;

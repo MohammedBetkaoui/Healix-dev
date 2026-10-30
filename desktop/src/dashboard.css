@@ -87,3 +87,21 @@
   height: 0;
   background: transparent;
 }
+
+/* A short window (a laptop at 820 px): the sidebar is a little tighter so that
+   the recent records stay in view. Desktop only: the Web theme is untouched. */
+@media (max-height: 900px) {
+  .clinical-theme #clinical-sidebar .clinical-nav-row {
+    min-height: 32px;
+    padding-block: 4px;
+  }
+  .clinical-theme #clinical-sidebar .clinical-nav-heading {
+    padding-bottom: 2px;
+  }
+  .clinical-theme #clinical-sidebar .dashboard-sidebar-scroll section {
+    margin-bottom: 0.5rem;
+  }
+  .clinical-theme #clinical-sidebar .dashboard-sidebar-scroll {
+    padding-block: 0.5rem;
+  }
+}
