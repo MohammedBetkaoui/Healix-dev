@@ -6,8 +6,19 @@ import { type SyncOperationDto } from './dto/sync.dto';
  * Stable JSON representation used exclusively for sync idempotency.
  * Object keys are sorted recursively; array order intentionally remains
  * significant because it can express clinical item ordering.
+ *
+ * It mirrors what a JSON body actually transports:
+ * - an object key whose value is `undefined` is omitted, exactly as serde
+ *   `skip_serializing_if` and `JSON.stringify` do: the same payload with the
+ *   optional key left off and the key set to `undefined` hash identically;
+ * - `undefined` array items serialize as JSON `null` (JSON.stringify
+ *   semantics), so the array keeps its length and its order;
+ * - an explicit `null` stays distinct from an omitted key;
+ * - values JSON cannot carry (function, symbol, bigint, NaN, ±Infinity) are
+ *   still refused.
  */
 export function canonicalizeSyncJson(value: unknown): string {
+  if (value === undefined) return 'null';
   if (value === null || typeof value === 'boolean' || typeof value === 'string') {
     return JSON.stringify(value);
   }
@@ -20,7 +31,10 @@ export function canonicalizeSyncJson(value: unknown): string {
   }
   if (typeof value === 'object') {
     const record = value as Record<string, unknown>;
+    // Keys set to `undefined` are dropped before sorting: they are absent
+    // from the serialized body the hash stands for.
     return `{${Object.keys(record)
+      .filter((key) => record[key] !== undefined)
       .sort()
       .map((key) => `${JSON.stringify(key)}:${canonicalizeSyncJson(record[key])}`)
       .join(',')}}`;
