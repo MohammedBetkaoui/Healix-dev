@@ -3,17 +3,21 @@ import {
   Droplets, FileText, HeartPulse, History, LockKeyhole, Pill as PillIcon, Plus, ShieldCheck,
   Sparkles, Stethoscope, TriangleAlert, UserRound,
 } from "lucide-react";
+import { Calendar, ClipboardList } from "lucide-react";
 import { DashboardShell } from "./DashboardShell";
+import { fr } from "./i18n/fr";
+import { pushRecentPatient, type Route } from "./layout/navigation";
+import { PagePlaceholder } from "./pages/PagePlaceholder";
+import { SettingsPage } from "./pages/SettingsPage";
+import { SyncPage } from "./pages/SyncPage";
+import { TodayPage } from "./pages/TodayPage";
+import { ReleaseFooter } from "./updates";
+import { openHealixAi } from "./web-app";
 import { PatientDirectory } from "./PatientDirectory";
 import {
   Button, Field, MetricStrip, Notice, PageHeader, Pill, ageFromBirthDate, cn, formatBirthDate,
   formatDate, initials, inputClass, textareaClass,
 } from "./dashboard-ui";
-import { relaunch } from "@tauri-apps/plugin-process";
-import {
-  check,
-  type Update,
-} from "@tauri-apps/plugin-updater";
 import {
   getSyncStatus,
   listPatientPrescriptions,
@@ -83,6 +87,9 @@ function App() {
   const [query, setQuery] = useState("");
   const [patients, setPatients] = useState<LocalPatient[]>([]);
   const [selected, setSelected] = useState<LocalPatient | null>(null);
+  const [route, setRoute] = useState<Route>({ name: "today" });
+  const [recentPatients, setRecentPatients] = useState<LocalPatient[]>([]);
+  const [patientCount, setPatientCount] = useState(0);
   const [draft, setDraft] = useState<ConsultationDraftInput | null>(null);
   const [recordTab, setRecordTab] = useState<
     "SUMMARY" | "CONSULTATIONS" | "PRESCRIPTIONS"
@@ -100,6 +107,10 @@ function App() {
     async (search = query) => {
       const rows = await listLocalPatients(search);
       setPatients(rows);
+      // The menu badge counts the device, not the current search.
+      if (!search.trim()) setPatientCount(rows.length);
+      const fresh = (patient: LocalPatient) => rows.find((row) => row.id === patient.id) ?? patient;
+      setRecentPatients((current) => current.map(fresh));
       setSelected((current) =>
         current ? (rows.find((row) => row.id === current.id) ?? current) : null,
       );
@@ -190,6 +201,7 @@ function App() {
           try {
             const next = await loginAndBootstrap(input);
             setSession(next);
+            setRoute({ name: "today" });
             await refreshPatients("");
             setSync(await getSyncStatus());
           } catch (cause) {
@@ -207,31 +219,70 @@ function App() {
     setDraft(null);
     setPrescriptionDraft(null);
     setRecordTab("SUMMARY");
+    setRoute({ name: "patient", id: patient.id });
+    setRecentPatients((current) => pushRecentPatient(current, patient));
+  };
+
+  const navigate = (next: Route) => {
+    if (next.name === "patient") {
+      const patient = patients.find((row) => row.id === next.id) ?? recentPatients.find((row) => row.id === next.id);
+      if (patient) openPatient(patient);
+      return;
+    }
+    setSelected(null);
+    setDraft(null);
+    setPrescriptionDraft(null);
+    setRoute(next);
   };
 
   return (
     <DashboardShell
       session={session}
-      patients={patients}
-      selectedId={selected?.id}
+      route={route}
+      patient={selected}
+      patientCount={patientCount}
+      recentPatients={recentPatients}
       query={query}
       sync={sync}
       onQuery={(value) => {
         setQuery(value);
         void refreshPatients(value);
+        // Typing a name leads to the patient list.
+        if (route.name !== "patients") navigate({ name: "patients" });
       }}
-      onSelect={openPatient}
-      onHome={() => {
-        setSelected(null);
-        setDraft(null);
-        setPrescriptionDraft(null);
-      }}
-      onLock={() => void logoutLocal().then(() => setSession({ authorized: false }))}
-      onSync={() => void performSync()}
+      onNavigate={navigate}
+      onOpenPatient={openPatient}
+      onOpenHealixAi={() => void openHealixAi(selected?.id).catch(() => undefined)}
+      onLogout={() =>
+        void logoutLocal().then(() => {
+          setSession({ authorized: false });
+          setSelected(null);
+          setRecentPatients([]);
+          setRoute({ name: "today" });
+        })
+      }
     >
-      {!selected ? (
+      {route.name === "today" ? (
+        <TodayPage
+          name={session.user?.fullName ?? "Docteur"}
+          patientCount={patientCount}
+          sync={sync}
+          recentPatients={recentPatients}
+          onOpenPatient={openPatient}
+        />
+      ) : route.name === "patients" || (route.name === "patient" && !selected) ? (
         <PatientDirectory patients={patients} query={query} onSelect={openPatient} />
-      ) : prescriptionDraft ? (
+      ) : route.name === "appointments" ? (
+        <PagePlaceholder icon={Calendar} title={fr.nav.items.appointments} />
+      ) : route.name === "consultations" ? (
+        <PagePlaceholder icon={ClipboardList} title={fr.nav.items.consultations} />
+      ) : route.name === "prescriptions" ? (
+        <PagePlaceholder icon={PillIcon} title={fr.nav.items.prescriptions} />
+      ) : route.name === "sync" ? (
+        <SyncPage status={sync} onSync={() => void performSync()} />
+      ) : route.name === "settings" ? (
+        <SettingsPage session={session} sync={sync} />
+      ) : !selected ? null : prescriptionDraft ? (
         <PrescriptionEditor
           patient={selected}
           value={prescriptionDraft}
@@ -283,117 +334,6 @@ function App() {
         />
       )}
     </DashboardShell>
-  );
-}
-
-// ---------------------------------------------------------------------------
-// App identity and self-update
-//
-// The footer shows the exact build the support team must identify (version +
-// commit). The update check sits here, on the login screen, on purpose: never
-// while a consultation is open and never while the outbox is being processed.
-// Nothing ever installs without the user's click, and the downloaded package
-// is verified by the updater plugin against the minisign public key before
-// the installer runs.
-// ---------------------------------------------------------------------------
-
-const DESKTOP_BUILD_SHA: string = import.meta.env.VITE_BUILD_SHA ?? "";
-const inTauriWindow =
-  typeof window !== "undefined" && "__TAURI_INTERNALS__" in window;
-
-function ReleaseFooter() {
-  return (
-    <footer className="release-footer">
-      <span className="release-version">
-        HealixDz Desktop v{__APP_VERSION__}
-        {DESKTOP_BUILD_SHA ? (
-          <small> · build {DESKTOP_BUILD_SHA}</small>
-        ) : null}
-      </span>
-      {inTauriWindow ? <UpdateControl /> : null}
-    </footer>
-  );
-}
-
-type UpdatePhase =
-  | { kind: "idle" }
-  | { kind: "checking" }
-  | { kind: "uptodate" }
-  | { kind: "available"; update: Update; targetVersion: string }
-  | { kind: "applying"; update: Update; step: string }
-  | { kind: "error"; message: string };
-
-function UpdateControl() {
-  const [phase, setPhase] = useState<UpdatePhase>({ kind: "idle" });
-
-  const verifyUpdate = async () => {
-    if (phase.kind === "checking" || phase.kind === "applying") return;
-    setPhase({ kind: "checking" });
-    try {
-      // The plugin fetches latest.json, downloads nothing else, and checks
-      // the minisign signature of the release against the embedded public
-      // key before this branch can ever run.
-      const update = await check();
-      if (update) {
-        setPhase({ kind: "available", update, targetVersion: update.version });
-      } else {
-        setPhase({ kind: "uptodate" });
-      }
-    } catch (error) {
-      // Unreachable endpoint (offline, no published release yet) is a normal
-      // state, not a support case.
-      setPhase({ kind: "error", message: String(error) });
-    }
-  };
-
-  const applyUpdate = async (phase: Extract<UpdatePhase, { kind: "available" }>) => {
-    setPhase({ kind: "applying", update: phase.update, step: "Téléchargement..." });
-    try {
-      await phase.update.downloadAndInstall((event) => {
-        if (event.event === "Started") {
-          setPhase({ kind: "applying", update: phase.update, step: "Téléchargement..." });
-        } else if (event.event === "Finished") {
-          setPhase({ kind: "applying", update: phase.update, step: "Installation..." });
-        }
-      });
-      setPhase({ kind: "applying", update: phase.update, step: "Redémarrage de l'application..." });
-      await relaunch();
-    } catch (error) {
-      setPhase({ kind: "error", message: String(error) });
-    }
-  };
-
-  return (
-    <div className="release-update">
-      {phase.kind === "idle" && (
-        <button type="button" onClick={() => void verifyUpdate()}>
-          Vérifier la mise à jour
-        </button>
-      )}
-      {phase.kind === "idle" && (
-        <small>Les données locales et la configuration de l'appareil sont conservées par la mise à jour.</small>
-      )}
-      {phase.kind === "checking" && <small>Vérification de la dernière version publiée…</small>}
-      {phase.kind === "uptodate" && (
-        <small>HealixDz Desktop est à jour.</small>
-      )}
-      {phase.kind === "available" && (
-        <>
-          <button
-            type="button"
-            onClick={() => void applyUpdate(phase)}
-            className="release-update-apply"
-          >
-            Installer la version {phase.targetVersion}
-          </button>
-          <small>L'application redémarre à la fin de l'installation.</small>
-        </>
-      )}
-      {phase.kind === "applying" && <small>{phase.step}</small>}
-      {phase.kind === "error" && (
-        <small aria-live="polite">Mise à jour indisponible : {phase.message}</small>
-      )}
-    </div>
   );
 }
 

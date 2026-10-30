@@ -9,6 +9,7 @@ SHA-256 et GitHub Release.
 | Élément | Où | Rôle |
 | --- | --- | --- |
 | Variable de dépôt `DESKTOP_API_BASE_URL` | Settings > Secrets and variables > Actions > Variables | URL HTTPS de l'API HealixDz compilée dans l'installateur (`VITE_API_BASE_URL`). Obligatoire pour toute release officielle. |
+| Variable de build `VITE_WEB_APP_URL` | Environnement du build (front-end **et** Rust) | URL HTTPS de la plateforme web (Healix AI s'y ouvre dans le navigateur, seules les pages `/doctor/*` sont autorisées). Facultative : sans elle, l'entrée Healix AI n'apparaît pas. `release-check.mjs` refuse une valeur non HTTPS. En développement : `http://localhost:3000`. Le workflow de release ne la transmet pas encore : à ajouter avec la variable de dépôt correspondante. |
 | Secret `WINDOWS_CERTIFICATE_BASE64` | Environment **production** | Certificat Authenticode `.pfx` de l'éditeur, encodé en base64. |
 | Secret `WINDOWS_CERTIFICATE_PASSWORD` | Environment **production** | Mot de passe du `.pfx`. |
 | Secret `TAURI_SIGNING_PRIVATE_KEY` | Environment **production** | Clé privée de signature du canal de mise à jour (Tauri updater, minisign). |

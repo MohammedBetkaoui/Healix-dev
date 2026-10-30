@@ -103,6 +103,23 @@ if (updater.active) {
   }
 }
 
+// Web platform address ---------------------------------------------------
+// VITE_WEB_APP_URL (Healix AI opens there) is optional: without it the
+// Desktop shows no Web entry and grants no browser scope. When it is set, a
+// release must reach the platform over HTTPS.
+const webAppUrl = process.env.VITE_WEB_APP_URL?.trim();
+if (webAppUrl) {
+  let parsed = null;
+  try {
+    parsed = new URL(webAppUrl);
+  } catch {
+    // reported below
+  }
+  if (!parsed || parsed.protocol !== "https:" || !parsed.hostname) {
+    fail(`VITE_WEB_APP_URL must be an HTTPS URL (got ${webAppUrl}).`);
+  }
+}
+
 // Built artifacts --------------------------------------------------------
 const artifactDirIndex = process.argv.indexOf("--expected-artifact-dir");
 if (artifactDirIndex !== -1) {

@@ -10,6 +10,11 @@ interface ImportMetaEnv {
    * URL. A distributed release build never carries it.
    */
   readonly VITE_IGNORE_MISSING_API_BASE?: string;
+  /**
+   * Address of the HealixDz Web platform (Healix AI opens there): HTTPS in a
+   * release build. Without it, the Desktop shows no Web entry.
+   */
+  readonly VITE_WEB_APP_URL?: string;
 }
 
 interface ImportMeta {

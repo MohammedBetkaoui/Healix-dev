@@ -7,7 +7,7 @@ mod protocol;
 mod security;
 
 use database::EngineEnv;
-use tauri::AppHandle;
+use tauri::{AppHandle, Manager};
 
 fn authorize(app: &EngineEnv) -> Result<(String, security::GrantClaims), String> {
     let verified = security::verified_grant()?;
@@ -109,9 +109,39 @@ fn logout_local() {
     security::clear_session();
 }
 
+// Address of the HealixDz Web platform (Healix AI lives there), from the same
+// build variable the front-end reads. Development defaults to the local Next
+// server; a release without an HTTPS address has no Web entry.
+fn web_app_url() -> Option<&'static str> {
+    match option_env!("VITE_WEB_APP_URL").map(str::trim) {
+        Some(url) if url.starts_with("https://") => Some(url.trim_end_matches('/')),
+        Some(url) if cfg!(debug_assertions) && !url.is_empty() => Some(url.trim_end_matches('/')),
+        _ if cfg!(debug_assertions) => Some("http://localhost:3000"),
+        _ => None,
+    }
+}
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     tauri::Builder::default()
+        // The window may open the system browser on the Web platform's doctor
+        // pages, and on nothing else: the scope is granted here, at start-up,
+        // only when the build carries the platform address.
+        .plugin(tauri_plugin_opener::init())
+        .setup(|app| {
+            if let Some(web) = web_app_url() {
+                app.add_capability(
+                    tauri::ipc::CapabilityBuilder::new("web-app-opener")
+                        .window("main")
+                        .permission_scoped(
+                            "opener:allow-open-url",
+                            vec![serde_json::json!({ "url": format!("{web}/doctor/*") })],
+                            vec![],
+                        ),
+                )?;
+            }
+            Ok(())
+        })
         // Official Tauri 2 update mechanism: the versioned manifest
         // (latest.json) is fetched from the configured endpoints, and the
         // downloaded package is verified against the minisign public key in

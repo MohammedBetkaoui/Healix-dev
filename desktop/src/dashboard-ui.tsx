@@ -1,4 +1,4 @@
-import type { ButtonHTMLAttributes, ReactNode } from "react";
+import type { ComponentProps, ReactNode } from "react";
 import type { LucideIcon } from "lucide-react";
 
 // Building blocks of the Desktop dashboard. The class strings are the Web
@@ -60,7 +60,7 @@ export function Button({
   size = "default",
   type = "button",
   ...props
-}: ButtonHTMLAttributes<HTMLButtonElement> & { variant?: ButtonVariant; size?: ButtonSize }) {
+}: ComponentProps<"button"> & { variant?: ButtonVariant; size?: ButtonSize }) {
   return (
     <button
       type={type}
