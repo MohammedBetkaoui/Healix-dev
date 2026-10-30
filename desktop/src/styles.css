@@ -855,3 +855,40 @@ textarea {
     transition: none;
   }
 }
+
+/* Build identity + non-forced update control (login screen only). */
+.release-footer {
+  margin-top: 26px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 10px;
+  color: rgba(255, 255, 255, 0.66);
+  font-size: 12px;
+}
+.release-footer small {
+  display: block;
+  opacity: 0.85;
+}
+.release-update {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.release-update button {
+  border: 1px solid rgba(255, 255, 255, 0.35);
+  background: transparent;
+  color: rgba(255, 255, 255, 0.9);
+  border-radius: 8px;
+  padding: 5px 10px;
+  font-size: 12px;
+  cursor: pointer;
+}
+.release-update button:hover:not(:disabled) {
+  background: rgba(255, 255, 255, 0.12);
+}
+.release-update .release-update-apply {
+  border-color: rgba(255, 255, 255, 0.65);
+  font-weight: 600;
+}

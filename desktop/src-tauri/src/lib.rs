@@ -112,6 +112,15 @@ fn logout_local() {
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     tauri::Builder::default()
+        // Official Tauri 2 update mechanism: the versioned manifest
+        // (latest.json) is fetched from the configured endpoints, and the
+        // downloaded package is verified against the minisign public key in
+        // tauri.conf.json before the installer is ever run (never signed?
+        // then no update is installed). The update itself is only offered
+        // from the login screen — never during an open consultation — and
+        // `plugin-process` provides the app relaunch after it is applied.
+        .plugin(tauri_plugin_updater::Builder::new().build())
+        .plugin(tauri_plugin_process::init())
         .invoke_handler(tauri::generate_handler![
             session_status,
             login_register_and_bootstrap,

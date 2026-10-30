@@ -26,7 +26,42 @@
   },
   "bundle": {
     "active": true,
-    "targets": "all",
-    "shortDescription": "Continuité clinique HealixDz hors connexion"
+    "targets": ["nsis", "msi"],
+    "publisher": "HealixDz",
+    "copyright": "© 2026 HealixDz. Tous droits réservés.",
+    "category": "Medical",
+    "shortDescription": "Continuité clinique HealixDz hors connexion",
+    "longDescription": "HealixDz Desktop donne au médecin un accès clinique sécurisé hors connexion : consultations, ordonnances en brouillon et cache patients, chiffrés localement (SQLCipher) et synchronisés avec le backend HealixDz dès le retour du réseau.",
+    "icon": [
+      "icons/32x32.png",
+      "icons/128x128.png",
+      "icons/128x128@2x.png",
+      "icons/icon.icns",
+      "icons/icon.ico"
+    ],
+    "windows": {
+      "digestAlgorithm": "sha256",
+      "timestampUrl": "http://timestamp.digicert.com",
+      "allowDowngrades": false,
+      "webviewInstallMode": {
+        "type": "downloadBootstrapper"
+      },
+      "nsis": {
+        "installMode": "currentUser",
+        "installerIcon": "icons/icon.ico"
+      },
+      "wix": {
+        "upgradeCode": "1ae3c273-b1bc-481d-a778-b77c273a9a55"
+      }
+    }
+  },
+  "plugins": {
+    "updater": {
+      "active": true,
+      "pubkey": "dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXk6IEYwODU2OTJGQTY2RkM2QjQKUldTMHhtK21MMm1GOEl2RnUzZUZMYlo0a1dkYkhLd3dJbzk4UDBDZ21qd3Vyc01Wc0paaFErQW0K",
+      "endpoints": [
+        "https://github.com/MohammedBetkaoui/Healix-dev/releases/latest/download/latest.json"
+      ]
+    }
   }
 }

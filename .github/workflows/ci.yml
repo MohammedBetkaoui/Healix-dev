@@ -172,7 +172,18 @@ jobs:
 
       - run: npm ci
 
-      - run: npm run build
+      # Packaging sanity: synchronized versions, Windows icon formats, NSIS
+      # install mode, stable MSI upgrade code, updater public key + HTTPS
+      # endpoints (desktop/scripts/release-check.mjs).
+      - name: Release configuration check
+        run: node scripts/release-check.mjs
+
+      # CI validation build: no production API URL exists here, the explicit
+      # opt-out acknowledges it (a release build never carries this flag).
+      - name: Build the front-end (CI validation)
+        env:
+          VITE_IGNORE_MISSING_API_BASE: "1"
+        run: npm run build
 
       - name: Check native application
         working-directory: desktop/src-tauri

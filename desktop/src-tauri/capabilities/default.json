@@ -1,0 +1,11 @@
+{
+  "$schema": "http://schema.tauri.app/capabilities/2",
+  "identifier": "default",
+  "description": "Permissions of the main window: the app IPC commands never need an entry, but the official updater and relaunch plugins do.",
+  "windows": ["main"],
+  "permissions": [
+    "core:default",
+    "updater:default",
+    "process:default"
+  ]
+}

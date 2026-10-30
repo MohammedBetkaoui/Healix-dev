@@ -19,6 +19,18 @@ dispositifs médicaux.
 - **Intégration continue** : [`.github/workflows/ci.yml`](.github/workflows/ci.yml),
   sur chaque pull request et sur `main` (build et tests des trois composants,
   concordance du schéma Prisma et des migrations).
+- **Desktop Windows** : `desktop/` (Tauri 2, SQLCipher, Windows Credential
+  Manager, moteur de synchro offline). Applications → `npm run tauri dev` ;
+  build installateur → `npm run tauri build --bundles nsis,msi` ;
+  vérification de packaging → `npm run release:check`. Version des quatre
+  fichiers de config : `npm run set-version` (source de vérité :
+  `desktop/package.json`).
+- **Releases Windows** : tags `desktop-vX.Y.Z` → workflow
+  [`.github/workflows/desktop-release.yml`](.github/workflows/desktop-release.yml)
+  (build natif windows-latest, NSIS + MSI, signature Authenticode, artefacts
+  updater signés, checksums SHA-256, GitHub Release). Procédure et secrets :
+  [`docs/windows-release.md`](docs/windows-release.md) ; validation sur
+  machine réelle : [`docs/windows-release-checklist.md`](docs/windows-release-checklist.md).
 - **Déploiement Docker** : [`DEPLOIEMENT.md`](DEPLOIEMENT.md).
 - Les poids des modèles (environ 1 Go) ne sont jamais dans le dépôt : voir
   [`ai-service/README.md`](ai-service/README.md).

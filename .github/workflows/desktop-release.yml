@@ -1,0 +1,366 @@
+# Windows distribution pipeline of HealixDz Desktop.
+#
+# Déclencheurs :
+#   - Tag `desktop-vX.Y.Z` (semver) : build Windows natif (NSIS + MSI),
+#     signature Authenticode (secrets de l'environnement production),
+#     artefacts updater signés + checksums, puis GitHub Release.
+#   - workflow_dispatch : build de test NON signé, publié comme artifact
+#     Actions (jamais comme Release).
+#
+# Invariants du pipeline :
+#   - le tag doit correspondre exactement aux versions configurées
+#     (scripts/set-desktop-version.mjs --check) ;
+#   - la production exige une URL HTTPS explicite (variable de dépôt
+#     DESKTOP_API_BASE_URL) : aucun fallback silencieux vers localhost ;
+#   - aucune clé privée dans le dépôt (secrets GitHub, voir
+#     docs/windows-release.md) ;
+#   - les checksums sont calculés APRÈS la signature finale (§22) ;
+#   - une release officielle n'est jamais déclarée « signée » sans
+#     vérification Authenticode (§53), ni publiée sans signature updater ;
+#   - une release officielle exige que la CI standard (5 jobs) soit verte
+#     sur le commit exact du tag (§35).
+
+name: Desktop Release (Windows)
+
+on:
+  push:
+    tags: ["desktop-v*"]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: desktop-release-${{ github.ref }}
+  cancel-in-progress: false
+
+env:
+  GH_TOKEN: ${{ github.token }}
+
+jobs:
+  windows-x64:
+    name: Windows x64 build
+    # Environnement GitHub « production » : porte les secrets de signature
+    # (à créer une fois dans Settings > Environments, cf.
+    # docs/windows-release.md). Un build manuel de test s'exécute sans
+    # ces secrets.
+    environment: production
+    runs-on: windows-latest
+    timeout-minutes: 60
+    defaults:
+      run:
+        working-directory: desktop
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          # Le message du tag annoté (notes de release, §24) exige les
+          # objets de tag complets, pas un clone shallow.
+          fetch-depth: 0
+
+      - name: Resolve the release version and build identity
+        id: version
+        shell: pwsh
+        env:
+          IS_TAG: ${{ startsWith(github.ref, 'refs/tags/desktop-v') }}
+        run: |
+          if ($env:IS_TAG -eq "true") {
+            $version = ("${{ github.ref_name }}" -replace '^desktop-v', '')
+          } else {
+            $version = node -p "require('./package.json').version"
+          }
+          "version=$version" >> $env:GITHUB_OUTPUT
+          "short_sha=$(('${{ github.sha }}').Substring(0, 8))" >> $env:GITHUB_OUTPUT
+          "is_tag=$env:IS_TAG" >> $env:GITHUB_OUTPUT
+
+      # §47 — une release incohérente n'est jamais publiée : le tag doit
+      # être exactement la version des quatre fichiers de configuration.
+      - name: Validate the tag and the synchronized versions
+        run: node scripts/set-desktop-version.mjs "${{ steps.version.outputs.version }}" --check
+
+      - name: Validate the release configuration
+        run: node scripts/release-check.mjs
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: desktop/package-lock.json
+
+      - uses: actions-rust-lang/setup-rust-toolchain@v1
+        with:
+          toolchain: stable
+
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: desktop/src-tauri
+          key: windows-release
+
+      - run: npm ci
+
+      # §39/§40 — l'URL API de production vient d'une variable de dépôt
+      # explicite (HTTPS). Un build manuel de test s'exécute sans URL :
+      # l'opt-out VITE_IGNORE_MISSING_API_BASE=1 matérialise l'exception et
+      # l'artifact produit n'est jamais distribué.
+      - name: Configure the production API URL and build identity
+        shell: pwsh
+        env:
+          IS_TAG: ${{ steps.version.outputs.is_tag }}
+        run: |
+          $apiBase = "${{ vars.DESKTOP_API_BASE_URL }}"
+          if ($apiBase -and $apiBase -notmatch '^https://') {
+            throw "La variable de dépôt DESKTOP_API_BASE_URL doit être une URL HTTPS (reçue : $apiBase)."
+          }
+          if (-not $apiBase) {
+            if ($env:IS_TAG -eq "true") {
+              throw "DESKTOP_API_BASE_URL (variable de dépôt, HTTPS) est obligatoire pour une release officielle : aucun build de production ne doit retomber silencieusement sur localhost."
+            }
+            "VITE_IGNORE_MISSING_API_BASE=1" >> $env:GITHUB_ENV
+          }
+          "VITE_API_BASE_URL=$apiBase" >> $env:GITHUB_ENV
+          "VITE_BUILD_SHA=${{ steps.version.outputs.short_sha }}" >> $env:GITHUB_ENV
+
+      - name: Test the engine (cargo test)
+        working-directory: desktop/src-tauri
+        run: cargo test
+
+      # Tauri enchaîne lui-même le build front-end (tsc + vite) avec
+      # VITE_API_BASE_URL et VITE_BUILD_SHA dans l'environnement.
+      - name: Build Windows installers (NSIS + MSI)
+        run: npx tauri build --bundles nsis,msi
+
+      - name: Collect the built artifacts (normalized names)
+        shell: pwsh
+        env:
+          VERSION: ${{ steps.version.outputs.version }}
+        run: |
+          $package = "release-package"
+          New-Item -ItemType Directory -Force -Path $package | Out-Null
+          $bundles = "src-tauri/target/release/bundle"
+          # NSIS : "HealixDz Desktop_0.1.0_x64-setup.exe" -> "HealixDz-Desktop_..."
+          $nsis = Get-ChildItem "$bundles/nsis" -Filter "*_x64-setup.exe" | Select-Object -First 1
+          $msi = Get-ChildItem "$bundles/msi" -Filter "*_x64_en-US.msi" | Select-Object -First 1
+          if (-not $nsis) { throw "NSIS setup introuvable dans $bundles/nsis." }
+          if (-not $msi) { throw "MSI introuvable dans $bundles/msi." }
+          Copy-Item $nsis.FullName ("$package/" + $nsis.Name.Replace(' ', '-'))
+          Copy-Item $msi.FullName ("$package/" + $msi.Name.Replace(' ', '-'))
+          # §66 — taille réelle et métadonnées de version de chaque artefact.
+          # Les .exe portent une ressource de version Win32 (VersionInfo) ;
+          # les .msi sont des bases Windows Installer sans ressource de
+          # version : lire la table Property (COM WindowsInstaller).
+          Get-ChildItem $package -Include *.exe,*.msi -Recurse -File | ForEach-Object {
+            if ($_.Length -lt 1000000) { throw "$($_.Name) trop petit ($($_.Length) octets) : artefact incomplet ?" }
+            if ($_.Extension -ieq ".msi") {
+              $installer = New-Object -ComObject WindowsInstaller.Installer
+              $properties = @{}
+              try {
+                $database = $installer.GetType().InvokeMember(
+                  "OpenDatabase", "InvokeMethod", $null, $installer, @($_.FullName, 0))
+                $view = $database.GetType().InvokeMember(
+                  "OpenView", "InvokeMethod", $null, $database,
+                  @("SELECT Property, Value FROM Property WHERE Property = 'ProductVersion' OR Property = 'ProductName'"))
+                $view.GetType().InvokeMember("Execute", "InvokeMethod", $null, $view, $null)
+                while ($true) {
+                  $record = $view.GetType().InvokeMember("Fetch", "InvokeMethod", $null, $view, $null)
+                  if (-not $record) { break }
+                  $name = $record.GetType().InvokeMember("StringData", "GetProperty", $null, $record, 1)
+                  $value = $record.GetType().InvokeMember("StringData", "GetProperty", $null, $record, 2)
+                  $properties[$name] = $value
+                }
+              } finally {
+                [Runtime.InteropServices.Marshal]::ReleaseComObject($installer) | Out-Null
+              }
+              "  $($_.Name)  $($_.Length) octets  ProductVersion=$($properties['ProductVersion'])  ProductName=$($properties['ProductName'])  (base Windows Installer)"
+              if ($properties['ProductVersion'] -notmatch [regex]::Escape($env:VERSION)) {
+                throw "ProductVersion ($($properties['ProductVersion'])) de $($_.Name) ne porte pas la version $env:VERSION."
+              }
+              if ($properties['ProductName'] -ne "HealixDz Desktop") {
+                throw "ProductName ($($properties['ProductName'])) de $($_.Name) inattendu."
+              }
+            } else {
+              $info = $_.VersionInfo
+              "  $($_.Name)  $($_.Length) octets  ProductVersion=$($info.ProductVersion)  ProductName=$($info.ProductName)  Company=$($info.CompanyName)"
+              if ($info.ProductVersion -notmatch [regex]::Escape($env:VERSION)) {
+                throw "ProductVersion ($($info.ProductVersion)) de $($_.Name) ne porte pas la version $env:VERSION."
+              }
+              if ($info.ProductName -ne "HealixDz Desktop") {
+                throw "ProductName ($($info.ProductName)) de $($_.Name) inattendu."
+              }
+            }
+          }
+
+      # §17/§18 — signature Authenticode avec le certificat de production
+      # (secrets de l'environnement GitHub). Un tag sans secrets échoue
+      # explicitement : une release officielle n'est jamais publiée non
+      # signée en se prétendant signée.
+      - name: Authenticode code signing (production certificate)
+        if: steps.version.outputs.is_tag == 'true'
+        shell: pwsh
+        env:
+          WINDOWS_CERTIFICATE_BASE64: ${{ secrets.WINDOWS_CERTIFICATE_BASE64 }}
+          WINDOWS_CERTIFICATE_PASSWORD: ${{ secrets.WINDOWS_CERTIFICATE_PASSWORD }}
+        run: |
+          if (-not $env:WINDOWS_CERTIFICATE_BASE64) {
+            throw "Secrets WINDOWS_CERTIFICATE_BASE64 / WINDOWS_CERTIFICATE_PASSWORD absents de l'environnement 'production'. Une release officielle doit être signée : configurez-les (docs/windows-release.md), ou faites un build de test via workflow_dispatch."
+          }
+          $pfx = Join-Path $env:RUNNER_TEMP "healixdz-codesign.pfx"
+          [IO.File]::WriteAllBytes($pfx, [Convert]::FromBase64String($env:WINDOWS_CERTIFICATE_BASE64))
+          try {
+            $signtool = (Get-ChildItem "C:\Program Files (x86)\Windows Kits\10\bin\*\x64\signtool.exe" -ErrorAction SilentlyContinue |
+              Sort-Object FullName -Descending | Select-Object -First 1).FullName
+            if (-not $signtool) { throw "signtool introuvable sur le runner Windows." }
+            foreach ($file in Get-ChildItem "release-package" -Include *.exe,*.msi -Recurse -File) {
+              & $signtool sign /f $pfx /p $env:WINDOWS_CERTIFICATE_PASSWORD /fd sha256 /td sha256 /tr http://timestamp.digicert.com $file.FullName
+              if ($LASTEXITCODE -ne 0) { throw "Signature échouée pour $($file.Name). Voir docs/windows-release.md (section Signature)." }
+            }
+            # §53 — une release annoncée « signée » est vérifiée comme telle.
+            foreach ($file in Get-ChildItem "release-package" -Include *.exe,*.msi -Recurse -File) {
+              $signed = Get-AuthenticodeSignature $file.FullName
+              if ($signed.Status -ne "Valid") {
+                throw "$($file.Name) : statut Authenticode $($signed.Status) (attendu Valid)."
+              }
+              "  $($file.Name) signé (Authenticode Valid, horodatage RFC 3161)."
+            }
+          } finally {
+            Remove-Item $pfx -Force -ErrorAction SilentlyContinue
+          }
+
+      # §21/§22 — artefacts updater + checksums, TOUJOURS après la signature
+      # (la signature minisign et les checksums couvrent le fichier final).
+      # Build de test (workflow_dispatch) : checksums seulement — latest.json
+      # n'existe jamais sans signature cryptographique d'une clé de release.
+      - name: Updater manifest and SHA-256 checksums
+        shell: pwsh
+        env:
+          VERSION: ${{ steps.version.outputs.version }}
+          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
+        run: |
+          $scriptArgs = @("--package-dir", "release-package", "--version", $env:VERSION)
+          if ("${{ steps.version.outputs.is_tag }}" -ne "true") {
+            $scriptArgs += "--skip-signatures"
+          }
+          node scripts/generate-updater-manifest.mjs @scriptArgs
+          Get-Content "release-package/SHA256SUMS.txt"
+
+      # §10/§36 — smoke test au niveau runner Windows : installation
+      # silencieuse, démarrage réel de l'application, fermeture,
+      # désinstallation.
+      - name: NSIS smoke test (silent install, launch, uninstall)
+        shell: pwsh
+        run: |
+          $setup = Get-ChildItem "release-package" -Filter "*_x64-setup.exe" | Select-Object -First 1
+          Start-Process -FilePath $setup.FullName -ArgumentList "/S" -Wait
+          # NSIS currentUser : le répertoire d'installation réel est lu dans
+          # la clé de désinstallation plutôt que supposé.
+          $deadline = [DateTime]::UtcNow.AddSeconds(90)
+          $exe = $null
+          while (-not $exe -and [DateTime]::UtcNow -lt $deadline) {
+            Start-Sleep -Seconds 2
+            $registry = Get-ItemProperty "HKCU:\Software\Microsoft\Windows\CurrentVersion\Uninstall\*" -ErrorAction SilentlyContinue |
+              Where-Object { $_.DisplayName -eq "HealixDz Desktop" }
+            $dirs = @($registry.InstallLocation) + @(
+              (Join-Path $env:LOCALAPPDATA "Programs\HealixDz Desktop"),
+              (Join-Path $env:LOCALAPPDATA "HealixDz Desktop")
+            )
+            $exe = foreach ($dir in $dirs) {
+              if ($dir -and (Test-Path $dir)) {
+                Get-ChildItem $dir -Filter "HealixDz Desktop.exe" -ErrorAction SilentlyContinue | Select-Object -First 1
+              }
+            }
+          }
+          if (-not $exe) {
+            throw "Le package NSIS ne s'est pas installé correctement (clé de désinstallation et chemins de recherche infructueux), cf. docs/windows-release-checklist.md."
+          }
+          "Installé : $($exe.FullName)"
+          $process = Start-Process -FilePath $exe.FullName -PassThru
+          Start-Sleep -Seconds 8
+          $alive = [bool](Get-Process -Name "HealixDz Desktop*" -ErrorAction SilentlyContinue)
+          if (-not $alive) {
+            if ($process.HasExited) { "processus initial quitté ($($process.ExitCode))" }
+            throw "L'exécutable HealixDz Desktop ne reste pas actif au démarrage."
+          }
+          "Démarrage réel vérifié (WebView2 chargé et fenêtre affichée)."
+          Get-Process -Name "HealixDz Desktop*" -ErrorAction SilentlyContinue | Stop-Process -Force
+          Start-Sleep -Seconds 2
+          $installDir = Split-Path $exe.FullName
+          $uninstaller = Join-Path $installDir "uninstall.exe"
+          if (Test-Path $uninstaller) {
+            Start-Process -FilePath $uninstaller -ArgumentList "/S" -Wait
+            Start-Sleep -Seconds 4
+          } else {
+            throw "Désinstallateur NSIS introuvable dans $installDir."
+          }
+          if (Test-Path $installDir) {
+            "AVERTISSEMENT: $installDir subsiste après la désinstallation — cohérent avec la politique conservatrice des données locales (docs/windows-release.md)."
+          } else {
+            "Désinstallé proprement (programmes uniquement ; les données chiffrées de l'utilisateur restent en place)."
+          }
+
+      - name: Upload the build for traceability
+        uses: actions/upload-artifact@v4
+        with:
+          name: HealixDz-Desktop-${{ steps.version.outputs.version }}-x64
+          path: desktop/release-package/
+          if-no-files-found: error
+
+      # §35 — aucune release officielle d'un commit dont la CI standard
+      # (les cinq jobs, intitulés exacts de ci.yml) n'est pas verte.
+      - name: Verify the standard CI is green on this exact commit
+        if: steps.version.outputs.is_tag == 'true'
+        shell: pwsh
+        run: |
+          $sha = "${{ github.sha }}"
+          $checks = gh api "repos/${{ github.repository }}/commits/$sha/check-runs?filter=latest&per_page=100" --jq '.check_runs' | ConvertFrom-Json
+          $required = @(
+            "Backend (NestJS)",
+            "Frontend (Next.js)",
+            "Desktop (Tauri + React)",
+            "AI service (FastAPI)",
+            "Offline E2E Reliability"
+          )
+          $found = @{}
+          foreach ($check in $checks) { $found[$check.name] = $check.conclusion }
+          foreach ($name in $required) {
+            if ($found[$name] -ne "success") {
+              throw "Le job standard '$name' n'est pas vert sur $sha (reçu : $($found[$name])). Taguez un commit dont la CI standard est verte sur main (docs/windows-release.md, §3 Procédure, étape 3)."
+            }
+          }
+          "Les cinq jobs de la CI standard sont verts sur ce commit."
+
+      # §23/§48 — release idempotente : rejouer un tag re-synchronise les
+      # assets (clobber) sans dupliquer la release ; prereleases seulement
+      # pour les tags « - » (§25), jamais servies par le canal stable.
+      - name: Create or update the GitHub Release
+        if: steps.version.outputs.is_tag == 'true'
+        shell: pwsh
+        env:
+          VERSION: ${{ steps.version.outputs.version }}
+        run: |
+          $tag = "${{ github.ref_name }}"
+          $title = "HealixDz Desktop v$env:VERSION"
+          # Notes : le corps du tag annoté quand il en porte un, sinon le
+          # template docs/desktop-release-notes-template.md (§24).
+          $subject = (git tag -l --format="%(contents:subject)" $tag | Out-String).Trim()
+          $body = (git tag -l --format="%(contents:body)" $tag | Out-String).Trim()
+          if ($subject) {
+            ("$subject`n`n$body") | Out-File "release-package\release-notes.md" -Encoding utf8
+          } else {
+            ("// Notes générées depuis le template : renseignez le message du tag annoté pour des notes dédiées.") |
+              Out-File "release-package\release-notes.md" -Encoding utf8
+            Get-Content "..\..\docs\desktop-release-notes-template.md" |
+              Out-File "release-package\release-notes.md" -Encoding utf8 -Append
+          }
+          $assets = Get-ChildItem "release-package" -File |
+            Where-Object { $_.Name -ne "release-notes.md" } |
+            ForEach-Object { $_.FullName }
+          gh release view $tag -R "${{ github.repository }}" --json name --jq .name 2>$null
+          if ($LASTEXITCODE -eq 0) {
+            "Release $tag existante — reprise idempotente des assets (clobber)."
+            gh release upload $tag $assets -R "${{ github.repository }}" --clobber
+          } else {
+            gh release create $tag $assets -R "${{ github.repository }}" --title $title --notes-file "release-package\release-notes.md"
+            if ($tag -match "-") {
+              gh release edit $tag -R "${{ github.repository }}" --prerelease
+            }
+          }
+          "Publication terminée : $title"

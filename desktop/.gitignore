@@ -2,3 +2,12 @@ node_modules/
 dist/
 src-tauri/target/
 *.log
+
+# Updater signing key (the workstation's test key; any production key lives
+# outside the repository). Only the public half is committed, inside
+# tauri.conf.json.
+/.updater/
+
+# Generated release package: installers, Authenticode+updater signatures,
+# latest.json, SHA256SUMS.
+/release-package/
