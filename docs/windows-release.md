@@ -67,7 +67,11 @@ cd desktop && node scripts/release-check.mjs
 
 # 2. Bump de version (committé) si nécessaire, avec test local complet
 node scripts/set-desktop-version.mjs 0.1.1
-npm run build          # front-end (tsc + vite)
+
+# Build front-end local : sans URL de production, le build échoue
+# volontairement (garde-fou §40). Pour un artefact distribuable :
+#   export VITE_API_BASE_URL=https://…   ($env:VITE_API_BASE_URL en PowerShell)
+npm run build
 cd src-tauri && cargo test && cd ..
 
 # 3. Tagger un commit de main déjà vert (les 5 jobs standard) : le
