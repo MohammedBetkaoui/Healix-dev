@@ -6,20 +6,22 @@ import {
 import {
   Button, ListState, MetricStrip, PageHeader, StatusBadge, ageFromBirthDate, cn, formatBirthDate, formatDate, initials,
 } from "../dashboard-ui";
+import { AiReportsPanel } from "../components/AiReportCard";
 import { useLoad } from "../data";
 import { formatDateOnly } from "../dates";
-import { listConsultations, listPrescriptions } from "../desktop-api";
+import { listAiReports, listConsultations, listPrescriptions } from "../desktop-api";
 import { fr } from "../i18n/fr";
 import { consultationState, prescriptionStatus } from "../statuses";
 import type { LocalPatient } from "../types";
 import { WEB_APP_URL } from "../web-app";
 
-type RecordTab = "SUMMARY" | "CONSULTATIONS" | "PRESCRIPTIONS";
+export type RecordTab = "SUMMARY" | "CONSULTATIONS" | "PRESCRIPTIONS" | "AI";
 
 const RECORD_TABS: Array<{ key: RecordTab; label: string }> = [
   { key: "SUMMARY", label: "Résumé" },
   { key: "CONSULTATIONS", label: "Consultations" },
   { key: "PRESCRIPTIONS", label: "Ordonnances" },
+  { key: "AI", label: fr.ai.tab },
 ];
 
 const GENDERS: Record<string, string> = { MALE: "Homme", FEMALE: "Femme" };
@@ -57,31 +59,38 @@ export function PatientRecordPage({
   patient,
   version,
   offline,
+  initialTab = "SUMMARY",
   onNewConsultation,
   onNewPrescription,
   onOpenConsultation,
   onOpenPrescription,
   onOpenHealixAi,
+  onOpenAiRun,
 }: {
   patient: LocalPatient;
   // Bumped after a synchronization or a save: the lists reload.
   version: number;
   offline: boolean;
+  // The section the record opens on (the AI results of the home page lead to "AI").
+  initialTab?: RecordTab;
   onNewConsultation: () => void;
   onNewPrescription: () => void;
   onOpenConsultation: (localId: string) => void;
   onOpenPrescription: (localId: string) => void;
   onOpenHealixAi: () => void;
+  onOpenAiRun: (runId: string) => void;
 }) {
-  const [tab, setTab] = useState<RecordTab>("SUMMARY");
+  const [tab, setTab] = useState<RecordTab>(initialTab);
   const summary = useMemo(() => patient.medicalSummary ?? {}, [patient.medicalSummary]);
   const consultations = useLoad(() => listConsultations(patient.id), [patient.id, version]);
   const prescriptions = useLoad(() => listPrescriptions(patient.id), [patient.id, version]);
+  const aiReports = useLoad(() => listAiReports(patient.id), [patient.id, version]);
   const fullName = `${patient.firstName} ${patient.lastName}`;
   const arabicName = `${patient.firstNameAr ?? ""} ${patient.lastNameAr ?? ""}`.trim();
   const age = ageFromBirthDate(patient.birthDate);
   const consultationCount = consultations.data?.length ?? 0;
   const prescriptionCount = prescriptions.data?.length ?? 0;
+  const aiCount = aiReports.data?.length ?? 0;
 
   return (
     <section className="workspace-stack" aria-label={`Dossier de ${fullName}`}>
@@ -125,13 +134,23 @@ export function PatientRecordPage({
                   {label}
                   {key === "CONSULTATIONS" && consultationCount ? <span className="team-tab-count">{consultationCount}</span> : null}
                   {key === "PRESCRIPTIONS" && prescriptionCount ? <span className="team-tab-count">{prescriptionCount}</span> : null}
+                  {key === "AI" && aiCount ? <span className="team-tab-count">{aiCount}</span> : null}
                 </button>
               </li>
             ))}
           </ul>
         </nav>
 
-        {tab === "PRESCRIPTIONS" ? (
+        {tab === "AI" ? (
+          <AiReportsPanel
+            reports={aiReports.data ?? []}
+            loading={aiReports.loading}
+            error={aiReports.error}
+            offline={offline}
+            onOpenRun={onOpenAiRun}
+            onOpenHealixAi={onOpenHealixAi}
+          />
+        ) : tab === "PRESCRIPTIONS" ? (
           <ListState
             loading={prescriptions.loading}
             error={prescriptions.error}

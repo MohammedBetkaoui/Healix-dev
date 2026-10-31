@@ -23,6 +23,7 @@ vi.mock("./desktop-api", () => ({
   listAppointments: vi.fn(),
   listConsultations: vi.fn(),
   listPrescriptions: vi.fn(),
+  listAiReports: vi.fn(),
   getConsultation: vi.fn(),
   getLocalPrescription: vi.fn(),
   saveConsultationDraft: vi.fn(),
@@ -108,6 +109,7 @@ function installDevice() {
       })),
   );
   mocked.searchLocalMedications.mockResolvedValue([]);
+  mocked.listAiReports.mockResolvedValue([]);
   mocked.recordPrescriptionPrint.mockResolvedValue(undefined);
   print.printHtml.mockReset();
   print.printHtml.mockResolvedValue(undefined);

@@ -3,7 +3,8 @@ import { Stethoscope } from "lucide-react";
 import { formFromDetail, inputFromForm, newForm, type ConsultationForm, type FormProblems } from "../consultation-form";
 import { ListState } from "../dashboard-ui";
 import { useLoad } from "../data";
-import { getConsultation, saveConsultationDraft } from "../desktop-api";
+import { newestFirst } from "../ai-reports";
+import { getConsultation, listAiReports, saveConsultationDraft } from "../desktop-api";
 import { describeError } from "../errors";
 import { ConsultationEditorPage, type SaveState } from "./ConsultationEditorPage";
 import { ConsultationView } from "./ConsultationView";
@@ -112,6 +113,11 @@ function Editor({ initial, patientName, onSaved, onClose, onWritePrescription }:
     [],
   );
 
+  // The last three validated AI results of the patient: context only, nothing is
+  // inserted unless the doctor asks. A failed read just leaves the panel out.
+  const aiLoaded = useLoad(() => listAiReports(form.patientId), [form.patientId]);
+  const aiReports = newestFirst(aiLoaded.data ?? []).slice(0, 3);
+
   const close = async () => {
     if (dirtyRef.current) await save("auto");
     onClose();
@@ -125,6 +131,7 @@ function Editor({ initial, patientName, onSaved, onClose, onWritePrescription }:
       saveState={saveState}
       problems={problems}
       finished={finished}
+      aiReports={aiReports}
       onFieldBlur={() => {
         if (dirtyRef.current) void saveRef.current("auto");
       }}

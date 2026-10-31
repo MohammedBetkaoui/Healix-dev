@@ -61,8 +61,41 @@ export type SyncStatus = {
   conflictCount: number;
   lockedCount?: number;
   lastSyncedAt?: string | null;
+  // When the validated AI results were last brought up to date, and whether the
+  // latest attempt failed ("Résultats IA non mis à jour"). The sync itself is fine.
+  aiReportsSyncedAt?: string | null;
+  aiReportsFailed?: boolean;
   processed?: number;
   total?: number;
+};
+
+// A validated or corrected AI analysis, as the device keeps it (GET /sync/ai-reports):
+// conclusions and figures only, never an image or a path.
+export type AiReportPrediction = { label: string; probability: number };
+
+export type AiReport = {
+  runId: string;
+  patientId: string;
+  pipeline: string;
+  moduleLabel: string;
+  createdAt: string;
+  decidedAt: string | null;
+  decisionStatus: "VALIDATED" | "CORRECTED";
+  decisionLabel: string | null;
+  decisionLabels: string[] | null;
+  clinicianImpression: string | null;
+  modelDecision: string | null;
+  modelLabels: string[] | null;
+  topPredictions: AiReportPrediction[];
+  measures: Record<string, number | null>;
+  classificationModelId: string | null;
+  classificationWeightsSha12: string | null;
+  segmentationModelId: string | null;
+  segmentationWeightsSha12: string | null;
+  decidedByName: string | null;
+  reportNumber: string | null;
+  reportSha256: string | null;
+  fetchedAt: string;
 };
 
 export type ConsultationDraftInput = {

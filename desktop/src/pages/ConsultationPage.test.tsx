@@ -4,7 +4,7 @@ import { ConsultationPage } from "./ConsultationPage";
 import * as api from "../desktop-api";
 import { consultationDetail } from "../test/fixtures";
 
-vi.mock("../desktop-api", () => ({ getConsultation: vi.fn(), saveConsultationDraft: vi.fn() }));
+vi.mock("../desktop-api", () => ({ getConsultation: vi.fn(), saveConsultationDraft: vi.fn(), listAiReports: vi.fn(() => Promise.resolve([])), }));
 
 const noop = async () => undefined;
 

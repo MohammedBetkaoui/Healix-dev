@@ -31,3 +31,13 @@ export async function openWebPath(path: string) {
   if (!WEB_APP_URL) return;
   await openUrl(`${WEB_APP_URL}${path}`);
 }
+
+// The page of an AI analysis on the Web platform, where its images and its report are.
+export function aiRunUrl(base: string, runId: string): string {
+  return `${base}/doctor/ai-analyses/runs/${encodeURIComponent(runId)}`;
+}
+
+export async function openAiRun(runId: string) {
+  if (!WEB_APP_URL) return;
+  await openUrl(aiRunUrl(WEB_APP_URL, runId));
+}

@@ -2,7 +2,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { fireEvent, render, screen, within } from "@testing-library/react";
 import App from "./App";
 import * as api from "./desktop-api";
-import { appointment, consultationDetail, consultationSummary, inHours, online, patient } from "./test/fixtures";
+import { aiReport, appointment, consultationDetail, consultationSummary, inHours, online, patient } from "./test/fixtures";
 
 vi.mock("./desktop-api", () => ({
   API_BASE: "https://api.example.test/api",
@@ -12,6 +12,7 @@ vi.mock("./desktop-api", () => ({
   listAppointments: vi.fn(),
   listConsultations: vi.fn(),
   listPrescriptions: vi.fn(),
+  listAiReports: vi.fn(),
   getConsultation: vi.fn(),
   saveConsultationDraft: vi.fn(),
   syncNow: vi.fn(),
@@ -34,6 +35,7 @@ beforeEach(() => {
   ]);
   mocked.listConsultations.mockResolvedValue([]);
   mocked.listPrescriptions.mockResolvedValue([]);
+  mocked.listAiReports.mockResolvedValue([]);
   mocked.syncNow.mockResolvedValue(online);
 });
 
@@ -87,5 +89,16 @@ describe("App routing", () => {
     expect(await screen.findByRole("heading", { level: 1, name: "Dossiers patients" })).toBeTruthy();
     expect(screen.getAllByText("Amine Benali").length).toBeGreaterThan(0);
     expect(within(document.querySelector("#clinical-sidebar") as HTMLElement).getByRole("button", { name: /^Patients/ }).getAttribute("aria-current")).toBe("page");
+  });
+
+  it("leads from the home page to the Analyses IA tab of the record, where the result is read", async () => {
+    mocked.listAiReports.mockResolvedValue([aiReport("run-1", "7")]);
+    render(<App />);
+    const section = (await screen.findByRole("heading", { name: "Résultats IA récents" })).closest("section") as HTMLElement;
+    fireEvent.click(await within(section).findByRole("button", { name: /Amine Benali/ }));
+
+    expect((await screen.findByRole("button", { name: /^Analyses IA/ })).getAttribute("aria-current")).toBe("page");
+    expect(await screen.findByRole("article")).toBeTruthy();
+    expect(screen.getByRole("heading", { level: 1, name: "Amine Benali" })).toBeTruthy();
   });
 });

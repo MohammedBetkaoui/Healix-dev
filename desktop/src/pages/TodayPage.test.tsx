@@ -8,6 +8,7 @@ vi.mock("../desktop-api", () => ({
   listAppointments: vi.fn(),
   listConsultations: vi.fn(),
   listPrescriptions: vi.fn(),
+  listAiReports: vi.fn(),
 }));
 
 const mocked = vi.mocked(api);
@@ -19,6 +20,7 @@ function renderToday(overrides: Partial<Parameters<typeof TodayPage>[0]> = {}) {
     version: 0,
     recentPatients: [patient("9")],
     onOpenPatient: vi.fn(),
+    onOpenPatientAi: vi.fn(),
     onStartConsultation: vi.fn(),
     onOpenConsultation: vi.fn(),
     onOpenPrescription: vi.fn(),
@@ -32,6 +34,7 @@ beforeEach(() => {
   mocked.listAppointments.mockResolvedValue([]);
   mocked.listConsultations.mockResolvedValue([]);
   mocked.listPrescriptions.mockResolvedValue([]);
+  mocked.listAiReports.mockResolvedValue([]);
 });
 
 describe("TodayPage", () => {

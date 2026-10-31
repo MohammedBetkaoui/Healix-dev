@@ -1,5 +1,6 @@
 import { invoke as tauriInvoke } from "@tauri-apps/api/core";
 import type {
+  AiReport,
   ConsultationDetail,
   ConsultationDraftInput,
   ConsultationSummary,
@@ -95,6 +96,19 @@ export async function getLocalPatient(patientId: string) {
 // A prescription printed here is noted in the local audit trail.
 export async function recordPrescriptionPrint(localId: string) {
   return invokeDesktop<void>("record_prescription_print", { localId });
+}
+
+// The validated AI results of the device, most recent decision first. `since` is an
+// ISO-8601 instant in UTC. Read-only: the desktop never starts an analysis.
+export async function listAiReports(patientId?: string | null, since?: string | null) {
+  return invokeDesktop<AiReport[]>("list_ai_reports", {
+    patientId: patientId ?? null,
+    since: since ?? null,
+  });
+}
+
+export async function getAiReport(runId: string) {
+  return invokeDesktop<AiReport>("get_ai_report", { runId });
 }
 
 export async function getConsultation(localId: string) {

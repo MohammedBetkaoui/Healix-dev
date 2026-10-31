@@ -1,4 +1,4 @@
-import { CheckCircle2, Lock, RefreshCw, TriangleAlert, WifiOff } from "lucide-react";
+import { CheckCircle2, Lock, RefreshCw, Sparkles, TriangleAlert, WifiOff } from "lucide-react";
 import { Button, MetricStrip, Notice, PageHeader, cn, formatDate } from "../dashboard-ui";
 import { fr } from "../i18n/fr";
 import type { SyncStatus } from "../types";
@@ -65,6 +65,31 @@ export function SyncPage({ status, onSync }: { status: SyncStatus; onSync: () =>
           <p className="mt-0.5 text-xs opacity-90">
             {status.pendingCount ? fr.nav.pendingOperations(status.pendingCount) : "Toutes les données sont synchronisées"}
             {" · "}Dernière synchronisation : {formatDate(status.lastSyncedAt)}
+          </p>
+        </div>
+      </section>
+
+      <section
+        aria-label={fr.ai.sync.label}
+        role="status"
+        data-ai-sync={status.aiReportsFailed ? "failed" : "ok"}
+        className={cn(
+          "flex items-start gap-3 rounded-[var(--radius-md)] border px-5 py-4",
+          status.aiReportsFailed
+            ? "border-[var(--warning-line)] bg-[var(--warning-soft)] text-[var(--warning-ink)]"
+            : "border-[var(--line)] bg-[var(--panel)] text-[var(--ink)]",
+        )}
+      >
+        {status.aiReportsFailed ? (
+          <TriangleAlert aria-hidden="true" size={18} strokeWidth={1.9} className="mt-0.5 shrink-0" />
+        ) : (
+          <Sparkles aria-hidden="true" size={18} strokeWidth={1.9} className="mt-0.5 shrink-0 text-[var(--accent-dark)]" />
+        )}
+        <div className="min-w-0">
+          {status.aiReportsFailed ? <p className="text-sm font-semibold">{fr.ai.sync.failed}</p> : null}
+          <p className={cn("text-xs", !status.aiReportsFailed && "text-[var(--ink-soft)]")}>
+            {status.aiReportsFailed ? `${fr.ai.sync.failedHint} ` : ""}
+            {fr.ai.sync.updatedAt} : {status.aiReportsSyncedAt ? formatDate(status.aiReportsSyncedAt) : fr.ai.sync.never}
           </p>
         </div>
       </section>

@@ -1,10 +1,14 @@
-import { CheckCircle2, FilePlus2, Plus, Stethoscope, Trash2, TriangleAlert } from "lucide-react";
+import { useState } from "react";
+import { CheckCircle2, ChevronDown, FilePlus2, Plus, Quote, Sparkles, Stethoscope, Trash2, TriangleAlert } from "lucide-react";
+import { appendCitation, citationOf, conclusionOf, decidedOn, isCited, specialtyColor, specialtyOf } from "../ai-reports";
 import {
   addDiagnosis, hasClinicalContent, MAX_DIAGNOSES, removeDiagnosis, setPrimaryDiagnosis,
   type ConsultationForm, type FormProblems,
 } from "../consultation-form";
 import { Button, Field, Notice, PageHeader, Pill, StatusBadge, cn, inputClass, textareaClass } from "../dashboard-ui";
-import { formatTime } from "../dates";
+import { capitalize, formatTime } from "../dates";
+import { fr } from "../i18n/fr";
+import type { AiReport } from "../types";
 import { bmi, formatBmi, VITAL_FIELDS, vitalFlags, vitalsFromForm, type FlagKey, type VitalFlag, type VitalKey } from "../vitals";
 
 export type SaveState =
@@ -52,13 +56,66 @@ function Flag({ flag, detail }: { flag: VitalFlag; detail: string }) {
   );
 }
 
+// The last validated AI results of the patient, folded away by default. Nothing
+// is written into the consultation unless the doctor clicks "Citer", and what is
+// inserted can be edited like the rest of the text.
+function AiContext({ reports, assessment, onCite }: { reports: AiReport[]; assessment: string; onCite: (report: AiReport) => void }) {
+  const [open, setOpen] = useState(false);
+  if (!reports.length) return null;
+  return (
+    <section className="surface-section overflow-hidden" aria-labelledby="consultation-ai" data-ai-context="">
+      <h2 id="consultation-ai" className="text-sm font-semibold text-[var(--ink)]">
+        <button
+          type="button"
+          className="flex w-full items-center gap-2 px-5 py-4 text-start sm:px-6"
+          aria-expanded={open}
+          aria-controls="consultation-ai-body"
+          onClick={() => setOpen((current) => !current)}
+        >
+          <Sparkles className="h-4 w-4 text-[var(--accent-dark)]" strokeWidth={1.8} aria-hidden="true" />
+          {fr.ai.context.title}
+          <span className="team-tab-count">{reports.length}</span>
+          <span className="ms-1 text-xs font-normal text-[var(--ink-faint)]">{fr.ai.context.hint}</span>
+          <ChevronDown className={cn("ms-auto h-4 w-4 transition", open && "rotate-180")} strokeWidth={1.8} aria-hidden="true" />
+        </button>
+      </h2>
+      {open ? (
+        <div id="consultation-ai-body" className="border-t border-[var(--line)]">
+          <p className="px-5 pt-3 text-[0.68rem] text-[var(--ink-faint)] sm:px-6" data-ai-disclaimer="">{fr.ai.disclaimer}</p>
+          <ul className="divide-y divide-[var(--line)]">
+            {reports.map((report) => {
+              const cited = isCited(assessment, report);
+              const specialty = specialtyOf(report.pipeline);
+              return (
+                <li key={report.runId} className="flex flex-wrap items-center gap-3 px-5 py-3.5 sm:px-6" data-specialty={specialty} style={{ borderInlineStart: `3px solid ${specialtyColor(specialty)}` }}>
+                  <span className="min-w-0 flex-1">
+                    <span className="block text-sm font-semibold text-[var(--ink)]">{capitalize(conclusionOf(report))}</span>
+                    <span className="block text-xs text-[var(--ink-faint)]">
+                      {report.moduleLabel} · {decidedOn(report)}{report.reportNumber ? ` · ${report.reportNumber}` : ""}
+                    </span>
+                  </span>
+                  <StatusBadge label={fr.ai.decisions[report.decisionStatus] ?? report.decisionStatus} tone={report.decisionStatus === "CORRECTED" ? "warning" : "success"} />
+                  <Button variant="outline" size="sm" disabled={cited} aria-label={`${cited ? fr.ai.context.cited : fr.ai.context.cite} : ${report.moduleLabel}, ${decidedOn(report)}`} onClick={() => onCite(report)}>
+                    <Quote className="h-4 w-4" strokeWidth={1.8} aria-hidden="true" />
+                    {cited ? fr.ai.context.cited : fr.ai.context.cite}
+                  </Button>
+                </li>
+              );
+            })}
+          </ul>
+        </div>
+      ) : null}
+    </section>
+  );
+}
+
 const FLAG_FOR: Record<VitalKey, FlagKey | null> = {
   systolicBp: "bloodPressure", diastolicBp: "bloodPressure", heartRate: "heartRate", respiratoryRate: "respiratoryRate",
   oxygenSaturation: "oxygenSaturation", temperature: "temperature", weightKg: null, heightCm: null,
 };
 
 export function ConsultationEditorPage({
-  patientName, value, onChange, saveState, problems, finished, onFieldBlur, onSave, onFinish, onWritePrescription, onClose,
+  patientName, value, onChange, saveState, problems, finished, aiReports = [], onFieldBlur, onSave, onFinish, onWritePrescription, onClose,
 }: {
   patientName: string;
   value: ConsultationForm;
@@ -68,6 +125,8 @@ export function ConsultationEditorPage({
   problems: FormProblems | null;
   // The consultation was just finished: the prescription is offered.
   finished: boolean;
+  // The last validated AI results of the patient (at most 3), read from this device.
+  aiReports?: AiReport[];
   onFieldBlur: () => void;
   onSave: () => void;
   onFinish: () => void;
@@ -136,6 +195,12 @@ export function ConsultationEditorPage({
           <ul className="space-y-1">{problems.messages.map((message) => <li key={message}>{message}</li>)}</ul>
         </Notice>
       ) : null}
+
+      <AiContext
+        reports={aiReports}
+        assessment={value.assessment}
+        onCite={(report) => onChange({ ...value, assessment: appendCitation(value.assessment, citationOf(report)) })}
+      />
 
       <section className="surface-section p-5 sm:p-6" aria-labelledby="consultation-reason">
         <h2 id="consultation-reason" className="mb-4 text-sm font-semibold text-[var(--ink)]">Motif et histoire de la maladie</h2>

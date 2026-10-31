@@ -10,7 +10,8 @@ import type { LocalPatient } from "../types";
 export type Route =
   | { name: "today" }
   | { name: "patients" }
-  | { name: "patient"; id: string }
+  // `tab`: the section of the record to open on (the AI results of the home page lead to "AI").
+  | { name: "patient"; id: string; tab?: "AI" }
   | { name: "appointments" }
   | { name: "consultations" }
   // A consultation or a prescription: `id` is its local id, or NEW_ID to start

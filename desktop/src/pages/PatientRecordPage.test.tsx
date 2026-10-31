@@ -4,11 +4,12 @@ import { PatientRecordPage } from "./PatientRecordPage";
 import * as api from "../desktop-api";
 import { consultationSummary, patient, prescriptionSummary } from "../test/fixtures";
 
-vi.mock("../desktop-api", () => ({ listConsultations: vi.fn(), listPrescriptions: vi.fn() }));
+vi.mock("../desktop-api", () => ({ listConsultations: vi.fn(), listPrescriptions: vi.fn(), listAiReports: vi.fn() }));
 
 beforeEach(() => {
   vi.mocked(api).listConsultations.mockResolvedValue([]);
   vi.mocked(api).listPrescriptions.mockResolvedValue([]);
+  vi.mocked(api).listAiReports.mockResolvedValue([]);
 });
 
 function renderRecord(record = patient("1"), extra: Partial<Parameters<typeof PatientRecordPage>[0]> = {}) {
@@ -21,6 +22,7 @@ function renderRecord(record = patient("1"), extra: Partial<Parameters<typeof Pa
     onOpenConsultation: vi.fn(),
     onOpenPrescription: vi.fn(),
     onOpenHealixAi: vi.fn(),
+    onOpenAiRun: vi.fn(),
     ...extra,
   };
   render(<PatientRecordPage {...props} />);

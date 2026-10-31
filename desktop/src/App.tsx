@@ -23,7 +23,7 @@ import { SyncPage } from "./pages/SyncPage";
 import { TodayPage } from "./pages/TodayPage";
 import { PatientDirectory } from "./PatientDirectory";
 import type { LocalAppointment, LocalPatient, SessionStatus, SyncStatus } from "./types";
-import { openHealixAi } from "./web-app";
+import { openAiRun, openHealixAi } from "./web-app";
 
 // Where "Retour" leads when the page was not opened from another one.
 const parentOf = (route: Route): Route =>
@@ -166,9 +166,12 @@ function App() {
     recentPatients.find((row) => row.id === id) ??
     (await listLocalPatients("")).find((row) => row.id === id);
 
-  const openPatientById = async (id: string) => {
+  const openPatientById = async (id: string, tab?: "AI") => {
     const patient = await findPatient(id);
-    if (patient) openPatient(patient);
+    if (!patient) return;
+    setSelected(patient);
+    setRecentPatients((current) => pushRecentPatient(current, patient));
+    go({ name: "patient", id: patient.id, tab });
   };
 
   const navigate = (next: Route) => {
@@ -225,6 +228,7 @@ function App() {
         version={version}
         recentPatients={recentPatients}
         onOpenPatient={(id) => void openPatientById(id)}
+        onOpenPatientAi={(id) => void openPatientById(id, "AI")}
         onStartConsultation={startConsultation}
         onOpenConsultation={openConsultation}
         onOpenPrescription={openPrescription}
@@ -237,6 +241,7 @@ function App() {
         patient={selected}
         version={version}
         offline={offline}
+        initialTab={route.tab}
         onNewConsultation={() =>
           go({ name: "consultation", id: NEW_ID, patientId: selected.id, patientName: `${selected.firstName} ${selected.lastName}` })
         }
@@ -246,6 +251,7 @@ function App() {
         onOpenConsultation={openConsultation}
         onOpenPrescription={openPrescription}
         onOpenHealixAi={() => void openHealixAi(selected.id).catch(() => undefined)}
+        onOpenAiRun={(runId) => void openAiRun(runId).catch(() => undefined)}
       />
     ) : route.name === "appointments" ? (
       <AppointmentsPage
