@@ -34,6 +34,12 @@ export class SyncController {
     return this.sync.medications(request.offlineActor);
   }
 
+  // Read-only, like medications: the validated AI conclusions of the scope.
+  @Get('ai-reports')
+  aiReports(@Req() request: OfflineAuthenticatedRequest) {
+    return this.sync.aiReports(request.offlineActor);
+  }
+
   @Post('push')
   push(@Req() request: OfflineAuthenticatedRequest, @Body() dto: SyncPushDto) {
     return this.sync.push(request.offlineActor, dto);

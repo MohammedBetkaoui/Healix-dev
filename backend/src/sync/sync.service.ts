@@ -15,6 +15,14 @@ import {
   printIdentitySelect,
   toPrintIdentity,
 } from '../prescriptions/prescriber-identity';
+import {
+  AI_REPORT_DECISIONS,
+  AI_REPORT_STATUS,
+  type AiReportRun,
+  aiReportRunSelect,
+  keepMostRecentPerPatient,
+  toAiReportSyncPayload,
+} from './ai-report-sync';
 import { appointmentSyncSelect, toAppointmentSyncPayload } from './appointment-sync-change';import {
   consultationSyncSelect,
   recordConsultationSyncChange,
@@ -245,6 +253,62 @@ export class SyncService {
       })),
       serverTime: new Date(),
     };
+  }
+
+  // Offline AI results: the conclusions a physician already validated or
+  // corrected on the web, for the patients of this device's scope. Read-only
+  // and separate from the change feed (nothing here is a sync operation); the
+  // desktop replaces its cache with the answer, and drops what `runIds` no
+  // longer lists. The payload is a field-by-field whitelist (ai-report-sync.ts).
+  async aiReports(actor: OfflineActor) {
+    const { patientIds } = await this.scope.resolve(actor);
+    const candidates = await this.prisma.aiAnalysisRun.findMany({
+      where: {
+        patientId: { in: patientIds },
+        patient: { workspaceId: actor.workspaceId },
+        status: AI_REPORT_STATUS,
+        decisionStatus: { in: [...AI_REPORT_DECISIONS] },
+        decidedAt: { not: null },
+      },
+      orderBy: [{ decidedAt: 'desc' }, { id: 'asc' }],
+      select: { id: true, patientId: true },
+    });
+    const kept = keepMostRecentPerPatient(candidates);
+    const rows: AiReportRun[] = [];
+    for (let index = 0; index < kept.length; index += 500) {
+      rows.push(
+        ...(await this.readAiReportRows(
+          kept.slice(index, index + 500).map((row) => row.id),
+        )),
+      );
+    }
+    const byId = new Map(rows.map((row) => [row.id, row]));
+    // The recency order of `kept`, whatever order the second read answered in.
+    const reports = kept.flatMap((row) => {
+      const run = byId.get(row.id);
+      return run ? [toAiReportSyncPayload(run)] : [];
+    });
+    await this.prisma.auditLog.create({
+      data: {
+        userId: actor.userId,
+        action: 'AI_REPORTS_READ_OFFLINE',
+        entityType: 'OfflineDevice',
+        entityId: actor.deviceId,
+        metadata: { deviceId: actor.deviceId, reportCount: reports.length },
+      },
+    });
+    return {
+      reports,
+      runIds: reports.map((report) => report.runId),
+      serverTime: new Date(),
+    };
+  }
+
+  private readAiReportRows(ids: string[]) {
+    return this.prisma.aiAnalysisRun.findMany({
+      where: { id: { in: ids } },
+      select: aiReportRunSelect,
+    });
   }
 
   async pull(actor: OfflineActor, cursor?: string) {
