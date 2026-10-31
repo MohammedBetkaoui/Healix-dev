@@ -141,6 +141,18 @@ CREATE TABLE IF NOT EXISTS sync_state (
   id INTEGER PRIMARY KEY CHECK(id = 1), cursor TEXT NOT NULL, last_synced_at TEXT,
   last_clock_seen INTEGER NOT NULL DEFAULT 0
 );
+-- Validated AI conclusions of the patients on this device, read-only, brought by
+-- GET /sync/ai-reports. Never an image, a path or a PDF. Emptied with the patient
+-- and at logout.
+CREATE TABLE IF NOT EXISTS ai_report_cache (
+  run_id TEXT PRIMARY KEY,
+  patient_server_id TEXT NOT NULL,
+  pipeline TEXT NOT NULL,
+  decided_at TEXT NOT NULL,
+  payload TEXT NOT NULL,
+  fetched_at TEXT NOT NULL
+);
+CREATE INDEX IF NOT EXISTS ai_report_cache_patient_idx ON ai_report_cache(patient_server_id, decided_at);
 CREATE TABLE IF NOT EXISTS local_audit_events (
   id TEXT PRIMARY KEY, action TEXT NOT NULL, entity_type TEXT NOT NULL, entity_id TEXT NOT NULL,
   actor_id TEXT NOT NULL, device_id TEXT NOT NULL, occurred_at TEXT NOT NULL, synced_at TEXT
@@ -150,7 +162,7 @@ INSERT OR IGNORE INTO sync_state(id, cursor) VALUES (1, '');
 
 // Columns added after the first release; CREATE TABLE IF NOT EXISTS cannot
 // upgrade an existing database file, so opening the storage rechecks them.
-const LOCAL_MIGRATIONS: [(&str, &str, &str); 20] = [
+const LOCAL_MIGRATIONS: [(&str, &str, &str); 22] = [
     (
         "patients",
         "locked",
@@ -184,6 +196,10 @@ const LOCAL_MIGRATIONS: [(&str, &str, &str); 20] = [
     ("local_workspace", "organization_profile", "ALTER TABLE local_workspace ADD COLUMN organization_profile TEXT"),
     // Free text of a local audit event (the reason of an allergy confirmation).
     ("local_audit_events", "detail", "ALTER TABLE local_audit_events ADD COLUMN detail TEXT"),
+    // The AI results refresh of the last sync session: when it last worked, and
+    // whether the latest attempt failed (the sync itself never fails for it).
+    ("sync_state", "ai_reports_synced_at", "ALTER TABLE sync_state ADD COLUMN ai_reports_synced_at TEXT"),
+    ("sync_state", "ai_reports_failed", "ALTER TABLE sync_state ADD COLUMN ai_reports_failed INTEGER NOT NULL DEFAULT 0"),
 ];
 
 // What the storage layer needs from its host: the folder of the encrypted
@@ -272,7 +288,7 @@ fn string(value: &Value, key: &str) -> Result<String, String> {
         .ok_or_else(|| format!("Réponse serveur incomplète: {key}."))
 }
 
-fn now_iso(connection: &Connection) -> Result<String, String> {
+pub(crate) fn now_iso(connection: &Connection) -> Result<String, String> {
     connection
         .query_row("SELECT strftime('%Y-%m-%dT%H:%M:%fZ', 'now')", [], |row| {
             row.get(0)
@@ -293,6 +309,8 @@ fn purge_clinical_data(tx: &Transaction<'_>) -> rusqlite::Result<()> {
          DELETE FROM prescription_drafts;
          DELETE FROM patient_medical_summaries;
          DELETE FROM patients;
+         DELETE FROM ai_report_cache;
+         UPDATE sync_state SET ai_reports_synced_at=NULL, ai_reports_failed=0;
          DELETE FROM sync_metadata;
          DELETE FROM local_audit_events;
          DELETE FROM local_device;
@@ -877,6 +895,10 @@ fn purge_patient(tx: &Transaction<'_>, patient_id: &str) -> rusqlite::Result<()>
         params![patient_id],
     )?;
     tx.execute(
+        "DELETE FROM ai_report_cache WHERE patient_server_id=?1",
+        params![patient_id],
+    )?;
+    tx.execute(
         "DELETE FROM patient_medical_summaries WHERE patient_server_id=?1",
         params![patient_id],
     )?;
@@ -896,6 +918,12 @@ fn lock_patient(tx: &Transaction<'_>, patient_id: &str, reason: &str) -> rusqlit
     tx.execute(
         "UPDATE patients SET locked=1, lock_reason=?2 WHERE server_id=?1",
         params![patient_id, reason],
+    )?;
+    // A folder the scope no longer covers keeps its unsent data, not the AI
+    // results the server stopped offering.
+    tx.execute(
+        "DELETE FROM ai_report_cache WHERE patient_server_id=?1",
+        params![patient_id],
     )?;
     Ok(())
 }
@@ -1748,6 +1776,10 @@ pub struct SyncStatus {
     #[serde(default)]
     pub locked_count: i64,
     pub last_synced_at: Option<String>,
+    // When the AI results were last brought up to date, and whether the latest
+    // attempt failed ("Résultats IA non mis à jour"). Never a reason to fail a sync.
+    pub ai_reports_synced_at: Option<String>,
+    pub ai_reports_failed: bool,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub processed: Option<i64>,
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -1755,7 +1787,10 @@ pub struct SyncStatus {
 }
 
 pub fn sync_status(app: &EngineEnv) -> Result<SyncStatus, String> {
-    let connection = open(app)?;
+    sync_status_on(&open(app)?)
+}
+
+pub(crate) fn sync_status_on(connection: &Connection) -> Result<SyncStatus, String> {
     let pending_count = connection
         .query_row(
             "SELECT COUNT(*) FROM sync_outbox WHERE status IN ('PENDING','RETRYABLE')",
@@ -1782,6 +1817,13 @@ pub fn sync_status(app: &EngineEnv) -> Result<SyncStatus, String> {
             |row| row.get(0),
         )
         .map_err(|_| "État sync indisponible.".to_string())?;
+    let (ai_reports_synced_at, ai_reports_failed): (Option<String>, i64) = connection
+        .query_row(
+            "SELECT ai_reports_synced_at, ai_reports_failed FROM sync_state WHERE id=1",
+            [],
+            |row| Ok((row.get(0)?, row.get(1)?)),
+        )
+        .map_err(|_| "État des résultats IA indisponible.".to_string())?;
     // Locked folders mean the Server tightened the scope: the UI must show
     // the explicit state instead of a generic online/offline pair.
     let state = if conflict_count > 0 {
@@ -1797,6 +1839,8 @@ pub fn sync_status(app: &EngineEnv) -> Result<SyncStatus, String> {
         conflict_count,
         locked_count,
         last_synced_at,
+        ai_reports_synced_at,
+        ai_reports_failed: ai_reports_failed != 0,
         processed: None,
         total: None,
     })
@@ -2570,6 +2614,30 @@ pub(crate) fn memory_db_for_tests() -> Connection {
     connection.execute_batch(SCHEMA).expect("schema");
     apply_local_migrations(&connection).expect("local migrations");
     connection
+}
+
+#[cfg(test)]
+pub(crate) fn schema_for_tests() -> &'static str {
+    SCHEMA
+}
+
+#[cfg(test)]
+pub(crate) fn upgrade_for_tests(connection: &Connection) {
+    apply_local_migrations(connection).expect("local migrations");
+}
+
+#[cfg(test)]
+pub(crate) fn purge_clinical_data_for_tests(connection: &mut Connection) {
+    let tx = connection.transaction().expect("transaction");
+    purge_clinical_data(&tx).expect("purge");
+    tx.commit().expect("commit");
+}
+
+#[cfg(test)]
+pub(crate) fn lock_patient_for_tests(connection: &mut Connection, patient_id: &str) {
+    let tx = connection.transaction().expect("transaction");
+    lock_patient(&tx, patient_id, crate::protocol::SCOPE_REVOKED_LOCK_REASON).expect("lock");
+    tx.commit().expect("commit");
 }
 
 #[cfg(test)]

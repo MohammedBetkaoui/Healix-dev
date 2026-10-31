@@ -4,6 +4,7 @@ use serde_json::{json, Value};
 use std::time::Duration;
 
 use crate::{
+    ai_reports,
     database::{self, EngineEnv},
     failpoint,
     protocol::{sha256_hex, EMPTY_BODY_SHA256},
@@ -202,6 +203,21 @@ fn sync_gate() -> &'static tokio::sync::Mutex<()> {
     GATE.get_or_init(|| tokio::sync::Mutex::new(()))
 }
 
+// The validated AI results are read after the exchange of operations, by a call
+// of their own. Whatever happens to it, the synchronization has already done its
+// job: a failure is recorded as a warning ("Résultats IA non mis à jour") and the
+// previous results stay. It uses checked_json, not checked_grant_json: a refusal of
+// this one route must not end the session the other routes just proved valid.
+async fn refresh_ai_reports(app: &EngineEnv, api_base: &str, http: &Client, claims: &GrantClaims) {
+    let fetched = async {
+        let url = endpoint(api_base, "sync/ai-reports")?;
+        let response = signed_request(claims, http, url, reqwest::Method::GET, None).await?;
+        checked_json(response).await
+    }
+    .await;
+    ai_reports::settle(app, fetched);
+}
+
 pub async fn sync_now(
     app: &EngineEnv,
     api_base: &str,
@@ -276,6 +292,7 @@ pub async fn sync_now(
             break;
         }
     }
+    refresh_ai_reports(app, api_base, http, claims).await;
     let mut status = database::sync_status(app)?;
     status.processed = Some(total);
     status.total = Some(total);

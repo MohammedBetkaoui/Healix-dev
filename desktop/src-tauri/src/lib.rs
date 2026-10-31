@@ -1,3 +1,4 @@
+mod ai_reports;
 mod consultation;
 mod database;
 #[cfg(feature = "e2e-harness")]
@@ -109,6 +110,26 @@ fn record_prescription_print(app: AppHandle, local_id: String) -> Result<(), Str
     database::record_prescription_print(&env, &claims, &local_id)
 }
 
+// The validated AI results of the patients on this device, read-only, from the
+// encrypted cache the last synchronization filled. `since`: an ISO-8601 instant.
+#[tauri::command]
+fn list_ai_reports(
+    app: AppHandle,
+    patient_id: Option<String>,
+    since: Option<String>,
+) -> Result<Vec<serde_json::Value>, String> {
+    guarded(&EngineEnv::from_app(&app), |env| {
+        ai_reports::list(env, patient_id.as_deref(), since.as_deref())
+    })
+}
+
+#[tauri::command]
+fn get_ai_report(app: AppHandle, run_id: String) -> Result<serde_json::Value, String> {
+    guarded(&EngineEnv::from_app(&app), |env| {
+        ai_reports::get(env, &run_id)
+    })
+}
+
 #[tauri::command]
 fn list_consultations(
     app: AppHandle,
@@ -175,7 +196,10 @@ fn logout_local(app: AppHandle) {
     security::clear_session();
     // The printed identity (registration number, cabinet) goes with the
     // session; the next login brings it back.
-    let _ = database::clear_print_identity(&EngineEnv::from_app(&app));
+    let env = EngineEnv::from_app(&app);
+    let _ = database::clear_print_identity(&env);
+    // The AI results of the patients go with it too.
+    let _ = ai_reports::clear(&env);
 }
 
 // Address of the HealixDz Web platform (Healix AI lives there), from the same
@@ -230,6 +254,8 @@ pub fn run() {
             list_appointments,
             get_local_patient,
             record_prescription_print,
+            list_ai_reports,
+            get_ai_report,
             list_consultations,
             get_consultation,
             list_prescriptions,
