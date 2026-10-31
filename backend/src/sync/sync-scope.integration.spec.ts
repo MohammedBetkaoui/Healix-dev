@@ -112,7 +112,7 @@ describeWithDatabase('the authoritative offline patient scope', () => {
       const environment = await fixtures.establishmentWithDoctors(1);
       const doctor = environment.doctors[0];
       const actor = actorFor(
-        doctor.user,
+        { id: doctor.user.id, role: UserRole.AFFILIATED_DOCTOR },
         environment.workspace.id,
         establishScope,
       );
@@ -272,7 +272,7 @@ describeWithDatabase('the authoritative offline patient scope', () => {
       const environment = await fixtures.establishmentWithDoctors(1);
       const doctor = environment.doctors[0];
       const actor = actorFor(
-        doctor.user,
+        { id: doctor.user.id, role: UserRole.AFFILIATED_DOCTOR },
         environment.workspace.id,
         establishScope,
       );

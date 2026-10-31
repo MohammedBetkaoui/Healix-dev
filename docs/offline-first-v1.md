@@ -27,6 +27,7 @@ Les routes de synchronisation utilisent `Authorization: Bearer <OfflineAccessGra
 - `POST /api/sync/push`
 - `GET /api/sync/pull?cursor=...`
 - `POST /api/sync/ack`
+- `GET /api/sync/medications` et `GET /api/sync/ai-reports` : deux lectures seules, hors du protocole de synchronisation (voir « Résultats IA hors ligne »).
 
 Le curseur est opaque. Chaque mutation contient un UUID `operationId`; le serveur conserve son résultat et le retourne à l’identique lors d’un retry. Les mises à jour de consultation exigent `baseVersion`. Une version divergente produit `CONFLICT` et ne remplace jamais silencieusement la donnée serveur.
 
@@ -117,6 +118,24 @@ Les valeurs stockées sont **normalisées à la forme du DTO** avant d'être env
 Le bootstrap (et lui seul) apporte deux blocs, tirés de la même source que les instantanés du PDF serveur (`prescriptions/prescriber-identity.ts`) : `prescriber` (nom, spécialité, n° d'Ordre, conseil régional, adresse professionnelle) et `organization` (nom, adresse, wilaya, téléphone du cabinet). Le Desktop n'en garde que ces lignes, dans `local_user.prescriber_profile` et `local_workspace.organization_profile`, les expose avec la session, les **efface à la déconnexion** et les purge au changement d'utilisateur. Le flux de changements d'ordonnance porte l'`contentFingerprint` (pas les instantanés) : une ordonnance validée s'imprime avec son numéro et son empreinte ; un brouillon, avec la mention « Établie hors ligne… numéro attribué lors de la synchronisation » et sans empreinte. Chaque impression, et chaque confirmation malgré une allergie connue, est inscrite dans `local_audit_events` (colonne `detail`).
 
 L'impression ouvre la boîte d'impression du système depuis un cadre caché : elle n'a pas été vérifiée dans WebView2 (voir le journal de qualification, cas 24 à 27).
+
+## Résultats IA hors ligne
+
+Le médecin retrouve, sans Internet, les analyses IA **qu'il a déjà validées ou corrigées sur le web**. Le Desktop ne lance aucune analyse et ne voit aucune image : l'IA tourne sur la plateforme, le médecin la valide, et sa conclusion le suit au cabinet.
+
+**Un point d'accès à part.** `GET /api/sync/ai-reports` est en lecture seule, comme `GET /api/sync/medications`, derrière les mêmes protections (grant hors ligne et preuve de possession de l'appareil). Il n'est ni une opération, ni un curseur : push, pull, ack et reconcile ne changent pas, et `security.rs` non plus. La capacité hors ligne `ai` reste à `false` : elle désigne *lancer* une analyse, pas *relire* une conclusion décidée.
+
+**Périmètre.** Les patients du scope hors ligne de l'appareil (le même `OfflineScopeService` que la synchronisation), dans l'espace de travail de l'appareil. Seules les analyses `SUCCEEDED` dont la décision est `VALIDATED` ou `CORRECTED` : une analyse rejetée, échouée, en cours ou non décidée n'en fait jamais partie. Au plus les 20 plus récentes (par date de décision) de chaque patient. La réponse `{ reports, runIds }` liste dans `runIds` tout ce qui reste valable : le Desktop supprime le reste (analyse annulée, patient sorti du scope).
+
+**Liste blanche.** Chaque rapport est construit champ par champ (`ai-report-sync.ts`, pas une copie de la ligne) : identifiants, module (libellé français), dates, décision (`decisionStatus`, `decisionLabel`, `decisionLabels`, `clinicianImpression`), proposition du modèle (`modelDecision` ou classes positives d'un ECG, et au plus **3** prédictions), mesures du seul pipeline concerné (pathologie : score, seuil, grossissement ; volumétrie : FEVG des deux ventricules, volumes, masse, valeurs indexées ; segmentation : part du masque), traçabilité (modèles, 12 premiers caractères du SHA-256 des poids, médecin qui a décidé), numéro du rapport et SHA-256 du fichier PDF. **Jamais** : un chemin (`*Path`), une clé de stockage, les `ttaScores`, les `nucleiFractions` brutes, les prédictions complètes, le motif d'une décision, un identifiant de document source, une donnée d'un autre patient. Le Desktop reconstruit à son tour chaque rapport depuis les seules clés qu'il connaît avant de le stocker, et refuse tout ce qui n'est pas `VALIDATED` ou `CORRECTED`. Chaque appel écrit un événement d'audit `AI_REPORTS_READ_OFFLINE` (appareil, nombre de rapports).
+
+**Cache local.** Table `ai_report_cache` dans la base SQLCipher (`run_id`, patient, pipeline, date de décision, `payload` JSON, `fetched_at`). `sync_now` appelle la route **après** l'envoi et la réception des modifications, puis remplace le cache par la réponse. **Un échec de cet appel ne fait jamais échouer la synchronisation** (serveur plus ancien, coupure, réponse illisible) : les résultats déjà stockés restent consultables, la page Synchronisation affiche « Résultats IA non mis à jour » et l'heure de la dernière mise à jour réussie. Un refus de cette seule route ne termine pas la session.
+
+**Purges.** La table est vidée avec le patient (`purge_patient`), au verrouillage d'un dossier sorti du scope, avec le périmètre clinique (`purge_clinical_data`, changement d'utilisateur) et **à la déconnexion**. Un test vérifie qu'aucun texte d'une conclusion n'est écrit ailleurs que dans la base chiffrée.
+
+**Volontairement exclu.** Les images, les masques, les cartes, les tracés et les **PDF** de rapport (le Desktop ne garde que le numéro et l'empreinte) ; les analyses non validées ; les analyses d'un patient hors du scope ; toute possibilité de lancer, valider ou corriger une analyse depuis le Desktop. Le bouton « Ouvrir sur HealixDz Web » mène à la page de l'analyse (`/doctor/ai-analyses/runs/{runId}`) et se désactive hors ligne.
+
+**Où le médecin les voit.** Onglet « Analyses IA » du dossier (la conclusion du médecin d'abord, la proposition du modèle en retrait) ; panneau repliable « Contexte IA » de la consultation, qui n'insère rien tant que le médecin ne clique pas sur « Citer dans l'évaluation » ; section « Résultats IA récents » de la page Aujourd'hui (décidés ces 7 derniers jours, patients du jour et patients récents). Mention permanente, la phrase de la plateforme web : « Outil d'assistance. L'interprétation et la validation restent médicales. »
 
 ## Limites connues de la V1 (choix assumés)
 

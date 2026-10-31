@@ -32,10 +32,10 @@ export const AI_REPORT_STATUS = AiAnalysisRunStatus.SUCCEEDED;
 const MODULE_LABELS: Readonly<Record<string, string>> = {
   brain: 'IRM cérébrale',
   'cardio-ecg': 'ECG 12 dérivations',
-  'cardio-seg-mri': 'IRM cardiaque (segmentation)',
-  'cardio-volume-mri': 'IRM cardiaque (volumes et FEVG)',
+  'cardio-seg-mri': 'Segmentation cardiaque par IRM',
+  'cardio-volume-mri': 'Volumétrie cardiaque par IRM',
   'pathology-breast': 'Pathologie mammaire',
-  'pathology-nuclei': 'Pathologie (noyaux cellulaires)',
+  'pathology-nuclei': 'Segmentation des noyaux cellulaires',
 };
 
 export const aiModuleLabel = (pipeline: string): string =>

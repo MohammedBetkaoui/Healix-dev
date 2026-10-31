@@ -71,6 +71,11 @@ jobs:
 
       - run: npm run build
 
+      # nest build leaves the specs out of its tsconfig: the specs are type-checked
+      # here, so that a typing error in a test fails the job like one in the code.
+      - name: Type-check the sources and the specs
+        run: npx tsc --noEmit
+
       - name: Test database
         run: |
           mysql -h 127.0.0.1 -uroot -pci-root-password \

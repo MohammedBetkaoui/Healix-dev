@@ -13,7 +13,7 @@ const brain = () => aiReport("r1", "p1", { decidedAt: decided, createdAt: decide
 const volumetry = (lvef: number | null, extra: Record<string, number | null> = {}) =>
   aiReport("v1", "p1", {
     pipeline: "cardio-volume-mri",
-    moduleLabel: "IRM cardiaque (volumes et FEVG)",
+    moduleLabel: "Volumétrie cardiaque par IRM",
     decisionLabel: null,
     modelDecision: null,
     topPredictions: [],

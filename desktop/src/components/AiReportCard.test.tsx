@@ -7,7 +7,7 @@ import type { AiReport } from "../types";
 const volumetry = (lvef: number) =>
   aiReport("v1", "p1", {
     pipeline: "cardio-volume-mri",
-    moduleLabel: "IRM cardiaque (volumes et FEVG)",
+    moduleLabel: "Volumétrie cardiaque par IRM",
     decisionLabel: null,
     modelDecision: null,
     topPredictions: [],
@@ -99,6 +99,13 @@ describe("a cardiac volumetry result", () => {
       expect(pill.textContent).toBe(text);
       unmount();
     }
+  });
+
+  it("headlines the figure and leaves the class to its pill, without saying it twice", () => {
+    const { card } = renderCard(volumetry(52));
+    const headline = card.querySelector("[data-conclusion] > p:nth-of-type(2)") as HTMLElement;
+    expect(headline.textContent).toBe("FEVG 52 %");
+    expect(card.querySelectorAll("[data-lvef-class]")).toHaveLength(1);
   });
 
   it("shows the fractions, volumes and mass, the indexed value and the source of the classes", () => {

@@ -49,6 +49,12 @@ type ChangeRow = {
   payload: { syncVersion: number; assessment: string | null } | null;
 };
 
+// A value the test needs: its absence is the failure, with a name.
+function defined<T>(value: T | undefined, what: string): T {
+  if (value === undefined) throw new Error(`Missing: ${what}.`);
+  return value;
+}
+
 describeWithDatabase('the snapshot coherence of the bootstrap', () => {
   let moduleRef: TestingModule;
   let prisma: PrismaService;
@@ -204,8 +210,11 @@ describeWithDatabase('the snapshot coherence of the bootstrap', () => {
     await webUpdate(consultation.id, 'v2-before-bootstrap');
 
     const snapshot = await sync.bootstrap(actor);
-    const row = snapshot.consultations.find(
-      (candidate: ConsultationRow) => candidate.id === consultation.id,
+    const row = defined(
+      snapshot.consultations.find(
+        (candidate: ConsultationRow) => candidate.id === consultation.id,
+      ),
+      'the consultation row of the snapshot',
     );
     expect(row.syncVersion).toBe(2);
     expect(row.assessment).toBe('Web v2-before-bootstrap');
@@ -230,8 +239,11 @@ describeWithDatabase('the snapshot coherence of the bootstrap', () => {
     );
 
     const snapshot = await sync.bootstrap(actor);
-    const before = snapshot.consultations.find(
-      (candidate: ConsultationRow) => candidate.id === consultation.id,
+    const before = defined(
+      snapshot.consultations.find(
+        (candidate: ConsultationRow) => candidate.id === consultation.id,
+      ),
+      'the consultation row of the snapshot',
     );
     const beforeVersion = before.syncVersion;
 
@@ -288,8 +300,11 @@ describeWithDatabase('the snapshot coherence of the bootstrap', () => {
       // Deterministic catch-up bootstrap, then the pull chain the desktop
       // really performs.
       const snapshot = await sync.bootstrap(actor);
-      const row = snapshot.consultations.find(
-        (candidate: ConsultationRow) => candidate.id === consultation.id,
+      const row = defined(
+        snapshot.consultations.find(
+          (candidate: ConsultationRow) => candidate.id === consultation.id,
+        ),
+        'the consultation row of the snapshot',
       );
       expect(snapshot.authorizedPatientIds).toContain(patient.id);
 

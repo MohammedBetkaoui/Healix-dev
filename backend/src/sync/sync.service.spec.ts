@@ -28,7 +28,7 @@ const actor: OfflineActor = {
       completeOnSync: true,
     },
     appointments: { read: true, write: false },
-    prescriptions: { draft: false, validate: false },
+    prescriptions: { draft: true, validate: false },
     ai: false,
     dicom: false,
   },

@@ -2,7 +2,7 @@ import 'dotenv/config';
 
 import { ConfigService } from '@nestjs/config';
 import { PrismaMariaDb } from '@prisma/adapter-mariadb';
-import { PrismaClient, SyncChangeOperation } from '@prisma/client';
+import { type Prisma, PrismaClient, SyncChangeOperation } from '@prisma/client';
 import * as bcrypt from 'bcrypt';
 
 import { PrescriptionRegulatoryService } from '../src/prescriptions/prescription-regulatory.service';
@@ -14,18 +14,22 @@ import {
   algiersInstant,
   assertSeedAllowed,
   DEMO_CONSULTATIONS,
+  DEMO_AI_RUNS,
   DEMO_DOCTOR,
   DEMO_MEDICATIONS,
   DEMO_PATIENTS,
   DEMO_PRESCRIPTION,
   demoAppointmentsFor,
+  demoVolumetry,
   fingerprint,
   resolveSeedDay,
 } from './demo-cabinet-data';
 
 // A complete demo cabinet for the Desktop presentation (docs/demo-soutenance.md):
 // "Dr Démonstration", eight patients, five appointments today, three past
-// consultations and a validated prescription. Idempotent: every row has a fixed
+// consultations, a validated prescription and three AI analyses the doctor
+// already decided (brain MRI validated, breast pathology corrected, cardiac
+// volumetry validated with an ejection fraction of 52 %). Idempotent: every row has a fixed
 // id and is created or updated, so it can be run again (the day before, and
 // again on the morning of the presentation). Every run also records the rows in
 // the synchronization feed, so that a Desktop that already holds the cabinet
@@ -420,6 +424,67 @@ async function seed(prisma: PrismaClient) {
     prescriptionCreated = true;
   }
 
+  // -- three decided AI analyses ---------------------------------------------
+  // Rows only: no image, no mask, no PDF (the source document and the report
+  // have no file). The Desktop reads them from GET /sync/ai-reports, which is not
+  // part of the synchronization feed: nothing to record below for them.
+  for (const demo of DEMO_AI_RUNS) {
+    const decidedAt = at(demo.time, demo.dayOffset);
+    await prisma.patientDocument.upsert({
+      where: { id: demo.documentId },
+      create: {
+        id: demo.documentId,
+        patientId: demo.patientId,
+        documentType: demo.documentType,
+        originalName: demo.documentName,
+        storedName: demo.documentName,
+        mimeType: demo.documentMimeType,
+        size: 0,
+        uploadedById: user.id,
+      },
+      update: { patientId: demo.patientId },
+    });
+    const run = {
+      patientId: demo.patientId,
+      sourceDocumentId: demo.documentId,
+      pipeline: demo.pipeline,
+      status: 'SUCCEEDED' as const,
+      classificationModelId: demo.classificationModelId,
+      segmentationModelId: demo.segmentationModelId,
+      volumetry:
+        demo.pipeline === 'cardio-volume-mri'
+          ? (demoVolumetry() as unknown as Prisma.InputJsonValue)
+          : undefined,
+      clinicianImpression: demo.clinicianImpression,
+      requestedById: user.id,
+      decisionStatus: demo.decisionStatus,
+      decisionLabel: demo.decisionLabel,
+      decisionReason: demo.decisionReason,
+      decidedById: user.id,
+      decidedAt,
+      createdAt: new Date(decidedAt.getTime() - 3 * 60_000),
+      ...demo.columns,
+    };
+    await prisma.aiAnalysisRun.upsert({
+      where: { id: demo.id },
+      create: { ...run, id: demo.id },
+      update: run,
+    });
+    const reportData = {
+      reportNumber: demo.reportNumber,
+      sha256: fingerprint(`demo-report-file:${demo.id}`),
+      contentSha256: fingerprint(`demo-report-content:${demo.id}`),
+      sizeBytes: 0,
+      generatedById: user.id,
+      createdAt: new Date(decidedAt.getTime() + 60_000),
+    };
+    await prisma.aiAnalysisReport.upsert({
+      where: { runId: demo.id },
+      create: { ...reportData, runId: demo.id },
+      update: reportData,
+    });
+  }
+
   // -- the synchronization feed ----------------------------------------------
   // So that a Desktop which already holds the cabinet gets today's rows and the
   // validated prescription at its next synchronization (a validated
@@ -454,6 +519,7 @@ async function seed(prisma: PrismaClient) {
       `  Mot de passe : ${process.env.DEMO_DOCTOR_PASSWORD?.trim() ? '(celui de DEMO_DOCTOR_PASSWORD)' : DEMO_DOCTOR.defaultPassword}`,
       `  Patients  : ${DEMO_PATIENTS.length}   Rendez-vous aujourd’hui (${day}) : ${appointmentIds.length}`,
       `  Consultations passées : ${consultationIds.length}   Ordonnance validée : ${DEMO_PRESCRIPTION.number}`,
+      `  Analyses IA décidées : ${DEMO_AI_RUNS.length} (cerveau, sein, cœur)`,
       '',
     ].join('\n'),
   );

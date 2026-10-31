@@ -8,15 +8,24 @@ import {
   algiersInstant,
   assertSeedAllowed,
   canonicalize,
+  DEMO_AI_RUNS,
   DEMO_CONSULTATIONS,
   DEMO_DOCTOR,
   DEMO_MEDICATIONS,
   DEMO_PATIENTS,
   DEMO_PRESCRIPTION,
+  type DemoAiRun,
   demoAppointmentsFor,
+  demoVolumetry,
   fingerprint,
   resolveSeedDay,
 } from '../prisma/demo-cabinet-data';
+import {
+  effectiveMeasures,
+  readVolumetry,
+} from './ai-analysis-runs/volumetry/volumetry';
+import { lvefClass } from './ai-analysis-runs/volumetry/volumetry-measures';
+import { type AiReportRun, toAiReportSyncPayload } from './sync/ai-report-sync';
 import { ConsultationVitalSignsDto } from './consultations/dto/update-consultation.dto';
 import { PrescriptionSafetyService } from './prescriptions/prescription-safety.service';
 
@@ -240,5 +249,156 @@ describe('the validated prescription', () => {
       canonicalize({ b: new Date('2026-10-30T00:00:00.000Z'), a: 1 }),
     ).toEqual({ a: 1, b: '2026-10-30T00:00:00.000Z' });
     expect(fingerprint({ a: 1 })).not.toBe(fingerprint({ a: 2 }));
+  });
+});
+
+// The analyses the doctor already decided, read offline by the Desktop.
+describe('the decided AI analyses', () => {
+  const byPipeline = (pipeline: DemoAiRun['pipeline']) =>
+    DEMO_AI_RUNS.find((run) => run.pipeline === pipeline)!;
+
+  // The row as GET /sync/ai-reports reads it.
+  const asRun = (demo: DemoAiRun): AiReportRun => {
+    const columns = demo.columns;
+    return {
+      id: demo.id,
+      patientId: demo.patientId,
+      pipeline: demo.pipeline,
+      createdAt: new Date('2026-10-28T09:00:00.000Z'),
+      decidedAt: new Date('2026-10-28T09:30:00.000Z'),
+      decisionStatus: demo.decisionStatus,
+      decisionLabel: demo.decisionLabel,
+      decisionLabels: null,
+      clinicianImpression: demo.clinicianImpression,
+      modelDecision: columns.modelDecision ?? null,
+      predictions: columns.predictions ?? null,
+      malignancyScore: columns.malignancyScore ?? null,
+      decisionThreshold: columns.decisionThreshold ?? null,
+      magnification: columns.magnification ?? null,
+      maskAreaRatio: columns.maskAreaRatio ?? null,
+      volumetry: demo.pipeline === 'cardio-volume-mri' ? demoVolumetry() : null,
+      classificationModelId: demo.classificationModelId,
+      classificationWeightsSha256: columns.classificationWeightsSha256 ?? null,
+      segmentationModelId: demo.segmentationModelId,
+      segmentationWeightsSha256: columns.segmentationWeightsSha256 ?? null,
+      decidedBy: { fullName: DEMO_DOCTOR.fullName },
+      report: { reportNumber: demo.reportNumber, sha256: 'a'.repeat(64) },
+    };
+  };
+
+  it('are three, for three patients of the cabinet, with ids that do not collide', () => {
+    expect(DEMO_AI_RUNS).toHaveLength(3);
+    const patients = new Set(DEMO_PATIENTS.map((patient) => patient.id));
+    for (const run of DEMO_AI_RUNS) {
+      expect(patients.has(run.patientId)).toBe(true);
+    }
+    for (const key of [
+      'id',
+      'documentId',
+      'patientId',
+      'reportNumber',
+    ] as const) {
+      expect(new Set(DEMO_AI_RUNS.map((run) => run[key])).size).toBe(3);
+    }
+    for (const run of DEMO_AI_RUNS) {
+      expect(run.id).toMatch(/^demo-ai-run-\d+$/);
+    }
+  });
+
+  it('are a validated brain MRI, a corrected breast pathology and a validated cardiac volumetry', () => {
+    expect(DEMO_AI_RUNS.map((run) => run.pipeline).sort()).toEqual([
+      'brain',
+      'cardio-volume-mri',
+      'pathology-breast',
+    ]);
+    expect(byPipeline('brain')).toMatchObject({
+      decisionStatus: 'VALIDATED',
+      decisionLabel: 'meningioma',
+    });
+    expect(byPipeline('cardio-volume-mri')).toMatchObject({
+      decisionStatus: 'VALIDATED',
+      decisionLabel: null,
+    });
+    const pathology = byPipeline('pathology-breast');
+    expect(pathology.decisionStatus).toBe('CORRECTED');
+    // A correction has its reason, and says something other than the model did.
+    expect(pathology.decisionReason).toBeTruthy();
+    expect(pathology.decisionLabel).toBe('benign');
+    expect(pathology.columns.modelDecision).toBe('malignant');
+    // The score is above the threshold: that is why the model said malignant.
+    expect(pathology.columns.malignancyScore!).toBeGreaterThan(
+      pathology.columns.decisionThreshold!,
+    );
+  });
+
+  it('hold no image, mask or PDF: no path anywhere, and report numbers the sequence of the year ignores', () => {
+    for (const run of DEMO_AI_RUNS) {
+      expect(
+        Object.keys(run.columns).filter((key) => key.endsWith('Path')),
+      ).toEqual([]);
+      expect(run.reportNumber.length).toBeLessThanOrEqual(20);
+      // "CR-IA-<year>-NNNNNN" is what the real numbering counts from.
+      expect(run.reportNumber).not.toMatch(/^CR-IA-\d{4}-/);
+    }
+  });
+
+  it('were decided in the days before the presentation, inside the 7 days of the home page', () => {
+    for (const run of DEMO_AI_RUNS) {
+      expect(run.dayOffset).toBeLessThan(0);
+      expect(run.dayOffset).toBeGreaterThanOrEqual(-6);
+      expect(run.time).toMatch(/^\d{2}:\d{2}$/);
+    }
+  });
+
+  it('give the volumetry an ejection fraction of 52 %, preserved, from the computation of the server', () => {
+    const volumetry = readVolumetry(demoVolumetry());
+    expect(volumetry).not.toBeNull();
+    const measures = effectiveMeasures(volumetry!);
+    expect(Math.round(measures.lv.efPercent!)).toBe(52);
+    expect(lvefClass(measures.lv.efPercent)).toBe('preserved');
+    expect(measures.indexed).not.toBeNull();
+    expect(volumetry!.auto.edPhase).toBe(0);
+    expect(volumetry!.auto.esPhase).toBe(5);
+    expect(volumetry!.corrected).toBeNull();
+    // Idempotent: the same data on every run.
+    expect(demoVolumetry()).toEqual(demoVolumetry());
+  });
+
+  it('come out of the Desktop endpoint as the three results the demo shows', () => {
+    const brain = toAiReportSyncPayload(asRun(byPipeline('brain')));
+    expect(brain.moduleLabel).toBe('IRM cérébrale');
+    expect(brain.modelDecision).toBe('meningioma');
+    expect(brain.topPredictions).toHaveLength(3);
+    expect(brain.measures).toEqual({ maskAreaRatio: 0.031 });
+    expect(brain.classificationWeightsSha12).toHaveLength(12);
+    expect(brain.segmentationWeightsSha12).toHaveLength(12);
+    expect(brain.reportNumber).toBe('CR-IA-DEMO-000001');
+
+    const pathology = toAiReportSyncPayload(
+      asRun(byPipeline('pathology-breast')),
+    );
+    expect(pathology.decisionStatus).toBe('CORRECTED');
+    expect(pathology.decisionLabel).toBe('benign');
+    expect(pathology.modelDecision).toBe('malignant');
+    expect(pathology.measures).toEqual({
+      malignancyScore: 0.58,
+      decisionThreshold: 0.5,
+      magnification: 200,
+    });
+
+    const cardiac = toAiReportSyncPayload(
+      asRun(byPipeline('cardio-volume-mri')),
+    );
+    expect(Math.round(cardiac.measures.lvef!)).toBe(52);
+    expect(cardiac.measures.lvedvIndexed).not.toBeNull();
+  });
+
+  it('leave out of the Desktop endpoint everything it must not carry', () => {
+    for (const run of DEMO_AI_RUNS) {
+      const text = JSON.stringify(toAiReportSyncPayload(asRun(run)));
+      if (run.decisionReason) expect(text).not.toContain(run.decisionReason);
+      // A key ending in Path (not the word "Pathologie").
+      expect(text).not.toMatch(/Path"s*:|ttaScores|nucleiFractions/);
+    }
   });
 });

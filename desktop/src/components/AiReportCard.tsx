@@ -1,7 +1,7 @@
 import type { CSSProperties } from "react";
 import { Activity, Brain, ExternalLink, HeartPulse, Info, Microscope, Sparkles, type LucideIcon } from "lucide-react";
 import {
-  ESC_SOURCE, LVEF_CLASS_LABEL, classTitle, conclusionOf, decidedOn, formatPercent, lvefClass, measureLines,
+  ESC_SOURCE, LVEF_CLASS_LABEL, classTitle, conclusionOf, decidedOn, formatNumber, formatPercent, lvefClass, measureLines,
   proposalOf, specialtyColor, specialtyOf, type Specialty,
 } from "../ai-reports";
 import { Button, ListState, Notice, StatusBadge, cn } from "../dashboard-ui";
@@ -63,6 +63,9 @@ export function AiReportCard({ report, offline, onOpenRun }: {
   const ef = report.pipeline === "cardio-volume-mri" ? lvefClass(report.measures.lvef) : null;
   const proposal = proposalOf(report);
   const conclusion = conclusionOf(report);
+  // The class has its own pill: the headline of a volumetry is the figure itself.
+  const lvef = report.measures.lvef;
+  const headline = ef && lvef !== null && lvef !== undefined ? `FEVG ${formatNumber(lvef)} %` : capitalize(conclusion);
   const style = { "--ai-module-color": specialtyColor(specialty) } as CSSProperties;
 
   return (
@@ -90,7 +93,7 @@ export function AiReportCard({ report, offline, onOpenRun }: {
       <section className="mt-4" aria-label={fr.ai.conclusion} data-conclusion="">
         <p className="text-[0.7rem] font-semibold uppercase tracking-wide text-[var(--ink-faint)]">{fr.ai.conclusion}</p>
         <p className="mt-1 text-base font-semibold text-[var(--ink)]">
-          {capitalize(conclusion)}
+          {headline}
         </p>
         {ef ? (
           <p className="mt-2">

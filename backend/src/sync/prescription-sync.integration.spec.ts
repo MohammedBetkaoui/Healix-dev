@@ -6,6 +6,8 @@ import { mkdirSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
+import { AdministrationRoute, PharmaceuticalForm, PrescriptionRegulatoryCategory } from '@prisma/client';
+
 import { AiReportRenderer } from '../ai-analysis-runs/report/ai-report-renderer';
 import {
   assertTestDatabaseName,
@@ -20,6 +22,7 @@ import {
 import { OfflineDevicesService } from '../offline-devices/offline-devices.service';
 import { PrismaModule } from '../prisma/prisma.module';
 import { PrismaService } from '../prisma/prisma.service';
+import { type CreatePrescriptionItemDto } from '../prescriptions/dto/create-prescription-item.dto';
 import { PrescriptionsModule } from '../prescriptions/prescriptions.module';
 import { PrescriptionsService } from '../prescriptions/prescriptions.service';
 import { WorkspaceModule } from '../workspaces/workspace.module';
@@ -147,17 +150,27 @@ describeWithDatabase('the prescription vertical against real queries', () => {
     return { claims, actor };
   };
 
-  const draftItem = (overrides: Record<string, unknown> = {}) => ({
+  const draftItem = (
+    overrides: Partial<CreatePrescriptionItemDto> = {},
+  ): CreatePrescriptionItemDto => ({
     dci: 'Paracétamol',
     strength: '500 mg',
-    pharmaceuticalForm: 'TABLET',
-    route: 'ORAL',
-    regulatoryCategory: 'STANDARD',
+    pharmaceuticalForm: PharmaceuticalForm.TABLET,
+    route: AdministrationRoute.ORAL,
+    regulatoryCategory: PrescriptionRegulatoryCategory.STANDARD,
     dosePerIntake: '1 comprimé',
     frequency: '3 fois par jour',
     quantity: '1 boîte',
     ...overrides,
   });
+
+  // The payload of a change of the feed, read as a record.
+  const payloadOf = (change: { payload: unknown }): Record<string, unknown> =>
+    typeof change.payload === 'object' &&
+    change.payload !== null &&
+    !Array.isArray(change.payload)
+      ? (change.payload as Record<string, unknown>)
+      : {};
 
   const prescriptionOperation = (input: {
     operationId: string;
@@ -172,7 +185,7 @@ describeWithDatabase('the prescription vertical against real queries', () => {
       carnetReference?: string;
       note?: string;
     };
-    items?: Record<string, unknown>[];
+    items?: CreatePrescriptionItemDto[];
   }) => ({
     operationId: input.operationId,
     entityType: 'PRESCRIPTION',
@@ -655,21 +668,14 @@ describeWithDatabase('the prescription vertical against real queries', () => {
       });
       await prescriptions.validate(doctor.actor, resignedDraft.serverEntityId!);
       const pullValidated = await sync.pull(device.actor);
-      const validatedChange = (
-        pullValidated.changes as {
-          entityType: string;
-          entityId: string;
-          operation: string;
-          payload: { status: string; number: string | null };
-        }[]
-      ).filter(
+      const validatedChange = pullValidated.changes.filter(
         (change) =>
           change.entityType === 'PRESCRIPTION' &&
           change.entityId === resignedDraft.serverEntityId,
       );
       expect(validatedChange.at(-1)?.operation).toBe('UPDATE');
-      expect(validatedChange.at(-1)?.payload.status).toBe('VALIDATED');
-      expect(validatedChange.at(-1)?.payload.number).toMatch(
+      expect(payloadOf(validatedChange.at(-1)!).status).toBe('VALIDATED');
+      expect(payloadOf(validatedChange.at(-1)!).number).toMatch(
         /^ORD-\d{4}-\d{6}$/,
       );
 
@@ -811,12 +817,10 @@ describeWithDatabase('the prescription vertical against real queries', () => {
       await createResult(deviceA, patientA.id);
 
       const pullB = await sync.pull(deviceB.actor);
-      const leaks = (
-        pullB.changes as { entityType: string; payload: { patientId: string } }[]
-      ).filter(
+      const leaks = pullB.changes.filter(
         (change) =>
           change.entityType === 'PRESCRIPTION' &&
-          change.payload?.patientId === patientA.id,
+          payloadOf(change).patientId === patientA.id,
       );
       expect(leaks).toHaveLength(0);
 

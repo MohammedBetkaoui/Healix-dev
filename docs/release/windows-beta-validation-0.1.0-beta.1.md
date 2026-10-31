@@ -129,6 +129,10 @@ Procédure détaillée : `docs/windows-release-checklist.md`.
 | 31 | Alerte d'allergie : enregistrement et impression bloqués tant que la confirmation et son motif manquent ; la confirmation est dans le journal local | tests automatisés réussis ; **NON TESTÉ** sur l'application installée |
 | 32 | Identité du prescripteur et du cabinet : présente après une connexion en ligne, **effacée à la déconnexion**, absente avec un serveur ancien (bouton Imprimer grisé, avec la raison) | tests Rust réussis ; NON TESTÉ sur l'application installée |
 | 33 | Le jeu de démonstration (`npm run seed:demo`) charge un cabinet complet et arrive sur le Desktop (rendez-vous du jour, ordonnance validée via le flux) | NON TESTÉ — le script compile et refuse la production, il n'a **pas été exécuté** sur une base |
+| 34 | Résultats IA validés hors ligne : onglet « Analyses IA » du dossier, panneau « Contexte IA » de la consultation avec citation dans l'évaluation, section « Résultats IA récents » de l'accueil | tests automatisés réussis (Vitest) ; **NON TESTÉ** sur l'application installée avec un serveur réel |
+| 35 | `GET /sync/ai-reports` : périmètre du scope, espace de travail, décisions retenues, plafond de 20, liste blanche, audit | tests unitaires réussis ; test d'intégration MySQL écrit, **exécuté en CI uniquement** |
+| 36 | Échec de la route des résultats IA (serveur ancien, coupure) : la synchronisation réussit, la page Synchronisation affiche « Résultats IA non mis à jour », les résultats déjà reçus restent lisibles | tests Rust réussis ; NON TESTÉ en réel |
+| 37 | Cache IA vidé avec le patient, au verrouillage d'un dossier, au changement d'utilisateur et **à la déconnexion** ; rien en clair hors de la base chiffrée | tests Rust réussis ; NON TESTÉ sur l'application installée |
 
 Les versions A et B doivent être **cohérentes avec le versioning
 réel** (aujourd'hui 0.1.0) : par exemple `0.1.0-beta.1` puis

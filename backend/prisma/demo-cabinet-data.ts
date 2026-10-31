@@ -1,5 +1,15 @@
 import { createHash } from 'node:crypto';
 
+import {
+  type Volumetry,
+  VOLUMETRY_VERSION,
+} from '../src/ai-analysis-runs/volumetry/volumetry';
+import {
+  automaticPhases,
+  computeMeasures,
+  lvVolumeCurveMl,
+} from '../src/ai-analysis-runs/volumetry/volumetry-measures';
+
 // The data and the pure rules of the demo cabinet seed (seed-demo-cabinet.ts):
 // no database here, so that they are tested (demo-cabinet-data.spec.ts) without
 // one. Everything is synthetic. The names are common Algerian names, the
@@ -464,3 +474,195 @@ export const fingerprint = (value: unknown) =>
   createHash('sha256')
     .update(JSON.stringify(canonicalize(value)))
     .digest('hex');
+
+// ---------------------------------------------------------------------------
+// Three AI analyses the doctor already decided on the Web platform: what the
+// Desktop shows offline in the record, the consultation and the home page
+// (GET /sync/ai-reports). Only the rows exist: the source documents have no
+// file and the reports no PDF (storageKey and filePath stay null), so the Web
+// run page of a demo analysis has no image to show. Dates are Algiers day
+// offsets before the day of the presentation, inside the 7 days of the home page.
+// ---------------------------------------------------------------------------
+
+export type DemoAiRun = {
+  id: string;
+  documentId: string;
+  patientId: string;
+  pipeline: 'brain' | 'pathology-breast' | 'cardio-volume-mri';
+  documentType: 'MEDICAL_IMAGE' | 'DICOM';
+  documentName: string;
+  documentMimeType: string;
+  dayOffset: number;
+  time: string;
+  decisionStatus: 'VALIDATED' | 'CORRECTED';
+  decisionLabel: string | null;
+  decisionReason: string | null;
+  clinicianImpression: string;
+  // The model's own answer, as stored by the run.
+  columns: {
+    predictions?: Array<{ label: string; probability: number }>;
+    classificationWeightsSha256?: string;
+    segmentationWeightsSha256?: string;
+    maskAreaPx?: number;
+    maskAreaRatio?: number;
+    magnification?: number;
+    malignancyScore?: number;
+    decisionThreshold?: number;
+    ttaScores?: number[];
+    modelDecision?: string;
+    durationMs?: number;
+  };
+  classificationModelId: string;
+  segmentationModelId: string | null;
+  // "CR-IA-DEMO-…": it does not start with "CR-IA-<year>-", so the sequence of
+  // the real reports of a year is not moved by a demo one.
+  reportNumber: string;
+};
+
+// A short-axis cine stack made up for the demo: 10 phases of 6 slices, end
+// diastole the first phase and end systole the sixth, whose LV area is 0.48 of the
+// first: the volumes follow the areas, so the ejection fraction is 52 %. The
+// measures are computed with the very code the server uses, not written by hand.
+const VOLUME_PHASE_FACTORS = [
+  1, 0.9, 0.78, 0.66, 0.55, 0.48, 0.52, 0.64, 0.8, 0.93,
+] as const;
+const VOLUME_GAP_MM = 8;
+const LV_BASE = [4800, 4160, 3360, 2560, 1600, 800];
+const RV_BASE = [5400, 4800, 3840, 2880, 1760, 900];
+const MYO_BASE = [2900, 2700, 2550, 2250, 1600, 960];
+
+export function demoVolumetry(): Volumetry {
+  const areas = VOLUME_PHASE_FACTORS.map((factor) =>
+    LV_BASE.map((lv, index) => ({
+      LV: lv * factor,
+      MYO: MYO_BASE[index] * (2 - factor) * 0.5 + MYO_BASE[index] * 0.5,
+      RV: RV_BASE[index] * (0.5 + factor / 2),
+    })),
+  );
+  const curve = lvVolumeCurveMl(areas, VOLUME_GAP_MM);
+  const [edPhase, esPhase] = automaticPhases(curve);
+  const bsaM2 = 1.9;
+  const heartRateBpm = 70;
+  return {
+    version: VOLUMETRY_VERSION,
+    phases: areas.length,
+    slices: LV_BASE.map((_, index) => ({
+      positionMm: index * VOLUME_GAP_MM,
+      stepMm: index === LV_BASE.length - 1 ? null : VOLUME_GAP_MM,
+    })),
+    sliceGapMm: VOLUME_GAP_MM,
+    sliceOrderInferred: false,
+    phaseTimesMs: areas.map((_, index) => index * 86),
+    pixelSpacingMm: [1.5, 1.5],
+    areasMm2: areas,
+    bsaM2,
+    heartRateBpm,
+    warnings: [],
+    images: { edPhase, esPhase, slices: LV_BASE.length },
+    auto: {
+      edPhase,
+      esPhase,
+      lvVolumeCurveMl: curve,
+      measures: computeMeasures(
+        areas,
+        VOLUME_GAP_MM,
+        edPhase,
+        esPhase,
+        [],
+        bsaM2,
+        heartRateBpm,
+      ),
+    },
+    corrected: null,
+  };
+}
+
+// The SHA-256 of weights the demo models "have": made up, but stable.
+const demoSha = (label: string) => fingerprint(`demo-weights:${label}`);
+
+export const DEMO_AI_RUNS: DemoAiRun[] = [
+  {
+    id: 'demo-ai-run-1',
+    documentId: 'demo-ai-document-1',
+    patientId: 'demo-patient-3',
+    pipeline: 'brain',
+    documentType: 'MEDICAL_IMAGE',
+    documentName: 'demo-irm-cerebrale.png',
+    documentMimeType: 'image/png',
+    dayOffset: -2,
+    time: '15:10',
+    decisionStatus: 'VALIDATED',
+    decisionLabel: 'meningioma',
+    decisionReason: null,
+    clinicianImpression:
+      'Lésion extra-axiale frontale droite, bien limitée, compatible avec un méningiome. IRM de contrôle à 6 mois.',
+    columns: {
+      predictions: [
+        { label: 'meningioma', probability: 0.87 },
+        { label: 'glioma', probability: 0.07 },
+        { label: 'pituitary', probability: 0.04 },
+        { label: 'notumor', probability: 0.02 },
+      ],
+      classificationWeightsSha256: demoSha('brain-classification'),
+      segmentationWeightsSha256: demoSha('brain-segmentation'),
+      maskAreaPx: 2031,
+      maskAreaRatio: 0.031,
+      durationMs: 4200,
+    },
+    classificationModelId: 'brain-efficientnetb4-tumor-classification',
+    segmentationModelId: 'brain-unet-meningioma-segmentation',
+    reportNumber: 'CR-IA-DEMO-000001',
+  },
+  {
+    id: 'demo-ai-run-2',
+    documentId: 'demo-ai-document-2',
+    patientId: 'demo-patient-4',
+    pipeline: 'pathology-breast',
+    documentType: 'MEDICAL_IMAGE',
+    documentName: 'demo-lame-sein-200x.png',
+    documentMimeType: 'image/png',
+    dayOffset: -3,
+    time: '11:25',
+    decisionStatus: 'CORRECTED',
+    decisionLabel: 'benign',
+    decisionReason:
+      'Aspect de fibro-adénome à la relecture de la lame ; score proche du seuil.',
+    clinicianImpression:
+      'Lésion bénigne de type fibro-adénome. Corrélation avec l’examen de la pièce opératoire.',
+    columns: {
+      magnification: 200,
+      malignancyScore: 0.58,
+      decisionThreshold: 0.5,
+      ttaScores: [0.52, 0.61, 0.57, 0.62],
+      modelDecision: 'malignant',
+      classificationWeightsSha256: demoSha('pathology-breakhis'),
+      durationMs: 2600,
+    },
+    classificationModelId: 'pathology-breakhis-classification',
+    segmentationModelId: null,
+    reportNumber: 'CR-IA-DEMO-000002',
+  },
+  {
+    id: 'demo-ai-run-3',
+    documentId: 'demo-ai-document-3',
+    patientId: 'demo-patient-1',
+    pipeline: 'cardio-volume-mri',
+    documentType: 'DICOM',
+    documentName: 'demo-serie-cine-cardiaque.zip',
+    documentMimeType: 'application/zip',
+    dayOffset: -1,
+    time: '16:40',
+    decisionStatus: 'VALIDATED',
+    decisionLabel: null,
+    decisionReason: null,
+    clinicianImpression:
+      'Fonction systolique du ventricule gauche conservée (FEVG 52 %). Pas de dilatation ventriculaire.',
+    columns: {
+      classificationWeightsSha256: demoSha('cardio-volume'),
+      durationMs: 31000,
+    },
+    classificationModelId: 'cardio-seg-acdc-unet-effb4',
+    segmentationModelId: null,
+    reportNumber: 'CR-IA-DEMO-000003',
+  },
+];
