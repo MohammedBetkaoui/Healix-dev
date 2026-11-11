@@ -31,7 +31,7 @@ export async function deleteDicomStudy(studyId: string): Promise<void> {
 }
 
 // The .dcm files, or the .zip, in one request. The import can run for minutes
-// (up to 512 MiB, then Orthanc): no timeout, the progress of the upload is
+// (up to 2 GiB, then Orthanc): no timeout, the progress of the upload is
 // reported as a fraction between 0 and 1.
 export async function importDicomStudies(
   patientId: string,

@@ -1,8 +1,8 @@
 // What may be sent to POST /dicom/studies/upload, checked before it is: the
-// same limits as the backend (backend/src/dicom/dicom-zip.ts) and Caddy (512
-// MiB for this route only). The server checks them again.
-export const DICOM_MAX_UPLOAD_BYTES = 512 * 1024 * 1024;
-export const DICOM_MAX_FILES = 2000;
+// same limits as the backend (backend/src/dicom/dicom-zip.ts) and Caddy (2
+// GiB for this route only). The server checks them again.
+export const DICOM_MAX_UPLOAD_BYTES = 2048 * 1024 * 1024;
+export const DICOM_MAX_FILES = 20_000;
 
 export type DicomSelectionProblem =
   | "empty"

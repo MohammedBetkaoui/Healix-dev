@@ -19,3 +19,6 @@
 # Temporary pytest folders (--basetemp): never committed.
 ai-service/pytest-*/
 .pytest_cache/
+
+# Demo video scripts (Playwright + OBS), their recordings and passwords: never committed.
+/demo-video/

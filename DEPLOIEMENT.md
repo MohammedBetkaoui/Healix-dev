@@ -729,20 +729,20 @@ requis (lecture et liste restent ouvertes en lecture seule).
 
 | Limite | Valeur |
 | --- | --- |
-| Envoyé en une fois | 512 Mio (Caddy lève sa limite de 21 Mio pour cette seule route) |
-| Fichiers par import | 2 000 |
-| ZIP décompressé | 2 Gio (taille déclarée par l'archive, vérifiée à la lecture) |
+| Envoyé en une fois | 2 Gio (Caddy lève sa limite de 21 Mio pour cette seule route) |
+| Fichiers par import | 20 000 |
+| ZIP décompressé | 8 Gio (taille déclarée par l'archive, vérifiée à la lecture) |
 | Un fichier DICOM | 512 Mio |
 
 - **Fichiers .dcm** (plusieurs) **ou un seul .zip**, jamais les deux.
 - Chaque fichier doit porter `DICM` à l'octet 128, sinon il est **ignoré** et
   compté dans `skipped`. Les valides partent un à un vers Orthanc.
 - Les fichiers reçus attendent dans un dossier temporaire du conteneur
-  backend (`/tmp`, jusqu'à 512 Mio), supprimé à la fin de la requête, qu'elle
+  backend (`/tmp`, jusqu’à 2 Gio), supprimé à la fin de la requête, qu'elle
   réussisse ou non. Un ZIP est lu entrée par entrée, **jamais extrait sur le
   disque**, et **refusé en entier**, avant tout envoi, s'il contient : un chemin absolu, un segment `..` ou une
   barre oblique inverse ; un ZIP imbriqué (par son nom, ou par son contenu) ;
-  une entrée chiffrée ; plus de 2 000 fichiers ; plus de 2 Gio décompressés ;
+  une entrée chiffrée ; plus de 20 000 fichiers ; plus de 8 Gio décompressés ;
   ou s'il est corrompu : 422 `DICOM_ZIP_UNSAFE` et la raison.
 - Un ZIP peut contenir **plusieurs études** : une ligne chacune.
 - Aucun fichier valide : 422 `DICOM_NO_VALID_FILE`.
@@ -1005,7 +1005,7 @@ Vérifié :
   `docker-compose.dev.yml` : valide ; `orthanc` n'est que sur `internal`, sans
   port publié ; l'absence de `ORTHANC_PASSWORD` est refusée.
 - Caddy 2.11.7 : `caddy validate` passe pour les deux Caddyfile ; `caddy
-  adapt` montre deux `request_body` exclusifs : 512 Mio pour
+  adapt` montre deux `request_body` exclusifs : 2 Gio pour
   `/api/dicom/studies/upload`, 21 Mio pour tout le reste.
 - Les routes d'Orthanc utilisées existent dans son OpenAPI (`orthanc-openapi.json`,
   version 1.13.0 de l'API) : `POST /instances`, `GET /studies/{id}`,

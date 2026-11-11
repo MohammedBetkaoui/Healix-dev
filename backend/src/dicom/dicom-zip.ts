@@ -4,17 +4,17 @@ import { DicomZipRefusal } from './dicom-errors';
 
 const MiB = 1024 * 1024;
 
-// What a DICOM import may be made of. The 512 MiB sent are also the limit of
+// What a DICOM import may be made of. The 2 GiB sent are also the limit of
 // Caddy for this route (caddy/healixdz-site.caddy).
 export const DICOM_IMPORT_LIMITS = {
   /** Files in one import (the entries of a ZIP, or the .dcm files sent). */
-  maxFiles: 2000,
+  maxFiles: 20_000,
   /** One DICOM file: it is read whole, to be sent to Orthanc. */
   maxInstanceBytes: 512 * MiB,
   /** Declared size of everything a ZIP holds, once decompressed. */
-  maxUncompressedBytes: 2048 * MiB,
+  maxUncompressedBytes: 8192 * MiB,
   /** What is sent: the files together, or the ZIP. */
-  maxUploadBytes: 512 * MiB,
+  maxUploadBytes: 2048 * MiB,
 } as const;
 
 export type DicomImportLimits = {

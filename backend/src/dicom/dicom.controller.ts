@@ -57,7 +57,8 @@ export class DicomController {
   ) {}
 
   // Several .dcm files, or one .zip (field "files"), and the patientId. Up to
-  // 512 MiB (Caddy lifts its usual 21 MiB limit for this route only).
+  // 2 GiB and 20 000 files (Caddy lifts its usual 21 MiB limit for this route
+  // only).
   @Post('studies/upload')
   @RequiresActiveSubscription()
   @UseInterceptors(

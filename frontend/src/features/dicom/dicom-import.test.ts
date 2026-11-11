@@ -42,14 +42,14 @@ describe("checkDicomSelection", () => {
     });
   });
 
-  it("refuses more than 2 000 files", () => {
+  it("refuses more than 20 000 files", () => {
     const files = Array.from({ length: DICOM_MAX_FILES + 1 }, (_, index) => file(`${index}.dcm`));
 
     expect(checkDicomSelection(files)).toEqual({ ok: false, problem: "tooManyFiles" });
     expect(checkDicomSelection(files.slice(0, DICOM_MAX_FILES)).ok).toBe(true);
   });
 
-  it("refuses more than 512 MiB in all, and accepts exactly 512 MiB", () => {
+  it("refuses more than 2 GiB in all, and accepts exactly 2 GiB", () => {
     expect(checkDicomSelection([file("a.dcm", DICOM_MAX_UPLOAD_BYTES), file("b.dcm", 1)])).toEqual({
       ok: false,
       problem: "tooLarge",

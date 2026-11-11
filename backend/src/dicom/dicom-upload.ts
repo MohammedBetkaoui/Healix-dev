@@ -17,7 +17,7 @@ export const DICOM_UPLOAD_FIELD = 'files';
 
 type RequestWithUploadDir = Request & { dicomUploadDir?: string };
 
-// The files of an import (up to 512 MiB) wait on disk, not in memory, and are
+// The files of an import (up to 2 GiB) wait on disk, not in memory, and are
 // removed when the request ends, whatever way it ends (answered, refused,
 // failed, or refused by multer before the handler ran). This interceptor is
 // listed BEFORE FilesInterceptor so that it wraps it.

@@ -38,6 +38,10 @@ async function bootstrap() {
   );
 
   await app.listen(port);
+
+  // Node gives a request 5 minutes to arrive whole; a DICOM import of 2 GiB
+  // over a slow link takes longer. Caddy stands in front of the API.
+  app.getHttpServer().requestTimeout = 30 * 60 * 1000;
 }
 bootstrap().catch((error) => {
   // Avoid leaking sensitive configuration values in startup logs.
